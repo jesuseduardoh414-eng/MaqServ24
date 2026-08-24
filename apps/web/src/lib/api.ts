@@ -61,14 +61,35 @@ const TIMEOUT_MS = EN_BUILD ? 15_000 : 6_000;
 const INTENTOS = EN_BUILD ? 3 : 1;
 const ESPERA_MS = 4_000;
 
+/**
+ * Tope de espera SIN `AbortSignal`.
+ *
+ * Parece más natural pasar `signal: AbortSignal.timeout(...)` al fetch, y así
+ * estaba escrito primero. En local funcionaba y en Vercel fallaban TODAS las
+ * llamadas de este módulo: el catálogo salía con cero productos y sin chips de
+ * categoría, mientras `lib/theme.ts` —que hace el mismo fetch pero sin signal—
+ * respondía bien. Un fetch con `next.revalidate` no admite un `signal`: Next no
+ * puede guardar en su Data Cache una petición cancelable.
+ *
+ * Con `Promise.race` el tope es nuestro y las opciones del fetch quedan
+ * intactas, así que el Data Cache sigue funcionando. La petición perdedora
+ * termina sola en segundo plano; no se cancela, pero aquí lo que importa es no
+ * dejar colgado el render.
+ */
+function conTope<T>(promesa: Promise<T>, ms: number, path: string): Promise<T> {
+  return Promise.race([
+    promesa,
+    new Promise<never>((_, rechazar) =>
+      setTimeout(() => rechazar(new Error(`API ${path} no respondió en ${ms} ms`)), ms),
+    ),
+  ]);
+}
+
 const fetchJson = cache(async (path: string): Promise<unknown> => {
   let ultimo: unknown;
   for (let intento = 1; intento <= INTENTOS; intento++) {
     try {
-      const res = await fetch(`${API_URL}${path}`, {
-        ...CONTENT_CACHE,
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
+      const res = await conTope(fetch(`${API_URL}${path}`, CONTENT_CACHE), TIMEOUT_MS, path);
       if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
       return await res.json();
     } catch (err) {
