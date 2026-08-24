@@ -7,54 +7,77 @@ import type { Theme } from './schema';
  */
 export const defaultTheme: Theme = {
   slug: 'maquinaria',
-  name: 'Maquinaria (default)',
+  name: 'MAQSER24',
   active: true,
   tokens: {
-    // Identidad SEGAshop: ámbar industrial (#FFC107) + tinta oscura (#1A1A1B)
-    // + azul de acento (#004A99) sobre un fondo claro casi blanco.
+    // Identidad MAQSER24 (Manual de Identidad v1.0, 2026 — sección 11 / PALETA
+    // PRINCIPAL). Negro tecnológico #07090C · Grafito #11161C · Gunmetal #2B333D
+    // · Acero #A9B0B7 · Plata #D8DDE2 · Azul eléctrico #008CFF · Blanco #F5F7FA.
+    //
+    // REGLA DURA DEL MANUAL (12 / COLOR FUNCIONAL): el azul eléctrico significa
+    // ACCIÓN. Se reserva para CTA, enlaces, datos activos, mapas y estados
+    // interactivos. No rellena la marca ni decora superficies.
+    //
+    // El manual es DARK-FIRST (08 / FONDOS AUTORIZADOS: "negro tecnológico, uso
+    // prioritario"), por eso `defaultMode` es 'dark' más abajo. La paleta clara
+    // no desaparece: es la "variante específica para fondos claros" que el mismo
+    // manual autoriza para documentos y cotizaciones (29 / DOCUMENTOS).
     colors: {
+      // Variante clara: blanco técnico. Documentos, cotizaciones impresas y
+      // usuarios que fuercen el modo claro.
       light: {
-        primary: '#FFC107', // ámbar: CTA / logo / precios destacados
-        primaryFg: '#1A1A1B', // texto sobre ámbar (tinta)
-        secondary: '#1A1A1B', // tinta: bandas oscuras (hero, footer, promo), botón "Agregar"
-        accent: '#004A99', // azul: eyebrows, etiquetas, badges "Nuevo", enlaces
-        background: '#F8F9FA',
+        // Azul más profundo que el #008CFF de marca: sobre blanco, el azul
+        // eléctrico da 3.07:1 y reprueba AA. Este da 5.03:1.
+        primary: '#0066CC',
+        primaryFg: '#FFFFFF', // 5.03:1 sobre #0066CC — AA
+        secondary: '#11161C', // grafito: bandas oscuras sobre fondo claro
+        accent: '#2B333D', // gunmetal: eyebrows y etiquetas discretas
+        background: '#F5F7FA', // blanco técnico
         surface: '#FFFFFF',
-        text: '#1A1A1B',
-        textMuted: '#63696E',
-        border: '#E4E6E9',
-        success: '#15803D',
-        warning: '#F59E0B', // dorado para estrellas de reseñas
-        error: '#DC2626',
+        text: '#07090C', // negro tecnológico
+        textMuted: '#4A545F', // 6.97:1 sobre el fondo — AA
+        border: '#D8DDE2', // plata
+        success: '#15803D', // disponible
+        warning: '#B45309', // disponibilidad limitada / por confirmar
+        error: '#C81E1E', // no disponible
       },
+      // Variante oscura: la identidad principal de MAQSER24.
       dark: {
-        primary: '#FFC107',
-        primaryFg: '#1A1A1B',
-        secondary: '#0B0B0C',
-        accent: '#4C93E8',
-        background: '#111113',
-        surface: '#1A1A1D',
-        text: '#F2F3F5',
-        textMuted: '#A2A7AD',
-        border: '#2A2B2F',
-        success: '#4ADE80',
-        warning: '#FBBF24',
-        error: '#F87171',
+        primary: '#008CFF', // azul eléctrico — acción
+        // Texto NEGRO sobre el azul, no blanco: blanco sobre #008CFF da 3.39:1
+        // y reprueba AA; el negro tecnológico da 5.79:1.
+        primaryFg: '#07090C',
+        secondary: '#2B333D', // gunmetal: botones secundarios y bandas
+        accent: '#A9B0B7', // acero: eyebrows, etiquetas, metadatos
+        background: '#07090C', // negro tecnológico
+        surface: '#11161C', // grafito: tarjetas y paneles
+        text: '#F5F7FA', // blanco técnico
+        textMuted: '#A9B0B7', // acero
+        border: '#2B333D', // gunmetal
+        // Estados de disponibilidad (21 / ESTADOS). El color SIEMPRE acompaña
+        // al texto, nunca lo sustituye — regla de accesibilidad del manual.
+        success: '#22C55E', // DISPONIBLE
+        warning: '#F59E0B', // LIMITADA / POR CONFIRMAR
+        error: '#F87171', // NO DISPONIBLE
       },
     },
+    // 13 / TIPOGRAFÍA: "Inter es la familia operativa recomendada. Titulares:
+    // Inter Tight/Inter Display cuando esté disponible; cuerpo y datos: Inter."
     typography: {
       fontSans: 'Inter',
-      fontHeading: 'Archivo Black', // titulares en negra condensada, mayúsculas
-      fontDisplay: 'Archivo Black',
+      fontHeading: 'Inter Tight',
+      fontDisplay: 'Inter Tight',
       baseSizePx: 16,
       scaleRatio: 1.25,
     },
+    // 14 / RETÍCULA: "esquinas discretas". Radios más cerrados que los del tema
+    // anterior — la retícula debe sentirse como ingeniería, no como decoración.
     shape: {
-      radiusSm: '4px',
-      radiusMd: '6px',
-      radiusLg: '8px',
+      radiusSm: '2px',
+      radiusMd: '4px',
+      radiusLg: '6px',
       buttonStyle: 'solid',
-      buttonRadius: '6px',
+      buttonRadius: '4px',
     },
     // Orden de la home según el diseño SEGAshop. services y blog quedan
     // implementadas pero desactivadas por defecto (el admin puede reactivarlas):
@@ -73,9 +96,23 @@ export const defaultTheme: Theme = {
       { key: 'home.services', enabled: false, order: 9 },
       { key: 'home.blog', enabled: false, order: 11 },
     ],
-    // Identidad de marca: se sube desde el admin (Diseño del sitio → Identidad
-    // de marca). Vacío ⇒ el sitio usa el logo de texto y el favicon por defecto.
-    branding: {},
+    // Identidad de marca. Estos archivos se generan desde el activo oficial que
+    // entregó el cliente con `node _build-brand.cjs` y viven en el `public/` de
+    // cada app — no se redibuja el logo, solo se recompone el lockup horizontal
+    // (el vertical original mide 1.35:1 y en la cabecera de 46 px el wordmark
+    // quedaría ilegible). Siguen siendo sustituibles desde el admin
+    // (Diseño del sitio → Identidad de marca).
+    branding: {
+      // El logo es metálico claro: la MISMA pieza sirve en ambos modos, pero en
+      // fondo claro pierde contraste. Mientras el cliente no entregue la
+      // variante para fondos claros que pide el manual (08 / FONDOS
+      // AUTORIZADOS), se usa el mismo archivo en los dos.
+      logoLight: '/brand/maqser24-logo.png',
+      logoDark: '/brand/maqser24-logo.png',
+      logoAlt: '/brand/maqser24-logo-vertical.png',
+      icon: '/brand/app-icon.png',
+      favicon: '/brand/favicon.png',
+    },
     // Ajustes de la Sección 1 · Hero (editables en Diseño del sitio → Hero).
     hero: {
       showBadge: true,
@@ -363,12 +400,19 @@ export const defaultTheme: Theme = {
       note: 'El traslado se cotiza según ubicación.',
     },
     quoteMode: false,
-    defaultMode: 'auto',
+    // DARK-FIRST. El manual pone el negro tecnológico como fondo prioritario
+    // (08 / FONDOS AUTORIZADOS), así que el sitio abre en oscuro aunque el
+    // sistema del visitante esté en claro. El toggle sigue funcionando y su
+    // elección se guarda en localStorage.
+    defaultMode: 'dark',
   },
   copys: {
     es: {
-      'site.name': 'MaqServ24',
-      'site.tagline': 'Maquinaria y equipo industrial',
+      'site.name': 'MAQSER24',
+      // Descriptor institucional del manual (04 / ARQUITECTURA DE MARCA). El
+      // logo entregado trae uno distinto ("del mercado de renta de maquinaria");
+      // manda el del manual hasta que el cliente confirme cuál es el oficial.
+      'site.tagline': 'Infraestructura digital para maquinaria y servicios de construcción',
       'home.hero.title': 'Renta de maquinaria',
       'home.hero.titleAccent': 'industrial pesada',
       'home.hero.subtitle':

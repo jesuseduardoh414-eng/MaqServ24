@@ -17,3 +17,6 @@ imagenes/
 
 # Subidas locales de dev (en prod las imágenes van a Supabase Storage)
 uploads/
+
+# Respaldos del tema antes de aplicar un rebranding (artefacto local, no versionable)
+packages/db/respaldos-tema/

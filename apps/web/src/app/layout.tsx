@@ -11,19 +11,31 @@ export async function generateMetadata() {
 }
 
 /**
- * URL de Google Fonts a partir de las familias del tema (configurables).
- * La familia de TEXTO (sans) pide el rango completo de pesos; las de titular/
- * display suelen ser de un solo peso (p. ej. Archivo Black), así que se piden
- * sin eje `wght` — pedir un peso inexistente hace que Google devuelva 400 y no
- * cargue ninguna fuente.
+ * Familias de Google Fonts que existen en UN SOLO peso. Pedirles un eje `wght`
+ * hace que Google devuelva 400 y no cargue la fuente.
  */
-function googleFontsHref(sans: string, displayFamilies: Array<string | undefined>): string {
+const FUENTES_UN_SOLO_PESO = new Set(['Archivo Black', 'Ultra', 'Bungee', 'Lobster', 'Pacifico']);
+
+/**
+ * URLs de Google Fonts a partir de las familias del tema (configurables).
+ *
+ * Devuelve UNA URL POR FAMILIA a propósito. Antes iban todas en un solo
+ * stylesheet, y bastaba que una familia fuera inválida para que Google
+ * respondiera 400 y el sitio se quedara sin NINGUNA fuente — incluida la de
+ * texto. Separadas, una familia rota solo se pierde a sí misma.
+ *
+ * Las familias de titular también piden pesos: la identidad MAQSER24 usa Inter
+ * Tight, que es variable, y sin el eje `wght` Google sirve solo el peso 400 —
+ * los titulares saldrían en regular. Las de un solo peso van sin eje.
+ */
+function googleFontsHrefs(sans: string, displayFamilies: Array<string | undefined>): string[] {
   const enc = (f: string) => f.replace(/ /g, '+');
-  const parts = [`family=${enc(sans)}:wght@300;400;500;600;700;800`];
+  const url = (spec: string) => `https://fonts.googleapis.com/css2?family=${spec}&display=swap`;
+  const hrefs = [url(`${enc(sans)}:wght@300;400;500;600;700;800`)];
   for (const fam of new Set(displayFamilies.filter((f): f is string => Boolean(f) && f !== sans))) {
-    parts.push(`family=${enc(fam)}`);
+    hrefs.push(url(FUENTES_UN_SOLO_PESO.has(fam) ? enc(fam) : `${enc(fam)}:wght@400;500;600;700;800`));
   }
-  return `https://fonts.googleapis.com/css2?${parts.join('&')}&display=swap`;
+  return hrefs;
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -42,7 +54,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="stylesheet" href={googleFontsHref(fontSans, [fontHeading, fontDisplay])} />
+        {googleFontsHrefs(fontSans, [fontHeading, fontDisplay]).map((href) => (
+          <link key={href} rel="stylesheet" href={href} />
+        ))}
         {theme.tokens.branding?.favicon ? <link rel="icon" href={theme.tokens.branding.favicon} /> : null}
         {theme.tokens.branding?.icon ? <link rel="apple-touch-icon" href={theme.tokens.branding.icon} /> : null}
         <style
