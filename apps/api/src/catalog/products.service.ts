@@ -53,6 +53,7 @@ export class ProductsService {
       isRental: p.is_rental,
       featured: p.featured === 1,
       inStock: p.stock === null || p.stock > 0,
+      stock: p.stock,
       categorySlug: catSlugs.get(p.category_id) ?? null,
     };
   }

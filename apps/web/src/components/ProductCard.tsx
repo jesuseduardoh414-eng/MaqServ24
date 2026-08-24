@@ -9,6 +9,8 @@ import type { Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { formatPrice } from '@/lib/format';
 import { useCart } from '@/components/CartProvider';
+import { AvailabilityBadge } from '@/components/AvailabilityBadge';
+import { estadoDeProducto } from '@/lib/availability';
 
 // Panel radial de la foto del producto. Era claro (#ffffff -> #e9ebef) del
 // diseño anterior; en una identidad dark-first un recuadro blanco por tarjeta
@@ -62,7 +64,11 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
         ? { text: 'Renta', bg: 'var(--color-secondary)', fg: '#fff' }
         : null;
   const canAdd = !quoteMode && p.inStock && !p.isRental && p.price !== null;
-  const spec = `${p.isRental ? 'Renta' : 'Venta'}${p.inStock ? ' · Disponible' : ' · Bajo pedido'}`;
+  // El modo (renta/venta) y la DISPONIBILIDAD ya no van juntos en una cadena:
+  // el manual pide que el estado se lea de un vistazo y con su propio color
+  // (21 / ESTADOS DE DISPONIBILIDAD).
+  const modo = p.isRental ? 'Renta' : 'Venta';
+  const disp = estadoDeProducto(p);
   // Cotizar SIEMPRE es posible desde la card: lleva al cotizador con este equipo cargado.
   const quoteHref = `/cotizar?producto=${p.slug}`;
   const quoteOnly = quoteMode || p.price === null; // sin precio público: cotizar es la acción principal
@@ -109,7 +115,10 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
           <span style={{ fontSize: '10.5px', letterSpacing: '.14em', color: 'var(--color-accent)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.brand ?? ''}</span>
         </div>
         <Link href={`/productos/${p.slug}`} style={{ fontWeight: 700, fontSize: '15.5px', lineHeight: 1.3, margin: '8px 0 4px', color: 'var(--color-text)', textDecoration: 'none', minHeight: 40, display: 'block' }}>{p.name}</Link>
-        <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{spec}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{modo}</span>
+          <AvailabilityBadge info={disp} />
+        </div>
 
         <div className="prod-card-foot" style={{ marginTop: 'auto', paddingTop: 15, borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
           <div className="prod-card-price" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>

@@ -17,6 +17,15 @@ export interface ProductCard {
   isRental: boolean;
   featured: boolean;
   inStock: boolean;
+  /**
+   * Existencias. `null` = el producto no lleva control de stock.
+   *
+   * Se expone además de `inStock` porque el manual (21 / ESTADOS DE
+   * DISPONIBILIDAD) pide cuatro estados —disponible, limitada, por confirmar y
+   * no disponible— y un booleano solo distingue dos. Ver `lib/availability.ts`
+   * en la web, que es donde se traduce.
+   */
+  stock: number | null;
   categorySlug: string | null;
 }
 

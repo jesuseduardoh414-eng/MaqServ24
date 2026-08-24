@@ -8,6 +8,8 @@ import type { Theme } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductQuestions } from '@/components/ProductQuestions';
+import { AvailabilityBadge } from '@/components/AvailabilityBadge';
+import { estadoDeProducto } from '@/lib/availability';
 import { formatPrice } from '@/lib/format';
 
 const MONO = "'Inter', system-ui, sans-serif";
@@ -75,7 +77,9 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
   const effPrice = product.price !== null ? (isR ? periodPrice(product.price, period) : product.price) : null;
   const effUnit = isR ? unitLabelOf(period) : null;
   const priceUnit = isR ? `MXN / ${effUnit}` : 'MXN';
-  const badge = product.inStock ? { text: 'Disponible', bg: 'color-mix(in srgb, var(--color-success) 16%, var(--color-bg))', color: 'var(--color-success)' } : { text: 'Bajo pedido', bg: 'color-mix(in srgb, var(--color-primary) 18%, var(--color-bg))', color: 'var(--color-warning)' };
+  // Los cuatro estados del manual (21 / ESTADOS DE DISPONIBILIDAD) en vez del
+  // par disponible/bajo pedido. Misma fuente que las tarjetas del catálogo.
+  const disp = estadoDeProducto(product);
   const quickSpecs = product.specs.slice(0, 3);
   const canBuy = !quoteMode && product.price !== null && product.inStock;
   const short = product.short ?? '';
@@ -172,7 +176,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--color-primary)', fontSize: 16, letterSpacing: 2 }}>{starsStr(rating.average || 5)}</span>
               <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)' }}>{rating.count > 0 ? `${rating.average.toFixed(1)} · ${rating.count} opiniones` : 'Sin opiniones aún'}</span>
-              <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', fontWeight: 700, padding: '4px 10px', borderRadius: 100, marginLeft: 'auto', background: badge.bg, color: badge.color }}>{badge.text}</span>
+              <span style={{ marginLeft: 'auto' }}><AvailabilityBadge info={disp} tamano="ficha" /></span>
             </div>
 
             {!quoteMode && product.price !== null ? (
