@@ -134,7 +134,7 @@ export default async function BlogPage({ params }: { params: Promise<Params> }) 
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{blog.author}</div>
                 </>
               ) : (
-                <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.08em' }}>MAQSERV24 · BITÁCORA</span>
+                <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.08em' }}>MAQSER24 · BITÁCORA</span>
               )}
             </div>
 

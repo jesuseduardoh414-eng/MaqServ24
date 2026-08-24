@@ -10,7 +10,7 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const THEME_CACHE: RequestInit =
   process.env.NODE_ENV === 'production' ? { next: { revalidate: 60 } } : { cache: 'no-store' };
 
-export const metadata = { title: 'Admin — MaqServ24' };
+export const metadata = { title: 'Admin — MAQSER24' };
 
 /** El admin comparte los tokens del tema activo (colores/tipografía/branding de la BD). */
 export default async function RootLayout({ children }: { children: ReactNode }) {

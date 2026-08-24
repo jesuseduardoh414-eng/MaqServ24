@@ -36,7 +36,7 @@ export default async function ServicesDesignPage() {
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email}>
       <div style={{ fontFamily: FONT, color: D.text }}>
-        <style>{`.sv-link:hover{ color:#f5b81e; text-decoration: underline; }`}</style>
+        <style>{`.sv-link:hover{ color:var(--color-primary); text-decoration: underline; }`}</style>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8A8A8F', fontWeight: 500 }}>
           <span>Diseño</span><span style={{ color: '#4C4C51' }}>/</span><span style={{ color: '#B4B4B9' }}>Servicios</span>

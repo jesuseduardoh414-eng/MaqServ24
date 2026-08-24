@@ -88,7 +88,7 @@ export function ServicesEditor({ items }: { items: ServiceItem[] }) {
 
   const actions = (onCancel: () => void, label: string) => (
     <div style={{ display: 'flex', gap: 10 }}>
-      <button type="submit" disabled={busy} style={{ fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: '#1A1206', border: 'none', borderRadius: 9, padding: '10px 20px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+      <button type="submit" disabled={busy} style={{ fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 9, padding: '10px 20px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
         {busy ? 'Guardando…' : label}
       </button>
       <button type="button" onClick={onCancel} style={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit', background: 'transparent', color: '#8A8A8F', border: `1px solid ${D.inputBorder}`, borderRadius: 9, padding: '10px 18px', cursor: 'pointer' }}>
@@ -115,7 +115,7 @@ export function ServicesEditor({ items }: { items: ServiceItem[] }) {
         </div>
       ) : (
         <div>
-          <button type="button" className="sv-btn" onClick={() => setCreating(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: '#1A1206', border: 'none', borderRadius: 10, padding: '10px 18px', cursor: 'pointer' }}>
+          <button type="button" className="sv-btn" onClick={() => setCreating(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 10, padding: '10px 18px', cursor: 'pointer' }}>
             <i className="ph ph-plus" style={{ fontSize: 14 }} /> Nuevo servicio
           </button>
         </div>

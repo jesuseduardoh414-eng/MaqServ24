@@ -15,7 +15,7 @@ const C = {
   panel: '#141416', panel2: '#1b1e26', panel3: '#212530',
   line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
   ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  amber: '#f5b81e', amber2: '#ffd24d', amberInk: '#1a1a1b',
+  amber: 'var(--color-primary)', amber2: 'color-mix(in srgb, var(--color-primary) 72%, #fff)', amberInk: 'var(--color-primary-fg)', warn: 'var(--color-warning)', ok: 'var(--color-success)',
   blue: '#4f9cff', green: '#31c46b', red: '#ff5c5c',
 };
 const FONT = "'Manrope', system-ui, sans-serif";
@@ -184,7 +184,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
           <div style={{ fontSize: 12, color: C.dim, fontWeight: 300, marginBottom: 6 }}>Catálogo <span style={{ margin: '0 6px' }}>/</span> <span style={{ color: C.muted }}>Categorías</span></div>
           <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>Categorías</h1>
         </div>
-        <button type="button" onClick={focusNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 12px 26px -14px rgba(245,184,30,.7)' }}><i className="ph-bold ph-plus" style={{ fontSize: 15 }} /> Nueva categoría</button>
+        <button type="button" onClick={focusNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 12px 26px -14px color-mix(in srgb, var(--color-primary) 70%, transparent)' }}><i className="ph-bold ph-plus" style={{ fontSize: 15 }} /> Nueva categoría</button>
       </div>
 
       {/* Stats */}
@@ -339,7 +339,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
       {/* Toast */}
       {toast ? (
         <div style={{ position: 'fixed', bottom: 26, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: C.panel3, border: `1px solid ${C.line2}`, color: C.ink, padding: '13px 20px', borderRadius: 12, boxShadow: '0 24px 60px -30px rgba(0,0,0,.85)', fontSize: 14, fontWeight: 600, zIndex: 200 }}>
-          <i className={`ph-bold ${toast.kind === 'warn' ? 'ph-warning-circle' : toast.kind === 'trash' ? 'ph-trash' : 'ph-check-circle'}`} style={{ fontSize: 18, color: toast.kind === 'warn' ? C.red : C.amber }} /> {toast.text}
+          <i className={`ph-bold ${toast.kind === 'warn' ? 'ph-warning-circle' : toast.kind === 'trash' ? 'ph-trash' : 'ph-check-circle'}`} style={{ fontSize: 18, color: toast.kind === 'warn' ? C.red : C.ok }} /> {toast.text}
         </div>
       ) : null}
     </div>

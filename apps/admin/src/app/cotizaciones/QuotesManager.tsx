@@ -105,7 +105,7 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: D.amber, boxShadow: `0 0 10px ${D.amber}b3` }} />
               <span style={{ fontSize: 12, color: '#8A8A8F', fontWeight: 600 }}>Por responder</span>
             </div>
-            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.amber, fontFamily: MONO }}>{countPending}</div>
+            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.warn, fontFamily: MONO }}>{countPending}</div>
           </div>
           <div style={statCard}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -128,7 +128,7 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
                 type="button"
                 className={on ? undefined : 'qz-tab'}
                 onClick={() => { setTab(t.key); setPage(1); }}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? '#1A1206' : '#9A9A9F' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? 'var(--color-primary-fg)' : '#9A9A9F' }}
               >
                 {t.label}
                 <span style={{ background: on ? 'rgba(26,18,6,0.22)' : 'rgba(255,255,255,0.08)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>{t.count}</span>
@@ -174,7 +174,7 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
 
         {pageItems.map((q) => {
           const pend = isPending(q);
-          const color = pend ? D.amber : GREEN;
+          const color = pend ? D.warn : GREEN;
           const urgent = pend && q.days >= URGENT_DAYS;
           return (
             <div key={q.id} className="qz-row qz-grid" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 16, padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.045)', alignItems: 'center' }}>
@@ -185,7 +185,7 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 12, color: '#7A7A7F' }}>{q.dateLabel}</span>
                     {urgent ? (
-                      <span title={`Lleva ${q.days} días esperando respuesta`} style={{ fontSize: 10.5, fontWeight: 700, color: D.amber, background: 'rgba(245,184,30,0.12)', padding: '1px 7px', borderRadius: 20 }}>{ageLabel(q.days)}</span>
+                      <span title={`Lleva ${q.days} días esperando respuesta`} style={{ fontSize: 10.5, fontWeight: 700, color: D.amber, background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', padding: '1px 7px', borderRadius: 20 }}>{ageLabel(q.days)}</span>
                     ) : (
                       <span style={{ fontSize: 11, color: '#5C5C61' }}>· {ageLabel(q.days)}</span>
                     )}

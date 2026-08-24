@@ -84,7 +84,7 @@ export function PaymentsManager({ themeId, copys, tokens, checkout, gateways }: 
           <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Pagos y cobro</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'rgba(245,184,30,0.4)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'rgba(245,184,30,0.12)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
           <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
           <button type="button" onClick={publish} disabled={busy || !dirty} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: busy || !dirty ? 'default' : 'pointer', opacity: busy || !dirty ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
         </div>
@@ -191,7 +191,7 @@ export function PaymentsManager({ themeId, copys, tokens, checkout, gateways }: 
               {/* Sin esto, cargar la key y probar en local deja pagos "aprobados" en
                   MercadoPago y órdenes sin marcar — sin ninguna pista de por qué. */}
               {g.code === 'mercadopago' && g.webhookUrl ? (
-                <div style={{ border: `1px solid ${g.webhookReachable ? D.inputBorder : 'rgba(245,184,30,0.35)'}`, background: g.webhookReachable ? 'rgba(255,255,255,0.02)' : 'rgba(245,184,30,0.07)', borderRadius: 11, padding: '12px 14px', display: 'grid', gap: 8 }}>
+                <div style={{ border: `1px solid ${g.webhookReachable ? D.inputBorder : 'color-mix(in srgb, var(--color-primary) 35%, transparent)'}`, background: g.webhookReachable ? 'rgba(255,255,255,0.02)' : 'color-mix(in srgb, var(--color-primary) 7%, transparent)', borderRadius: 11, padding: '12px 14px', display: 'grid', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 700, color: g.webhookReachable ? D.text : D.amber }}>
                     <i className={`ph ${g.webhookReachable ? 'ph-webhooks-logo' : 'ph-warning'}`} style={{ fontSize: 14 }} />
                     Aviso de pago (webhook)

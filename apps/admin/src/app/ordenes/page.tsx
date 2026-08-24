@@ -104,7 +104,7 @@ export default async function AdminOrders({
           .or-tab:hover{ background: rgba(255,255,255,0.05); color:#f5f5f4; }
           .or-opt:hover{ background: rgba(255,255,255,0.07) !important; }
           .or-pg:hover{ background: rgba(255,255,255,0.06); color:#f5f5f4; }
-          .or-folio:hover{ color:#f5b81e; text-decoration: underline; }
+          .or-folio:hover{ color:var(--color-primary); text-decoration: underline; }
           .or-badge:hover{ filter: brightness(1.35); }
           @media (max-width: 1200px){ .or-grid{ grid-template-columns: 1fr 1fr !important; row-gap: 10px !important; } .or-head{ display:none !important; } }
           /* Los 3 contadores piden 150px cada uno: en móvil se reparten en
@@ -159,7 +159,7 @@ export default async function AdminOrders({
                   key={t.key || 'all'}
                   href={link({ state: t.key || undefined, page: undefined })}
                   className={on ? undefined : 'or-tab'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? '#1A1206' : '#9A9A9F' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? 'var(--color-primary-fg)' : '#9A9A9F' }}
                 >
                   {t.label}
                   <span style={{ background: on ? 'rgba(26,18,6,0.22)' : 'rgba(255,255,255,0.08)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>{n}</span>

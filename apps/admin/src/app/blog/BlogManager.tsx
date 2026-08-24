@@ -115,7 +115,7 @@ export function BlogManager({ blogs, themeId, copys, tokens, sectionEnabled }: {
     } finally { setPending(null); }
   }
 
-  const eye = '#f5b81e';
+  const eye = 'var(--color-primary)';
   const th: React.CSSProperties = { textAlign: 'left', padding: '0 14px 12px', fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: D.muted2, borderBottom: `1px solid ${D.cardBorder}` };
   const td: React.CSSProperties = { padding: '14px', borderBottom: `1px solid ${D.cardBorder}`, fontSize: 14, color: D.text, verticalAlign: 'middle' };
   const actLink: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 13, padding: 0, color: D.amber };
@@ -141,10 +141,10 @@ export function BlogManager({ blogs, themeId, copys, tokens, sectionEnabled }: {
           <div style={{ padding: 24, display: 'grid', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-text-aa" style={{ fontSize: 19 }} /></div>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-text-aa" style={{ fontSize: 19 }} /></div>
                 <div><h3 style={h3Style}>Encabezado de la Bitácora</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>Los textos grandes del hero de la página pública de blog.</p></div>
               </div>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 999, border: `1px solid ${dirty ? 'rgba(245,184,30,0.4)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'rgba(245,184,30,0.12)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Sin publicar' : 'Publicado'}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, padding: '7px 12px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Sin publicar' : 'Publicado'}</span>
             </div>
             <Field label="Eyebrow (línea pequeña arriba)"><input value={head.eyebrow} onChange={(e) => setH('eyebrow', e.target.value)} placeholder="Diario de obra · Nº 24" style={inputStyle} /></Field>
             <Field label="Título"><input value={head.title} onChange={(e) => setH('title', e.target.value)} placeholder="Bitácora" style={inputStyle} /></Field>
@@ -171,7 +171,7 @@ export function BlogManager({ blogs, themeId, copys, tokens, sectionEnabled }: {
       <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
               <i className="ph ph-house" style={{ fontSize: 19 }} />
             </div>
             <div>
@@ -181,7 +181,7 @@ export function BlogManager({ blogs, themeId, copys, tokens, sectionEnabled }: {
           </div>
           {/* La visibilidad se gestiona en Temas; aquí solo se avisa. */}
           {!sectionEnabled ? (
-            <Link href="/temas" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, padding: '7px 12px', borderRadius: 999, border: '1px solid rgba(245,184,30,0.35)', background: 'rgba(245,184,30,0.1)', color: D.amber, textDecoration: 'none' }}>
+            <Link href="/temas" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, padding: '7px 12px', borderRadius: 999, border: '1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)', background: 'color-mix(in srgb, var(--color-primary) 10%, transparent)', color: D.amber, textDecoration: 'none' }}>
               <i className="ph ph-eye-slash" style={{ fontSize: 14 }} /> Oculta en el inicio · activar
             </Link>
           ) : null}
@@ -217,7 +217,7 @@ export function BlogManager({ blogs, themeId, copys, tokens, sectionEnabled }: {
       <div style={{ ...cardStyle }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center' }}><i className="ph ph-newspaper-clipping" style={{ fontSize: 19 }} /></div>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center' }}><i className="ph ph-newspaper-clipping" style={{ fontSize: 19 }} /></div>
             <div><h3 style={h3Style}>Entradas</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>{rows.length} entrada(s) · publica, oculta o edita cada una.</p></div>
           </div>
           <div style={{ position: 'relative' }}>

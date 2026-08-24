@@ -36,7 +36,7 @@ export default function AdminLoginPage() {
     <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1.5rem' }}>
       <Card style={{ width: '100%', maxWidth: 380, display: 'grid', gap: '1rem' }}>
         <h1 style={{ fontSize: 'var(--text-xl)' }}>
-          MaqServ24 <span style={{ color: 'var(--color-accent)' }}>admin</span>
+          MAQSER24 <span style={{ color: 'var(--color-accent)' }}>admin</span>
         </h1>
         <form onSubmit={onSubmit} style={{ display: 'grid', gap: '.8rem' }}>
           <Input name="email" type="email" required placeholder="Correo" aria-label="Correo" autoComplete="username" />

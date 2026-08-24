@@ -60,7 +60,7 @@ export function AdminCreate() {
           type="button"
           className="ad-new"
           onClick={() => { setOpen(true); setOk(null); }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: '#1A1206', border: 'none', borderRadius: 10, padding: '10px 18px', cursor: 'pointer' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 10, padding: '10px 18px', cursor: 'pointer' }}
         >
           <i className="ph ph-plus" style={{ fontSize: 14 }} /> Nuevo administrador
         </button>
@@ -105,7 +105,7 @@ export function AdminCreate() {
         ) : null}
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="submit" className="ad-btn" disabled={busy} style={{ fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: '#1A1206', border: 'none', borderRadius: 9, padding: '10px 20px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+          <button type="submit" className="ad-btn" disabled={busy} style={{ fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 9, padding: '10px 20px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
             {busy ? 'Creando…' : 'Crear administrador'}
           </button>
           <button type="button" className="ad-ghost" onClick={() => { setOpen(false); setError(null); }} style={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit', background: 'transparent', color: '#8A8A8F', border: `1px solid ${D.inputBorder}`, borderRadius: 9, padding: '10px 18px', cursor: 'pointer' }}>

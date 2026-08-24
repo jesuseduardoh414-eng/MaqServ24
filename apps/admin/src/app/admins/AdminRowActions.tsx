@@ -112,7 +112,7 @@ export function AdminRowActions({
             type="button"
             disabled={busy || pass.length < 8}
             onClick={() => void send({ password: pass }, () => { setPass(''); setAsking(false); setDone(true); })}
-            style={{ width: '100%', marginTop: 12, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: '#1A1206', border: 'none', borderRadius: 8, padding: '9px 12px', cursor: busy ? 'wait' : pass.length < 8 ? 'not-allowed' : 'pointer', opacity: busy || pass.length < 8 ? 0.45 : 1 }}
+            style={{ width: '100%', marginTop: 12, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 8, padding: '9px 12px', cursor: busy ? 'wait' : pass.length < 8 ? 'not-allowed' : 'pointer', opacity: busy || pass.length < 8 ? 0.45 : 1 }}
           >
             Cambiar contraseña
           </button>

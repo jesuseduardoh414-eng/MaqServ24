@@ -75,7 +75,7 @@ export function ReviewsEditor({ themeId, copys, tokens, reviewsCfg, approvedCoun
           <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 7 · Reseñas</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'rgba(245,184,30,0.4)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'rgba(245,184,30,0.12)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
           <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
           <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
         </div>
@@ -85,7 +85,7 @@ export function ReviewsEditor({ themeId, copys, tokens, reviewsCfg, approvedCoun
         <div style={{ minWidth: 0 }}>
           {/* Nota: el contenido son reseñas de clientes; se moderan aparte */}
           <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-star" style={{ fontSize: 20 }} /></div>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-star" style={{ fontSize: 20 }} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <strong style={{ fontSize: 14 }}>La banda «Lo que dicen nuestros clientes»</strong>
               <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Las <b>reseñas</b> las escriben los clientes; tú las <b>apruebas/ocultas</b> en Clientes → Reseñas. Aquí defines los textos y el estilo de la banda. <b>{approvedCount}</b> aprobadas de <b>{totalCount}</b>.</p>

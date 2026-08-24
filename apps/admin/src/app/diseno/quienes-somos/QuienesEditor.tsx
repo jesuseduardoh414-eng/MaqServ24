@@ -133,7 +133,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
           <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 4 · Quiénes somos</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'rgba(245,184,30,0.4)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'rgba(245,184,30,0.12)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
           <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
           <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
         </div>
@@ -143,7 +143,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
         <div style={{ minWidth: 0 }}>
           {/* Nota: todo lo de esta sección se edita aquí */}
           <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-shield-check" style={{ fontSize: 20 }} /></div>
+            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-shield-check" style={{ fontSize: 20 }} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <strong style={{ fontSize: 14 }}>La banda «¿Por qué elegirnos?» del home</strong>
               <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Todo en un solo lugar: las <b>razones</b> (◆ cada punto), los <b>textos</b>, las <b>estadísticas</b>, la <b>imagen</b> y el <b>estilo</b>.</p>
@@ -341,7 +341,7 @@ function PlacementSeg({ value, onChange }: { value: Placement; onChange: (v: Pla
 function PlaceBadge({ value }: { value: Placement }) {
   const def = PLACEMENTS.find((x) => x.id === value) ?? PLACEMENTS[0];
   const solo = value !== 'both';
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: solo ? 'rgba(245,184,30,0.14)' : 'rgba(255,255,255,0.06)', color: solo ? D.amber : D.muted2, whiteSpace: 'nowrap' }}><i className={`ph ${def.icon}`} style={{ fontSize: 12 }} /> {def.label}</span>;
+  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: solo ? 'color-mix(in srgb, var(--color-primary) 14%, transparent)' : 'rgba(255,255,255,0.06)', color: solo ? D.amber : D.muted2, whiteSpace: 'nowrap' }}><i className={`ph ${def.icon}`} style={{ fontSize: 12 }} /> {def.label}</span>;
 }
 
 function ReasonEditRow({ reason, busy, onSave, onCancel }: {
@@ -411,7 +411,7 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
       {/* Nueva razón */}
       <div style={{ ...cardStyle, display: 'grid', gap: 14 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-plus" style={{ fontSize: 17 }} /></div>
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-plus" style={{ fontSize: 17 }} /></div>
           <div><h3 style={h3Style}>Nueva razón</h3><p style={{ margin: '2px 0 0', fontSize: 12, color: D.muted }}>Se aplica al instante (no pasa por «Guardar y publicar»).</p></div>
         </div>
         <div style={{ display: 'grid', gap: 10 }}>
@@ -432,7 +432,7 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
           <ReasonEditRow key={r.id} reason={r} busy={busy === r.id} onCancel={() => setEditing(null)} onSave={(t, x, p) => update(r.id, t, x, p)} />
         ) : (
           <div key={r.id} style={{ ...cardStyle, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', fontSize: 15 }}>◆</div>
+            <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', fontSize: 15 }}>◆</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                 <strong style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.title}</strong>
@@ -587,7 +587,7 @@ function QsSections({ qs, setQs }: { qs: QuienesSomos; setQs: (patch: Partial<Qu
   return (
     <>
       <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14, border: `1px solid ${D.amber}33` }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-layout" style={{ fontSize: 20 }} /></div>
+        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-layout" style={{ fontSize: 20 }} /></div>
         <div style={{ minWidth: 0 }}>
           <strong style={{ fontSize: 14 }}>Secciones de la página</strong>
           <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Franja de stats, valores, trayectoria, marcas y CTA. Se guardan con <b>«Guardar y publicar»</b> (arriba). El bloque «Por qué elegirnos» de la página usa las <b>Razones</b>.</p>

@@ -9,7 +9,7 @@ const COLLAPSE_KEY = 'maqserv_admin_sidebar_collapsed';
 
 /**
  * Cromo del panel admin: sidebar colapsable + topbar con búsqueda (filtra el
- * menú) + perfil con cierre de sesión. Diseño "Panel MaqServ24".
+ * menú) + perfil con cierre de sesión. Diseño "Panel MAQSER24".
  */
 export function AdminShell({
   adminName,
@@ -95,7 +95,7 @@ export function AdminShell({
             <img
               className={`adm-brand-img${collapsed ? ' is-square' : ''}`}
               src={brandImg}
-              alt="MaqServ24 · Panel admin"
+              alt="MAQSER24 · Panel admin"
             />
           ) : (
             <>
@@ -103,7 +103,7 @@ export function AdminShell({
                 <i className="ph-bold ph-lightning" aria-hidden />
               </div>
               <div className="adm-brand-text">
-                <span className="adm-brand-name">MaqServ24</span>
+                <span className="adm-brand-name">MAQSER24</span>
                 <span className="adm-brand-sub">Panel admin</span>
               </div>
             </>

@@ -59,8 +59,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`
-          .cd-back:hover{ color:#f5b81e; }
-          .cd-link:hover{ color:#f5b81e; text-decoration: underline; }
+          .cd-back:hover{ color:var(--color-primary); }
+          .cd-link:hover{ color:var(--color-primary); text-decoration: underline; }
           @media (max-width: 1000px){ .cd-grid{ grid-template-columns: 1fr !important; } }
         `}</style>
 

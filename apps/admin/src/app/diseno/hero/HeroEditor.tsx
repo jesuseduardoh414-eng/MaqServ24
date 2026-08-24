@@ -20,7 +20,7 @@ interface Config {
 const D = {
   card: '#141416', cardBorder: 'rgba(255,255,255,0.06)',
   inputBg: 'rgba(255,255,255,0.03)', inputBorder: 'rgba(255,255,255,0.08)',
-  amber: '#f5b81e', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', muted3: '#8a8a93',
+  amber: 'var(--color-primary)', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', muted3: '#8a8a93',
   tabsBg: '#101012', previewBg: '#0e0e12', heroBg: '#0a0a0c',
 };
 const FONT = "'Manrope', system-ui, sans-serif";
@@ -35,12 +35,12 @@ const TABS = [
 ] as const;
 
 const PRESETS = {
-  accentColor: ['#f5b81e', '#5b9dff', '#3fbf8f', '#ff7a59', '#b98cff'],
-  titleColor: ['#ffffff', '#f5f5f4', '#f5b81e', '#e5e7eb'],
+  accentColor: ['var(--color-primary)', '#5b9dff', '#3fbf8f', '#ff7a59', '#b98cff'],
+  titleColor: ['#ffffff', '#f5f5f4', 'var(--color-primary)', '#e5e7eb'],
   subtitleColor: ['#c2c6cf', '#9a9aa3', '#e5e7eb', '#ffffff'],
-  primaryBg: ['#f5b81e', '#5b9dff', '#3fbf8f', '#ff7a59', '#ffffff'],
+  primaryBg: ['var(--color-primary)', '#5b9dff', '#3fbf8f', '#ff7a59', '#ffffff'],
   primaryText: ['#1a1400', '#ffffff', '#0a0a0b'],
-  secondaryBorder: ['#4a4a52', '#f5b81e', '#5b9dff', '#ffffff'],
+  secondaryBorder: ['#4a4a52', 'var(--color-primary)', '#5b9dff', '#ffffff'],
 };
 const TRUST_ICONS = ['ph-seal-check', 'ph-shield-check', 'ph-truck', 'ph-headset'];
 
@@ -70,7 +70,7 @@ function ColorField({ label, hint: h, value, presets, onChange }: { label: strin
         {presets.map((col) => {
           const sel = col.toLowerCase() === value.toLowerCase();
           return <button key={col} type="button" onClick={() => onChange(col)} title={col}
-            style={{ width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px rgba(245,184,30,0.5)' : 'none' }} />;
+            style={{ width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
         })}
         <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 9, border: '2px dashed rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
           <i className="ph ph-eyedropper" style={{ fontSize: 13, color: D.muted2 }} />
@@ -178,7 +178,7 @@ export function HeroEditor({
           <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 1 · Hero / Portada</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'rgba(245,184,30,0.4)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'rgba(245,184,30,0.12)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}>
             <span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}
           </span>
           <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
@@ -212,7 +212,7 @@ export function HeroEditor({
                     <h3 style={h3Style}>Distintivo / badge</h3>
                     <Toggle on={config.showBadge} onClick={() => set('showBadge', !config.showBadge)} />
                   </div>
-                  <input value={config.badge} onChange={(e) => set('badge', e.target.value)} placeholder="Ej. Bienvenido a MaqServ24" style={inputStyle} />
+                  <input value={config.badge} onChange={(e) => set('badge', e.target.value)} placeholder="Ej. Monterrey y zona metropolitana" style={inputStyle} />
                   <p style={hint}>Pequeña etiqueta sobre el título. Desactívala para ocultarla.</p>
                 </div>
                 <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>
@@ -235,7 +235,7 @@ export function HeroEditor({
                       onDrop={onDrop}
                       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                       onDragLeave={() => setDragOver(false)}
-                      style={{ display: 'grid', placeItems: 'center', gap: 9, minHeight: 170, borderRadius: 14, border: `1.5px dashed ${dragOver ? D.amber : D.inputBorder}`, cursor: 'pointer', color: D.muted2, background: dragOver ? 'rgba(245,184,30,0.06)' : D.inputBg, transition: 'border-color .15s, background .15s', textAlign: 'center', padding: 20 }}
+                      style={{ display: 'grid', placeItems: 'center', gap: 9, minHeight: 170, borderRadius: 14, border: `1.5px dashed ${dragOver ? D.amber : D.inputBorder}`, cursor: 'pointer', color: D.muted2, background: dragOver ? 'color-mix(in srgb, var(--color-primary) 6%, transparent)' : D.inputBg, transition: 'border-color .15s, background .15s', textAlign: 'center', padding: 20 }}
                     >
                       <div style={{ width: 52, height: 52, borderRadius: 14, background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', display: 'grid', placeItems: 'center', color: D.amber }}>
                         <i className="ph ph-image" style={{ fontSize: 24 }} />
@@ -344,7 +344,7 @@ export function HeroEditor({
               <div style={{ display: 'flex', gap: 3, padding: 3, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 10 }}>
                 {([['full', 'Completo', 'ph-columns'], ['text', 'Texto', 'ph-text-align-left'], ['image', 'Imagen', 'ph-image']] as const).map(([v, lbl, ic]) => (
                   <button key={v} type="button" onClick={() => setView(v)} title={lbl}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', cursor: 'pointer', borderRadius: 8, padding: '6px 10px', fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', background: view === v ? 'rgba(245,184,30,0.15)' : 'transparent', color: view === v ? D.amber : D.muted2 }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', cursor: 'pointer', borderRadius: 8, padding: '6px 10px', fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', background: view === v ? 'color-mix(in srgb, var(--color-primary) 15%, transparent)' : 'transparent', color: view === v ? D.amber : D.muted2 }}>
                     <i className={`ph ${ic}`} style={{ fontSize: 15 }} />{lbl}
                   </button>
                 ))}

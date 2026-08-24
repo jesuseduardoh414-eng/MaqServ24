@@ -41,7 +41,7 @@ const TABS: Array<{ key: string; label: string }> = [
   { key: 'rejected', label: 'Rechazados' },
 ];
 
-const TONE_COLOR: Record<'warn' | 'ok' | 'bad', string> = { warn: D.amber, ok: GREEN, bad: RED };
+const TONE_COLOR: Record<'warn' | 'ok' | 'bad', string> = { warn: D.warn, ok: GREEN, bad: RED };
 const th: React.CSSProperties = { fontSize: 10.5, letterSpacing: '1px', fontWeight: 700, color: '#7A7A7F' };
 const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const statCard: React.CSSProperties = { minWidth: 165, background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 14, padding: '14px 18px' };
@@ -85,7 +85,7 @@ export default async function AdminWithdraws({
           .wd-row:hover{ background: rgba(255,255,255,0.022); }
           .wd-tab:hover{ background: rgba(255,255,255,0.05); color:#f5f5f4; }
           .wd-pg:hover{ background: rgba(255,255,255,0.06); color:#f5f5f4; }
-          .wd-vendor:hover{ color:#f5b81e; text-decoration: underline; }
+          .wd-vendor:hover{ color:var(--color-primary); text-decoration: underline; }
           @media (max-width: 1200px){ .wd-grid{ grid-template-columns: 1fr 1fr !important; row-gap: 10px !important; } .wd-head{ display:none !important; } }
         `}</style>
 
@@ -106,7 +106,7 @@ export default async function AdminWithdraws({
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: D.amber, boxShadow: `0 0 10px ${D.amber}b3` }} />
                 <span style={{ fontSize: 12, color: '#8A8A8F', fontWeight: 600 }}>Por pagar</span>
               </div>
-              <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.amber, fontFamily: MONO }}>{money(data?.pendingAmount ?? 0)}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.warn, fontFamily: MONO }}>{money(data?.pendingAmount ?? 0)}</div>
               <div style={{ fontSize: 11, color: '#5C5C61', marginTop: 3 }}>
                 {counts.pending ?? 0} solicitud{(counts.pending ?? 0) === 1 ? '' : 'es'}
               </div>
@@ -124,7 +124,7 @@ export default async function AdminWithdraws({
                   key={t.key || 'all'}
                   href={t.key ? `/retiros?state=${t.key}` : '/retiros'}
                   className={on ? undefined : 'wd-tab'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? '#1A1206' : '#9A9A9F' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? 'var(--color-primary-fg)' : '#9A9A9F' }}
                 >
                   {t.label}
                   <span style={{ background: on ? 'rgba(26,18,6,0.22)' : 'rgba(255,255,255,0.08)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>{n}</span>

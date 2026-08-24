@@ -132,8 +132,8 @@ export function ShippingPanel({
               onClick={() => setMethod(k)}
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: 10, textAlign: 'left', cursor: 'pointer',
-                background: on ? 'rgba(245,184,30,0.08)' : D.inputBg,
-                border: `1px solid ${on ? 'rgba(245,184,30,0.45)' : D.inputBorder}`,
+                background: on ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : D.inputBg,
+                border: `1px solid ${on ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)' : D.inputBorder}`,
                 borderRadius: 10, padding: '11px 13px', fontFamily: 'inherit',
               }}
             >
@@ -181,8 +181,8 @@ export function ShippingPanel({
                   onClick={() => setBranch(b)}
                   style={{
                     textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13,
-                    background: branch === b ? 'rgba(245,184,30,0.08)' : D.inputBg,
-                    border: `1px solid ${branch === b ? 'rgba(245,184,30,0.45)' : D.inputBorder}`,
+                    background: branch === b ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : D.inputBg,
+                    border: `1px solid ${branch === b ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)' : D.inputBorder}`,
                     borderRadius: 9, padding: '9px 12px', color: branch === b ? D.amber : '#B4B4B9',
                     fontWeight: branch === b ? 700 : 500,
                   }}
@@ -238,7 +238,7 @@ export function ShippingPanel({
             disabled={saving}
             style={{
               width: '100%', background: D.amber, border: 'none', borderRadius: 9, padding: '12px 14px',
-              color: '#1A1206', fontSize: 13.5, fontWeight: 800, fontFamily: 'inherit',
+              color: 'var(--color-primary-fg)', fontSize: 13.5, fontWeight: 800, fontFamily: 'inherit',
               cursor: saving ? 'wait' : 'pointer', opacity: saving ? 0.6 : 1,
             }}
           >

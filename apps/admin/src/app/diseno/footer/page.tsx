@@ -16,7 +16,7 @@ export default async function FooterDesignPage() {
   const active = (themes ?? []).find((t) => t.active) ?? (themes ?? [])[0] ?? null;
   const detail = active ? await adminFetch<ThemeDetail>(`/admin/themes/${active.id}`) : null;
   const tokens = detail?.tokens ? themeTokensSchema.parse(detail.tokens) : defaultTheme.tokens;
-  const brand = detail?.copys?.es?.['site.name'] ?? 'MaqServ24';
+  const brand = detail?.copys?.es?.['site.name'] ?? 'MAQSER24';
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email}>

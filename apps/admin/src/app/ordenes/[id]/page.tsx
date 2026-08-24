@@ -70,7 +70,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`
-          .od-back:hover{ color:#f5b81e; }
+          .od-back:hover{ color:var(--color-primary); }
           @media (max-width: 1000px){ .od-grid{ grid-template-columns: 1fr !important; } }
         `}</style>
 

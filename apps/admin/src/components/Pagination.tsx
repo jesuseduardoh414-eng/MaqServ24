@@ -14,7 +14,7 @@ const C = {
   panel: '#141416', panel2: '#1b1e26',
   line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
   ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  amber: '#f5b81e', amberInk: '#1a1a1b',
+  amber: 'var(--color-primary)', amberInk: 'var(--color-primary-fg)',
 };
 
 export interface PaginationProps {

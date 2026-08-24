@@ -22,7 +22,7 @@ const C = {
   panel: '#141416', panel2: '#1b1e26', panel3: '#212530',
   line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
   ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  amber: '#f5b81e', amberInk: '#1a1a1b', blue: '#4f9cff', green: '#31c46b', red: '#ff5c5c',
+  amber: 'var(--color-primary)', amberInk: 'var(--color-primary-fg)', warn: 'var(--color-warning)', ok: 'var(--color-success)', blue: '#4f9cff', green: '#31c46b', red: '#ff5c5c',
 };
 const FONT = "'Manrope', system-ui, sans-serif";
 const GRID = '64px minmax(0,1.7fr) minmax(0,1.05fr) 0.9fr 0.95fr 0.9fr 1.35fr';
@@ -225,7 +225,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
   const stockInfo = (stock: number | null) => {
     if (stock == null) return { color: C.dim, label: 'Sin dato', val: '—' as number | string };
     if (stock === 0) return { color: C.red, label: 'Agotado', val: stock };
-    if (stock <= 3) return { color: C.amber, label: 'Bajo stock', val: stock };
+    if (stock <= 3) return { color: C.warn, label: 'Bajo stock', val: stock };
     return { color: C.green, label: 'Disponible', val: stock };
   };
 
@@ -272,7 +272,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
           <div style={{ fontSize: 12, color: C.dim, fontWeight: 300, marginBottom: 6 }}>Catálogo <span style={{ margin: '0 6px' }}>/</span> <span style={{ color: C.muted }}>Productos</span></div>
           <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>Productos <span style={{ color: C.dim, fontWeight: 600, fontSize: 22 }}>({stats.total})</span></h1>
         </div>
-        <button type="button" onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 12px 26px -14px rgba(245,184,30,.7)' }}><i className="ph-bold ph-plus" style={{ fontSize: 15 }} /> Nuevo producto</button>
+        <button type="button" onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 12px 26px -14px color-mix(in srgb, var(--color-primary) 70%, transparent)' }}><i className="ph-bold ph-plus" style={{ fontSize: 15 }} /> Nuevo producto</button>
       </div>
 
       {/* Stats */}
@@ -360,7 +360,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
                   </span>
                 ) : (
                   <>
-                    <button type="button" title={p.featured ? 'Quitar destacado' : 'Destacar'} onClick={() => toggleFeature(p)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${p.featured ? C.amber : C.line}`, background: p.featured ? 'rgba(245,184,30,.16)' : C.panel2, color: p.featured ? C.amber : C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className={p.featured ? 'ph ph-star' : 'ph ph-star'} style={{ fontSize: 14 }} /></button>
+                    <button type="button" title={p.featured ? 'Quitar destacado' : 'Destacar'} onClick={() => toggleFeature(p)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${p.featured ? C.amber : C.line}`, background: p.featured ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : C.panel2, color: p.featured ? C.amber : C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className={p.featured ? 'ph ph-star' : 'ph ph-star'} style={{ fontSize: 14 }} /></button>
                     <button type="button" title="Editar" onClick={() => openEdit(p)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-pencil-simple" style={{ fontSize: 14 }} /></button>
                     <button type="button" title="Dar de baja" onClick={() => { setConfirmId(p.id); }} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-trash" style={{ fontSize: 14 }} /></button>
                   </>
@@ -486,7 +486,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
       {/* Toast */}
       {toast ? (
         <div style={{ position: 'fixed', bottom: 26, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: C.panel3, border: `1px solid ${C.line2}`, color: C.ink, padding: '13px 20px', borderRadius: 12, boxShadow: '0 24px 60px -30px rgba(0,0,0,.85)', fontSize: 14, fontWeight: 600, zIndex: 400 }}>
-          <i className={`ph-bold ${toast.kind === 'warn' ? 'ph-warning-circle' : toast.kind === 'trash' ? 'ph-trash' : 'ph-check-circle'}`} style={{ fontSize: 18, color: toast.kind === 'warn' ? C.red : C.amber }} /> {toast.text}
+          <i className={`ph-bold ${toast.kind === 'warn' ? 'ph-warning-circle' : toast.kind === 'trash' ? 'ph-trash' : 'ph-check-circle'}`} style={{ fontSize: 18, color: toast.kind === 'warn' ? C.red : C.ok }} /> {toast.text}
         </div>
       ) : null}
     </div>

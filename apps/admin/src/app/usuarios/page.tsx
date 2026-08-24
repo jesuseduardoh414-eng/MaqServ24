@@ -80,7 +80,7 @@ export default async function AdminUsers({
           .cu-row:hover{ background: rgba(255,255,255,0.022); }
           .cu-tab:hover{ background: rgba(255,255,255,0.05); color:#f5f5f4; }
           .cu-pg:hover{ background: rgba(255,255,255,0.06); color:#f5f5f4; }
-          .cu-name:hover{ color:#f5b81e; text-decoration: underline; }
+          .cu-name:hover{ color:var(--color-primary); text-decoration: underline; }
           @media (max-width: 1100px){ .cu-grid{ grid-template-columns: 1fr 1fr !important; row-gap: 10px !important; } .cu-head{ display:none !important; } }
         `}</style>
 
@@ -120,7 +120,7 @@ export default async function AdminUsers({
                   key={t.key || 'all'}
                   href={link({ segment: t.key || undefined, page: undefined })}
                   className={on ? undefined : 'cu-tab'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? '#1A1206' : '#9A9A9F' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? 'var(--color-primary-fg)' : '#9A9A9F' }}
                 >
                   {t.label}
                   <span style={{ background: on ? 'rgba(26,18,6,0.22)' : 'rgba(255,255,255,0.08)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>{n}</span>

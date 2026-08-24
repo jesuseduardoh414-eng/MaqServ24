@@ -17,11 +17,11 @@ interface Config extends CategoriesSettings {
 const D = {
   card: '#141416', cardBorder: 'rgba(255,255,255,0.06)',
   inputBg: 'rgba(255,255,255,0.03)', inputBorder: 'rgba(255,255,255,0.08)',
-  amber: '#f5b81e', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', previewBg: '#0e0e12', tabsBg: '#101012',
+  amber: 'var(--color-primary)', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', previewBg: '#0e0e12', tabsBg: '#101012',
 };
 const FONT = "'Manrope', system-ui, sans-serif";
 const PANEL = 'linear-gradient(160deg,#f6f7f9,#e7e9ee)';
-const PRESETS = ['#f5b81e', '#5b9dff', '#3fbf8f', '#ff7a59', '#b98cff', '#ffffff', '#c2c6cf'];
+const PRESETS = ['var(--color-primary)', '#5b9dff', '#3fbf8f', '#ff7a59', '#b98cff', '#ffffff', '#c2c6cf'];
 
 // Defaults defensivos: si el @maqserv/config del admin quedó viejo, `view`/`settings`
 // pueden llegar undefined (zod los descarta). Así el editor nunca crashea.
@@ -50,14 +50,14 @@ function ColorField({ label, value, onChange }: { label: string; value: string |
     <div style={{ display: 'grid', gap: 8 }}>
       <span style={smallLabel}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => onChange(null)} title="Heredar del tema" style={{ height: 32, padding: '0 12px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: isTheme ? 'rgba(245,184,30,0.16)' : 'transparent', color: isTheme ? D.amber : D.muted2, border: `2px solid ${isTheme ? D.amber : 'rgba(255,255,255,0.12)'}` }}>Tema</button>
+        <button type="button" onClick={() => onChange(null)} title="Heredar del tema" style={{ height: 32, padding: '0 12px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: isTheme ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : 'transparent', color: isTheme ? D.amber : D.muted2, border: `2px solid ${isTheme ? D.amber : 'rgba(255,255,255,0.12)'}` }}>Tema</button>
         {PRESETS.map((col) => {
           const sel = !isTheme && col.toLowerCase() === (value ?? '').toLowerCase();
-          return <button key={col} type="button" onClick={() => onChange(col)} title={col} style={{ width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px rgba(245,184,30,0.5)' : 'none' }} />;
+          return <button key={col} type="button" onClick={() => onChange(col)} title={col} style={{ width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
         })}
         <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 9, border: '2px dashed rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
           <i className="ph ph-eyedropper" style={{ fontSize: 13, color: D.muted2 }} />
-          <input type="color" value={value ?? '#f5b81e'} onChange={(e) => onChange(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+          <input type="color" value={value ?? 'var(--color-primary)'} onChange={(e) => onChange(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
         </label>
         <code style={{ fontSize: 12, color: D.text }}>{isTheme ? 'del tema' : value}</code>
       </div>
@@ -147,7 +147,7 @@ export function CategoriesEditor({
       <div style={{ ...cardStyle, display: 'grid', gap: 15 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'rgba(245,184,30,0.14)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className={`ph ${icon}`} style={{ fontSize: 19 }} /></div>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className={`ph ${icon}`} style={{ fontSize: 19 }} /></div>
             <div style={{ minWidth: 0 }}><h3 style={h3Style}>{label}</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>{help}</p></div>
           </div>
           <Toggle on={b.enabled} onClick={() => setBlock(which, 'enabled', !b.enabled)} />
@@ -217,7 +217,7 @@ export function CategoriesEditor({
           <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 2 · Categorías</h1>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'rgba(245,184,30,0.4)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'rgba(245,184,30,0.12)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
           <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
           <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
         </div>

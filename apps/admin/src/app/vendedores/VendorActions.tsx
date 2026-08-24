@@ -51,7 +51,7 @@ export function VendorActions({
     fontSize: font, fontWeight: 700, fontFamily: 'inherit', borderRadius: 8, padding: pad,
     cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap',
     background: v === 'solid' ? D.amber : 'transparent',
-    color: v === 'solid' ? '#1A1206' : v === 'danger' ? '#f55' : '#B4B4B9',
+    color: v === 'solid' ? 'var(--color-primary-fg)' : v === 'danger' ? '#f55' : '#B4B4B9',
     border: v === 'solid' ? 'none' : `1px solid ${v === 'danger' ? 'rgba(255,85,85,0.3)' : D.inputBorder}`,
   });
 

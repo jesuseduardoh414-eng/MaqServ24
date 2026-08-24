@@ -70,7 +70,7 @@ export function WithdrawActions({
             void send('completed');
           }
         }}
-        style={{ fontSize: 12, fontWeight: 700, fontFamily: 'inherit', borderRadius: 8, padding: '7px 14px', background: D.amber, color: '#1A1206', border: 'none', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1 }}
+        style={{ fontSize: 12, fontWeight: 700, fontFamily: 'inherit', borderRadius: 8, padding: '7px 14px', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1 }}
       >
         Marcar pagado
       </button>

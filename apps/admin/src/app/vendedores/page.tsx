@@ -64,7 +64,7 @@ export default async function AdminVendors({
         <style>{`
           .vn-row:hover{ background: rgba(255,255,255,0.022); }
           .vn-tab:hover{ background: rgba(255,255,255,0.05); color:#f5f5f4; }
-          .vn-shop:hover{ color:#f5b81e; text-decoration: underline; }
+          .vn-shop:hover{ color:var(--color-primary); text-decoration: underline; }
           @media (max-width: 1200px){ .vn-grid{ grid-template-columns: 1fr 1fr !important; row-gap: 10px !important; } .vn-head{ display:none !important; } }
         `}</style>
 
@@ -106,7 +106,7 @@ export default async function AdminVendors({
                   key={t.key || 'all'}
                   href={t.key ? `/vendedores?state=${t.key}` : '/vendedores'}
                   className={on ? undefined : 'vn-tab'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? '#1A1206' : '#9A9A9F' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', fontSize: 13.5, fontWeight: on ? 700 : 600, padding: '8px 16px', borderRadius: 9, background: on ? D.amber : 'transparent', color: on ? 'var(--color-primary-fg)' : '#9A9A9F' }}
                 >
                   {t.label}
                   <span style={{ background: on ? 'rgba(26,18,6,0.22)' : 'rgba(255,255,255,0.08)', padding: '1px 7px', borderRadius: 20, fontSize: 11, fontWeight: 800 }}>{n}</span>

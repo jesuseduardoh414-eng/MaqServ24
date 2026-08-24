@@ -66,7 +66,7 @@ export default async function AdminSubscribers({
         <style>{`
           .sb-row:hover{ background: rgba(255,255,255,0.022); }
           .sb-pg:hover{ background: rgba(255,255,255,0.06); color:#f5f5f4; }
-          .sb-link:hover{ color:#f5b81e; text-decoration: underline; }
+          .sb-link:hover{ color:var(--color-primary); text-decoration: underline; }
           @media (max-width: 900px){ .sb-grid{ grid-template-columns: 1fr 1fr !important; row-gap: 8px !important; } .sb-head{ display:none !important; } }
         `}</style>
 
