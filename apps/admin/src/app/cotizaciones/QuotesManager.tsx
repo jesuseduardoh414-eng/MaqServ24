@@ -105,7 +105,7 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: D.amber, boxShadow: `0 0 10px ${D.amber}b3` }} />
               <span style={{ fontSize: 12, color: '#8A8A8F', fontWeight: 600 }}>Por responder</span>
             </div>
-            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.warn, fontFamily: MONO }}>{countPending}</div>
+            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.accent, fontFamily: MONO }}>{countPending}</div>
           </div>
           <div style={statCard}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -174,8 +174,10 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
 
         {pageItems.map((q) => {
           const pend = isPending(q);
-          const color = pend ? D.warn : GREEN;
           const urgent = pend && q.days >= URGENT_DAYS;
+          // Pendiente normal en el acento; solo la espera larga se marca en ámbar,
+          // que es el color que el manual reserva para advertir.
+          const color = pend ? (urgent ? D.warn : D.accent) : GREEN;
           return (
             <div key={q.id} className="qz-row qz-grid" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 16, padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.045)', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>

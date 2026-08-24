@@ -37,10 +37,10 @@ export default async function AdminHome() {
 
   const tasks: Task[] = d
     ? [
-      { n: d.toPrepare, label: 'Por preparar', sub: 'Pagadas, esperando que salgan', href: '/ordenes?state=pagado', icon: 'ph-package', color: D.amber },
-      { n: d.pendingQuotes, label: 'Cotizaciones sin responder', sub: 'El cliente espera precio', href: '/cotizaciones', icon: 'ph-file-text', color: D.warn },
-      { n: d.withdrawsPending, label: 'Retiros por pagar', sub: d.withdrawsAmount > 0 ? `${money(d.withdrawsAmount)} en total` : 'Dinero de vendedores', href: '/retiros', icon: 'ph-hand-coins', color: D.warn },
-      { n: d.vendorsPending, label: 'Vendedores por aprobar', sub: 'Solicitudes nuevas', href: '/vendedores?state=pendiente', icon: 'ph-storefront', color: D.warn },
+      { n: d.toPrepare, label: 'Por preparar', sub: 'Pagadas, esperando que salgan', href: '/ordenes?state=pagado', icon: 'ph-package', color: D.accent },
+      { n: d.pendingQuotes, label: 'Cotizaciones sin responder', sub: 'El cliente espera precio', href: '/cotizaciones', icon: 'ph-file-text', color: D.accent },
+      { n: d.withdrawsPending, label: 'Retiros por pagar', sub: d.withdrawsAmount > 0 ? `${money(d.withdrawsAmount)} en total` : 'Dinero de vendedores', href: '/retiros', icon: 'ph-hand-coins', color: D.accent },
+      { n: d.vendorsPending, label: 'Vendedores por aprobar', sub: 'Solicitudes nuevas', href: '/vendedores?state=pendiente', icon: 'ph-storefront', color: D.accent },
       { n: d.unansweredQuestions, label: 'Preguntas sin responder', sub: 'Dudas sobre productos', href: '/preguntas', icon: 'ph-chat-circle', color: BLUE },
       { n: d.pendingReviews, label: 'Reseñas por moderar', sub: 'Esperan aprobación', href: '/resenas', icon: 'ph-star', color: BLUE },
       { n: d.shipped, label: 'En camino', sub: 'Pendientes de entregar', href: '/ordenes?state=enviado', icon: 'ph-truck', color: BLUE },
@@ -49,7 +49,7 @@ export default async function AdminHome() {
 
   const stats = d
     ? [
-      { v: money(d.sold), l: 'Vendido', s: `${d.orders} pedidos`, href: '/ordenes', c: D.amber },
+      { v: money(d.sold), l: 'Vendido', s: `${d.orders} pedidos`, href: '/ordenes', c: D.accent },
       { v: String(d.customers), l: 'Clientes que han comprado', s: 'De los registrados', href: '/usuarios?segment=compradores', c: GREEN },
       { v: String(d.products), l: 'Productos activos', s: 'Publicados en el sitio', href: '/productos', c: '#EDEDEC' },
       { v: String(d.quotes), l: 'Cotizaciones', s: 'Recibidas en total', href: '/cotizaciones', c: '#EDEDEC' },

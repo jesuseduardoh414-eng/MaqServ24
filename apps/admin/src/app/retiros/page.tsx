@@ -106,7 +106,7 @@ export default async function AdminWithdraws({
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: D.amber, boxShadow: `0 0 10px ${D.amber}b3` }} />
                 <span style={{ fontSize: 12, color: '#8A8A8F', fontWeight: 600 }}>Por pagar</span>
               </div>
-              <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.warn, fontFamily: MONO }}>{money(data?.pendingAmount ?? 0)}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: D.accent, fontFamily: MONO }}>{money(data?.pendingAmount ?? 0)}</div>
               <div style={{ fontSize: 11, color: '#5C5C61', marginTop: 3 }}>
                 {counts.pending ?? 0} solicitud{(counts.pending ?? 0) === 1 ? '' : 'es'}
               </div>
