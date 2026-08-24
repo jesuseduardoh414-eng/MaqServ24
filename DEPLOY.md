@@ -1,4 +1,27 @@
-# Despliegue — ServMaq / MaqServ
+# Despliegue — MAQSER24
+
+> **Repositorio (desde 2026-08-24): `github.com/jesuseduardoh414-eng/MaqServ24`.**
+> El anterior se movió a una organización privada y la integración de Vercel no
+> siguió el traslado: los push llegaban a GitHub pero **no disparaban ningún
+> build**, y siete commits se quedaron fuera de producción sin aviso.
+>
+> **Cómo saber si un cambio de CÓDIGO está realmente desplegado.** No sirve mirar
+> el sitio: los colores, textos e imágenes vienen de la BD por la API en tiempo
+> de ejecución, así que la pantalla puede verse "nueva" con el código viejo. Hay
+> que buscar en el HTML servido una marca que solo exista en el código nuevo. Hoy
+> la más cómoda son las fuentes: el layout emite **un `<link>` por familia**, así
+> que si ves una sola URL con `family=A&family=B`, ese build es anterior.
+>
+> ```
+> curl -s https://servmaq24-web.vercel.app/productos | grep -o 'fonts.googleapis.com/css2?[^"]*'
+> ```
+>
+> Al reconectar el repo, revisa en CADA proyecto de Vercel:
+> - **Root Directory** — `apps/web` y `apps/admin`. Un monorepo mal apuntado falla la build.
+> - **Production Branch** — `main`.
+> - **`REVALIDATE_SECRET`** — mismo valor que en la API. Sin esto la invalidación
+>   bajo demanda responde 503 y una página puede quedarse servida desde caché
+>   durante horas aunque la BD ya tenga otra cosa (medido: `Age: 12027`).
 
 Arquitectura de despliegue:
 
@@ -27,7 +50,7 @@ no guarda nada en disco, por eso Render no necesita disco persistente.
 
 ## 1) API en Render
 
-1. Ten los cambios en GitHub (`git push`). El repo es `servmaq24`.
+1. Ten los cambios en GitHub (`git push`). El repo es `MaqServ24`.
 2. En Render → **New → Blueprint** → conecta el repo. Render detecta [`render.yaml`](render.yaml)
    y crea el servicio `servmaq-api`.
    - (Alternativa manual: **New → Web Service**, runtime Node, y copia
