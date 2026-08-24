@@ -1,5 +1,8 @@
 import type { Theme } from './schema';
 
+/** Carpeta pública del bucket `media` de Supabase, donde viven los activos de marca. */
+const STORAGE = 'https://kxewnuotuolwloccusqx.supabase.co/storage/v1/object/public/media/uploads';
+
 /**
  * Tema por defecto: "maquinaria" (el sector activo del sitio actual).
  * Sirve como semilla de la tabla `themes` y como fallback si la API no responde.
@@ -102,16 +105,21 @@ export const defaultTheme: Theme = {
     // (el vertical original mide 1.35:1 y en la cabecera de 46 px el wordmark
     // quedaría ilegible). Siguen siendo sustituibles desde el admin
     // (Diseño del sitio → Identidad de marca).
+    // OJO: URLs absolutas de Supabase Storage, NO rutas `/brand/...` del
+    // `public/` de la app. Con rutas locales el logo sale roto (404) hasta que
+    // pasa un deploy, y el ADMIN es otra app con su propio `public/`. En el
+    // bucket funcionan para los dos y desde el primer momento. Se suben con
+    // `packages/db/src/subir-marca-maqser24.ts`.
     branding: {
       // El logo es metálico claro: la MISMA pieza sirve en ambos modos, pero en
       // fondo claro pierde contraste. Mientras el cliente no entregue la
       // variante para fondos claros que pide el manual (08 / FONDOS
       // AUTORIZADOS), se usa el mismo archivo en los dos.
-      logoLight: '/brand/maqser24-logo.png',
-      logoDark: '/brand/maqser24-logo.png',
-      logoAlt: '/brand/maqser24-logo-vertical.png',
-      icon: '/brand/app-icon.png',
-      favicon: '/brand/favicon.png',
+      logoLight: `${STORAGE}/maqser24-maqser24-logo.png`,
+      logoDark: `${STORAGE}/maqser24-maqser24-logo.png`,
+      logoAlt: `${STORAGE}/maqser24-maqser24-logo-vertical.png`,
+      icon: `${STORAGE}/maqser24-app-icon.png`,
+      favicon: `${STORAGE}/maqser24-favicon.png`,
     },
     // Ajustes de la Sección 1 · Hero (editables en Diseño del sitio → Hero).
     hero: {

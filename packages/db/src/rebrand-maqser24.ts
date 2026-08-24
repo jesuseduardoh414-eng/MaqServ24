@@ -7,8 +7,10 @@
  * (home.categories.viewAll, home.categoriesPage.*). Un seed ciego las borra y
  * el sitio pinta la clave cruda en la cara del usuario.
  *
- * Este script hace un merge:
- *   - tokens: se reemplazan por los nuevos (eso ES el rebranding).
+ * Este script hace un merge en los dos lados:
+ *   - tokens: campo por campo, y un valor nulo o vacío del código NO pisa uno de
+ *             la BD (ver `fusionarTokens`, que nació de haber borrado las
+ *             imágenes del cliente con un reemplazo completo).
  *   - copys:  se parte de los de la BD (conserva TODA edición del cliente) y
  *             solo se pisan las claves que el rebranding cambia a propósito.
  *
@@ -49,6 +51,38 @@ const COPYS_QUE_EDITO_EL_CLIENTE = [
 
 const DIR_RESPALDOS = join(process.cwd(), 'respaldos-tema');
 
+/**
+ * Fusiona los tokens del código sobre los de la BD, campo por campo.
+ *
+ * ESTO NACIÓ DE UN ERROR: la primera versión hacía `tokens: nuevo.tokens`, un
+ * reemplazo completo. Los tokens no son solo identidad — también guardan lo que
+ * el cliente configuró desde el admin: imágenes de banner, foto de "¿por qué
+ * elegirnos?", imagen de la oferta, la dirección de contacto. En el código todos
+ * esos campos valen `null` o `''` porque son "sin configurar", así que el
+ * reemplazo los borró todos de golpe.
+ *
+ * La regla que lo evita es simple: **un valor nulo o vacío del código no pisa un
+ * valor de la BD**. Los colores, tipografías y textos nuevos SÍ traen valor, así
+ * que se aplican; las imágenes que el código no conoce se quedan como están.
+ *
+ * Los arreglos son la excepción y siempre pisan: cuando el código deja uno
+ * vacío es una decisión (p. ej. `about.timeline: []`, que quita a propósito la
+ * historia de empresa inventada), no un "sin configurar".
+ */
+function fusionarTokens(bd: unknown, codigo: unknown): unknown {
+  if (Array.isArray(codigo)) return codigo;
+  if (codigo && typeof codigo === 'object' && bd && typeof bd === 'object' && !Array.isArray(bd)) {
+    const salida: Record<string, unknown> = { ...(bd as Record<string, unknown>) };
+    for (const [clave, valor] of Object.entries(codigo as Record<string, unknown>)) {
+      salida[clave] = fusionarTokens((bd as Record<string, unknown>)[clave], valor);
+    }
+    return salida;
+  }
+  // Escalar: el código solo gana si trae algo.
+  if (codigo === null || codigo === undefined || codigo === '') return bd ?? codigo;
+  return codigo;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const prisma = new PrismaClient();
@@ -70,6 +104,7 @@ async function main() {
   if (!actual) throw new Error('No hay tema activo en la BD.');
 
   const nuevo = themeSchema.parse(defaultTheme);
+  const tokensNuevos = fusionarTokens(actual.tokens, nuevo.tokens);
   const copysBd = (actual.copys ?? {}) as Record<string, Record<string, string>>;
   const copysNuevos: Record<string, Record<string, string>> = JSON.parse(JSON.stringify(copysBd));
 
@@ -114,7 +149,7 @@ async function main() {
 
   await prisma.theme.update({
     where: { id: actual.id },
-    data: { name: nuevo.name, tokens: nuevo.tokens, copys: copysNuevos, publishedAt: new Date() },
+    data: { name: nuevo.name, tokens: tokensNuevos as never, copys: copysNuevos, publishedAt: new Date() },
   });
   console.log('Identidad MAQSER24 aplicada al tema activo.');
   console.log(`Para revertir: node dist/rebrand-maqser24.js --revertir "${rutaRespaldo}"`);
