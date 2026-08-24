@@ -45,8 +45,20 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
  * lista. Solo se reintenta ante fallo de red o timeout: un 404 o un 500 son
  * respuestas legítimas y reintentarlas solo alarga la espera.
  */
-const TIMEOUT_MS = 10_000;
-const INTENTOS = 3;
+/**
+ * El presupuesto de espera es DISTINTO en build y en runtime, y mezclarlos
+ * rompe uno de los dos:
+ *
+ *  - En el BUILD no hay prisa y sí hay que aguantar el arranque en frío de
+ *    Render, así que se insiste ~40 s.
+ *  - En RUNTIME cada página es una función de Vercel, y en el plan Hobby esas
+ *    funciones se cortan a los 10 s. Reintentar ahí no ayuda a nadie: la
+ *    plataforma mata la función antes de terminar y el visitante recibe un 500.
+ *    Un solo intento corto, y que la página decida qué hacer si falla.
+ */
+const EN_BUILD = process.env.NEXT_PHASE === 'phase-production-build';
+const TIMEOUT_MS = EN_BUILD ? 15_000 : 6_000;
+const INTENTOS = EN_BUILD ? 3 : 1;
 const ESPERA_MS = 4_000;
 
 const fetchJson = cache(async (path: string): Promise<unknown> => {

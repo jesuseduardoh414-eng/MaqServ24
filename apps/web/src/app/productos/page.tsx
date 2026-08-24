@@ -24,6 +24,10 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   const [theme, categories, result, subcategories] = await Promise.all([
     getTheme(),
     getCategories(),
+    // El catálogo es la página más visitada: si la API no responde conviene
+    // enseñar la página con la parrilla vacía antes que un 500. Pasa cuando la
+    // API de Render (plan free) está despertando y la función de Vercel se
+    // corta antes.
     getProducts({
       page,
       search: sp.q,
@@ -31,6 +35,9 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       subcategory: sp.subcategoria,
       // Precio / calificación / disponibilidad / orden: la barra los pone en la URL.
       ...filtersToQuery(sp),
+    }).catch((err) => {
+      console.warn('[catalogo] la API no respondió; se pinta el catálogo vacío:', err);
+      return { items: [], total: 0, page, pages: 1 };
     }),
     sp.categoria ? getSubcategories(sp.categoria).catch(() => []) : Promise.resolve([]),
   ]);
