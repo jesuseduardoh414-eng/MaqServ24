@@ -13,6 +13,12 @@ export interface QuoteItemInput {
 
 export interface QuoteRequestInput {
   items: QuoteItemInput[];
+  /**
+   * Categoría de servicio cuando la solicitud NO parte de un equipo del
+   * catálogo (agua en pipas, triturados): se miden por viaje y por tonelada,
+   * no son SKUs. Con `service` presente, `items` puede ir vacío.
+   */
+  service?: string;
   customer: {
     name: string;
     email: string;

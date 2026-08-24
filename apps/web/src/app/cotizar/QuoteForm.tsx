@@ -59,10 +59,17 @@ interface PickedItem {
  */
 export function QuoteForm({
   product,
+  servicio,
   user,
   labels,
 }: {
   product: ProductCard | null;
+  /**
+   * Nombre de la categoría de servicio cuando la solicitud NO parte de un
+   * equipo del catálogo (agua en pipas, triturados). Llega por
+   * `/cotizar?servicio=<slug>`.
+   */
+  servicio?: string | null;
   user: AuthUser | null;
   labels: {
     name: string;
@@ -142,7 +149,9 @@ export function QuoteForm({
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (items.length === 0) { setError('Agrega al menos un equipo a cotizar'); return; }
+    // Con `servicio` (pipas, triturados) no hay equipo que agregar: lo que
+    // define la cotización va en el texto de la solicitud.
+    if (items.length === 0 && !servicio) { setError('Agrega al menos un equipo a cotizar'); return; }
     setError(null);
     setLoading(true);
     const form = new FormData(e.currentTarget);
@@ -151,6 +160,7 @@ export function QuoteForm({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         items,
+        ...(servicio ? { service: servicio } : {}),
         customer: {
           name: String(form.get('name') ?? ''),
           email: String(form.get('email') ?? ''),
@@ -215,9 +225,19 @@ export function QuoteForm({
       ) : (
         /* Lista editable + buscador: así /cotizar sirve aunque el carrito esté vacío. */
         <div style={cardStyle}>
-          <h2 style={legendStyle}>Equipos a cotizar {picked.length > 0 ? `· ${picked.length}` : ''}</h2>
+          <h2 style={legendStyle}>
+            {servicio ? `Servicio · ${servicio}` : `Equipos a cotizar ${picked.length > 0 ? `· ${picked.length}` : ''}`}
+          </h2>
 
-          {picked.length === 0 ? (
+          {servicio && picked.length === 0 ? (
+            /* Agua en pipas y triturados no tienen catálogo: no hay equipo que
+               buscar, lo que define la cotización son volumen, origen, destino
+               y fechas. Se pide en el campo de comentarios de abajo. */
+            <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)', fontSize: 13.5, lineHeight: 1.6 }}>
+              Este servicio se cotiza por volumen y recorrido, no por equipo. Indícanos cantidad,
+              origen, destino y fechas en el campo de detalles y te devolvemos opciones.
+            </p>
+          ) : picked.length === 0 ? (
             <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)', fontSize: 13.5, lineHeight: 1.6 }}>
               Busca el equipo que necesitas y agrégalo. Puedes incluir varios en la misma cotización.
             </p>

@@ -3,7 +3,7 @@ import type { ProductCard } from '@maqserv/types';
 import { parseProductSlug } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getSessionUser } from '@/lib/session';
-import { getProduct } from '@/lib/api';
+import { getProduct, getCategories } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { QuoteForm } from './QuoteForm';
 
@@ -12,7 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: `${t(theme, 'quote.form.title')} — ${t(theme, 'site.name')}` };
 }
 
-type Search = { producto?: string };
+type Search = { producto?: string; servicio?: string };
 
 export default async function QuotePage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
@@ -23,6 +23,18 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
   if (sp.producto) {
     const id = /^\d+$/.test(sp.producto) ? Number(sp.producto) : parseProductSlug(sp.producto);
     if (id) product = await getProduct(id).catch(() => null);
+  }
+
+  // ?servicio= viene de las categorías SIN catálogo (agua en pipas, triturados).
+  // No hay producto que enganchar, así que se resuelve el nombre de la categoría
+  // y se deja escrito en la solicitud para que el cliente no tenga que
+  // explicarlo. Se busca contra las categorías reales en vez de traducir el
+  // slug a mano: si el cliente le cambia el nombre desde el admin, esto lo
+  // sigue sin tocar código.
+  let servicio: string | null = null;
+  if (sp.servicio && !product) {
+    const cats = await getCategories().catch(() => []);
+    servicio = cats.find((c) => c.slug === sp.servicio)?.name ?? null;
   }
 
   return (
@@ -46,6 +58,7 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
           </div>
           <QuoteForm
           product={product}
+          servicio={servicio}
           user={user}
           labels={{
             name: t(theme, 'auth.field.name'),

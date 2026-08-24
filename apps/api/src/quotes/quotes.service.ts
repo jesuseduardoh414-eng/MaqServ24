@@ -35,7 +35,14 @@ export class QuotesService {
   }
 
   async create(input: QuoteRequestInput, userId: number | null): Promise<QuoteDetail> {
-    if (input.items.length === 0) throw new BadRequestException('La solicitud no tiene productos');
+    // Una cotización necesita equipos O una categoría de servicio. Lo segundo
+    // es para agua en pipas y triturados: ahí no hay SKU que elegir — lo que
+    // define el precio es volumen, origen, destino y fechas, y eso viene en el
+    // texto de la solicitud. Todo lo de abajo ya tolera `items` vacío: los
+    // totales dan cero y `cart_data` sale como un objeto vacío.
+    if (input.items.length === 0 && !input.service) {
+      throw new BadRequestException('La solicitud no tiene productos');
+    }
 
     const ids = input.items.map((i) => i.productId);
     const products = await prisma.products.findMany({
@@ -94,7 +101,9 @@ export class QuotesService {
         company_name: input.customer.company ?? null,
         region: input.customer.region ?? null,
         industry: input.customer.industry ?? null,
-        product_interested: items.map((i) => i.name).join(', ').slice(0, 250),
+        // Sin equipos, lo que el admin necesita ver en el listado es qué
+        // servicio se pidió; si no, la fila sale en blanco.
+        product_interested: (items.length ? items.map((i) => i.name).join(', ') : (input.service ?? '')).slice(0, 250),
         acquisition_option: input.acquisitionOption ?? null,
         comments: input.comments ?? null,
         address: input.address ?? null,

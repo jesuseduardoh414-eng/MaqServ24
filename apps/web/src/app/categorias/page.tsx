@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { getTheme, t } from '@/lib/theme';
 import { getCategories } from '@/lib/api';
+import { categoryHref, categoryCountLabel } from '@/lib/category-link';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Band } from '@/components/Band';
 
@@ -55,7 +56,7 @@ export default async function CategoriasPage() {
   const bigCard = (c: CatItem, isFeatured = false) => (
     <Link
       key={`big-${c.id}`}
-      href={`/productos?categoria=${c.slug}`}
+      href={categoryHref(c)}
       className="lift cat-card cat-featured"
       style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.05fr) minmax(0,.95fr)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: cv.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)' }}
     >
@@ -71,7 +72,7 @@ export default async function CategoriasPage() {
           <span style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 7, background: accent, color: 'var(--color-primary-fg)', borderRadius: 'var(--radius-sm)', padding: '5px 14px', fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em' }}>★ Destacada</span>
         ) : null}
         <h2 style={{ margin: 0, fontSize: 'clamp(1.7rem, 3.4vw, 2.6rem)', textTransform: 'uppercase', color: titleColor, lineHeight: 1.03, letterSpacing: '-.01em' }}>{c.name}</h2>
-        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 16, fontWeight: 300 }}>{c.productCount} {unit} disponibles para renta inmediata.</p>
+        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 16, fontWeight: 300 }}>{categoryCountLabel(c, unit)}</p>
         <span style={{ marginTop: '.5rem', justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, padding: '13px 24px', borderRadius: 'var(--radius-md)', fontSize: 15 }}>Ver equipos →</span>
       </div>
     </Link>
@@ -81,7 +82,7 @@ export default async function CategoriasPage() {
   const catCard = (c: CatItem) => (
     <Link
       key={c.id}
-      href={`/productos?categoria=${c.slug}`}
+      href={categoryHref(c)}
       className="lift cat-card"
       style={{ display: 'grid', gridTemplateRows: 'auto 1fr', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: cv.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)' }}
     >
@@ -95,7 +96,7 @@ export default async function CategoriasPage() {
       <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '1.06rem', letterSpacing: '-.01em', lineHeight: 1.12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-          <div style={{ color: 'var(--color-text-muted)', fontSize: 13.5, marginTop: 4, fontWeight: 400 }}>{c.productCount} {unit}</div>
+          <div style={{ color: 'var(--color-text-muted)', fontSize: 13.5, marginTop: 4, fontWeight: 400 }}>{categoryCountLabel(c, unit)}</div>
         </div>
         <span className="cat-arrow" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: accent, color: 'var(--color-primary-fg)', display: 'grid', placeItems: 'center', fontSize: 17, fontWeight: 900 }}>↗</span>
       </div>

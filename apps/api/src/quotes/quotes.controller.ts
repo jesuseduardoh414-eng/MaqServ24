@@ -6,11 +6,16 @@ import { QuotesService } from './quotes.service';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 
 const quoteSchema = z.object({
+  // Sin `.min(1)`: agua en pipas y triturados se cotizan por volumen y recorrido,
+  // no por un equipo del catálogo, así que llegan sin items y con `service`.
+  // La validación de "trae items O trae servicio" vive en el servicio.
   items: z.array(z.object({
     productId: z.number().int().positive(),
     qty: z.number().int().min(1).max(999),
     days: z.number().int().min(1).max(365).optional(),
-  })).min(1),
+  })),
+  /** Categoría de servicio cuando la cotización no parte de un equipo. */
+  service: z.string().max(120).optional(),
   customer: z.object({
     name: z.string().min(2).max(190),
     email: z.string().email().max(190),

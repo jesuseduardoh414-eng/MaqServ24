@@ -13,6 +13,7 @@ import {
   getServices,
   getWhyChooseUs,
 } from '@/lib/api';
+import { categoryHref, categoryCountLabel } from '@/lib/category-link';
 import { Carousel, Eyebrow } from '@/components/Carousel';
 import { CategoryStrip } from '@/components/CategoryStrip';
 import { CountUp } from '@/components/CountUp';
@@ -181,7 +182,7 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
         {categories.map((c) => (
           <Link
             key={c.id}
-            href={`/productos?categoria=${c.slug}`}
+            href={categoryHref(c)}
             data-cat-card
             className="lift cat-card"
             style={{ scrollSnapAlign: 'start', position: 'relative', display: 'block', height: cs.imageHeight, borderRadius: cs.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)', background: 'var(--surface-2)', border: '1px solid var(--color-border)' }}
@@ -197,7 +198,7 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             {/* Nombre + conteo encima (abajo-izquierda) */}
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '16px 16px 15px', display: 'grid', gap: 4 }}>
               <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', textTransform: 'uppercase', letterSpacing: '-.01em', lineHeight: 1.12 }}>{c.name}</span>
-              <span style={{ color: accent, fontWeight: 700, fontSize: '12.5px' }}>{c.productCount} {unit}</span>
+              <span style={{ color: accent, fontWeight: 700, fontSize: '12.5px' }}>{categoryCountLabel(c, unit)}</span>
             </div>
           </Link>
         ))}
