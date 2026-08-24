@@ -8,9 +8,10 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Band } from '@/components/Band';
 
 const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(16px, 4vw, 26px)' };
-// Panel claro para la imagen de tarjeta: normaliza fotos de maquinaria con
-// fondos distintos (unas en blanco, otras transparentes) y da el look de catálogo.
-const PANEL = 'linear-gradient(160deg, #f6f7f9 0%, #e7e9ee 100%)';
+// Panel de la imagen de tarjeta. Era claro; pasa a grafito por lo mismo que el
+// del catálogo: el manual pone negro y grafito como fondos prioritarios.
+const PANEL =
+  'linear-gradient(160deg, color-mix(in srgb, var(--color-surface) 88%, var(--color-text) 4%) 0%, var(--color-bg) 100%)';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();

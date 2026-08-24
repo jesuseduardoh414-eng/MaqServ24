@@ -12,8 +12,9 @@ import { formatPrice } from '@/lib/format';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
-// Panel radial claro para fotos de producto (mismo del catálogo): los PNG recortados se ven limpios.
-const PANEL = 'radial-gradient(115% 92% at 50% 22%, #ffffff 0%, #e9ebef 86%)';
+// Mismo panel que la tarjeta del catálogo (ver ProductCard): grafito, no blanco.
+const PANEL =
+  'radial-gradient(115% 92% at 50% 22%, color-mix(in srgb, var(--color-surface) 82%, var(--color-text) 4%) 0%, var(--color-bg) 88%)';
 
 function starsStr(r: number): string {
   const full = Math.round(r);
@@ -74,7 +75,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
   const effPrice = product.price !== null ? (isR ? periodPrice(product.price, period) : product.price) : null;
   const effUnit = isR ? unitLabelOf(period) : null;
   const priceUnit = isR ? `MXN / ${effUnit}` : 'MXN';
-  const badge = product.inStock ? { text: 'Disponible', bg: 'color-mix(in srgb, #22c55e 16%, var(--color-bg))', color: '#15803d' } : { text: 'Bajo pedido', bg: 'color-mix(in srgb, var(--color-primary) 18%, var(--color-bg))', color: '#b45309' };
+  const badge = product.inStock ? { text: 'Disponible', bg: 'color-mix(in srgb, var(--color-success) 16%, var(--color-bg))', color: 'var(--color-success)' } : { text: 'Bajo pedido', bg: 'color-mix(in srgb, var(--color-primary) 18%, var(--color-bg))', color: 'var(--color-warning)' };
   const quickSpecs = product.specs.slice(0, 3);
   const canBuy = !quoteMode && product.price !== null && product.inStock;
   const short = product.short ?? '';
@@ -301,7 +302,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
                           <span style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 13, fontWeight: 700, color: 'var(--color-primary-fg)', background: 'var(--color-primary)' }}>{initialsOf(r.author)}</span>
                           <div>
-                            <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>{r.author}{r.verified ? <span style={{ fontFamily: MONO, fontSize: 9, color: '#15803d', border: '1px solid color-mix(in srgb,#22c55e 40%,transparent)', borderRadius: 4, padding: '1px 5px' }}>✓ COMPRA</span> : null}</div>
+                            <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>{r.author}{r.verified ? <span style={{ fontFamily: MONO, fontSize: 9, color: 'var(--color-success)', border: '1px solid color-mix(in srgb,var(--color-success) 40%,transparent)', borderRadius: 4, padding: '1px 5px' }}>✓ COMPRA</span> : null}</div>
                             <div style={{ color: 'var(--color-primary)', fontSize: 13, letterSpacing: 1 }}>{starsStr(r.rating)}</div>
                           </div>
                           <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 'auto' }}>{fmtReviewDate(r.date)}</span>

@@ -10,8 +10,13 @@ import { t } from '@/lib/theme';
 import { formatPrice } from '@/lib/format';
 import { useCart } from '@/components/CartProvider';
 
-// Panel radial claro para la foto del producto (recortes PNG se ven limpios).
-const PANEL = 'radial-gradient(115% 92% at 50% 22%, #ffffff 0%, #e9ebef 86%)';
+// Panel radial de la foto del producto. Era claro (#ffffff -> #e9ebef) del
+// diseño anterior; en una identidad dark-first un recuadro blanco por tarjeta
+// pelea con la marca (08 / FONDOS AUTORIZADOS: negro y grafito prioritarios).
+// Se puede pasar a grafito porque las 27 fotos activas tienen transparencia:
+// ninguna trae fondo blanco incrustado que quedaría como un cuadro.
+const PANEL =
+  'radial-gradient(115% 92% at 50% 22%, color-mix(in srgb, var(--color-surface) 82%, var(--color-text) 4%) 0%, var(--color-bg) 88%)';
 
 const addBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--color-primary)',
@@ -87,7 +92,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
         {p.image ? (
           <Image src={p.image} alt={p.name} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 33vw, 25vw" className="zoom" style={{ objectFit: 'contain', padding: 16 }} />
         ) : (
-          <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: '#9aa0a5', fontFamily: 'monospace', fontSize: 11 }}>[ sin imagen ]</span>
+          <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>[ sin imagen ]</span>
         )}
         {badge ? (
           <span style={{ position: 'absolute', top: 13, left: 13, background: badge.bg, color: badge.fg, fontSize: '11px', fontWeight: 800, padding: '5px 11px', borderRadius: 'var(--radius-sm)' }}>{badge.text}</span>
@@ -95,7 +100,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
       </Link>
 
       <button type="button" aria-label="Favorito" aria-pressed={faved} onClick={toggleFav}
-        style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.92)', color: faved ? '#e0245e' : '#8E9294', fontSize: '15px', cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
+        style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)', border: '1px solid var(--color-border)', color: faved ? 'var(--color-error)' : 'var(--color-text-muted)', fontSize: '15px', cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
         {faved ? '♥' : '♡'}
       </button>
 

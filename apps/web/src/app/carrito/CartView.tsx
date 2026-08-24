@@ -205,7 +205,7 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                   <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon(); }} placeholder="Código" style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 100, padding: '11px 16px', fontFamily: MONO, fontSize: 13, background: 'var(--color-bg)', color: 'var(--color-text)', outline: 'none' }} />
                   <button type="button" onClick={applyCoupon} style={{ background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', fontFamily: DISPLAY, fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 100, cursor: 'pointer' }}>Aplicar</button>
                 </div>
-                {coupon ? <div style={{ fontFamily: MONO, fontSize: 11, color: '#15803d', marginTop: 8 }}>✓ {coupon.code} aplicado{coupon.label ? ` (${coupon.label})` : ''}</div> : null}
+                {coupon ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-success)', marginTop: 8 }}>✓ {coupon.code} aplicado{coupon.label ? ` (${coupon.label})` : ''}</div> : null}
                 {couponMsg ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 8 }}>{couponMsg}</div> : null}
               </div>
 
@@ -233,7 +233,7 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                 </div>
                 <div style={{ padding: '14px 24px 0', borderTop: '1px solid var(--color-border)', marginTop: 14 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-text-muted)' }}><span>Subtotal</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(subtotal)}</span></div>
-                  {discount > 0 ? <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: '#15803d' }}><span>Descuento {coupon?.code ? `· ${coupon.code}` : ''}</span><span style={{ fontWeight: 600 }}>−{formatPrice(discount)}</span></div> : null}
+                  {discount > 0 ? <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-success)' }}><span>Descuento {coupon?.code ? `· ${coupon.code}` : ''}</span><span style={{ fontWeight: 600 }}>−{formatPrice(discount)}</span></div> : null}
                   {operatorCost > 0 ? <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-text-muted)' }}><span>Operador ({selUnits})</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(operatorCost)}</span></div> : null}
 
                   {/* Traslado: va antes del impuesto porque el impuesto se calcula sobre él. */}

@@ -19,7 +19,7 @@ function strength(p: string): number {
   return s;
 }
 const STRENGTH_LABEL = ['MUY DÉBIL', 'DÉBIL', 'ACEPTABLE', 'BUENA', 'FUERTE'];
-const STRENGTH_COLOR = ['#dc2626', '#f59e0b', 'var(--color-primary)', '#15803d', '#15803d'];
+const STRENGTH_COLOR = ['var(--color-error)', 'var(--color-warning)', 'var(--color-primary)', 'var(--color-success)', 'var(--color-success)'];
 
 const labelStyle: React.CSSProperties = { display: 'block', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)' };
 const errStyle: React.CSSProperties = { fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 6, letterSpacing: '0.04em' };

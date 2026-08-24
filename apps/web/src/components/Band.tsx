@@ -10,8 +10,11 @@ import type { CtaBlock } from '@maqserv/config';
  */
 export function Band({ block, kind, maxWidth = 1240 }: { block: CtaBlock; kind: 'hero' | 'promo'; maxWidth?: number }) {
   const big = kind === 'hero';
-  const bg = block.bg ?? 'linear-gradient(135deg, var(--color-secondary) 0%, #0c0c0f 100%)';
-  const textColor = block.textColor ?? '#ffffff';
+  const bg = block.bg ?? 'linear-gradient(135deg, var(--color-secondary) 0%, var(--color-bg) 100%)';
+  // La banda siempre lleva fondo oscuro, así que el texto va en blanco técnico
+  // literal y no en var(--color-text): en modo claro ese token es casi negro y
+  // el texto desaparecería sobre el degradado.
+  const textColor = block.textColor ?? '#F5F7FA';
   const accent = block.accentColor ?? 'var(--color-primary)';
   const hasImg = !!block.image;
   const minH = big ? 460 : 380;

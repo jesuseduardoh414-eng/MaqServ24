@@ -25,7 +25,15 @@ function SectionHead({ title, tag }: { title: string; tag: string }) {
   );
 }
 
-const TINTS = ['#dde2e5', '#e7e3da', '#dee5df', '#e6dfe4'];
+// Tintes de las tarjetas de canal. Eran cuatro pasteles claros del diseño
+// anterior; sobre el fondo oscuro de MAQSER24 se leían como parches. Ahora son
+// velos del acento y del acero sobre la superficie, casi imperceptibles.
+const TINTS = [
+  'color-mix(in srgb, var(--color-primary) 10%, var(--color-surface))',
+  'color-mix(in srgb, var(--color-accent) 10%, var(--color-surface))',
+  'color-mix(in srgb, var(--color-success) 9%, var(--color-surface))',
+  'color-mix(in srgb, var(--color-text) 6%, var(--color-surface))',
+];
 
 export default async function ContactPage() {
   const theme = await getTheme();
@@ -136,7 +144,7 @@ export default async function ContactPage() {
                       </div>
                     ) : (
                       <div style={{ height: 150, background: TINTS[i % TINTS.length], backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0 1px, rgba(0,0,0,0) 1px 22px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.05) 0 1px, rgba(0,0,0,0) 1px 22px)', display: 'flex', alignItems: 'flex-end', padding: 14 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 11, color: '#52525b', background: 'rgba(255,255,255,0.82)', padding: '5px 9px', borderRadius: 4, letterSpacing: '0.04em' }}>mapa: {b.city}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.82)', padding: '5px 9px', borderRadius: 4, letterSpacing: '0.04em' }}>mapa: {b.city}</span>
                       </div>
                     )}
                     <div style={{ padding: '26px 24px 30px' }}>
