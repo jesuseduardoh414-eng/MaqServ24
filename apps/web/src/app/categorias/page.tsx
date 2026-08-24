@@ -68,11 +68,11 @@ export default async function CategoriasPage() {
       </div>
       <div style={{ padding: 'clamp(1.6rem, 3.4vw, 2.8rem)', display: 'grid', alignContent: 'center', gap: '.85rem' }}>
         {isFeatured ? (
-          <span style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 7, background: accent, color: '#1A1A1B', borderRadius: 'var(--radius-sm)', padding: '5px 14px', fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em' }}>★ Destacada</span>
+          <span style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 7, background: accent, color: 'var(--color-primary-fg)', borderRadius: 'var(--radius-sm)', padding: '5px 14px', fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em' }}>★ Destacada</span>
         ) : null}
         <h2 style={{ margin: 0, fontSize: 'clamp(1.7rem, 3.4vw, 2.6rem)', textTransform: 'uppercase', color: titleColor, lineHeight: 1.03, letterSpacing: '-.01em' }}>{c.name}</h2>
         <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 16, fontWeight: 300 }}>{c.productCount} {unit} disponibles para renta inmediata.</p>
-        <span style={{ marginTop: '.5rem', justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: '#1A1A1B', fontWeight: 800, padding: '13px 24px', borderRadius: 'var(--radius-md)', fontSize: 15 }}>Ver equipos →</span>
+        <span style={{ marginTop: '.5rem', justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, padding: '13px 24px', borderRadius: 'var(--radius-md)', fontSize: 15 }}>Ver equipos →</span>
       </div>
     </Link>
   );
@@ -97,7 +97,7 @@ export default async function CategoriasPage() {
           <div style={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '1.06rem', letterSpacing: '-.01em', lineHeight: 1.12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
           <div style={{ color: 'var(--color-text-muted)', fontSize: 13.5, marginTop: 4, fontWeight: 400 }}>{c.productCount} {unit}</div>
         </div>
-        <span className="cat-arrow" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: accent, color: '#1A1A1B', display: 'grid', placeItems: 'center', fontSize: 17, fontWeight: 900 }}>↗</span>
+        <span className="cat-arrow" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: accent, color: 'var(--color-primary-fg)', display: 'grid', placeItems: 'center', fontSize: 17, fontWeight: 900 }}>↗</span>
       </div>
     </Link>
   );

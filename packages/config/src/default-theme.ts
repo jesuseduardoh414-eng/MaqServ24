@@ -119,14 +119,19 @@ export const defaultTheme: Theme = {
       showTrust: true,
       showStats: true,
       overlay: 100,
-      primaryLink: '/productos',
-      secondaryLink: '/cotizar',
-      accentColor: '#FFC107',
-      titleColor: '#FFFFFF',
-      subtitleColor: '#C2C6CF',
-      primaryBg: '#FFC107',
-      primaryText: '#1A1A1B',
-      secondaryBorder: '#4A4A52',
+      // Cotizar es ahora el camino principal; el catálogo queda de secundario.
+      primaryLink: '/cotizar',
+      secondaryLink: '/productos',
+      // OJO: el hero pinta SIEMPRE sobre fotografía oscura, así que estos
+      // colores son literales y no siguen la paleta claro/oscuro. Eran los
+      // ámbar de SEGAshop (#FFC107) — sin cambiarlos el hero seguía amarillo
+      // aunque el resto del sitio ya fuera MAQSER24.
+      accentColor: '#008CFF', // azul eléctrico
+      titleColor: '#F5F7FA', // blanco técnico
+      subtitleColor: '#A9B0B7', // acero
+      primaryBg: '#008CFF',
+      primaryText: '#07090C', // negro sobre azul: 5.79:1 (blanco da 3.39:1)
+      secondaryBorder: '#2B333D', // gunmetal
     },
     // Ajustes de la Sección 2 · Categorías (adelanto en el home).
     categories: {
@@ -150,10 +155,10 @@ export const defaultTheme: Theme = {
       // Banda superior (hero de la página).
       hero: {
         enabled: true,
-        eyebrow: 'Catálogo de equipos',
-        title: 'Renta de maquinaria pesada',
+        eyebrow: 'Categorías de servicio',
+        title: 'Seis categorías. Una sola marca.',
         subtitle:
-          'Explora nuestras categorías y encuentra el equipo ideal para tu obra. Entrega en sitio y soporte técnico 24/7.',
+          'Maquinaria pesada, equipo menor, plataformas de elevación, agua en pipas, volteos y triturados. Una misma solicitud, una misma cotización.',
         cta: 'Ver catálogo',
         ctaLink: '/productos',
         image: null,
@@ -189,9 +194,10 @@ export const defaultTheme: Theme = {
         enabled: true,
         eyebrow: 'Catálogo completo',
         title: 'Todo el equipo, en un solo lugar',
-        subtitle: 'Compra o renta maquinaria certificada, con entrega en obra y soporte técnico 24/7.',
-        cta: 'Ver ofertas',
-        ctaLink: '/productos',
+        subtitle:
+          'Renta o compra equipo con especificaciones, ubicación y disponibilidad a la vista. Lo que no está en catálogo se cotiza.',
+        cta: 'Cotizar',
+        ctaLink: '/cotizar',
         image: null,
         bg: null,
         textColor: null,
@@ -241,36 +247,33 @@ export const defaultTheme: Theme = {
       heroCtaLink: '/productos',
       heroCta2: 'Contáctanos',
       heroCta2Link: '/contacto',
+      // Ver el comentario en `quienesSomosSchema`: las cifras anteriores eran
+      // inventadas y la línea de tiempo era una historia de empresa que no
+      // ocurrió. Se quedan solo hechos verificables.
       stats: [
-        { num: '11+', label: 'Años de experiencia' },
-        { num: '500+', label: 'Equipos en catálogo' },
-        { num: '1,200+', label: 'Obras atendidas' },
-        { num: '98%', label: 'Clientes satisfechos' },
+        { num: '6', label: 'Categorías de servicio' },
+        { num: 'MTY', label: 'Monterrey y zona metro' },
+        { num: '1', label: 'Marca, una experiencia' },
       ],
       propositoEyebrow: 'Nuestro propósito',
       propositoTitle: 'Lo que nos mueve',
       values: [
-        { title: 'Seguridad', desc: 'En cada equipo y operación' },
-        { title: 'Compromiso', desc: 'Cumplimos lo que prometemos' },
-        { title: 'Confianza', desc: 'Relaciones a largo plazo' },
-        { title: 'Eficiencia', desc: 'Tiempos y costos optimizados' },
+        { title: 'Disponibilidad', desc: 'Basada en información, no en suposiciones' },
+        { title: 'Velocidad', desc: 'Rapidez con control' },
+        { title: 'Confianza', desc: 'Proveedores y documentos verificables' },
+        { title: 'Trazabilidad', desc: 'De principio a fin' },
       ],
       timelineEyebrow: 'Nuestra trayectoria',
       timelineTitle: 'De un patio de equipos a una red de renta',
-      timeline: [
-        { year: '2014', title: 'Fundación', desc: 'Nace MAQSERV24 con un pequeño patio de equipos.' },
-        { year: '2017', title: 'Flota propia', desc: 'Superamos los 50 equipos certificados en operación.' },
-        { year: '2020', title: 'Cobertura regional', desc: 'Entrega en obra en toda la región y estados vecinos.' },
-        { year: '2023', title: 'Plataforma digital', desc: 'Catálogo y renta en línea con soporte 24/7.' },
-        { year: '2025', title: '500+ equipos', desc: 'Consolidados como referente en renta de maquinaria.' },
-      ],
+      timeline: [],
       ventajasEyebrow: 'Ventajas',
       ventajasTitle: 'Por qué elegirnos',
       ctaTitle: '¿Listo para poner tu obra en marcha?',
-      ctaSubtitle: 'Cotiza la maquinaria que tu proyecto necesita. Entrega en obra, equipos certificados y asesoría de nuestros especialistas.',
-      ctaPrimary: 'Solicitar cotización',
-      ctaPrimaryLink: '/contacto',
-      ctaSecondary: 'Llámanos',
+      ctaSubtitle:
+        'Dinos qué necesitas, dónde y para cuándo. Te devolvemos opciones con disponibilidad, condiciones y costo de traslado.',
+      ctaPrimary: 'Cotizar',
+      ctaPrimaryLink: '/cotizar',
+      ctaSecondary: 'Contactar',
       ctaSecondaryLink: '/contacto',
     },
     // Sección 5 · Sectores estratégicos (home). Colores null ⇒ heredan del tema.
@@ -288,8 +291,10 @@ export const defaultTheme: Theme = {
     // (Antes el home leía el copy `home.brands.list` y /quienes-somos su propio
     // token, y ya se habían despegado.)
     brands: {
-      title: 'Marcas con las que trabajamos',
-      eyebrow: 'Trabajamos con las marcas líderes de la industria',
+      title: 'Marcas presentes en la red',
+      // Decía "Trabajamos con las marcas líderes de la industria": afirma una
+      // relación comercial con CAT, Komatsu y demás que no está documentada.
+      eyebrow: 'Equipo de marcas reconocidas dentro de la red',
       list: ['CAT', 'Komatsu', 'Volvo CE', 'JCB', 'Yale', 'Bobcat'],
     },
     // Sección 6 · Oferta / Promoción (home). Colores null ⇒ heredan del tema.
@@ -413,28 +418,40 @@ export const defaultTheme: Theme = {
       // logo entregado trae uno distinto ("del mercado de renta de maquinaria");
       // manda el del manual hasta que el cliente confirme cuál es el oficial.
       'site.tagline': 'Infraestructura digital para maquinaria y servicios de construcción',
-      'home.hero.title': 'Renta de maquinaria',
-      'home.hero.titleAccent': 'industrial pesada',
+      // Mensaje de marca del manual (32 / MENSAJES DE MARCA).
+      'home.hero.title': 'Encuentra maquinaria',
+      'home.hero.titleAccent': 'disponible para tu obra',
       'home.hero.subtitle':
-        'Retroexcavadoras, camiones de volteo, grúas y generadores certificados, listos para operar. Entrega en obra y soporte técnico 24/7.',
-      'home.hero.badge': 'Bienvenido',
-      'home.hero.cta': 'Contáctanos',
-      'home.hero.ctaPrimary': 'Ver catálogo',
-      'home.hero.ctaSecondary': 'Solicitar cotización',
-      'home.hero.trust1.title': 'Equipo certificado',
-      'home.hero.trust1.text': 'Revisado y listo',
-      'home.hero.trust2.title': 'Pago seguro',
-      'home.hero.trust2.text': 'Múltiples métodos',
-      'home.hero.trust3.title': 'Entrega en obra',
-      'home.hero.trust3.text': 'En 24–48 horas',
-      'home.hero.trust4.title': 'Soporte 24/7',
-      'home.hero.trust4.text': 'Siempre disponible',
-      'home.hero.stat1.num': '500+',
-      'home.hero.stat1.label': 'Equipos disponibles',
-      'home.hero.stat2.num': '+5,000',
-      'home.hero.stat2.label': 'proyectos',
-      'home.hero.stat3.num': '24/7',
-      'home.hero.stat3.label': 'Soporte',
+        'Maquinaria pesada, equipo menor, plataformas de elevación, agua en pipas, volteos y triturados. Consulta disponibilidad y recibe opciones de proveedores desde una sola plataforma.',
+      'home.hero.badge': 'Monterrey y zona metropolitana',
+      'home.hero.cta': 'Contactar',
+      // 19 / BOTONES: etiquetas directas — COTIZAR, VER DISPONIBILIDAD,
+      // CONFIRMAR, CONTACTAR. Cotizar es el camino principal.
+      'home.hero.ctaPrimary': 'Cotizar',
+      'home.hero.ctaSecondary': 'Ver disponibilidad',
+      // 18 / PRINCIPIOS DE PRODUCTO: toda pantalla responde qué hay disponible,
+      // qué tan rápido se resuelve y quién lo suministra. Estos cuatro bloques
+      // decían "Equipo certificado", "Pago seguro", "Entrega en 24-48 horas" y
+      // "Soporte 24/7 · Siempre disponible" — promesas que la red todavía no
+      // puede garantizar, y "siempre disponible" es el ejemplo EXACTO que el
+      // manual prohíbe en 27 / IDENTIDAD Y COMUNICACIÓN.
+      'home.hero.trust1.title': 'Disponibilidad',
+      'home.hero.trust1.text': 'Con fecha y ubicación',
+      'home.hero.trust2.title': 'Velocidad',
+      'home.hero.trust2.text': 'Respuesta y cotización',
+      'home.hero.trust3.title': 'Confianza',
+      'home.hero.trust3.text': 'Proveedores verificados',
+      'home.hero.trust4.title': 'Cobertura',
+      'home.hero.trust4.text': 'Monterrey y zona metro',
+      // Las cifras anteriores ("500+ equipos disponibles", "+5,000 proyectos")
+      // no correspondían a nada: la plataforma tiene 27 productos activos. Se
+      // sustituyen por datos verificables de la arquitectura de marca.
+      'home.hero.stat1.num': '6',
+      'home.hero.stat1.label': 'categorías de servicio',
+      'home.hero.stat2.num': 'MTY',
+      'home.hero.stat2.label': 'y zona metropolitana',
+      'home.hero.stat3.num': '',
+      'home.hero.stat3.label': '',
       'product.cta.buy': 'Comprar ahora',
       'product.cta.addToCart': 'Añadir al carrito',
       'product.cta.quote': 'Solicitar cotización',
@@ -448,38 +465,43 @@ export const defaultTheme: Theme = {
       'product.medical.caducidad': 'Fecha de caducidad',
       'product.medical.ficha': 'Descargar ficha técnica (PDF)',
       'product.medical.dc3': 'Certificación DC-3',
-      'home.categories.eyebrow': 'Explora el catálogo',
-      'home.categories.title': 'Categorías de equipos',
+      'home.categories.eyebrow': 'Ecosistema de servicios',
+      'home.categories.title': 'Seis categorías. Una sola marca.',
       'home.categories.unit': 'equipos',
-      'home.featured.eyebrow': 'Nuestra maquinaria',
+      'home.featured.eyebrow': 'Equipos',
       'home.featured.title': 'Equipo destacado y disponible',
+      // "en tiempo real" era falso: la disponibilidad hoy es un entero de stock,
+      // no un estado con fecha y ubicación (eso llega con el modelo de red).
       'home.featured.subtitle':
-        'Maquinaria certificada, con especificaciones claras y disponibilidad en tiempo real.',
+        'Especificaciones, ubicación y condición a la vista. Los datos deciden; la foto ayuda.',
       'home.featured.filterAll': 'Todos',
       'home.featured.viewAll': 'Ver todo el catálogo',
       'home.sectors.eyebrow': 'Industrias que servimos',
       'home.sectors.title': 'Sectores estratégicos',
       'home.sectors.cta': 'Explorar equipos',
-      'home.whyChooseUs.eyebrow': 'Nuestro compromiso',
-      'home.whyChooseUs.title': '¿Por qué elegirnos?',
+      'home.whyChooseUs.eyebrow': 'Posicionamiento',
+      // 02 / POSICIONAMIENTO del manual, textual.
+      'home.whyChooseUs.title': 'No somos una rentadora digital.',
       'home.whyChooseUs.subtitle':
-        'Más que un proveedor de maquinaria, somos tu aliado estratégico en cada proyecto de construcción.',
-      'home.whyChooseUs.years.num': '12+',
-      'home.whyChooseUs.years.label': 'Años de experiencia',
-      'home.whyChooseUs.stat1.num': '500+',
-      'home.whyChooseUs.stat1.label': 'Equipos disponibles',
-      'home.whyChooseUs.stat2.num': '5,000+',
-      'home.whyChooseUs.stat2.label': 'Proyectos completados',
-      'home.whyChooseUs.stat3.num': '98%',
-      'home.whyChooseUs.stat3.label': 'Clientes satisfechos',
+        'Somos la infraestructura digital que conecta maquinaria y servicios de construcción con proyectos que necesitan respuesta rápida, trazabilidad y confianza.',
+      // Mismo caso que el hero: "12+ años", "500+ equipos", "5,000+ proyectos"
+      // y "98% clientes satisfechos" no correspondían a ningún dato real.
+      'home.whyChooseUs.years.num': '6',
+      'home.whyChooseUs.years.label': 'Categorías de servicio',
+      'home.whyChooseUs.stat1.num': 'Red',
+      'home.whyChooseUs.stat1.label': 'Capacidad propia y de aliados',
+      'home.whyChooseUs.stat2.num': 'MTY',
+      'home.whyChooseUs.stat2.label': 'Monterrey y zona metro',
+      'home.whyChooseUs.stat3.num': '',
+      'home.whyChooseUs.stat3.label': '',
       'home.offer.badge': 'Oferta de temporada',
       'home.offer.title': 'Renta 3 meses y el 4.º con 50% de descuento',
       'home.offer.subtitle':
         'Aplica en equipo seleccionado de excavación y volteo. Tiempo limitado, sujeto a disponibilidad.',
       'home.offer.cta': 'Ver la oferta',
-      'home.reviews.eyebrow': 'Opiniones verificadas',
+      'home.reviews.eyebrow': 'Opiniones verificadas por compra',
       'home.reviews.title': 'Lo que dicen nuestros clientes',
-      'home.brands.title': 'Marcas con las que trabajamos',
+      'home.brands.title': 'Marcas presentes en la red',
       'home.brands.list': 'CAT, Komatsu, Volvo CE, JCB, Yale, Bobcat',
       'home.faq.eyebrow': 'Resolvemos tus dudas',
       'home.services.eyebrow': 'Qué hacemos',

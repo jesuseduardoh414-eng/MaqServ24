@@ -24,8 +24,28 @@ import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { defaultTheme, themeSchema } from '@maqserv/config';
 
-/** Claves de copy que el rebranding pisa a propósito. El resto se respeta. */
-const COPYS_DEL_REBRANDING = ['site.name', 'site.tagline'];
+/**
+ * Copys que el CLIENTE editó a mano desde el admin. Estos NUNCA se pisan.
+ *
+ * La regla está al revés que en la Fase 1 a propósito: aquella solo cambiaba el
+ * nombre y el descriptor, así que bastaba una lista de lo que sí se pisaba. La
+ * Fase 2 reescribe casi todos los textos del sitio (voz y tono del manual), así
+ * que ahora la lista es la de lo intocable.
+ *
+ * Ojo: varias de estas están VACÍAS en la BD. No es un error — el cliente las
+ * borró a propósito para ocultar esos bloques (el "24/7 · Soporte" del hero y
+ * los subtítulos de categorías). Sobrescribirlas los haría reaparecer.
+ */
+const COPYS_QUE_EDITO_EL_CLIENTE = [
+  'home.hero.stat3.num',
+  'home.hero.stat3.label',
+  'catalog.search.placeholder',
+  'home.categories.viewAll',
+  'home.categories.subtitle',
+  'home.categoriesPage.title',
+  'home.categoriesPage.eyebrow',
+  'home.categoriesPage.subtitle',
+];
 
 const DIR_RESPALDOS = join(process.cwd(), 'respaldos-tema');
 
@@ -55,17 +75,18 @@ async function main() {
 
   for (const [locale, claves] of Object.entries(nuevo.copys)) {
     copysNuevos[locale] ??= {};
-    for (const clave of COPYS_DEL_REBRANDING) {
-      if (claves[clave] !== undefined) copysNuevos[locale][clave] = claves[clave];
-    }
-    // Claves nuevas del código que la BD todavía no tiene: se agregan (no pisan nada).
     for (const [clave, texto] of Object.entries(claves)) {
-      if (copysNuevos[locale][clave] === undefined) copysNuevos[locale][clave] = texto;
+      // Lo que el cliente editó se queda como está; todo lo demás toma el texto
+      // nuevo del código.
+      const esIntocable =
+        COPYS_QUE_EDITO_EL_CLIENTE.includes(clave) && copysNuevos[locale][clave] !== undefined;
+      if (!esIntocable) copysNuevos[locale][clave] = texto;
     }
   }
 
-  const conservados = Object.keys(copysBd.es ?? {}).filter(
-    (k) => !COPYS_DEL_REBRANDING.includes(k) && copysBd.es[k] !== nuevo.copys.es?.[k],
+  const conservados = COPYS_QUE_EDITO_EL_CLIENTE.filter((k) => copysBd.es?.[k] !== undefined);
+  const reescritos = Object.keys(nuevo.copys.es ?? {}).filter(
+    (k) => !conservados.includes(k) && copysBd.es?.[k] !== nuevo.copys.es[k],
   );
 
   console.log(`Tema activo: ${actual.slug} (${actual.name})`);
@@ -74,8 +95,10 @@ async function main() {
   console.log(`  primario:    ${(actual.tokens as any).colors.dark.primary}  ->  ${nuevo.tokens.colors.dark.primary}`);
   console.log(`  titulares:   ${(actual.tokens as any).typography.fontHeading}  ->  ${nuevo.tokens.typography.fontHeading}`);
   console.log(`  modo:        ${(actual.tokens as any).defaultMode}  ->  ${nuevo.tokens.defaultMode}`);
-  console.log(`  copys conservados de la BD: ${conservados.length}`);
-  console.log(`  copys pisados por el rebranding: ${COPYS_DEL_REBRANDING.join(', ')}`);
+  console.log(`  hero (CTA principal): ${(actual.tokens as any).hero?.primaryLink} -> ${nuevo.tokens.hero?.primaryLink}`);
+  console.log(`  hero (color del botón): ${(actual.tokens as any).hero?.primaryBg} -> ${nuevo.tokens.hero?.primaryBg}`);
+  console.log(`\n  copys reescritos: ${reescritos.length}`);
+  console.log(`  copys intocables (editados por el cliente): ${conservados.length} — ${conservados.join(', ')}`);
 
   if (args[0] !== '--aplicar') {
     console.log('\n(--ver) No se escribió nada. Corre con --aplicar para guardar.');

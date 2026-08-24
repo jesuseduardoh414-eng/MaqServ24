@@ -85,14 +85,14 @@ export const heroSettingsSchema = z
     showTrust: z.boolean().default(true),
     showStats: z.boolean().default(true),
     overlay: z.number().min(0).max(100).default(100), // opacidad % del círculo
-    primaryLink: z.string().default('/productos'),
-    secondaryLink: z.string().default('/cotizar'),
-    accentColor: z.string().default('#FFC107'),
-    titleColor: z.string().default('#FFFFFF'),
-    subtitleColor: z.string().default('#C2C6CF'),
-    primaryBg: z.string().default('#FFC107'),
-    primaryText: z.string().default('#1A1A1B'),
-    secondaryBorder: z.string().default('#4A4A52'),
+    primaryLink: z.string().default('/cotizar'),
+    secondaryLink: z.string().default('/productos'),
+    accentColor: z.string().default('#008CFF'),
+    titleColor: z.string().default('#F5F7FA'),
+    subtitleColor: z.string().default('#A9B0B7'),
+    primaryBg: z.string().default('#008CFF'),
+    primaryText: z.string().default('#07090C'),
+    secondaryBorder: z.string().default('#2B333D'),
   })
   .default({});
 
@@ -201,35 +201,39 @@ export const quienesSomosSchema = z
     heroCtaLink: z.string().default('/productos'),
     heroCta2: z.string().default('Contáctanos'),
     heroCta2Link: z.string().default('/contacto'),
+    // Estas cifras eran inventadas ("11+ años", "1,200+ obras", "98% clientes
+    // satisfechos") y contradicen el 34 / CONTROL DE CALIDAD del manual, que
+    // exige datos verificados. Se sustituyen por hechos de la arquitectura de
+    // marca. Cuando el cliente entregue cifras reales, van aquí.
     stats: z.array(qsStatSchema).default([
-      { num: '11+', label: 'Años de experiencia' },
-      { num: '500+', label: 'Equipos en catálogo' },
-      { num: '1,200+', label: 'Obras atendidas' },
-      { num: '98%', label: 'Clientes satisfechos' },
+      { num: '6', label: 'Categorías de servicio' },
+      { num: 'MTY', label: 'Monterrey y zona metro' },
+      { num: '1', label: 'Marca, una experiencia' },
     ]),
     propositoEyebrow: z.string().default('Nuestro propósito'),
     propositoTitle: z.string().default('Lo que nos mueve'),
+    // Principios rectores del documento institucional (5.4) y del manual
+    // (18 / PRINCIPIOS DE PRODUCTO).
     values: z.array(qsValueSchema).default([
-      { title: 'Seguridad', desc: 'En cada equipo y operación' },
-      { title: 'Compromiso', desc: 'Cumplimos lo que prometemos' },
-      { title: 'Confianza', desc: 'Relaciones a largo plazo' },
-      { title: 'Eficiencia', desc: 'Tiempos y costos optimizados' },
+      { title: 'Disponibilidad', desc: 'Basada en información, no en suposiciones' },
+      { title: 'Velocidad', desc: 'Rapidez con control' },
+      { title: 'Confianza', desc: 'Proveedores y documentos verificables' },
+      { title: 'Trazabilidad', desc: 'De principio a fin' },
     ]),
     timelineEyebrow: z.string().default('Nuestra trayectoria'),
     timelineTitle: z.string().default('De un patio de equipos a una red de renta'),
-    timeline: z.array(qsMilestoneSchema).default([
-      { year: '2014', title: 'Fundación', desc: 'Nace la empresa con un pequeño patio de equipos.' },
-      { year: '2017', title: 'Flota propia', desc: 'Superamos los 50 equipos certificados en operación.' },
-      { year: '2020', title: 'Cobertura regional', desc: 'Entrega en obra en toda la región y estados vecinos.' },
-      { year: '2023', title: 'Plataforma digital', desc: 'Catálogo y renta en línea con soporte 24/7.' },
-      { year: '2025', title: '500+ equipos', desc: 'Consolidados como referente en renta de maquinaria.' },
-    ]),
+    // VACÍO A PROPÓSITO. La línea de tiempo que traía la plantilla era ficción:
+    // fundación en 2014, "50 equipos certificados" en 2017, "500+ equipos" en
+    // 2025. MAQSER24 es, según sus propios documentos, una plataforma en
+    // construcción previa a lanzamiento. La sección no se pinta con el arreglo
+    // vacío; cuando el cliente confirme fechas y hitos reales, se llenan aquí.
+    timeline: z.array(qsMilestoneSchema).default([]),
     ventajasEyebrow: z.string().default('Ventajas'),
     ventajasTitle: z.string().default('Por qué elegirnos'),
     // Las marcas se movieron al token `brands` (fuente única compartida con el home).
     ctaTitle: z.string().default('¿Listo para poner tu obra en marcha?'),
-    ctaSubtitle: z.string().default('Cotiza la maquinaria que tu proyecto necesita. Entrega en obra, equipos certificados y asesoría de nuestros especialistas.'),
-    ctaPrimary: z.string().default('Solicitar cotización'),
+    ctaSubtitle: z.string().default('Dinos qué necesitas, dónde y para cuándo. Te devolvemos opciones con disponibilidad, condiciones y costo de traslado.'),
+    ctaPrimary: z.string().default('Cotizar'),
     ctaPrimaryLink: z.string().default('/contacto'),
     ctaSecondary: z.string().default('Llámanos'),
     ctaSecondaryLink: z.string().default('/contacto'),
@@ -278,7 +282,7 @@ export const brandsSchema = z
     /** Encabezado de la banda del home. */
     title: z.string().default('Marcas con las que trabajamos'),
     /** Encabezado del mismo listado en /quienes-somos. */
-    eyebrow: z.string().default('Trabajamos con las marcas líderes de la industria'),
+    eyebrow: z.string().default('Equipo de marcas reconocidas dentro de la red'),
     list: z.array(z.string()).default(['CAT', 'KOMATSU', 'KUBOTA', 'JCB', 'VOLVO', 'BOBCAT']),
   })
   .default({});
