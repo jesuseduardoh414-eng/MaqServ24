@@ -28,14 +28,77 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
  * piden el mismo endpoint (p. ej. /catalog/categories o /theme), se hace UNA
  * sola llamada por request → menos viajes al DB, carga más rápida.
  */
+/**
+ * Tope por intento y reintentos ante fallo de RED.
+ *
+ * La API vive en Render con plan free y se duerme sin tráfico; despertarla
+ * tarda decenas de segundos. Sin tope, la primera petición se queda colgada
+ * hasta que la plataforma mata el proceso.
+ *
+ * Esto no es solo comodidad en runtime: varias páginas se prerenderizan en el
+ * BUILD (`/sitemap.xml`, `/categorias`, `/quienes-somos`, `/blog`…), así que si
+ * la API está dormida cuando Vercel compila, el fetch falla y **la build entera
+ * se cae**. Fue exactamente lo que pasó: el deploy del 16 jul funcionó con la
+ * API despierta y el redeploy del mismo día falló a los 53 s.
+ *
+ * Con reintentos, el primer intento la despierta y el segundo ya la encuentra
+ * lista. Solo se reintenta ante fallo de red o timeout: un 404 o un 500 son
+ * respuestas legítimas y reintentarlas solo alarga la espera.
+ */
+const TIMEOUT_MS = 10_000;
+const INTENTOS = 3;
+const ESPERA_MS = 4_000;
+
 const fetchJson = cache(async (path: string): Promise<unknown> => {
-  const res = await fetch(`${API_URL}${path}`, CONTENT_CACHE);
-  if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
-  return res.json();
+  let ultimo: unknown;
+  for (let intento = 1; intento <= INTENTOS; intento++) {
+    try {
+      const res = await fetch(`${API_URL}${path}`, {
+        ...CONTENT_CACHE,
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+      if (!res.ok) throw new Error(`API ${path} → ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      ultimo = err;
+      // Un status de error ya llegó respondido: no se reintenta.
+      if (err instanceof Error && err.message.startsWith(`API ${path} →`)) throw err;
+      if (intento === INTENTOS) break;
+      console.warn(`[api] ${path}: intento ${intento}/${INTENTOS} falló, reintentando…`);
+      await new Promise((r) => setTimeout(r, ESPERA_MS));
+    }
+  }
+  throw ultimo;
 });
 
 async function get<T>(path: string): Promise<T> {
   return (await fetchJson(path)) as T;
+}
+
+/**
+ * Igual que `get`, pero devuelve `fallback` en vez de lanzar.
+ *
+ * Lo usan los listados de CONTENIDO (categorías, blog, sectores, reseñas…) por
+ * una razón de despliegue, no de estética: esas páginas se prerenderizan en el
+ * BUILD, así que una excepción aquí **tumba el deploy entero**. Y la API vive en
+ * Render con plan free, que se duerme sin tráfico: durante meses hubo builds
+ * que fallaban solo porque la API estaba despertando.
+ *
+ * Con esto, en el peor caso el sitio se publica con una sección vacía y la
+ * siguiente revalidación (60 s) la llena. Un hueco temporal es mucho mejor que
+ * un despliegue caído que además no avisa.
+ *
+ * NO se usa en lo que necesita datos de verdad para tener sentido —una ficha de
+ * producto, un pedido, el detalle de un blog—: ahí es correcto fallar y que
+ * Next muestre el error o el 404.
+ */
+async function getOr<T>(path: string, fallback: T): Promise<T> {
+  try {
+    return (await fetchJson(path)) as T;
+  } catch (err) {
+    console.warn(`[api] ${path} no respondió; se usa el valor de respaldo:`, err);
+    return fallback;
+  }
 }
 
 export function getProducts(opts: {
@@ -74,21 +137,21 @@ export function getProduct(id: number): Promise<ProductDetail> {
 }
 
 export function getCategories(): Promise<Category[]> {
-  return get('/catalog/categories');
+  return getOr('/catalog/categories', []);
 }
 
 export function getSiteSettings(): Promise<SiteSettings> {
-  return get('/settings/site');
+  return getOr('/settings/site', { email: null, phone: null, logo: null });
 }
 
 // ---- Contenido de home / CMS ligero ----
 
 export function getHero(): Promise<HomeHero | null> {
-  return get('/content/hero');
+  return getOr('/content/hero', null);
 }
 
 export function getSectors(): Promise<StrategicSector[]> {
-  return get('/content/sectors');
+  return getOr('/content/sectors', []);
 }
 
 export function getSector(id: number): Promise<StrategicSectorDetail> {
@@ -96,15 +159,15 @@ export function getSector(id: number): Promise<StrategicSectorDetail> {
 }
 
 export function getWhyChooseUs(): Promise<WhyChooseUsItem[]> {
-  return get('/content/why-choose-us');
+  return getOr('/content/why-choose-us', []);
 }
 
 export function getServices(): Promise<ServiceItem[]> {
-  return get('/content/services');
+  return getOr('/content/services', []);
 }
 
 export function getBlogs(limit = 3): Promise<BlogCard[]> {
-  return get(`/content/blogs?limit=${limit}`);
+  return getOr(`/content/blogs?limit=${limit}`, []);
 }
 
 export function getBlog(id: number): Promise<BlogDetail> {
@@ -112,9 +175,9 @@ export function getBlog(id: number): Promise<BlogDetail> {
 }
 
 export function getReviews(limit = 6): Promise<SiteReview[]> {
-  return get(`/content/reviews?limit=${limit}`);
+  return getOr(`/content/reviews?limit=${limit}`, []);
 }
 
 export function getFaqs(): Promise<FaqItem[]> {
-  return get('/content/faqs');
+  return getOr('/content/faqs', []);
 }
