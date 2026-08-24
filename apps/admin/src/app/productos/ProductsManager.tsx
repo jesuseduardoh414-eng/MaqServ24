@@ -24,7 +24,7 @@ const C = {
   ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
   amber: 'var(--color-primary)', amberInk: 'var(--color-primary-fg)', warn: 'var(--color-warning)', ok: 'var(--color-success)', blue: '#4f9cff', green: '#31c46b', red: '#ff5c5c',
 };
-const FONT = "'Manrope', system-ui, sans-serif";
+const FONT = "'Inter', system-ui, sans-serif";
 const GRID = '64px minmax(0,1.7fr) minmax(0,1.05fr) 0.9fr 0.95fr 0.9fr 1.35fr';
 const inputStyle: CSSProperties = { width: '100%', background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 11, padding: '12px 14px', fontSize: 14, outline: 'none', fontFamily: 'inherit' };
 const labelStyle: CSSProperties = { display: 'block', fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 7 };
@@ -246,7 +246,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
 
   return (
     <div style={{ fontFamily: FONT, color: C.ink }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
       <style>{`
         /* Las 7 columnas de la tabla no caben en móvil: cada fila pasa a ser
            una tarjeta (imagen + nombre arriba; categoría, precio, stock y

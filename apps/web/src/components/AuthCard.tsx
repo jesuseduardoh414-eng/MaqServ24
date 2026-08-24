@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 
 type View = 'login' | 'register' | 'forgot' | 'success';
@@ -101,7 +101,7 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
 
   return (
     <div style={{ position: 'relative', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 40, boxShadow: '0 30px 60px -40px rgba(17,17,17,0.35)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       {/* Marcas de esquina */}
       {[['12px', 'auto', 'auto', '12px'], ['12px', '12px', 'auto', 'auto'], ['auto', 'auto', '12px', '12px'], ['auto', '12px', '12px', 'auto']].map((pos, i) => (
         <span key={i} style={{ position: 'absolute', top: pos[0], right: pos[1], bottom: pos[2], left: pos[3], width: 14, height: 14, borderTop: i < 2 ? '2px solid var(--color-text)' : undefined, borderBottom: i >= 2 ? '2px solid var(--color-text)' : undefined, borderLeft: i % 2 === 0 ? '2px solid var(--color-text)' : undefined, borderRight: i % 2 === 1 ? '2px solid var(--color-text)' : undefined }} />

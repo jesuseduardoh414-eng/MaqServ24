@@ -54,7 +54,7 @@ export function ContactEditor({ themeId, copys, tokens, contact }: {
 
   return (
     <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
 
       <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
         <div style={{ minWidth: 0, flex: 1 }}>

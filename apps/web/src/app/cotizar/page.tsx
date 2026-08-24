@@ -41,7 +41,7 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
     <>
       <SiteHeader theme={theme} />
       <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
         <style>{`
           @media (max-width: 760px){
             .qf-wrap{ padding-left:22px !important; padding-right:22px !important; }

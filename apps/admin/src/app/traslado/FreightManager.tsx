@@ -78,7 +78,7 @@ export function FreightManager({ themeId, copys, tokens, checkout, contactAddres
 
   return (
     <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
       {/* Los 3 modos de cobro y los pares de campos no bajan de su ancho
           mínimo: en móvil se apilan en vez de salirse de la tarjeta. */}
       <style>{`

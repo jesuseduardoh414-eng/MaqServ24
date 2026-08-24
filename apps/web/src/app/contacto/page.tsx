@@ -4,7 +4,7 @@ import { getTheme, t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { ContactForm } from './ContactForm';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -46,7 +46,7 @@ export default async function ContactPage() {
   return (
     <>
       <SiteHeader theme={theme} />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         @media (max-width: 900px){
           .ct-hero, .ct-main, .ct-branches { grid-template-columns: 1fr !important; }

@@ -11,7 +11,7 @@ import type { BlogCard } from '@maqserv/types';
  * tiempo de lectura son datos reales de la BD (nada inventado).
  */
 
-const MONO = "'Space Mono', ui-monospace, 'SFMono-Regular', monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 const DARK = 'var(--color-secondary)';
 const AMBER = 'var(--color-primary)';
@@ -107,7 +107,7 @@ export function BlogIndex({ posts, eyebrow, title, subtitle }: { posts: BlogCard
 
   return (
     <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         .blog-cta:hover { color: var(--color-primary) !important; }
         .blog-card { text-decoration: none; color: inherit; display: block; }

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { defaultTheme, themeSchema, themeToCss } from '@maqserv/config';
+import { defaultTheme, googleFontsHrefs, themeSchema, themeToCss } from '@maqserv/config';
 import { BrandingProvider } from '@/components/branding';
 import './globals.css';
 
@@ -28,10 +28,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap"
-          rel="stylesheet"
-        />
+        {/* Las familias salen del tema, no escritas a mano: el manual manda
+            Inter para interfaces y documentos (13 / TIPOGRAFÍA), y así un
+            cambio de tipografía en Diseño mueve el panel igual que el sitio. */}
+        {googleFontsHrefs(tokens.typography.fontSans, [
+          tokens.typography.fontHeading,
+          tokens.typography.fontDisplay,
+        ]).map((href) => (
+          <link key={href} rel="stylesheet" href={href} />
+        ))}
         <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
         <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css" />
         {branding.favicon ? <link rel="icon" href={branding.favicon} /> : null}

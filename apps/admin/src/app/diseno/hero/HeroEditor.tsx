@@ -23,8 +23,8 @@ const D = {
   amber: 'var(--color-primary)', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', muted3: '#8a8a93',
   tabsBg: '#101012', previewBg: '#0e0e12', heroBg: '#0a0a0c',
 };
-const FONT = "'Manrope', system-ui, sans-serif";
-const MONO = "'Space Grotesk', monospace";
+const FONT = "'Inter', system-ui, sans-serif";
+const MONO = "'Inter Tight', monospace";
 
 const TABS = [
   { id: 'contenido', label: 'Contenido', icon: 'ph-text-aa' },
@@ -167,7 +167,7 @@ export function HeroEditor({
   return (
     <div style={{ fontFamily: FONT, color: D.text }}>
       {/* Fuentes del diseño (Phosphor ya está cargado en el admin) */}
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700&display=swap" />
 
       {/* Barra de acciones */}
       <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>

@@ -6,7 +6,7 @@ import { paymentStatusLabel, toneColors } from '@/lib/order-status';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -57,7 +57,7 @@ export default async function TrackPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <SiteHeader theme={theme} />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '56px 24px 72px', background: 'var(--color-bg)' }}>
         {/* Hero */}
         <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 32, marginBottom: 40 }}>

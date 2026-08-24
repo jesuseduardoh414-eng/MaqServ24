@@ -6,7 +6,7 @@ import { getSessionUser } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { ProfileForms } from './ProfileForms';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -29,7 +29,7 @@ export default async function AccountPage() {
     <>
       <SiteHeader theme={theme} />
       <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
         <style>{`
           @media (max-width: 900px){
             .acc-cols{ grid-template-columns:1fr !important; }

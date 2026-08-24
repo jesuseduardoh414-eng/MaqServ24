@@ -47,7 +47,7 @@ export const D = {
   tabsBg: '#101012',
 };
 
-export const FONT = "'Manrope', system-ui, sans-serif";
+export const FONT = "'Inter', system-ui, sans-serif";
 
 /** Colores sugeridos en los selectores de Diseño: el azul de marca va primero. */
 export const PRESETS = ['#008CFF', '#0066CC', '#22C55E', '#F59E0B', '#F87171', '#ffffff', '#A9B0B7'];

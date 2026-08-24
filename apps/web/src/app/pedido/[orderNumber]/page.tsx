@@ -13,7 +13,7 @@ import { formatPrice } from '@/lib/format';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 const STEPS: Array<[string, string]> = [['1', 'Carrito'], ['2', 'Datos'], ['3', 'Pago']];
 const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
@@ -98,7 +98,7 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
     <>
       <SiteHeader theme={theme} />
       <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
         <style>{`
           @media (max-width: 900px){
             .or-grid{ grid-template-columns:1fr !important; gap:32px !important; }

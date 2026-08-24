@@ -9,7 +9,7 @@ const C = {
   text: '#E7EAF0', textSoft: '#C2C8D2', muted: '#8B93A0', muted2: '#6B7280',
   line: '#232833', line2: '#3A414F', amber: '#F4B400', green: '#34D399', yellow: '#FBBF24', red: '#F87171',
 };
-const FONT = "'Manrope', system-ui, sans-serif";
+const FONT = "'Inter', system-ui, sans-serif";
 const PAGE_SIZE = 8;
 const AVATAR = ['#F4B400', '#60A5FA', '#F472B6', '#34D399', '#A78BFA', '#FB923C'];
 
@@ -122,7 +122,7 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
 
   return (
     <div style={{ fontFamily: FONT, color: C.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Archivo:wght@700;800;900&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Archivo:wght@700;800;900&display=swap" />
       <style>{`
         .rev-row:hover{ background:#191E27 !important; }
         .act-btn:hover{ background:#232833 !important; }

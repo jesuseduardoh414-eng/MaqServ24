@@ -10,7 +10,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { ProductQuestions } from '@/components/ProductQuestions';
 import { formatPrice } from '@/lib/format';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 // Panel radial claro para fotos de producto (mismo del catálogo): los PNG recortados se ven limpios.
 const PANEL = 'radial-gradient(115% 92% at 50% 22%, #ffffff 0%, #e9ebef 86%)';
@@ -109,7 +109,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
 
   return (
     <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         .pd-article :where(h2,h3){ font-family:${DISPLAY}; margin:28px 0 10px; font-size:22px; font-weight:700; letter-spacing:-0.02em; color:var(--color-text); }
         .pd-article p{ margin:0 0 18px; font-size:18px; line-height:1.72; color:color-mix(in srgb, var(--color-text) 78%, transparent); }

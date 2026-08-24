@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { fetchRealtimeToken, supabaseBrowser } from '@/lib/supabase-browser';
 import { paymentStatusLabel, toneColors } from '@/lib/order-status';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 
 /**
  * Muestra el estado de pago del pedido y lo actualiza EN VIVO vía Supabase Realtime.

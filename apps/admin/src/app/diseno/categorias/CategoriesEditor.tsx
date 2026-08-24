@@ -19,7 +19,7 @@ const D = {
   inputBg: 'rgba(255,255,255,0.03)', inputBorder: 'rgba(255,255,255,0.08)',
   amber: 'var(--color-primary)', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', previewBg: '#0e0e12', tabsBg: '#101012',
 };
-const FONT = "'Manrope', system-ui, sans-serif";
+const FONT = "'Inter', system-ui, sans-serif";
 const PANEL = 'linear-gradient(160deg,#f6f7f9,#e7e9ee)';
 const PRESETS = ['var(--color-primary)', '#5b9dff', '#3fbf8f', '#ff7a59', '#b98cff', '#ffffff', '#c2c6cf'];
 
@@ -208,7 +208,7 @@ export function CategoriesEditor({
 
   return (
     <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
 
       {/* Barra de acciones */}
       <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>

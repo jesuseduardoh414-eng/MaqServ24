@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AuthCard } from '@/components/AuthCard';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 
 /**
  * Layout de las vistas de auth (login/registro/recuperar): barra superior mínima

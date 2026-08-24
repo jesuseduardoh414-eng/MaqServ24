@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { Category, VendorProductRow } from '@maqserv/types';
 import { formatPrice } from '@/lib/format';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 
 const card: React.CSSProperties = {

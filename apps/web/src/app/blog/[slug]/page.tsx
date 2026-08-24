@@ -10,7 +10,7 @@ import { BlogShare } from './BlogShare';
 
 type Params = { slug: string };
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 
 async function fetchBySlug(slug: string): Promise<BlogDetail | null> {

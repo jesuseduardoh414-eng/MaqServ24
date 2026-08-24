@@ -7,12 +7,12 @@ import { toneColors, type Tone } from '@/lib/order-status';
  * Módulo SIN 'use client' a propósito: todas las páginas que lo usan son de
  * servidor. Aquí no hay estado ni handlers, solo JSX y estilos.
  */
-export const MONO = "'Space Mono', ui-monospace, monospace";
+export const MONO = "'Inter', system-ui, sans-serif";
 export const DISPLAY = 'var(--font-display)';
 
-/** Space Mono no viene en el tema: se carga donde se usa. */
+/** Etiquetas de dato: Inter en mayúsculas con letter-spacing (13 / TIPOGRAFÍA). */
 export const MonoFont = () => (
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
 );
 
 export const cardStyle: React.CSSProperties = {
@@ -76,7 +76,7 @@ export function VendorHeader({
   );
 }
 
-/** Dato etiquetado (Space Mono arriba, valor abajo). */
+/** Dato etiquetado: etiqueta arriba, valor abajo. */
 export function Field({ label, value }: { label: string; value: string | null }) {
   return (
     <div>

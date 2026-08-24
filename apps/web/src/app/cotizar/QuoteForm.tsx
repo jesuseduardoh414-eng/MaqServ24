@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { AuthUser, ProductCard, QuoteDetail } from '@maqserv/types';
 import { useCart } from '@/components/CartProvider';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
 const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
 

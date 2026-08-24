@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { fetchRealtimeToken, supabaseBrowser } from '@/lib/supabase-browser';
 
-const MONO = "'Space Mono', ui-monospace, monospace";
+const MONO = "'Inter', system-ui, sans-serif";
 
 interface Notification {
   id: number;

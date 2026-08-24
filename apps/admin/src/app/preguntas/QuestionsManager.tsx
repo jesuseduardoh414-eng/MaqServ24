@@ -19,7 +19,7 @@ const C = {
   card: '#151A21', cardBorder: '#1F242E', line: '#232833', line2: '#3A414F', tabsBg: '#101012',
   text: '#E7EAF0', muted: '#8B93A0', muted2: '#6B7280', amber: '#F4B400', green: '#34D399', yellow: '#FBBF24', red: '#F87171',
 };
-const FONT = "'Manrope', system-ui, sans-serif";
+const FONT = "'Inter', system-ui, sans-serif";
 const fmt = (iso: string | null) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -81,7 +81,7 @@ export function QuestionsManager({ initial }: { initial: AdminQuestion[] }) {
 
   return (
     <div style={{ fontFamily: FONT, color: C.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Archivo:wght@700;800;900&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Archivo:wght@700;800;900&display=swap" />
 
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: '0 0 5px', fontFamily: "'Archivo', sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: '-0.01em' }}>Preguntas de productos</h1>

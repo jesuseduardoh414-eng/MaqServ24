@@ -18,7 +18,7 @@ const C = {
   amber: 'var(--color-primary)', amber2: 'color-mix(in srgb, var(--color-primary) 72%, #fff)', amberInk: 'var(--color-primary-fg)', warn: 'var(--color-warning)', ok: 'var(--color-success)',
   blue: '#4f9cff', green: '#31c46b', red: '#ff5c5c',
 };
-const FONT = "'Manrope', system-ui, sans-serif";
+const FONT = "'Inter', system-ui, sans-serif";
 const GRID = '70px minmax(0,1.5fr) minmax(0,1.2fr) minmax(0,1fr) 0.95fr 1.1fr';
 
 function slugify(s: string) {
@@ -160,7 +160,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
 
   return (
     <div style={{ fontFamily: FONT, color: C.ink }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
       <style>{`
         /* Estas clases ya existían en el marcado pero nunca tuvieron CSS: las
            6 columnas se encimaban en móvil. Cada fila pasa a tarjeta y el
