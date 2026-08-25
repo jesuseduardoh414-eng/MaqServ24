@@ -10,6 +10,7 @@ import { ProductCard } from '@/components/ProductCard';
 import { ProductQuestions } from '@/components/ProductQuestions';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 import { estadoDeProducto } from '@/lib/availability';
+import { ProviderTrust } from '@/components/ProviderBadge';
 import { formatPrice } from '@/lib/format';
 
 const MONO = "'Inter', system-ui, sans-serif";
@@ -204,6 +205,13 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
                     );
                   })}
                 </div>
+              </div>
+            ) : null}
+
+            {/* Quién suministra el equipo y con qué señales de confianza (22 / PROVEEDORES). */}
+            {product.provider ? (
+              <div style={{ marginBottom: 30 }}>
+                <ProviderTrust p={product.provider} tamano="ficha" />
               </div>
             ) : null}
 

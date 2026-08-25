@@ -11,6 +11,7 @@ import { formatPrice } from '@/lib/format';
 import { useCart } from '@/components/CartProvider';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 import { estadoDeProducto } from '@/lib/availability';
+import { ProviderTrust } from '@/components/ProviderBadge';
 
 // Panel radial de la foto del producto. Era claro (#ffffff -> #e9ebef) del
 // diseño anterior; en una identidad dark-first un recuadro blanco por tarjeta
@@ -119,6 +120,8 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
           <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{modo}</span>
           <AvailabilityBadge info={disp} />
         </div>
+        {/* Quién lo suministra: el manual lo pide en la tarjeta, no solo en la ficha. */}
+        {p.provider ? <ProviderTrust p={p.provider} /> : null}
 
         <div className="prod-card-foot" style={{ marginTop: 'auto', paddingTop: 15, borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
           <div className="prod-card-price" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>

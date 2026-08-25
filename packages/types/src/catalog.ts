@@ -1,3 +1,5 @@
+import type { ProviderBadge } from './providers';
+
 /**
  * DTOs del catálogo (Fase 1). La API traduce el esquema legacy
  * (cprice, cat_name, fotos como filename…) a estas formas limpias;
@@ -26,6 +28,12 @@ export interface ProductCard {
    * en la web, que es donde se traduce.
    */
   stock: number | null;
+  /**
+   * Aliado que suministra el equipo, con su sello de confianza ya resuelto.
+   * Null si todavía no se le asignó proveedor. Lo pide el manual en la sección
+   * 20 (tarjeta de equipo) y en la 22 (proveedores y confianza).
+   */
+  provider: ProviderBadge | null;
   categorySlug: string | null;
 }
 

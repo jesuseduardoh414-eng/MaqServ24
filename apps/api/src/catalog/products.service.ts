@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
-import type { Paginated, ProductCard, ProductDetail } from '@maqserv/types';
+import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
+import { estadoDocumentos, estaVerificado, mesesEnRed } from './provider-trust';
 
 /**
  * Normalización de búsqueda (ES). Se aplica IGUAL a la columna y al término:
@@ -37,11 +38,23 @@ type ProductRow = {
   featured: number;
   stock: number | null;
   category_id: number;
+  provider_id: number | null;
 };
+
+/** Campos que se piden para armar una tarjeta. Uno solo, para no desincronizar consultas. */
+const CAMPOS_TARJETA = {
+  id: true, name: true, Marca: true, cprice: true, pprice: true,
+  photo: true, is_rental: true, featured: true, stock: true,
+  category_id: true, provider_id: true,
+} as const;
 
 @Injectable()
 export class ProductsService {
-  private toCard(p: ProductRow, catSlugs: Map<number, string>): ProductCard {
+  private toCard(
+    p: ProductRow,
+    catSlugs: Map<number, string>,
+    provs: Map<number, ProviderBadge> = new Map(),
+  ): ProductCard {
     return {
       id: p.id,
       slug: productSlug(p.name, p.id),
@@ -54,8 +67,52 @@ export class ProductsService {
       featured: p.featured === 1,
       inStock: p.stock === null || p.stock > 0,
       stock: p.stock,
+      provider: p.provider_id !== null ? (provs.get(p.provider_id) ?? null) : null,
       categorySlug: catSlugs.get(p.category_id) ?? null,
     };
+  }
+
+  /**
+   * Sellos de confianza de los aliados que aparecen en una lista de productos.
+   *
+   * Se piden TODOS DE GOLPE y no uno por producto: una parrilla de 16 equipos
+   * haría 16 consultas extra, y con la base a ~100 ms por viaje eso son 1.6 s
+   * de más por pantalla. Los aliados que se repiten se consultan una sola vez.
+   *
+   * Devuelve un mapa vacío si no hay ninguno, así que un catálogo sin
+   * proveedores asignados sigue funcionando igual que antes.
+   */
+  private async providerBadges(ids: Array<number | null>): Promise<Map<number, ProviderBadge>> {
+    const unicos = [...new Set(ids.filter((x): x is number => x !== null))];
+    if (unicos.length === 0) return new Map();
+
+    const provs = await prisma.providers.findMany({
+      where: { id: { in: unicos }, status: 1 },
+      select: {
+        id: true, name: true, slug: true, level: true, coverage: true,
+        response_minutes: true, joined_at: true,
+        provider_documents: { select: { expires_at: true } },
+      },
+    });
+
+    return new Map(
+      provs.map((p) => {
+        const docs = estadoDocumentos(p.provider_documents);
+        return [
+          p.id,
+          {
+            name: p.name,
+            slug: p.slug,
+            level: p.level as ProviderBadge['level'],
+            verified: estaVerificado(p.level, docs),
+            docsStatus: docs,
+            coverage: p.coverage,
+            responseMinutes: p.response_minutes,
+            monthsInNetwork: mesesEnRed(p.joined_at),
+          },
+        ];
+      }),
+    );
   }
 
   private async categorySlugMap(): Promise<Map<number, string>> {
@@ -175,16 +232,16 @@ export class ProductsService {
         orderBy,
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
-        select: {
-          id: true, name: true, Marca: true, cprice: true, pprice: true,
-          photo: true, is_rental: true, featured: true, stock: true, category_id: true,
-        },
+        select: CAMPOS_TARJETA,
       }),
     ]);
 
-    const catSlugs = await this.categorySlugMap();
+    const [catSlugs, provs] = await Promise.all([
+      this.categorySlugMap(),
+      this.providerBadges(rows.map((r) => r.provider_id)),
+    ]);
     return {
-      items: rows.map((p) => this.toCard(p, catSlugs)),
+      items: rows.map((p) => this.toCard(p, catSlugs, provs)),
       total,
       page,
       pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -195,9 +252,10 @@ export class ProductsService {
     const p = await prisma.products.findFirst({ where: { id, status: 1 } });
     if (!p) throw new NotFoundException(`Producto ${id} no encontrado`);
 
-    const [gallery, cat] = await Promise.all([
+    const [gallery, cat, provs] = await Promise.all([
       prisma.galleries.findMany({ where: { product_id: id }, select: { photo: true } }),
       prisma.categories.findUnique({ where: { id: p.category_id } }),
+      this.providerBadges([p.provider_id]),
     ]);
 
     const catSlugs = new Map(cat ? [[cat.id, cat.cat_slug] as const] : []);
@@ -211,7 +269,7 @@ export class ProductsService {
       }
     } catch { /* specs legacy/no JSON */ }
     return {
-      ...this.toCard(p, catSlugs),
+      ...this.toCard(p, catSlugs, provs),
       description: p.description,
       short: p.Corto && p.Corto.trim() ? p.Corto.trim() : null,
       specs,

@@ -61,6 +61,9 @@ export class WishlistController {
       featured: p.featured === 1,
       inStock: p.stock === null || p.stock > 0,
       stock: p.stock,
+      // La lista de favoritos no pinta el sello del aliado, asi que no se
+      // consulta: seria un viaje a la base por cada producto guardado.
+      provider: null,
       categorySlug: catMap.get(p.category_id) ?? null,
     }));
   }
