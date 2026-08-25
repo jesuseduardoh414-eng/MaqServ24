@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { AuthUser, ProductCard, QuoteDetail } from '@maqserv/types';
 import type { RequestForm } from '@maqserv/config';
 import { requestAnswersToText } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
-import { RequirementFields } from './RequirementFields';
+import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA } from './RequirementFields';
+import { Stepper } from './Stepper';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
@@ -108,6 +109,68 @@ export function QuoteForm({
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<QuoteDetail | null>(null);
   const [reqs, setReqs] = useState<Record<string, string>>({});
+
+  /**
+   * ASISTENTE POR ETAPAS (manual, 23 / COTIZACIÓN).
+   *
+   * "El flujo ideal reduce captura manual: servicio → ubicación → fecha →
+   * requerimiento → opciones → confirmación. El usuario siempre sabe en qué
+   * etapa se encuentra."
+   *
+   * "Opciones" todavía no existe —es el paso donde la plataforma devolverá
+   * proveedores compatibles, y para eso hace falta el emparejamiento— así que
+   * no se finge: el último paso es la confirmación de lo que se va a enviar.
+   *
+   * Las secciones NO se desmontan al cambiar de paso, se ocultan. Los campos son
+   * no controlados y se leen con FormData al enviar: desmontarlos perdería lo
+   * escrito en cuanto alguien retrocediera un paso.
+   */
+  const [paso, setPaso] = useState(0);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const pasos = formulario
+    ? [
+        { clave: 'servicio', titulo: 'Servicio' },
+        { clave: 'ubicacion', titulo: 'Ubicación' },
+        { clave: 'fecha', titulo: 'Fecha' },
+        { clave: 'requerimiento', titulo: 'Requerimiento' },
+        { clave: 'datos', titulo: 'Tus datos' },
+        { clave: 'confirmar', titulo: 'Confirmación' },
+      ]
+    : // Sin preguntas propias del servicio no hay con qué llenar tres pasos, y
+      // pasos vacíos son peor que no tenerlos.
+      [
+        { clave: 'servicio', titulo: 'Servicio' },
+        { clave: 'ubicacion', titulo: 'Ubicación y fecha' },
+        { clave: 'datos', titulo: 'Tus datos' },
+        { clave: 'confirmar', titulo: 'Confirmación' },
+      ];
+
+  const claveDe = (i: number) => pasos[i]?.clave;
+  const esUltimo = paso === pasos.length - 1;
+
+  /**
+   * Valida SOLO los campos del paso visible. Se usa la validación del navegador
+   * en vez de reimplementarla: ya sabe de correos, mínimos y campos requeridos.
+   */
+  function pasoValido(): boolean {
+    const cont = formRef.current?.querySelector<HTMLElement>(`[data-paso="${claveDe(paso)}"]`);
+    if (!cont) return true;
+    const campos = Array.from(cont.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea'));
+    for (const c of campos) {
+      if (!c.checkValidity()) {
+        c.reportValidity();
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function siguiente() {
+    if (!pasoValido()) return;
+    setError(null);
+    setPaso((p) => Math.min(pasos.length - 1, p + 1));
+  }
 
   // Lista editable (solo cuando no vino un producto por URL)
   const [picked, setPicked] = useState<PickedItem[]>([]);
@@ -220,8 +283,17 @@ export function QuoteForm({
     );
   }
 
+  /** Oculta en vez de desmontar: ver la nota del asistente arriba. */
+  const visible = (clave: string): React.CSSProperties => ({
+    display: claveDe(paso) === clave ? 'grid' : 'none',
+    gap: 18,
+  });
+
   return (
-    <form onSubmit={onSubmit} style={{ display: 'grid', gap: 18 }}>
+    <form ref={formRef} onSubmit={onSubmit} style={{ display: 'grid', gap: 18 }}>
+      <Stepper pasos={pasos} actual={paso} onIr={setPaso} />
+
+      <div data-paso="servicio" style={visible('servicio')}>
       {product ? (
         <div style={cardStyle}>
           <h2 style={legendStyle}>Equipo a cotizar</h2>
@@ -329,46 +401,165 @@ export function QuoteForm({
         </div>
       )}
 
-      {/* Preguntas propias del servicio: van ANTES de los datos personales
-          porque son lo que define la cotizacion; los datos de contacto son el
-          tramite y se dejan al final. */}
+      </div>
+
+      {/* PASO · UBICACIÓN. El documento insiste en que la ubicación forma parte
+          del producto: define el traslado y qué proveedor puede atender. Por eso
+          tiene paso propio en vez de ir perdida entre las demás preguntas. */}
+      <div data-paso="ubicacion" style={visible('ubicacion')}>
+        {formulario ? (
+          <RequirementFields
+            form={formulario}
+            values={reqs}
+            onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
+            estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
+            only={CLAVES_UBICACION}
+            titulo="¿Dónde se necesita?"
+            intro="Con esto calculamos el traslado y vemos qué aliados cubren esa zona."
+          />
+        ) : null}
+        <div style={cardStyle}>
+          <h2 style={legendStyle}>Dirección de entrega</h2>
+          <input className="qf-field" name="address" defaultValue={user?.address ?? ''} placeholder={labels.address} aria-label={labels.address} style={fieldStyle} />
+          <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+            Entre más exacta, mejor calculamos el costo de traslado.
+          </p>
+        </div>
+        {/* Sin preguntas propias del servicio, la fecha se pide aquí: un paso
+            solo para una fecha sería un paso vacío. */}
+        {!formulario ? (
+          <div style={cardStyle}>
+            <h2 style={legendStyle}>¿Para cuándo?</h2>
+            <input
+              className="qf-field"
+              type="date"
+              value={reqs.fecha_inicio ?? ''}
+              onChange={(e) => setReqs((r) => ({ ...r, fecha_inicio: e.target.value }))}
+              aria-label="Fecha de inicio"
+              style={fieldStyle}
+            />
+          </div>
+        ) : null}
+      </div>
+
+      {/* PASO · FECHA */}
       {formulario ? (
-        <RequirementFields
-          form={formulario}
-          values={reqs}
-          onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
-          estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
-        />
+        <div data-paso="fecha" style={visible('fecha')}>
+          <RequirementFields
+            form={formulario}
+            values={reqs}
+            onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
+            estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
+            only={CLAVES_FECHA}
+            titulo="¿Para cuándo y por cuánto tiempo?"
+            intro="La disponibilidad depende de la fecha: un equipo libre hoy puede estar comprometido la semana que entra."
+          />
+        </div>
       ) : null}
 
-      <div style={cardStyle}>
-        <h2 style={legendStyle}>Tus datos</h2>
-        <div style={{ display: 'grid', gap: 12 }}>
-          <input className="qf-field" name="name" required minLength={2} defaultValue={user?.name ?? ''} placeholder={labels.name} aria-label={labels.name} style={fieldStyle} />
-          <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <input className="qf-field" name="email" type="email" required defaultValue={user?.email ?? ''} placeholder={labels.email} aria-label={labels.email} style={fieldStyle} />
-            <input className="qf-field" name="phone" required minLength={7} defaultValue={user?.phone ?? ''} placeholder={labels.phone} aria-label={labels.phone} style={fieldStyle} />
+      {/* PASO · REQUERIMIENTO — el resto de las preguntas del servicio. */}
+      {formulario ? (
+        <div data-paso="requerimiento" style={visible('requerimiento')}>
+          <RequirementFields
+            form={formulario}
+            values={reqs}
+            onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
+            estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
+            except={[...CLAVES_UBICACION, ...CLAVES_FECHA]}
+          />
+        </div>
+      ) : null}
+
+      {/* PASO · TUS DATOS. Van al final a propósito: el contacto es el trámite,
+          no lo que define la cotización. */}
+      <div data-paso="datos" style={visible('datos')}>
+        <div style={cardStyle}>
+          <h2 style={legendStyle}>Tus datos</h2>
+          <div style={{ display: 'grid', gap: 12 }}>
+            <input className="qf-field" name="name" required minLength={2} defaultValue={user?.name ?? ''} placeholder={labels.name} aria-label={labels.name} style={fieldStyle} />
+            <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <input className="qf-field" name="email" type="email" required defaultValue={user?.email ?? ''} placeholder={labels.email} aria-label={labels.email} style={fieldStyle} />
+              <input className="qf-field" name="phone" required minLength={7} defaultValue={user?.phone ?? ''} placeholder={labels.phone} aria-label={labels.phone} style={fieldStyle} />
+            </div>
+            <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <input className="qf-field" name="company" placeholder={labels.company} aria-label={labels.company} style={fieldStyle} />
+              <input className="qf-field" name="industry" placeholder={labels.industry} aria-label={labels.industry} style={fieldStyle} />
+            </div>
+            <input className="qf-field" name="region" placeholder={labels.region} aria-label={labels.region} style={fieldStyle} />
+            <textarea className="qf-field" name="comments" rows={3} placeholder={labels.comments} aria-label={labels.comments} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.55 }} />
           </div>
-          <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <input className="qf-field" name="company" placeholder={labels.company} aria-label={labels.company} style={fieldStyle} />
-            <input className="qf-field" name="industry" placeholder={labels.industry} aria-label={labels.industry} style={fieldStyle} />
-          </div>
-          <input className="qf-field" name="region" placeholder={labels.region} aria-label={labels.region} style={fieldStyle} />
-          <input className="qf-field" name="address" defaultValue={user?.address ?? ''} placeholder={labels.address} aria-label={labels.address} style={fieldStyle} />
-          <textarea className="qf-field" name="comments" rows={3} placeholder={labels.comments} aria-label={labels.comments} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.55 }} />
+        </div>
+      </div>
+
+      {/* PASO · CONFIRMACIÓN. Se enseña lo que se va a enviar antes de enviarlo:
+          es la última oportunidad de corregir sin tener que llamar después. */}
+      <div data-paso="confirmar" style={visible('confirmar')}>
+        <div style={cardStyle}>
+          <h2 style={legendStyle}>Revisa antes de enviar</h2>
+          <dl style={{ margin: 0, display: 'grid', gap: 10 }}>
+            <Resumen etiqueta="Servicio" valor={servicio ?? (product ? product.name : `${picked.length} equipo(s)`)} />
+            {formulario
+              ? formulario.fields
+                  .filter((f) => (reqs[f.key] ?? '').trim())
+                  .map((f) => <Resumen key={f.key} etiqueta={f.label} valor={reqs[f.key]} />)
+              : null}
+          </dl>
+          <p style={{ margin: '16px 0 0', fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+            Si algo no cuadra, toca cualquier paso de arriba para corregirlo.
+          </p>
         </div>
 
         {error ? (
-          <p role="alert" style={{ color: 'var(--color-error)', margin: '14px 0 0', fontSize: 13, textAlign: 'center' }}>{error}</p>
+          <p role="alert" style={{ color: 'var(--color-error)', margin: 0, fontSize: 13, textAlign: 'center' }}>{error}</p>
         ) : null}
 
-        <button type="submit" disabled={loading || items.length === 0} style={{ width: '100%', marginTop: 18, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: loading || items.length === 0 ? 'default' : 'pointer', opacity: loading || items.length === 0 ? 0.5 : 1 }}>
+        <button type="submit" disabled={loading || (items.length === 0 && !servicio)} style={{ width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: loading ? 'default' : 'pointer', opacity: loading || (items.length === 0 && !servicio) ? 0.5 : 1 }}>
           {loading ? 'Enviando…' : labels.submit}
         </button>
-        <p style={{ margin: '14px 0 0', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6, textTransform: 'uppercase' }}>
+        <p style={{ margin: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6, textTransform: 'uppercase' }}>
           Sin costo ni compromiso · Un asesor te responde con precios y disponibilidad
         </p>
       </div>
+
+      {/* Navegación. "Regresar" siempre disponible, como pide el manual. */}
+      {!esUltimo ? (
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          {paso > 0 ? (
+            <button
+              type="button"
+              onClick={() => setPaso((p) => Math.max(0, p - 1))}
+              style={{ flex: '0 0 auto', background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 100, padding: '15px 24px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              ← Regresar
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={siguiente}
+            style={{ flex: 1, minWidth: 180, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: 'pointer' }}
+          >
+            Continuar →
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPaso((p) => Math.max(0, p - 1))}
+          style={{ justifySelf: 'start', background: 'transparent', color: 'var(--color-text-muted)', border: 'none', padding: 0, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
+        >
+          ← Regresar
+        </button>
+      )}
     </form>
+  );
+}
+
+/** Fila del resumen final. */
+function Resumen({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 14, borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
+      <dt style={{ color: 'var(--color-text-muted)' }}>{etiqueta}</dt>
+      <dd style={{ margin: 0, color: 'var(--color-text)', textAlign: 'right', fontWeight: 600 }}>{valor}</dd>
+    </div>
   );
 }

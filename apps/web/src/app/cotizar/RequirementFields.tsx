@@ -17,26 +17,49 @@ import type { RequestForm } from '@maqserv/config';
  * eso solo se marcan obligatorias las que de verdad impiden cotizar, y cada
  * bloque explica arriba para qué sirve lo que se pregunta.
  */
+/** Claves que el asistente saca a sus propios pasos (ubicación y fecha). */
+export const CLAVES_UBICACION = ['obra_ubicacion', 'destino', 'origen'];
+export const CLAVES_FECHA = ['fecha_inicio', 'duracion', 'periodo', 'ventana', 'frecuencia', 'horario', 'horarios'];
+
 export function RequirementFields({
   form,
   values,
   onChange,
   estilos,
+  only,
+  except,
+  titulo,
+  intro,
 }: {
   form: RequestForm;
   values: Record<string, string>;
   onChange: (key: string, value: string) => void;
   estilos: { campo: React.CSSProperties; etiqueta: React.CSSProperties; tarjeta: React.CSSProperties; leyenda: React.CSSProperties };
+  /** Renderiza SOLO estas claves. Sirve para repartir el formulario entre pasos. */
+  only?: string[];
+  /** Renderiza todas MENOS estas. */
+  except?: string[];
+  titulo?: string;
+  intro?: string;
 }) {
+  const campos = form.fields.filter((f) => {
+    if (only) return only.includes(f.key);
+    if (except) return !except.includes(f.key);
+    return true;
+  });
+  if (campos.length === 0) return null;
+
   return (
     <div style={estilos.tarjeta}>
-      <h2 style={estilos.leyenda}>Sobre el servicio · {form.title}</h2>
-      <p style={{ margin: '0 0 18px', color: 'var(--color-text-muted)', fontSize: 13.5, lineHeight: 1.6 }}>
-        {form.intro}
-      </p>
+      <h2 style={estilos.leyenda}>{titulo ?? `Sobre el servicio · ${form.title}`}</h2>
+      {intro ?? form.intro ? (
+        <p style={{ margin: '0 0 18px', color: 'var(--color-text-muted)', fontSize: 13.5, lineHeight: 1.6 }}>
+          {intro ?? form.intro}
+        </p>
+      ) : null}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 14 }}>
-        {form.fields.map((f) => {
+        {campos.map((f) => {
           // Los campos largos ocupan la fila completa: partirlos en dos columnas
           // deja cajas de texto demasiado angostas para escribir una condición.
           const anchoCompleto = f.type === 'parrafo';
