@@ -21,6 +21,7 @@ export class QuotesService {
     id: bigint; quote_number: string; status: string;
     subtotal: unknown; freight_cost: unknown; freight_distance: string | null;
     tax: unknown; total: unknown; created_at: Date | null;
+    valid_until?: Date | null; accepted_at?: Date | null;
   }): QuoteSummary {
     return {
       id: Number(q.id),
@@ -32,6 +33,9 @@ export class QuotesService {
       tax: Number(q.tax),
       total: Number(q.total),
       createdAt: q.created_at ? q.created_at.toISOString() : null,
+      state: estadoCotizacion({ status: q.status, validUntil: q.valid_until ?? null, acceptedAt: q.accepted_at ?? null }),
+      validUntil: q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null,
+      daysToExpire: diasParaVencer(q.valid_until ?? null),
     };
   }
 

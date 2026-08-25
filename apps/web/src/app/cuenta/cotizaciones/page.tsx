@@ -49,10 +49,20 @@ export default async function MyQuotesPage() {
   const quotes = (await res.json().catch(() => [])) as QuoteSummary[];
 
   // El texto sigue saliendo de los copys; solo el color lo pone el tono.
-  const statusOf = (s: string) =>
-    s === 'completed'
-      ? { text: t(theme, 'quote.status.completed'), tone: 'ok' as const }
-      : { text: t(theme, 'quote.status.pending'), tone: 'warn' as const };
+  /**
+   * Se usa el estado CALCULADO, no la columna legacy: una cotizacion respondida
+   * a la que se le paso la fecha no puede seguir apareciendo como si el cliente
+   * aun pudiera aceptarla.
+   */
+  const statusOf = (q: QuoteSummary) => {
+    switch (q.state) {
+      case 'vigente': return { text: 'Vigente', tone: 'ok' as const };
+      case 'vencida': return { text: 'Vencida', tone: 'bad' as const };
+      case 'aceptada': return { text: 'Aceptada', tone: 'ok' as const };
+      case 'rechazada': return { text: 'Descartada', tone: 'warn' as const };
+      default: return { text: t(theme, 'quote.status.pending'), tone: 'warn' as const };
+    }
+  };
 
   return (
     <>
@@ -84,7 +94,7 @@ export default async function MyQuotesPage() {
           ) : (
             <div style={{ display: 'grid', gap: 14 }}>
               {quotes.map((q) => {
-                const st = statusOf(q.status);
+                const st = statusOf(q);
                 const c = toneColors(st.tone);
                 return (
                   <article key={q.id} style={{ border: '1px solid var(--color-border)', borderRadius: 4, background: 'var(--color-surface)', padding: '20px 24px' }}>
@@ -122,9 +132,21 @@ export default async function MyQuotesPage() {
                         <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--color-text-muted)' }}>TOTAL</span>
                         <strong style={{ fontFamily: DISPLAY, fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(q.total)}</strong>
                       </span>
-                      <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'right', lineHeight: 1.5 }}>
-                        {q.status === 'completed' ? 'UN ASESOR YA REVISÓ ESTA COTIZACIÓN' : 'UN ASESOR TE CONTACTARÁ'}
-                      </span>
+                      {/* Ya existe página de detalle: ahí se ve la vigencia, qué
+                          incluye, qué no, y se acepta. El aviso de "un asesor te
+                          contactará" solo tiene sentido mientras nadie respondió. */}
+                      {q.state === 'pendiente' ? (
+                        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'right', lineHeight: 1.5 }}>
+                          UN ASESOR TE CONTACTARÁ
+                        </span>
+                      ) : (
+                        <Link
+                          href={`/cuenta/cotizaciones/${q.quoteNumber}`}
+                          style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                        >
+                          {q.state === 'vigente' ? 'Ver y aceptar →' : 'Ver detalle →'}
+                        </Link>
+                      )}
                     </div>
                   </article>
                 );

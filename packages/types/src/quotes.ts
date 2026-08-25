@@ -66,6 +66,14 @@ export interface QuoteSummary {
   tax: number;
   total: number;
   createdAt: string | null;
+  /**
+   * Estado REAL, calculado (ver QuoteDetail.state). En la lista importa tanto
+   * como en el detalle: una cotizacion vencida no puede seguir apareciendo
+   * como si el cliente aun pudiera aceptarla.
+   */
+  state: 'pendiente' | 'vigente' | 'vencida' | 'aceptada' | 'rechazada';
+  validUntil: string | null;
+  daysToExpire: number | null;
 }
 
 export interface QuoteDetail extends QuoteSummary {

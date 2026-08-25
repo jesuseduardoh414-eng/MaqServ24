@@ -6,6 +6,13 @@ import { D, FONT, inputStyle, smallLabel } from '@/components/editor-kit';
 
 const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+/** Vigencia sugerida. El mismo plazo por defecto que aplica la API si se deja vacía. */
+function enQuinceDias(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 15);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Responder cotización: flete/impuesto/condiciones → status completed. */
 export function QuoteRespond({ quoteId, subtotal }: { quoteId: number; subtotal: number }) {
   const router = useRouter();
@@ -14,6 +21,16 @@ export function QuoteRespond({ quoteId, subtotal }: { quoteId: number; subtotal:
   const [freight, setFreight] = useState(0);
   const [tax, setTax] = useState(0);
   const [conditions, setConditions] = useState('');
+  /**
+   * Vigencia, qué incluye y qué no (documento, sección 22). Antes esto se
+   * escribía suelto en "Condiciones" —el propio ejemplo del campo decía
+   * "Precio vigente 15 días. No incluye combustible ni operador"—, así que el
+   * sistema no podía saber si una cotización seguía viva ni el cliente ver de
+   * un vistazo qué le van a cobrar aparte.
+   */
+  const [validUntil, setValidUntil] = useState(enQuinceDias());
+  const [included, setIncluded] = useState('');
+  const [excluded, setExcluded] = useState('');
 
   // El admin capturaba flete e impuesto sin ver el total que le llega al cliente.
   const total = subtotal + freight + tax;
@@ -28,6 +45,9 @@ export function QuoteRespond({ quoteId, subtotal }: { quoteId: number; subtotal:
         freightCost: freight,
         tax,
         conditions: conditions.trim() || undefined,
+        validUntil: validUntil || undefined,
+        included: included.trim() || undefined,
+        excluded: excluded.trim() || undefined,
         status: 'completed',
       }),
     });
@@ -76,12 +96,48 @@ export function QuoteRespond({ quoteId, subtotal }: { quoteId: number; subtotal:
             <input type="number" step="0.01" min={0} value={tax || ''} onChange={(e) => setTax(Math.max(0, Number(e.target.value) || 0))} placeholder="0.00" style={inputStyle} />
           </label>
           <label style={{ display: 'grid', gap: 6 }}>
-            <span style={smallLabel}>Condiciones (opcional)</span>
+            <span style={smallLabel}>El precio vale hasta</span>
+            <input
+              type="date"
+              value={validUntil}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setValidUntil(e.target.value)}
+              style={inputStyle}
+            />
+            <span style={{ fontSize: 11.5, color: D.muted2, lineHeight: 1.5 }}>
+              Pasada esta fecha el cliente ya no puede aceptarla y se marca como vencida.
+            </span>
+          </label>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={smallLabel}>Qué SÍ incluye</span>
+            <textarea
+              value={included}
+              onChange={(e) => setIncluded(e.target.value)}
+              rows={2}
+              placeholder="Traslado de ida y vuelta, operador, mantenimiento"
+              style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.55, resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </label>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={smallLabel}>Qué NO incluye</span>
+            <textarea
+              value={excluded}
+              onChange={(e) => setExcluded(e.target.value)}
+              rows={2}
+              placeholder="Combustible, maniobras especiales, tiempos de espera"
+              style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.55, resize: 'vertical', fontFamily: 'inherit' }}
+            />
+            <span style={{ fontSize: 11.5, color: D.muted2, lineHeight: 1.5 }}>
+              Este es el campo que evita la discusión cuando llega la factura.
+            </span>
+          </label>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={smallLabel}>Otras condiciones (opcional)</span>
             <textarea
               value={conditions}
               onChange={(e) => setConditions(e.target.value)}
-              rows={3}
-              placeholder="Ej. Precio vigente 15 días. No incluye combustible ni operador."
+              rows={2}
+              placeholder="Cancelación, horarios, requisitos de acceso"
               style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.55, resize: 'vertical', fontFamily: 'inherit' }}
             />
           </label>
