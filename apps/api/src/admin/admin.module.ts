@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AdminAuthController, AdminGuard } from './admin-auth';
 import { AdminCatalogController } from './admin-catalog.controller';
 import { AdminProvidersController } from './admin-providers.controller';
+import { AdminAvailabilityController } from './admin-availability.controller';
 import { AdminOpsController } from './admin-ops.controller';
 import { AdminThemesController } from './admin-themes.controller';
 import { AdminCmsController } from './admin-cms.controller';
@@ -26,7 +27,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
   // IntegrationsModule: los suscriptores se empujan a Perfex CRM con el mismo
   // PerfexService que usa el alta pública del footer.
   imports: [FreightModule, NotificationsModule, OrdersModule, IntegrationsModule],
-  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminPaymentsController, AdminFreightController, AdminFulfillmentController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminAdminsController, AdminProvidersController],
+  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminPaymentsController, AdminFreightController, AdminFulfillmentController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminAdminsController, AdminProvidersController, AdminAvailabilityController],
   providers: [AdminGuard],
 })
 export class AdminModule {}

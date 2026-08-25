@@ -19,6 +19,7 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
     items: [
       { href: '/productos', label: 'Productos', icon: 'ph-package' },
       { href: '/categorias', label: 'Categorías', icon: 'ph-squares-four' },
+      { href: '/disponibilidad', label: 'Disponibilidad', icon: 'ph-calendar-check' },
     ],
   },
   {
