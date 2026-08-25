@@ -106,6 +106,8 @@ export class QuotesService {
         product_interested: (items.length ? items.map((i) => i.name).join(', ') : (input.service ?? '')).slice(0, 250),
         acquisition_option: input.acquisitionOption ?? null,
         comments: input.comments ?? null,
+        service_category: input.serviceCategory ?? null,
+        requirements: (input.requirements as never) ?? undefined,
         address: input.address ?? null,
         cart_data: JSON.stringify(cartData),
         subtotal,

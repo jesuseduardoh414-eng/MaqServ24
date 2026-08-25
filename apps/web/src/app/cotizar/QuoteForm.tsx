@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { AuthUser, ProductCard, QuoteDetail } from '@maqserv/types';
+import type { RequestForm } from '@maqserv/config';
+import { requestAnswersToText } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
+import { RequirementFields } from './RequirementFields';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
@@ -38,6 +41,11 @@ const fieldStyle: React.CSSProperties = {
   outline: 'none',
 };
 
+/** Etiqueta de las preguntas del servicio. Van visibles, no como placeholder:
+ *  un placeholder desaparece al escribir y el manual pide que el cliente sepa
+ *  siempre que le estan preguntando (30 / ACCESIBILIDAD). */
+const labelReqStyle: React.CSSProperties = { display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 };
+
 const numField: React.CSSProperties = { ...fieldStyle, width: 66, padding: '8px 8px', textAlign: 'center', fontFamily: MONO, fontSize: 13 };
 
 interface PickedItem {
@@ -60,6 +68,8 @@ interface PickedItem {
 export function QuoteForm({
   product,
   servicio,
+  formulario,
+  categoriaServicio,
   user,
   labels,
 }: {
@@ -70,6 +80,9 @@ export function QuoteForm({
    * `/cotizar?servicio=<slug>`.
    */
   servicio?: string | null;
+  /** Preguntas propias del servicio (documento, 8 a 13). Null si no hay definidas. */
+  formulario?: RequestForm | null;
+  categoriaServicio?: string | null;
   user: AuthUser | null;
   labels: {
     name: string;
@@ -94,6 +107,7 @@ export function QuoteForm({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<QuoteDetail | null>(null);
+  const [reqs, setReqs] = useState<Record<string, string>>({});
 
   // Lista editable (solo cuando no vino un producto por URL)
   const [picked, setPicked] = useState<PickedItem[]>([]);
@@ -170,7 +184,14 @@ export function QuoteForm({
           industry: String(form.get('industry') ?? '') || undefined,
         },
         address: String(form.get('address') ?? '') || undefined,
-        comments: String(form.get('comments') ?? '') || undefined,
+        // El resumen legible se antepone a los comentarios para que quien
+        // cotiza lo lea sin depender de una pantalla nueva; el JSON va aparte.
+        comments: [
+          formulario ? requestAnswersToText(formulario, reqs) : '',
+          String(form.get('comments') ?? ''),
+        ].filter(Boolean).join('\n\n') || undefined,
+        ...(categoriaServicio ? { serviceCategory: categoriaServicio } : {}),
+        ...(Object.keys(reqs).length ? { requirements: reqs } : {}),
         acquisitionOption: anyRental ? 'renta' : 'compra',
       }),
     });
@@ -307,6 +328,18 @@ export function QuoteForm({
           </div>
         </div>
       )}
+
+      {/* Preguntas propias del servicio: van ANTES de los datos personales
+          porque son lo que define la cotizacion; los datos de contacto son el
+          tramite y se dejan al final. */}
+      {formulario ? (
+        <RequirementFields
+          form={formulario}
+          values={reqs}
+          onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
+          estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
+        />
+      ) : null}
 
       <div style={cardStyle}>
         <h2 style={legendStyle}>Tus datos</h2>

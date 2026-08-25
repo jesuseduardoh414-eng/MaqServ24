@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import type { ProductCard } from '@maqserv/types';
-import { parseProductSlug } from '@maqserv/config';
+import { parseProductSlug, requestFormFor } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getSessionUser } from '@/lib/session';
 import { getProduct, getCategories } from '@/lib/api';
@@ -32,9 +32,12 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
   // slug a mano: si el cliente le cambia el nombre desde el admin, esto lo
   // sigue sin tocar código.
   let servicio: string | null = null;
+  let categoriaServicio: string | null = null;
   if (sp.servicio && !product) {
     const cats = await getCategories().catch(() => []);
-    servicio = cats.find((c) => c.slug === sp.servicio)?.name ?? null;
+    const cat = cats.find((c) => c.slug === sp.servicio);
+    servicio = cat?.name ?? null;
+    categoriaServicio = cat?.slug ?? null;
   }
 
   return (
@@ -59,6 +62,8 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
           <QuoteForm
           product={product}
           servicio={servicio}
+          formulario={requestFormFor(categoriaServicio ?? product?.categorySlug)}
+          categoriaServicio={categoriaServicio ?? product?.categorySlug ?? null}
           user={user}
           labels={{
             name: t(theme, 'auth.field.name'),

@@ -16,6 +16,9 @@ const quoteSchema = z.object({
   })),
   /** Categoría de servicio cuando la cotización no parte de un equipo. */
   service: z.string().max(120).optional(),
+  serviceCategory: z.string().max(120).optional(),
+  /** Respuestas del formulario propio de la categoría (documento, 8 a 13). */
+  requirements: z.record(z.string(), z.string().max(2000)).optional(),
   customer: z.object({
     name: z.string().min(2).max(190),
     email: z.string().email().max(190),

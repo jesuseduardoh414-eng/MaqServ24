@@ -19,6 +19,16 @@ export interface QuoteRequestInput {
    * no son SKUs. Con `service` presente, `items` puede ir vacío.
    */
   service?: string;
+  /** Slug de la categoria de servicio, para saber que formulario se contesto. */
+  serviceCategory?: string;
+  /**
+   * Respuestas del formulario propio de esa categoría (documento, secciones 8
+   * a 13). Se guardan ADEMÁS del texto legible que va en los comentarios: el
+   * JSON sirve para lo que viene después —comparar solicitudes, emparejar con
+   * proveedores, medir qué se pide y no se cubre— y el texto sirve hoy, para
+   * que quien cotiza lo lea sin pantallas nuevas.
+   */
+  requirements?: Record<string, string>;
   customer: {
     name: string;
     email: string;
