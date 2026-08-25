@@ -3,6 +3,7 @@ import { prisma } from '@maqserv/db';
 import type { QuoteDetail, QuoteItem, QuoteRequestInput, QuoteSummary } from '@maqserv/types';
 import { imageUrl } from '../catalog/images';
 import { FreightService } from '../freight/freight.service';
+import { estadoCotizacion, sePuedeAceptar, diasParaVencer } from './quote-validity';
 
 /** Formato legacy: COT- + 8 alfanuméricos mayúsculas. */
 function newQuoteNumber(): string {
@@ -136,7 +137,40 @@ export class QuotesService {
       address: q.address,
       comments: q.comments,
       conditions: q.conditions,
+      state: estadoCotizacion({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
+      validUntil: q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null,
+      daysToExpire: diasParaVencer(q.valid_until),
+      included: q.included,
+      excluded: q.excluded,
+      respondedBy: q.responded_by,
+      acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
+      canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
     };
+  }
+
+  /**
+   * El cliente acepta la cotizacion.
+   *
+   * Se comprueba la vigencia AQUI y no solo en la pantalla: el boton se puede
+   * dejar abierto en una pestana y darle dias despues, cuando el precio ya no
+   * se sostiene. Aceptar una vencida seria comprometer una cifra que nadie
+   * respalda, que es justo la diferencia comercial que el documento pide evitar.
+   */
+  async accept(userId: number, quoteNumber: string): Promise<QuoteDetail> {
+    const q = await prisma.quotes.findFirst({ where: { quote_number: quoteNumber, user_id: userId } });
+    if (!q) throw new NotFoundException('Cotizacion no encontrada');
+
+    if (q.accepted_at) return this.byNumber(userId, quoteNumber); // ya aceptada: no se duplica
+    const estado = estadoCotizacion({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at });
+    if (estado === 'pendiente') throw new BadRequestException('Esta cotizacion todavia no tiene respuesta');
+    if (estado === 'vencida') throw new BadRequestException('Esta cotizacion ya vencio. Pide una actualizacion.');
+    if (estado === 'rechazada') throw new BadRequestException('Esta cotizacion fue descartada');
+
+    await prisma.quotes.update({
+      where: { id: q.id },
+      data: { accepted_at: new Date(), updated_at: new Date() },
+    });
+    return this.byNumber(userId, quoteNumber);
   }
 
   async listByUser(userId: number): Promise<QuoteSummary[]> {
@@ -186,6 +220,14 @@ export class QuotesService {
       address: q.address,
       comments: q.comments,
       conditions: q.conditions,
+      state: estadoCotizacion({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
+      validUntil: q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null,
+      daysToExpire: diasParaVencer(q.valid_until),
+      included: q.included,
+      excluded: q.excluded,
+      respondedBy: q.responded_by,
+      acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
+      canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
     };
   }
 }

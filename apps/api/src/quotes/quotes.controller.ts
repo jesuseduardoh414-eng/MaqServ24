@@ -72,4 +72,18 @@ export class QuotesController {
   byNumber(@Req() req: AuthedRequest, @Param('quoteNumber') quoteNumber: string) {
     return this.quotes.byNumber(req.userId, quoteNumber);
   }
+
+  /**
+   * El cliente acepta la cotizacion. Es lo que el documento llama convertir la
+   * cotizacion aceptada en compromiso, y queda con fecha para saber QUE VERSION
+   * se acepto.
+   *
+   * Solo se puede aceptar una respondida y dentro de su vigencia: aceptar una
+   * vencida seria comprometer un precio que ya nadie sostiene.
+   */
+  @Post(':quoteNumber/accept')
+  @UseGuards(JwtGuard)
+  accept(@Req() req: AuthedRequest, @Param('quoteNumber') quoteNumber: string) {
+    return this.quotes.accept(req.userId, quoteNumber);
+  }
 }

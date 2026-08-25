@@ -1002,6 +1002,12 @@ model quotes {
   updated_at         DateTime? @db.Timestamp(0)
   requirements       Json?
   service_category   String?
+  valid_until        DateTime? @db.Date
+  included           String?
+  excluded           String?
+  responded_by       String?
+  responded_at       DateTime? @db.Timestamp(6)
+  accepted_at        DateTime? @db.Timestamp(6)
 }
 
 model rastreos {

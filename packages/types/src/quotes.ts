@@ -81,4 +81,22 @@ export interface QuoteDetail extends QuoteSummary {
   address: string | null;
   comments: string | null;
   conditions: string | null;
+  /**
+   * Estado REAL, calculado. No es la columna `status`: una cotización respondida
+   * a la que se le pasó la fecha ya no vale, aunque siga marcada como completada.
+   */
+  state: 'pendiente' | 'vigente' | 'vencida' | 'aceptada' | 'rechazada';
+  /** Hasta cuándo vale el precio (ISO corto). Null = no se fijó vigencia. */
+  validUntil: string | null;
+  /** Días que faltan para vencer. Negativo si ya venció. */
+  daysToExpire: number | null;
+  /** Qué SÍ incluye el precio. */
+  included: string | null;
+  /** Qué NO incluye. Es lo que evita la discusión cara después. */
+  excluded: string | null;
+  /** Quién autorizó el precio. */
+  respondedBy: string | null;
+  acceptedAt: string | null;
+  /** Solo se puede aceptar una respondida y dentro de su vigencia. */
+  canAccept: boolean;
 }

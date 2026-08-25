@@ -3,6 +3,7 @@ import {
   ParseIntPipe, Patch, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/quote-validity';
 import { prisma } from '@maqserv/db';
 import { toFulfillment } from '@maqserv/types';
 import { AdminGuard, type AdminRequest } from './admin-auth';
@@ -194,6 +195,18 @@ export class AdminOpsController {
         freightCost: Number(q.freight_cost),
         total: Number(q.total),
         status: q.status,
+        // Estado REAL, no el de la columna: una cotizacion respondida a la que
+        // se le paso la fecha ya no vale, aunque siga marcada como completada.
+        state: estadoCotizacion({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
+        validUntil: q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null,
+        daysToExpire: diasParaVencer(q.valid_until),
+        included: q.included,
+        excluded: q.excluded,
+        respondedBy: q.responded_by,
+        acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
+        serviceCategory: q.service_category,
+        requirements: q.requirements ?? null,
+        conditions: q.conditions,
         comments: q.comments,
         createdAt: q.created_at ? q.created_at.toISOString() : null,
       })),
@@ -202,10 +215,14 @@ export class AdminOpsController {
 
   /** Responder cotización: ajustar montos/condiciones y marcar completed. */
   @Patch('quotes/:id')
-  async updateQuote(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+  async updateQuote(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const schema = z.object({
       status: z.enum(['pending', 'completed', 'rejected']).optional(),
       conditions: z.string().max(5000).optional(),
+      /** Hasta cuando vale el precio. Vacio = se usa el plazo por defecto. */
+      validUntil: z.string().optional().nullable(),
+      included: z.string().max(4000).optional(),
+      excluded: z.string().max(4000).optional(),
       freightCost: z.coerce.number().min(0).optional(),
       tax: z.coerce.number().min(0).optional(),
     });
@@ -214,6 +231,9 @@ export class AdminOpsController {
     const q = await prisma.quotes.findUnique({ where: { id } });
     if (!q) throw new NotFoundException();
 
+    // Respondiendo = pasa a completada ahora; solo entonces se sella vigencia
+    // y autor. Editar despues una cotizacion ya respondida no reinicia su reloj.
+    const respondiendo = parsed.data.status === 'completed' && q.status !== 'completed';
     const freight = parsed.data.freightCost ?? Number(q.freight_cost);
     const tax = parsed.data.tax ?? Number(q.tax);
     const total = Math.round((Number(q.subtotal) + freight + tax) * 100) / 100;
@@ -223,6 +243,23 @@ export class AdminOpsController {
       data: {
         ...(parsed.data.status ? { status: parsed.data.status } : {}),
         ...(parsed.data.conditions !== undefined ? { conditions: parsed.data.conditions } : {}),
+        ...(parsed.data.included !== undefined ? { included: parsed.data.included } : {}),
+        ...(parsed.data.excluded !== undefined ? { excluded: parsed.data.excluded } : {}),
+        // Al responder se fija la vigencia. Si no la escribieron se pone el plazo
+        // por defecto: una cotizacion sin fecha se queda pareciendo valida para
+        // siempre, que es justo lo que el documento pide evitar.
+        ...(respondiendo
+          ? {
+              valid_until: new Date(`${parsed.data.validUntil || vigenciaPorDefecto()}T00:00:00Z`),
+              responded_at: new Date(),
+              // Quien autorizo el precio. El documento lo pide por escrito: cuando
+              // despues hay una diferencia comercial, hace falta saber de quien
+              // salio la cifra.
+              responded_by: (await prisma.admins.findUnique({ where: { id: req.adminId }, select: { name: true } }))?.name ?? null,
+            }
+          : parsed.data.validUntil
+            ? { valid_until: new Date(`${parsed.data.validUntil}T00:00:00Z`) }
+            : {}),
         freight_cost: freight,
         tax,
         total,
