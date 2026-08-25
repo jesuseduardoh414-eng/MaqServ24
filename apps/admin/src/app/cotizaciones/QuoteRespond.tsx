@@ -81,7 +81,19 @@ export function QuoteRespond({ quoteId, subtotal }: { quoteId: number; subtotal:
       <form
         onSubmit={onSubmit}
         onClick={(e) => e.stopPropagation()}
-        style={{ background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18, padding: 24, width: 'min(460px, 100%)', textAlign: 'left', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.8)' }}
+        style={{
+          background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18,
+          padding: 24, width: 'min(460px, 100%)', textAlign: 'left',
+          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.8)',
+          // Al agregar vigencia e inclusiones el formulario creció más que la
+          // pantalla: quedaba cortado y el botón de enviar era inalcanzable,
+          // porque el modal está fijo y el fondo no arrastra.
+          maxHeight: 'calc(100vh - 40px)',
+          overflowY: 'auto',
+          // El botón queda pegado abajo mientras se llena el formulario: es la
+          // acción de la pantalla y no debería haber que buscarla.
+          display: 'flex', flexDirection: 'column',
+        }}
       >
         <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: D.text, letterSpacing: '-0.02em' }}>Responder cotización</h2>
         <p style={{ margin: '0 0 18px', fontSize: 12.5, color: D.muted }}>Al enviarla, el cliente la verá como “Cotizada” en su cuenta.</p>
@@ -154,7 +166,15 @@ export function QuoteRespond({ quoteId, subtotal }: { quoteId: number; subtotal:
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+        <div
+          style={{
+            display: 'flex', gap: 10, marginTop: 20,
+            // Pegado al fondo del modal: con el formulario largo, tener que
+            // desplazarse hasta abajo para encontrar "Enviar" es fricción pura.
+            position: 'sticky', bottom: -24, background: D.card,
+            paddingTop: 14, paddingBottom: 4, marginBottom: -4,
+          }}
+        >
           <button type="button" onClick={() => setOpen(false)} disabled={loading} style={{ flex: 1, border: `1px solid ${D.inputBorder}`, background: 'transparent', color: D.text, borderRadius: 11, padding: '11px 16px', fontWeight: 600, fontSize: 14, cursor: loading ? 'default' : 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
           <button type="submit" disabled={loading} style={{ flex: 2, border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit' }}>
             {loading ? 'Enviando…' : 'Enviar cotización'}

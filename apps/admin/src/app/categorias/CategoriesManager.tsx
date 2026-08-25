@@ -292,7 +292,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
       {/* Modal: editar categoría (nombre + imagen + estado) */}
       {editing ? (
         <div onClick={() => { if (!savingEdit) setEditing(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.62)', display: 'grid', placeItems: 'center', zIndex: 300, padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(460px, 100%)', background: C.panel, border: `1px solid ${C.line2}`, borderRadius: 18, padding: 24, display: 'grid', gap: 18, boxShadow: '0 30px 70px -30px rgba(0,0,0,.85)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(460px, 100%)', background: C.panel, border: `1px solid ${C.line2}`, borderRadius: 18, padding: 24, display: 'grid', gap: 18, boxShadow: '0 30px 70px -30px rgba(0,0,0,.85)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Editar categoría</h3>
               <button type="button" onClick={() => setEditing(null)} style={{ width: 32, height: 32, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-x" /></button>

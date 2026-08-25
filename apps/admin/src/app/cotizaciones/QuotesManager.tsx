@@ -257,7 +257,7 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
       {/* Detalle de una cotización ya respondida (solo con lo que la API devuelve). */}
       {detail ? (
         <div role="dialog" aria-modal="true" aria-label="Detalle de cotización" onClick={() => setDetail(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 200 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18, padding: 24, width: 'min(460px, 100%)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.8)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18, padding: 24, width: 'min(460px, 100%)', boxShadow: '0 30px 80px -20px rgba(0,0,0,0.8)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto' }}>
             <div style={{ fontFamily: MONO, fontSize: 13, color: D.muted2 }}>{detail.quoteNumber}</div>
             <h2 style={{ margin: '4px 0 2px', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em' }}>{detail.name}</h2>
             <p style={{ margin: '0 0 16px', fontSize: 12.5, color: D.muted }}>
