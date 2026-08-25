@@ -253,7 +253,13 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
             )}
 
             <div style={{ display: 'flex', gap: 24, marginTop: 26, fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: 'var(--color-text-muted)', flexWrap: 'wrap' }}>
-              <span>✓ ENTREGA EN OBRA</span><span>✓ SEGURO INCLUIDO</span><span>✓ SOPORTE 24/7</span>
+              {/* Antes decia 'ENTREGA EN OBRA · SEGURO INCLUIDO · SOPORTE 24/7'. Las tres
+                  eran promesas fijas en TODAS las fichas, sin que nada las respaldara: el
+                  seguro depende del aliado y el 24/7 es justo el ejemplo que el manual
+                  prohibe (27 / IDENTIDAD). Se sustituyen por lo que si es verdad del
+                  modelo: se cotiza el traslado, el aliado tiene expediente y el estado
+                  se confirma antes de comprometerlo. */}
+              <span>✓ TRASLADO COTIZADO POR DISTANCIA</span><span>✓ PROVEEDOR CON EXPEDIENTE</span><span>✓ DISPONIBILIDAD CONFIRMADA ANTES DE ASIGNAR</span>
             </div>
 
             {/* SKU / etiquetas / compartir */}

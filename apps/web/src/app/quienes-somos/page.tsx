@@ -99,8 +99,12 @@ export default async function AboutPage() {
               {imgs[1] ? <Image src={imgs[1]} alt="" fill sizes="30vw" style={{ objectFit: 'cover' }} /> : <span className="ph" style={{ position: 'absolute', inset: 0 }} />}
             </div>
             <div style={{ borderRadius: 'var(--radius-lg)', background: INK, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 22 }}>
-              <span style={{ fontFamily: 'var(--font-heading)', fontSize: 38, fontWeight: 900, color: 'var(--color-primary)', lineHeight: 1 }}>24/7</span>
-              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', marginTop: 4 }}>Soporte y disponibilidad</span>
+              {/* Decia '24/7 · Soporte y disponibilidad', escrito fijo en la pagina.
+                  Es el ejemplo que el manual pone como prohibido mientras la red no
+                  pueda garantizarlo. Se cambia por las seis lineas de servicio, que si
+                  son un hecho de la arquitectura de marca. */}
+              <span style={{ fontFamily: 'var(--font-heading)', fontSize: 38, fontWeight: 900, color: 'var(--color-primary)', lineHeight: 1 }}>6</span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.78)', marginTop: 4 }}>Categorías de servicio</span>
             </div>
           </div>
         </section>
