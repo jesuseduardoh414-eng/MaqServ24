@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { D, FONT } from '@/components/editor-kit';
 import { QuoteRespond } from './QuoteRespond';
+import { QuoteMatches } from './QuoteMatches';
 
 export interface QuoteItem {
   id: number;
@@ -223,7 +224,11 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                 {pend ? (
-                  <QuoteRespond quoteId={q.id} subtotal={q.subtotal} />
+                  <>
+                    {/* Antes de poner precio hay que saber quién la puede atender. */}
+                    <QuoteMatches quoteId={q.id} />
+                    <QuoteRespond quoteId={q.id} subtotal={q.subtotal} />
+                  </>
                 ) : (
                   <button type="button" onClick={() => setDetail(q)} className="qz-pg" style={{ background: 'transparent', color: '#B4B4B9', border: '1px solid rgba(255,255,255,0.12)', fontFamily: 'inherit', fontWeight: 600, fontSize: 13, padding: '7px 14px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap' }}>Ver detalle</button>
                 )}
