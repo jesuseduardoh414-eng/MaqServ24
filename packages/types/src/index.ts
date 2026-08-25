@@ -7,3 +7,4 @@ export * from './quotes';
 export * from './account';
 export * from './vendors';
 export * from './providers';
+export * from './availability';

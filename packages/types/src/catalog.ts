@@ -1,4 +1,5 @@
 import type { ProviderBadge } from './providers';
+import type { Availability } from './availability';
 
 /**
  * DTOs del catálogo (Fase 1). La API traduce el esquema legacy
@@ -34,6 +35,11 @@ export interface ProductCard {
    * 20 (tarjeta de equipo) y en la 22 (proveedores y confianza).
    */
   provider: ProviderBadge | null;
+  /**
+   * Estado de disponibilidad ya resuelto por la API: bloqueos por fecha,
+   * frescura del dato y existencias. Ver seccion 21 del documento.
+   */
+  availability: Availability | null;
   categorySlug: string | null;
 }
 

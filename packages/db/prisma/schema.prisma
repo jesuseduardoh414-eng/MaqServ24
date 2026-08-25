@@ -902,63 +902,65 @@ model product_clicks {
 }
 
 model products {
-  id                Int       @id @default(autoincrement())
-  category_id       Int
-  subcategory_id    Int?
-  childcategory_id  Int?
-  user_id           Int       @default(0)
-  name              String
-  product_theme     String    @default("default")
-  photo             String?
-  size              String?
-  color             String?
-  cprice            Float     @db.Real
-  pprice            Float?    @db.Real
-  description       String
-  stock             Int?
-  policy            String?
-  status            Int       @default(1) @db.SmallInt
-  views             Int       @default(0)
-  tags              String?
-  created_at        DateTime? @db.Timestamp(0)
-  updated_at        DateTime? @db.Timestamp(0)
-  featured          Int       @default(0) @db.SmallInt
-  best              Int       @default(0) @db.SmallInt
-  top               Int       @default(0) @db.SmallInt
-  hot               Int       @default(0) @db.SmallInt
-  latest            Int       @default(0) @db.SmallInt
-  big               Int       @default(0) @db.SmallInt
-  features          String?
-  colors            String?
-  product_condition Boolean   @default(false)
-  ship              String?
-  is_meta           Boolean   @default(false)
-  meta_tag          String?
-  meta_description  String?
-  youtube           String?
-  type              Boolean   @default(false)
-  file              String?
-  license           String?
-  license_qty       String?
-  link              String?
-  platform          String?   @db.VarChar(255)
-  region            String?   @db.VarChar(255)
-  licence_type      String?   @db.VarChar(255)
-  measure           String?
-  before_category   Int?
-  Corto             String?
-  Clave             String?
-  Alterno           String?
-  PBase             Float?    @db.Real
-  Marca             String?
-  lote              String?
-  caducidad         DateTime? @db.Date
-  ficha_tecnica     String?
-  rental_freight    Decimal?  @db.Decimal(10, 2)
-  is_rental         Boolean   @default(false)
-  certificacion_dc3 String?
-  specs             String?
-  provider_id       Int?
+  id                        Int       @id @default(autoincrement())
+  category_id               Int
+  subcategory_id            Int?
+  childcategory_id          Int?
+  user_id                   Int       @default(0)
+  name                      String
+  product_theme             String    @default("default")
+  photo                     String?
+  size                      String?
+  color                     String?
+  cprice                    Float     @db.Real
+  pprice                    Float?    @db.Real
+  description               String
+  stock                     Int?
+  policy                    String?
+  status                    Int       @default(1) @db.SmallInt
+  views                     Int       @default(0)
+  tags                      String?
+  created_at                DateTime? @db.Timestamp(0)
+  updated_at                DateTime? @db.Timestamp(0)
+  featured                  Int       @default(0) @db.SmallInt
+  best                      Int       @default(0) @db.SmallInt
+  top                       Int       @default(0) @db.SmallInt
+  hot                       Int       @default(0) @db.SmallInt
+  latest                    Int       @default(0) @db.SmallInt
+  big                       Int       @default(0) @db.SmallInt
+  features                  String?
+  colors                    String?
+  product_condition         Boolean   @default(false)
+  ship                      String?
+  is_meta                   Boolean   @default(false)
+  meta_tag                  String?
+  meta_description          String?
+  youtube                   String?
+  type                      Boolean   @default(false)
+  file                      String?
+  license                   String?
+  license_qty               String?
+  link                      String?
+  platform                  String?   @db.VarChar(255)
+  region                    String?   @db.VarChar(255)
+  licence_type              String?   @db.VarChar(255)
+  measure                   String?
+  before_category           Int?
+  Corto                     String?
+  Clave                     String?
+  Alterno                   String?
+  PBase                     Float?    @db.Real
+  Marca                     String?
+  lote                      String?
+  caducidad                 DateTime? @db.Date
+  ficha_tecnica             String?
+  rental_freight            Decimal?  @db.Decimal(10, 2)
+  is_rental                 Boolean   @default(false)
+  certificacion_dc3         String?
+  specs                     String?
+  provider_id               Int?
+  location                  String?
+  availability_confirmed_at DateTime? @db.Timestamp(6)
 
   @@index([provider_id], map: "products_provider_idx")
 }
@@ -1460,6 +1462,19 @@ model providers {
   provider_documents provider_documents[]
 
   @@index([level])
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model availability_blocks {
+  id         Int       @id @default(autoincrement())
+  product_id Int
+  state      String
+  starts_on  DateTime  @db.Date
+  ends_on    DateTime? @db.Date
+  note       String?
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+
+  @@index([product_id, starts_on, ends_on], map: "availability_blocks_product_idx")
 }
 
 enum counters_type {

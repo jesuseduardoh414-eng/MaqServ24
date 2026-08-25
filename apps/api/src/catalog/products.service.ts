@@ -4,6 +4,7 @@ import { productSlug } from '@maqserv/config';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
 import { estadoDocumentos, estaVerificado, mesesEnRed } from './provider-trust';
+import { disponibilidadDe } from './availability';
 
 /**
  * Normalización de búsqueda (ES). Se aplica IGUAL a la columna y al término:
@@ -39,13 +40,15 @@ type ProductRow = {
   stock: number | null;
   category_id: number;
   provider_id: number | null;
+  location: string | null;
+  availability_confirmed_at: Date | null;
 };
 
 /** Campos que se piden para armar una tarjeta. Uno solo, para no desincronizar consultas. */
 const CAMPOS_TARJETA = {
   id: true, name: true, Marca: true, cprice: true, pprice: true,
   photo: true, is_rental: true, featured: true, stock: true,
-  category_id: true, provider_id: true,
+  category_id: true, provider_id: true, location: true, availability_confirmed_at: true,
 } as const;
 
 @Injectable()
@@ -54,6 +57,7 @@ export class ProductsService {
     p: ProductRow,
     catSlugs: Map<number, string>,
     provs: Map<number, ProviderBadge> = new Map(),
+    bloqueos: Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null }>> = new Map(),
   ): ProductCard {
     return {
       id: p.id,
@@ -68,6 +72,12 @@ export class ProductsService {
       inStock: p.stock === null || p.stock > 0,
       stock: p.stock,
       provider: p.provider_id !== null ? (provs.get(p.provider_id) ?? null) : null,
+      availability: disponibilidadDe({
+        stock: p.stock,
+        location: p.location,
+        confirmedAt: p.availability_confirmed_at,
+        blocks: bloqueos.get(p.id) ?? [],
+      }),
       categorySlug: catSlugs.get(p.category_id) ?? null,
     };
   }
@@ -113,6 +123,35 @@ export class ProductsService {
         ];
       }),
     );
+  }
+
+  /**
+   * Bloqueos VIGENTES HOY de una lista de equipos, en una sola consulta.
+   *
+   * Se filtra por fecha en la base y no en memoria: un equipo puede acumular
+   * meses de historial de rentas, y traerlo todo para descartarlo aqui seria
+   * pagar por datos que no se usan.
+   */
+  private async bloqueosVigentes(
+    ids: number[],
+  ): Promise<Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null }>>> {
+    if (ids.length === 0) return new Map();
+    const hoy = new Date();
+    const filas = await prisma.availability_blocks.findMany({
+      where: {
+        product_id: { in: ids },
+        starts_on: { lte: hoy },
+        OR: [{ ends_on: null }, { ends_on: { gte: hoy } }],
+      },
+      select: { product_id: true, state: true, starts_on: true, ends_on: true },
+    });
+    const mapa = new Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null }>>();
+    for (const f of filas) {
+      const lista = mapa.get(f.product_id) ?? [];
+      lista.push({ state: f.state, starts_on: f.starts_on, ends_on: f.ends_on });
+      mapa.set(f.product_id, lista);
+    }
+    return mapa;
   }
 
   private async categorySlugMap(): Promise<Map<number, string>> {
@@ -236,12 +275,13 @@ export class ProductsService {
       }),
     ]);
 
-    const [catSlugs, provs] = await Promise.all([
+    const [catSlugs, provs, bloqueos] = await Promise.all([
       this.categorySlugMap(),
       this.providerBadges(rows.map((r) => r.provider_id)),
+      this.bloqueosVigentes(rows.map((r) => r.id)),
     ]);
     return {
-      items: rows.map((p) => this.toCard(p, catSlugs, provs)),
+      items: rows.map((p) => this.toCard(p, catSlugs, provs, bloqueos)),
       total,
       page,
       pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -252,10 +292,11 @@ export class ProductsService {
     const p = await prisma.products.findFirst({ where: { id, status: 1 } });
     if (!p) throw new NotFoundException(`Producto ${id} no encontrado`);
 
-    const [gallery, cat, provs] = await Promise.all([
+    const [gallery, cat, provs, bloqueos] = await Promise.all([
       prisma.galleries.findMany({ where: { product_id: id }, select: { photo: true } }),
       prisma.categories.findUnique({ where: { id: p.category_id } }),
       this.providerBadges([p.provider_id]),
+      this.bloqueosVigentes([p.id]),
     ]);
 
     const catSlugs = new Map(cat ? [[cat.id, cat.cat_slug] as const] : []);
@@ -269,7 +310,7 @@ export class ProductsService {
       }
     } catch { /* specs legacy/no JSON */ }
     return {
-      ...this.toCard(p, catSlugs, provs),
+      ...this.toCard(p, catSlugs, provs, bloqueos),
       description: p.description,
       short: p.Corto && p.Corto.trim() ? p.Corto.trim() : null,
       specs,

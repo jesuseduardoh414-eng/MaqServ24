@@ -9,7 +9,7 @@ import { useCart } from '@/components/CartProvider';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductQuestions } from '@/components/ProductQuestions';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
-import { estadoDeProducto } from '@/lib/availability';
+import { estadoDeProducto, contextoDisponibilidad } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
 import { formatPrice } from '@/lib/format';
 
@@ -81,6 +81,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
   // Los cuatro estados del manual (21 / ESTADOS DE DISPONIBILIDAD) en vez del
   // par disponible/bajo pedido. Misma fuente que las tarjetas del catálogo.
   const disp = estadoDeProducto(product);
+  const ctxDisp = contextoDisponibilidad(product.availability);
   const quickSpecs = product.specs.slice(0, 3);
   const canBuy = !quoteMode && product.price !== null && product.inStock;
   const short = product.short ?? '';
@@ -206,6 +207,12 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
                   })}
                 </div>
               </div>
+            ) : null}
+
+            {/* Dónde está y desde cuándo no se confirma: el documento pide que la
+                ubicación forme parte del producto, no un adorno. */}
+            {ctxDisp ? (
+              <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginBottom: 22 }}>{ctxDisp}</div>
             ) : null}
 
             {/* Quién suministra el equipo y con qué señales de confianza (22 / PROVEEDORES). */}
