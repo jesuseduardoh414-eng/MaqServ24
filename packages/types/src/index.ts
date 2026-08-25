@@ -6,3 +6,4 @@ export * from './fulfillment';
 export * from './quotes';
 export * from './account';
 export * from './vendors';
+export * from './providers';
