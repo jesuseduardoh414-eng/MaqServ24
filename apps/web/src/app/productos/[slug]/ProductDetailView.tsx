@@ -42,13 +42,12 @@ function periodPrice(base: number, key: string): number {
 const unitLabelOf = (key: string): string => (key === 'mes' ? 'MES' : key === 'sem' ? 'SEMANA' : 'DÍA');
 const PERIODS: Array<[string, string]> = [['dia', 'Día'], ['sem', 'Semana'], ['mes', 'Mes']];
 
-export function ProductDetailView({ product, theme, rating, reviews, related, inquiryHref, quoteMode }: {
+export function ProductDetailView({ product, theme, rating, reviews, related, quoteMode }: {
   product: ProductDetail;
   theme: Theme;
   rating: { average: number; count: number };
   reviews: ProductComment[];
   related: ProductCardDto[];
-  inquiryHref: string | null;
   quoteMode: boolean;
 }) {
   const cart = useCart();
@@ -248,9 +247,17 @@ export function ProductDetailView({ product, theme, rating, reviews, related, in
                   <button type="button" onClick={buyNow} style={{ flex: 1, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '16px 28px', borderRadius: 100, cursor: 'pointer' }}>Comprar ahora</button>
                   <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 100, cursor: 'pointer' }}>{fav ? '♥' : '♡'}</button>
                 </div>
-                {inquiryHref ? (
-                  <a href={inquiryHref} style={{ display: 'block', textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-text)', padding: '14px 20px', borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box' }}>Solicitar información</a>
-                ) : null}
+                {/* COTIZAR SIEMPRE, tambien en los equipos que se pueden comprar.
+                    Antes aqui habia un 'Solicitar informacion' que abria el correo:
+                    una peticion suelta, sin capacidad, sin fechas y sin ubicacion, que
+                    obligaba a llamar de vuelta. El cotizador pregunta lo que hace falta
+                    segun el servicio, y ademas la plataforma se centra en cotizar. */}
+                <Link
+                  href={`/cotizar?producto=${product.slug}`}
+                  style={{ display: 'block', textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-text)', padding: '14px 20px', borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box' }}
+                >
+                  Cotizar este equipo →
+                </Link>
               </>
             ) : (
               <div style={{ display: 'flex', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>

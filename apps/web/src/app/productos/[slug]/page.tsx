@@ -55,10 +55,6 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   const quoteMode = theme.tokens.quoteMode;
   const related = (relatedRes?.items ?? []).filter((p) => p.id !== product.id).slice(0, 3);
 
-  const inquiryHref = settings.email && !quoteMode
-    ? `mailto:${settings.email}?subject=${encodeURIComponent(`Información: ${product.name}`)}`
-    : null;
-
   const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Product',
@@ -82,7 +78,6 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
         rating={{ average: comments.average, count: comments.count }}
         reviews={comments.items}
         related={related}
-        inquiryHref={inquiryHref}
         quoteMode={quoteMode}
       />
       <SiteFooter theme={theme} />
