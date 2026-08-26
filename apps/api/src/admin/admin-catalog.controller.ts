@@ -25,6 +25,8 @@ const productSchema = z.object({
   brand: z.string().max(190).optional(),
   isRental: z.coerce.boolean().optional(),
   rentalFreight: z.coerce.number().min(0).optional(),
+  /** Unidad del precio. Cadena vacia = por pieza, y hay que poder guardarla. */
+  priceUnit: z.string().max(20).optional(),
   featured: z.coerce.boolean().optional(),
   status: z.coerce.number().int().min(0).max(1).optional(),
   lote: z.string().max(190).optional(),
@@ -105,6 +107,7 @@ export class AdminCatalogController {
       stock: p.stock,
       brand: p.Marca,
       isRental: p.is_rental,
+      priceUnit: p.price_unit,
       rentalFreight: p.rental_freight ? Number(p.rental_freight) : null,
       featured: p.featured === 1,
       status: p.status,
@@ -134,6 +137,7 @@ export class AdminCatalogController {
         stock: d.stock ?? null,
         Marca: d.brand ?? null,
         is_rental: d.isRental ?? false,
+        price_unit: d.priceUnit?.trim() || null,
         rental_freight: d.rentalFreight ?? null,
         featured: d.featured ? 1 : 0,
         status: d.status ?? 1,
@@ -173,6 +177,9 @@ export class AdminCatalogController {
         ...(d.stock !== undefined ? { stock: d.stock } : {}),
         ...(d.brand !== undefined ? { Marca: d.brand } : {}),
         ...(d.isRental !== undefined ? { is_rental: d.isRental } : {}),
+        // Se compara con undefined, no con truthy: '' es un valor valido
+        // ("por pieza") y con `|| null` no habria forma de quitar la unidad.
+        ...(d.priceUnit !== undefined ? { price_unit: d.priceUnit.trim() || null } : {}),
         ...(d.rentalFreight !== undefined ? { rental_freight: d.rentalFreight } : {}),
         ...(d.featured !== undefined ? { featured: d.featured ? 1 : 0 } : {}),
         ...(d.status !== undefined ? { status: d.status } : {}),

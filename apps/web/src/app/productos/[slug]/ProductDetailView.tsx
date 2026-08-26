@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { ProductCard as ProductCardDto, ProductComment, ProductDetail, RentalPeriod } from '@maqserv/types';
-import type { Theme } from '@maqserv/config';
+import { UNIDADES, esUnidadDeTiempo, precioEnUnidad, type Theme } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductQuestions } from '@/components/ProductQuestions';
@@ -33,14 +33,32 @@ function fmtReviewDate(iso: string | null): string {
 
 const TABS: Array<[string, string]> = [['desc', 'Descripción'], ['specs', 'Ficha técnica'], ['reviews', 'Opiniones'], ['qa', 'Preguntas']];
 
-// Precio por periodo (derivado del mensual, como el diseño): sem = mes/4, día = mes/20.
-function periodPrice(base: number, key: string): number {
-  if (key === 'mes') return base;
-  if (key === 'sem') return Math.round(base / 4 / 100) * 100;
-  return Math.round(base / 20 / 100) * 100;
+/**
+ * PRECIO POR PERIODO.
+ *
+ * El selector Dia/Semana/Mes derivaba del precio mensual (mes/4 y mes/20).
+ * Esa regla es real en renta de equipo y se conserva, pero SOLO sirve entre
+ * unidades de tiempo: un viaje de pipa no es una fraccion de un mes y una
+ * tonelada de triturado tampoco. Antes el selector salia igual para todo, asi
+ * que a un volteo cotizado por viaje le ofrecia un "precio mensual" que nadie
+ * cobra. Ahora sale unicamente cuando hay algo que convertir.
+ */
+function periodPrice(base: number, desde: string, hacia: string): number {
+  const p = precioEnUnidad(base, aUnidad(desde), aUnidad(hacia));
+  // Se redondea a centenas como antes: un "$487.50 / dia" en un boton no
+  // ayuda a decidir, y la tarifa real la fija la cotizacion.
+  return p === null ? base : Math.round(p / 100) * 100;
 }
-const unitLabelOf = (key: string): string => (key === 'mes' ? 'MES' : key === 'sem' ? 'SEMANA' : 'DÍA');
+/**
+ * OJO: las claves son las del CARRITO ('dia' | 'sem' | 'mes'), no las de
+ * `UNIDADES`, que usa 'semana'. La API valida con z.enum(['dia','sem','mes']) y
+ * `orders.service` cae a 'mes' ante cualquier otra cosa: mandar 'semana'
+ * cobraria como mensual una renta semanal sin marcar error en ningun lado.
+ * `aUnidad` hace la unica traduccion que hace falta.
+ */
 const PERIODS: Array<[string, string]> = [['dia', 'Día'], ['sem', 'Semana'], ['mes', 'Mes']];
+const aUnidad = (clave: string): string => (clave === 'sem' ? 'semana' : clave);
+const aPeriodo = (unidad: string): string => (unidad === 'semana' ? 'sem' : unidad);
 
 export function ProductDetailView({ product, theme, rating, reviews, related, quoteMode }: {
   product: ProductDetail;
@@ -55,7 +73,10 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
   const [qty, setQty] = useState(1);
   const [tab, setTab] = useState('desc');
   const [added, setAdded] = useState(false);
-  const [period, setPeriod] = useState('mes');
+  // Unidad en la que esta capturado el precio. Sin ella, la renta vieja era mensual.
+  const unidadBase = product.priceUnit ?? (product.isRental ? 'mes' : null);
+  const porTiempo = esUnidadDeTiempo(unidadBase);
+  const [period, setPeriod] = useState(porTiempo ? aPeriodo(unidadBase!) : (unidadBase ?? 'mes'));
   const [fav, setFav] = useState<boolean | null>(null);
   const [shareUrl, setShareUrl] = useState('');
 
@@ -74,8 +95,11 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
   const move = (d: number) => setActive((a) => (a + d + nImg) % nImg);
 
   const isR = product.isRental;
-  const effPrice = product.price !== null ? (isR ? periodPrice(product.price, period) : product.price) : null;
-  const effUnit = isR ? unitLabelOf(period) : null;
+  const effPrice = product.price !== null
+    ? (isR && porTiempo ? periodPrice(product.price, unidadBase!, period) : product.price)
+    : null;
+  // La etiqueta sale de la unidad real: MES, VIAJE, TONELADA...
+  const effUnit = unidadBase ? (UNIDADES[porTiempo ? aUnidad(period) : unidadBase]?.singular ?? unidadBase).toUpperCase() : null;
   const priceUnit = isR ? `MXN / ${effUnit}` : 'MXN';
   // Los cuatro estados del manual (21 / ESTADOS DE DISPONIBILIDAD) en vez del
   // par disponible/bajo pedido. Misma fuente que las tarjetas del catálogo.
@@ -191,7 +215,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
             {short ? <p style={{ margin: '22px 0 26px', fontSize: 16, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{short}</p> : <div style={{ height: 22 }} />}
 
-            {isR && !quoteMode && product.price !== null ? (
+            {isR && porTiempo && !quoteMode && product.price !== null ? (
               <div style={{ marginBottom: 26 }}>
                 <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: 10 }}>PERIODO DE RENTA</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
@@ -200,7 +224,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     return (
                       <button key={key} type="button" onClick={() => setPeriod(key)} style={{ border: `1px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'var(--color-bg)', color: on ? 'var(--color-bg)' : 'var(--color-text)', borderRadius: 4, padding: '12px 10px', cursor: 'pointer', textAlign: 'center' }}>
                         <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15 }}>{label}</div>
-                        <div style={{ fontFamily: MONO, fontSize: 11, marginTop: 3, color: on ? 'color-mix(in srgb, var(--color-bg) 65%, transparent)' : 'var(--color-text-muted)' }}>{formatPrice(periodPrice(product.price as number, key))}</div>
+                        <div style={{ fontFamily: MONO, fontSize: 11, marginTop: 3, color: on ? 'color-mix(in srgb, var(--color-bg) 65%, transparent)' : 'var(--color-text-muted)' }}>{formatPrice(periodPrice(product.price as number, unidadBase!, key))}</div>
                       </button>
                     );
                   })}

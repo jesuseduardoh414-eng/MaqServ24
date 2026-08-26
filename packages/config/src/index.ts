@@ -18,5 +18,9 @@ export {
   unidadesDe,
   unidadPorDefectoDe,
   formatearCantidad,
+  esUnidadDeTiempo,
+  precioEnUnidad,
+  unidadesEquivalentes,
+  etiquetaPrecio,
   type UnidadServicio,
 } from './service-units';

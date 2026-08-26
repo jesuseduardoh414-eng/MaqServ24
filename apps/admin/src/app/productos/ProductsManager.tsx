@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { unidadesDe } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
 
 export interface ProductRow {
@@ -16,7 +17,7 @@ export interface ProductRow {
   image: string | null;
   categoryName: string | null;
 }
-export interface CatOption { id: number; name: string }
+export interface CatOption { id: number; name: string; slug: string }
 
 const C = {
   panel: '#141416', panel2: '#1b1e26', panel3: '#212530',
@@ -34,10 +35,12 @@ interface Form {
   name: string; brand: string; categoryId: number; price: string; oldPrice: string;
   stock: string; short: string; description: string; specs: Array<{ label: string; value: string }>;
   isRental: boolean; rentalFreight: string; featured: boolean; status: number;
+  /** Unidad en la que esta el precio: mes, dia, viaje, tonelada. '' = por pieza. */
+  priceUnit: string;
 }
 
 export function ProductsManager({ initial, categories }: { initial: ProductRow[]; categories: CatOption[] }) {
-  const emptyForm: Form = { name: '', brand: '', categoryId: categories[0]?.id ?? 0, price: '', oldPrice: '', stock: '', short: '', description: '', specs: [], isRental: false, rentalFreight: '', featured: false, status: 1 };
+  const emptyForm: Form = { name: '', brand: '', categoryId: categories[0]?.id ?? 0, price: '', oldPrice: '', stock: '', short: '', description: '', specs: [], isRental: false, rentalFreight: '', featured: false, status: 1, priceUnit: '' };
 
   const [items, setItems] = useState<ProductRow[]>(initial);
   const [query, setQuery] = useState('');
@@ -149,6 +152,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
           stock: d.stock != null ? String(d.stock) : '', short: d.short ?? '', description: d.description ?? '',
           specs: Array.isArray(d.specs) ? d.specs.map((s: { label?: string; value?: string }) => ({ label: String(s.label ?? ''), value: String(s.value ?? '') })) : [],
           isRental: !!d.isRental, rentalFreight: d.rentalFreight != null ? String(d.rentalFreight) : '',
+          priceUnit: d.priceUnit ?? '',
           featured: !!d.featured, status: d.status ?? 1,
         });
         setCurrentImage(d.image ?? null);
@@ -173,6 +177,9 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
       if (form.stock !== '') fd.append('stock', String(parseInt(form.stock, 10) || 0));
       if (form.brand.trim()) fd.append('brand', form.brand.trim());
       fd.append('isRental', form.isRental ? '1' : ''); // '' → z.coerce.boolean false
+      // Vacio = por pieza. Se manda siempre para poder BORRAR la unidad de un
+      // producto que dejo de ser renta; omitirlo dejaria la anterior pegada.
+      fd.append('priceUnit', form.priceUnit);
       if (form.isRental && form.rentalFreight !== '') fd.append('rentalFreight', String(parseFloat(form.rentalFreight) || 0));
       fd.append('featured', form.featured ? '1' : '');
       fd.append('status', String(form.status));
@@ -432,7 +439,26 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
               </div>
               {/* Precio + Precio anterior */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div><label style={labelStyle}>Precio (MXN)</label><input value={form.price} onChange={(e) => setF('price', e.target.value)} type="number" placeholder="0" style={inputStyle} /></div>
+                <div>
+                  <label style={labelStyle}>Precio (MXN)</label>
+                  <input value={form.price} onChange={(e) => setF('price', e.target.value)} type="number" placeholder="0" style={inputStyle} />
+                  {/*
+                    En que unidad esta ese precio. Antes se asumia que toda renta
+                    era mensual y el sitio pintaba "/mes" para todo — falso para
+                    pipas (viaje), volteos (viaje) y triturados (tonelada).
+                    Las opciones salen de la categoria elegida.
+                  */}
+                  <select
+                    value={form.priceUnit}
+                    onChange={(e) => setF('priceUnit', e.target.value)}
+                    style={{ ...inputStyle, marginTop: 8 }}
+                  >
+                    <option value="">Por pieza (venta)</option>
+                    {unidadesDe(categories.find((c) => c.id === form.categoryId)?.slug).map((u) => (
+                      <option key={u.clave} value={u.clave}>Por {u.singular}</option>
+                    ))}
+                  </select>
+                </div>
                 <div><label style={labelStyle}>Precio anterior (opcional)</label><input value={form.oldPrice} onChange={(e) => setF('oldPrice', e.target.value)} type="number" placeholder="Para mostrar descuento" style={inputStyle} /></div>
               </div>
               {/* Stock */}
@@ -462,7 +488,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
               <div style={{ display: 'grid', gap: 12, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 12, padding: '14px 16px' }}>
                 {[
                   { k: 'featured' as const, label: 'Destacado', help: 'Aparece en la sección de destacados del home.' },
-                  { k: 'isRental' as const, label: 'En renta', help: 'Muestra “/mes” y flujo de cotización.' },
+                  { k: 'isRental' as const, label: 'En renta', help: 'Flujo de cotización. La unidad del precio se elige arriba.' },
                 ].map((t) => (
                   <label key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
                     <span><span style={{ fontSize: 13.5, fontWeight: 600 }}>{t.label}</span><span style={{ display: 'block', fontSize: 11.5, color: C.dim }}>{t.help}</span></span>

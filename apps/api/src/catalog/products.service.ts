@@ -36,6 +36,7 @@ type ProductRow = {
   pprice: number | null;
   photo: string | null;
   is_rental: boolean;
+  price_unit: string | null;
   featured: number;
   stock: number | null;
   category_id: number;
@@ -47,7 +48,7 @@ type ProductRow = {
 /** Campos que se piden para armar una tarjeta. Uno solo, para no desincronizar consultas. */
 const CAMPOS_TARJETA = {
   id: true, name: true, Marca: true, cprice: true, pprice: true,
-  photo: true, is_rental: true, featured: true, stock: true,
+  photo: true, is_rental: true, featured: true, stock: true, price_unit: true,
   category_id: true, provider_id: true, location: true, availability_confirmed_at: true,
 } as const;
 
@@ -68,6 +69,7 @@ export class ProductsService {
       oldPrice: p.pprice && p.pprice > 0 ? p.pprice : null,
       image: imageUrl(p.photo),
       isRental: p.is_rental,
+      priceUnit: p.price_unit,
       featured: p.featured === 1,
       inStock: p.stock === null || p.stock > 0,
       stock: p.stock,

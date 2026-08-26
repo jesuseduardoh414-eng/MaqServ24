@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { ProductCard as ProductCardDto } from '@maqserv/types';
-import type { Theme } from '@maqserv/config';
+import { UNIDADES, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { formatPrice } from '@/lib/format';
 import { useCart } from '@/components/CartProvider';
@@ -48,6 +48,19 @@ export function Price({ theme, price, oldPrice }: { theme: Theme; price: number 
  * Auto-contenida: usa el carrito y la wishlist. Se usa en el home (destacados),
  * catálogo, favoritos y tienda. Estilos por tokens del tema.
  */
+/**
+ * Debajo del precio: "/mes", "/viaje", "/tonelada".
+ *
+ * Antes decia "/mes" para todo lo que fuera renta. Para maquinaria era cierto,
+ * pero una pipa se cobra por viaje y un triturado por tonelada: la tarjeta
+ * estaba diciendo un precio mensual que nadie cobra asi.
+ */
+function unidadCorta(p: { isRental: boolean; priceUnit: string | null }): string | null {
+  if (p.priceUnit) return UNIDADES[p.priceUnit]?.singular ?? p.priceUnit;
+  // Sin unidad guardada, la renta vieja seguia siendo mensual.
+  return p.isRental ? 'mes' : null;
+}
+
 export function ProductCard({ product: p, theme, initialFaved = false }: { product: ProductCardDto; theme: Theme; initialFaved?: boolean }) {
   const cart = useCart();
   const router = useRouter();
@@ -130,7 +143,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
             ) : (
               <>
                 <div style={{ fontWeight: 800, fontSize: '20px', color: 'var(--color-text)', lineHeight: 1 }}>
-                  {formatPrice(p.price)}{p.isRental ? <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>/mes</span> : null}
+                  {formatPrice(p.price)}{unidadCorta(p) ? <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>/{unidadCorta(p)}</span> : null}
                 </div>
                 {p.oldPrice && p.oldPrice > (p.price ?? 0) ? (
                   <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textDecoration: 'line-through', fontWeight: 500 }}>{formatPrice(p.oldPrice)}</span>

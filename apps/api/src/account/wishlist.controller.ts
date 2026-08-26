@@ -44,7 +44,7 @@ export class WishlistController {
       where: { id: { in: rows.map((r) => r.product_id) }, status: 1 },
       select: {
         id: true, name: true, Marca: true, cprice: true, pprice: true,
-        photo: true, is_rental: true, featured: true, stock: true, category_id: true,
+        photo: true, is_rental: true, featured: true, stock: true, category_id: true, price_unit: true,
       },
     });
     const cats = await prisma.categories.findMany({ select: { id: true, cat_slug: true } });
@@ -58,6 +58,7 @@ export class WishlistController {
       oldPrice: p.pprice && p.pprice > 0 ? p.pprice : null,
       image: imageUrl(p.photo),
       isRental: p.is_rental,
+      priceUnit: p.price_unit,
       featured: p.featured === 1,
       inStock: p.stock === null || p.stock > 0,
       stock: p.stock,

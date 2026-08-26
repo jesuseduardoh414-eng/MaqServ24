@@ -18,6 +18,12 @@ export interface ProductCard {
   oldPrice: number | null;
   image: string | null;
   isRental: boolean;
+  /**
+   * Unidad en la que esta el precio: mes, dia, viaje, tonelada...
+   * Null = venta por pieza. Antes todo se pintaba "/mes", que era falso para
+   * pipas, volteos y triturados.
+   */
+  priceUnit: string | null;
   featured: boolean;
   inStock: boolean;
   /**

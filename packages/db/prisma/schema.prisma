@@ -961,6 +961,7 @@ model products {
   provider_id               Int?
   location                  String?
   availability_confirmed_at DateTime? @db.Timestamp(6)
+  price_unit                String?   @db.VarChar(20)
 
   @@index([provider_id], map: "products_provider_idx")
 }

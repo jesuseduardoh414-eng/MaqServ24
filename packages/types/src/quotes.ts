@@ -49,7 +49,18 @@ export interface QuoteItem {
   name: string;
   price: number;    // unitario base (cprice)
   qty: number;
-  days: number;     // 1 si no es renta
+  /**
+   * CUANTAS unidades. Se llama `days` por el formato legacy de `cart_data`,
+   * pero no siempre son dias: con `unit: 'viaje'` son viajes y con
+   * `'tonelada'` toneladas. 1 si no es renta.
+   */
+  days: number;
+  /**
+   * En que se miden esos `days`. Null = por pieza.
+   * Sin esto la cotizacion decia "3 dias" de un servicio de pipas que en
+   * realidad eran 3 viajes.
+   */
+  unit: string | null;
   isRental: boolean;
   freight: number;  // flete unitario aplicado (renta)
   lineTotal: number;

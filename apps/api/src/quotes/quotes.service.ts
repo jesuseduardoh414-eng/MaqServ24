@@ -54,7 +54,7 @@ export class QuotesService {
     const ids = input.items.map((i) => i.productId);
     const products = await prisma.products.findMany({
       where: { id: { in: ids }, status: 1 },
-      select: { id: true, name: true, cprice: true, photo: true, is_rental: true, rental_freight: true, stock: true },
+      select: { id: true, name: true, cprice: true, photo: true, is_rental: true, rental_freight: true, stock: true, price_unit: true },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -66,7 +66,15 @@ export class QuotesService {
       const p = byId.get(i.productId);
       if (!p) throw new BadRequestException(`Producto ${i.productId} no disponible`);
       const qty = Math.max(1, Math.min(999, Math.floor(i.qty)));
-      const days = p.is_rental ? Math.max(1, Math.min(365, Math.floor(i.days ?? 1))) : 1;
+      // La unidad del precio manda. Sin ella, la renta vieja era mensual.
+      const unit = p.price_unit ?? (p.is_rental ? 'mes' : null);
+      // Las toneladas y los metros cubicos SI son fraccionarios: redondear a
+      // entero convertiria 12.5 toneladas en 12 y la cotizacion saldria corta.
+      const fraccionable = unit === 'tonelada' || unit === 'm3' || unit === 'hora';
+      const bruto = i.days ?? 1;
+      const days = p.is_rental
+        ? Math.max(fraccionable ? 0.01 : 1, Math.min(365, fraccionable ? Math.round(bruto * 100) / 100 : Math.floor(bruto)))
+        : 1;
       // Fórmula legacy: renta → cprice×días + flete (tarifa base × km, o base sin distancia)
       const baseFreight = p.rental_freight ? Number(p.rental_freight) : 0;
       const freightUnit = p.is_rental ? (distanceKm > 0 ? baseFreight * distanceKm : baseFreight) : 0;
@@ -77,6 +85,7 @@ export class QuotesService {
         price: p.cprice,
         qty,
         days,
+        unit,
         isRental: p.is_rental,
         freight: Math.round(freightUnit * 100) / 100,
         lineTotal,
@@ -94,6 +103,9 @@ export class QuotesService {
       cartData[String(it.productId)] = {
         qty: it.qty,
         days: it.days,
+        // Sin guardarla, al releer la cotizacion se perderia y volveria a
+        // decir "dias" para lo que se cotizo por viaje o por tonelada.
+        unit: it.unit,
         price: it.lineTotal,
         item: { id: it.productId, name: it.name, cprice: it.price, photo: it.image },
       };
@@ -209,10 +221,11 @@ export class QuotesService {
 
     let items: QuoteItem[] = [];
     try {
-      const cart = JSON.parse(q.cart_data) as Record<string, { qty: number; days?: number; price: number; item: { id: number; name: string; cprice: number; photo: string | null } }>;
+      const cart = JSON.parse(q.cart_data) as Record<string, { qty: number; days?: number; unit?: string | null; price: number; item: { id: number; name: string; cprice: number; photo: string | null } }>;
       items = Object.values(cart).map((c) => ({
         productId: c.item.id,
         name: c.item.name,
+        unit: c.unit ?? null,
         price: c.item.cprice,
         qty: c.qty,
         days: c.days ?? 1,

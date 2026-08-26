@@ -23,11 +23,12 @@ export default async function AdminProducts() {
   // dedupe defensivo por id (por si la paginación se solapa)
   const seen = new Set<number>();
   items = items.filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
-  const cats = (await adminFetch<Array<{ id: number; name: string }>>('/admin/catalog/categories')) ?? [];
+  const cats = (await adminFetch<Array<{ id: number; name: string; slug: string }>>('/admin/catalog/categories')) ?? [];
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email}>
-      <ProductsManager initial={items} categories={cats.map((c) => ({ id: c.id, name: c.name }))} />
+      <ProductsManager initial={items} // El slug decide que unidades de precio se ofrecen (viaje, tonelada, mes...).
+        categories={cats.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))} />
     </AdminShell>
   );
 }

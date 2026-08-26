@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import type { QuoteDetail } from '@maqserv/types';
+// Decia "3 dias" de un servicio de pipas que en realidad eran 3 viajes.
+import { formatearCantidad } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '@/lib/session';
@@ -117,7 +119,7 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
               {q.items.map((i) => (
                 <div key={i.productId} style={fila}>
                   <span style={{ color: 'var(--color-text)' }}>
-                    {i.name} {i.qty > 1 ? `× ${i.qty}` : ''}{i.isRental && i.days > 1 ? ` · ${i.days} días` : ''}
+                    {i.name} {i.qty > 1 ? `× ${i.qty}` : ''}{i.isRental && i.days > 1 ? ` · ${formatearCantidad(i.days, i.unit ?? 'dia')}` : ''}
                   </span>
                   <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{money(i.lineTotal)}</span>
                 </div>
