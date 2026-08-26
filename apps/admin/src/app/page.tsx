@@ -10,6 +10,10 @@ interface Dashboard {
   unpaid: number;
   pendingQuotes: number;
   vendorsPending: number;
+  /** Aliados con papeles ya caidos. */
+  docsExpired: number;
+  /** Aliados con papeles que vencen dentro de 30 dias. */
+  docsExpiring: number;
   withdrawsPending: number;
   withdrawsAmount: number;
   unansweredQuestions: number;
@@ -24,6 +28,7 @@ interface Dashboard {
 const MONO = "'JetBrains Mono', ui-monospace, monospace";
 const GREEN = '#3fbf8f';
 const BLUE = '#5b9dff';
+const RED = '#e5484d';
 const money = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
 const card: React.CSSProperties = { background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 16, padding: 22 };
 
@@ -37,8 +42,13 @@ export default async function AdminHome() {
 
   const tasks: Task[] = d
     ? [
+      // Va primero: es lo unico de esta lista que empeora solo y en silencio.
+      // Un aliado pierde el sello el dia que se le cae un papel, y si esta en
+      // obra nadie se entera hasta que ya paso.
+      { n: d.docsExpired, label: 'Aliados con papeles vencidos', sub: 'Perdieron el sello de verificado', href: '/proveedores', icon: 'ph-warning-circle', color: RED },
       { n: d.toPrepare, label: 'Por preparar', sub: 'Pagadas, esperando que salgan', href: '/ordenes?state=pagado', icon: 'ph-package', color: D.accent },
       { n: d.pendingQuotes, label: 'Cotizaciones sin responder', sub: 'El cliente espera precio', href: '/cotizaciones', icon: 'ph-file-text', color: D.accent },
+      { n: d.docsExpiring, label: 'Papeles por vencer', sub: 'Dentro de los proximos 30 dias', href: '/proveedores', icon: 'ph-clock-countdown', color: D.accent },
       { n: d.withdrawsPending, label: 'Retiros por pagar', sub: d.withdrawsAmount > 0 ? `${money(d.withdrawsAmount)} en total` : 'Dinero de vendedores', href: '/retiros', icon: 'ph-hand-coins', color: D.accent },
       { n: d.vendorsPending, label: 'Vendedores por aprobar', sub: 'Solicitudes nuevas', href: '/vendedores?state=pendiente', icon: 'ph-storefront', color: D.accent },
       { n: d.unansweredQuestions, label: 'Preguntas sin responder', sub: 'Dudas sobre productos', href: '/preguntas', icon: 'ph-chat-circle', color: BLUE },

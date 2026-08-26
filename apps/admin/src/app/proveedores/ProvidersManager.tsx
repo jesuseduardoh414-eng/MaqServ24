@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type CSSProperties } from 'react';
+import { DocumentAlerts } from './DocumentAlerts';
 
 export interface ProviderRow {
   id: number;
@@ -196,6 +197,18 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           </div>
         ))}
       </div>
+
+      {/*
+        Los contadores de arriba dicen CUANTOS. Esto dice que papel, de quien y
+        para cuando — lo unico con lo que se puede levantar el telefono.
+      */}
+      <DocumentAlerts
+        colores={C}
+        onIr={(id) => {
+          const prov = provs.find((x) => x.id === id);
+          if (prov) abrirExpediente(prov);
+        }}
+      />
 
       {msg ? (
         <div style={{ background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13.5 }}>

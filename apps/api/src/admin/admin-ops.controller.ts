@@ -9,6 +9,7 @@ import { toFulfillment } from '@maqserv/types';
 import { AdminGuard, type AdminRequest } from './admin-auth';
 import { NotificationsService } from '../notifications/notifications.service';
 import { FulfillmentService, toShipping } from '../orders/fulfillment.service';
+import { DIAS_AVISO } from '../catalog/provider-trust';
 
 const PAID_STATES = new Set(['approved', 'completed', 'paid']);
 
@@ -48,7 +49,7 @@ export class AdminOpsController {
     const [
       products, orders, unpaid, toPrepare, shipped, quotes, pendingQuotes,
       vendorsPending, withdrawsPending, withdrawsAmount, unansweredQuestions,
-      pendingReviews, sold, customers,
+      pendingReviews, sold, customers, docsExpired, docsExpiring,
     ] = await Promise.all([
       prisma.products.count({ where: { status: 1 } }),
       prisma.orders.count(),
@@ -65,11 +66,31 @@ export class AdminOpsController {
       // Vendido = lo pedido sin las canceladas (mismo criterio que la ficha del cliente).
       prisma.orders.aggregate({ where: { status: { not: 'declined' } }, _sum: { pay_amount: true } }),
       customersP,
+      // Expedientes que piden atención (documento institucional, 23). Se cuentan
+      // ALIADOS, no documentos: a quien hay que llamarle es al aliado, y tres
+      // papeles vencidos del mismo son una sola llamada.
+      prisma.providers.count({
+        where: { status: 1, provider_documents: { some: { expires_at: { not: null, lt: new Date() } } } },
+      }),
+      prisma.providers.count({
+        where: {
+          status: 1,
+          provider_documents: {
+            some: {
+              expires_at: {
+                gte: new Date(),
+                lte: new Date(Date.now() + DIAS_AVISO * 24 * 60 * 60 * 1000),
+              },
+            },
+          },
+        },
+      }),
     ]);
 
     return {
       // Por atender
       toPrepare, shipped, unpaid, pendingQuotes, vendorsPending,
+      docsExpired, docsExpiring,
       withdrawsPending, withdrawsAmount: withdrawsAmount._sum.amount ?? 0,
       unansweredQuestions, pendingReviews,
       // Negocio

@@ -15,7 +15,8 @@ import { prisma } from '@maqserv/db';
 import { slugify } from '@maqserv/config';
 import { z } from 'zod';
 import { AdminGuard } from './admin-auth';
-import { estadoDocumentos, estaVerificado, mesesEnRed } from '../catalog/provider-trust';
+import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO } from '../catalog/provider-trust';
+import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
 
 /**
  * RED DE ALIADOS — alta y expediente de proveedores.
@@ -59,6 +60,80 @@ const fecha = (v: string | null | undefined): Date | null =>
 @Controller('admin/providers')
 @UseGuards(AdminGuard)
 export class AdminProvidersController {
+  /**
+   * AVISOS DE EXPEDIENTE (documento institucional, sección 23).
+   *
+   * "La plataforma requiere alertas y reglas que impidan tratar como verificado
+   * un expediente desactualizado." Las reglas ya estaban; esto es la alerta.
+   *
+   * Va ANTES de las rutas con `:id` a propósito: si se declarara después, Nest
+   * podría leer "alerts" como un id y la ruta nunca respondería.
+   */
+  @Get('alerts')
+  async alerts() {
+    const limite = new Date(Date.now() + DIAS_AVISO * 24 * 60 * 60 * 1000);
+
+    // Solo los aliados que tienen ALGO por vencer o vencido: traer a los 6 y
+    // filtrarlos aquí sirve hoy, pero con doscientos sería traer doscientos
+    // para mostrar tres.
+    const provs = await prisma.providers.findMany({
+      where: { provider_documents: { some: { expires_at: { not: null, lte: limite } } } },
+      include: {
+        provider_documents: {
+          select: { id: true, kind: true, name: true, expires_at: true },
+        },
+      },
+    });
+    if (provs.length === 0) return [];
+
+    /**
+     * Obras corriendo de cada aliado. Es lo que separa "hay un trámite
+     * pendiente" de "hay una obra expuesta", y por eso se pide: sin este dato
+     * el aviso no sabe a quién poner arriba.
+     */
+    const activos = await prisma.service_assignments.groupBy({
+      by: ['provider_id'],
+      where: {
+        state: 'aceptado',
+        provider_id: { in: provs.map((p) => p.id) },
+        quotes: { service_state: { notIn: ['cerrado', 'cancelado'] } },
+      },
+      _count: { _all: true },
+    });
+    const enObra = new Map(activos.map((a) => [a.provider_id, a._count._all]));
+
+    const hoy = new Date();
+    const avisos: AvisoAliado[] = provs.map((p) => {
+      const docs = documentosQueAvisan(p.provider_documents, hoy);
+      const peor = docs[0];
+      const estado = estadoDocumentos(p.provider_documents, hoy);
+      return {
+        providerId: p.id,
+        name: p.name,
+        level: p.level,
+        activo: p.status === 1,
+        // Pierde el sello si con estos papeles ya no califica, PERO llegaría a
+        // calificar por nivel: si nunca estuvo verificado, no hay nada que perder.
+        pierdeSello: !estaVerificado(p.level, estado) && estaVerificado(p.level, 'al-dia'),
+        serviciosActivos: enObra.get(p.id) ?? 0,
+        documentos: docs,
+        peor: peor?.urgencia ?? 'por-vencer',
+        diasPeor: peor?.diasRestantes ?? DIAS_AVISO,
+      };
+    });
+
+    return avisos
+      .sort((a, b) => urgencia(b) - urgencia(a))
+      .map((a) => ({
+        ...a,
+        documentos: a.documentos.map((d) => ({
+          ...d,
+          expiresAt: d.expiresAt.toISOString().slice(0, 10),
+          texto: textoAviso(d),
+        })),
+      }));
+  }
+
   @Get()
   async list() {
     const provs = await prisma.providers.findMany({
