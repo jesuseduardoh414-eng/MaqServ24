@@ -27,6 +27,9 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
     items: [
       { href: '/ordenes', label: 'Órdenes', icon: 'ph-receipt', badge: 'orders' },
       { href: '/cotizaciones', label: 'Cotizaciones', icon: 'ph-file-text', badge: 'quotes' },
+      // Lo que pasa DESPUÉS de que el cliente acepta. Va junto a cotizaciones
+      // porque es su continuación, no un módulo aparte.
+      { href: '/servicios', label: 'Servicios', icon: 'ph-truck' },
     ],
   },
   {

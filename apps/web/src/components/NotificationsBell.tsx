@@ -18,6 +18,7 @@ interface Notification {
 
 const ICON: Record<string, string> = {
   quote_answered: '📄',
+  service_status: '🚜',
   order_status: '📦',
   payment_confirmed: '💳',
   question_answered: '💬',

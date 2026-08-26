@@ -107,4 +107,28 @@ export interface QuoteDetail extends QuoteSummary {
   acceptedAt: string | null;
   /** Solo se puede aceptar una respondida y dentro de su vigencia. */
   canAccept: boolean;
+  /**
+   * En qué va el SERVICIO, después de aceptar. Null mientras la cotización no
+   * se acepta: hasta entonces no hay operación que seguir.
+   *
+   * Es lo que contesta la única pregunta que el cliente vuelve a hacer después
+   * de decir que sí — "¿y ahora?" —, y que antes solo se podía contestar por
+   * teléfono.
+   */
+  service: {
+    state: string;
+    /** Cómo se le cuenta al cliente. No es la etiqueta de operaciones. */
+    label: string;
+    message: string;
+    /** 0 a 1. Para la barra de avance. */
+    progress: number;
+    /** Aliado(s) que aceptaron atenderlo. */
+    providers: string[];
+    startedAt: string | null;
+    closedAt: string | null;
+    /** Con qué se cerró: "3 viajes", "12.5 toneladas". */
+    closed: string | null;
+    /** Los pasos por los que ya pasó, del más viejo al más nuevo. */
+    history: Array<{ label: string; note: string | null; at: string | null }>;
+  } | null;
 }

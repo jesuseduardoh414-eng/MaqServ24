@@ -4,6 +4,8 @@ import { prisma } from '@maqserv/db';
 /** Al agregar un tipo, darle ícono en `NotificationsBell` (si no, sale sin ícono). */
 export type NotificationType =
   | 'quote_answered' | 'order_status' | 'payment_confirmed' | 'question_answered'
+  /** Avance del servicio despues de aceptar la cotizacion. */
+  | 'service_status'
   /** Retiro pagado o rechazado (vendedor). */
   | 'withdraw';
 

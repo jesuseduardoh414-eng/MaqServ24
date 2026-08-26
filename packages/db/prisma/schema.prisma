@@ -977,37 +977,45 @@ model quote_emails {
 }
 
 model quotes {
-  id                 BigInt    @id @default(autoincrement())
-  user_id            BigInt?
-  name               String
-  email              String
-  phone              String
-  region             String?
-  company_name       String?
-  industry           String?
-  product_interested String?
-  acquisition_option String?
-  comments           String?
-  address            String?
-  cart_data          String
-  subtotal           Decimal   @db.Decimal(10, 2)
-  freight_cost       Decimal   @default(0.00) @db.Decimal(10, 2)
-  freight_distance   String?
-  tax                Decimal   @default(0.00) @db.Decimal(10, 2)
-  total              Decimal   @db.Decimal(10, 2)
-  status             String    @default("pending")
-  conditions         String?
-  quote_number       String    @unique(map: "quotes_quote_number_unique")
-  created_at         DateTime? @db.Timestamp(0)
-  updated_at         DateTime? @db.Timestamp(0)
-  requirements       Json?
-  service_category   String?
-  valid_until        DateTime? @db.Date
-  included           String?
-  excluded           String?
-  responded_by       String?
-  responded_at       DateTime? @db.Timestamp(6)
-  accepted_at        DateTime? @db.Timestamp(6)
+  id                  BigInt                @id @default(autoincrement())
+  user_id             BigInt?
+  name                String
+  email               String
+  phone               String
+  region              String?
+  company_name        String?
+  industry            String?
+  product_interested  String?
+  acquisition_option  String?
+  comments            String?
+  address             String?
+  cart_data           String
+  subtotal            Decimal               @db.Decimal(10, 2)
+  freight_cost        Decimal               @default(0.00) @db.Decimal(10, 2)
+  freight_distance    String?
+  tax                 Decimal               @default(0.00) @db.Decimal(10, 2)
+  total               Decimal               @db.Decimal(10, 2)
+  status              String                @default("pending")
+  conditions          String?
+  quote_number        String                @unique(map: "quotes_quote_number_unique")
+  created_at          DateTime?             @db.Timestamp(0)
+  updated_at          DateTime?             @db.Timestamp(0)
+  requirements        Json?
+  service_category    String?
+  valid_until         DateTime?             @db.Date
+  included            String?
+  excluded            String?
+  responded_by        String?
+  responded_at        DateTime?             @db.Timestamp(6)
+  accepted_at         DateTime?             @db.Timestamp(6)
+  service_state       String?               @db.VarChar(20)
+  service_unit        String?               @db.VarChar(20)
+  service_quantity    Decimal?              @db.Decimal(12, 2)
+  service_notes       String?
+  service_started_at  DateTime?             @db.Timestamp(6)
+  service_closed_at   DateTime?             @db.Timestamp(6)
+  service_assignments service_assignments[]
+  service_events      service_events[]
 }
 
 model rastreos {
@@ -1449,25 +1457,26 @@ model provider_documents {
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model providers {
-  id                 Int                  @id @default(autoincrement())
-  name               String
-  slug               String               @unique
-  level              String               @default("registrado")
-  contact_name       String?
-  phone              String?
-  email              String?
-  city               String?
-  state              String?
-  coverage           String[]             @default([])
-  categories         String[]             @default([])
-  response_minutes   Int?
-  notes              String?
-  status             Int                  @default(1) @db.SmallInt
-  user_id            Int?
-  joined_at          DateTime             @default(now()) @db.Timestamp(6)
-  created_at         DateTime             @default(now()) @db.Timestamp(6)
-  updated_at         DateTime             @default(now()) @db.Timestamp(6)
-  provider_documents provider_documents[]
+  id                  Int                   @id @default(autoincrement())
+  name                String
+  slug                String                @unique
+  level               String                @default("registrado")
+  contact_name        String?
+  phone               String?
+  email               String?
+  city                String?
+  state               String?
+  coverage            String[]              @default([])
+  categories          String[]              @default([])
+  response_minutes    Int?
+  notes               String?
+  status              Int                   @default(1) @db.SmallInt
+  user_id             Int?
+  joined_at           DateTime              @default(now()) @db.Timestamp(6)
+  created_at          DateTime              @default(now()) @db.Timestamp(6)
+  updated_at          DateTime              @default(now()) @db.Timestamp(6)
+  provider_documents  provider_documents[]
+  service_assignments service_assignments[]
 
   @@index([level])
 }
@@ -1483,6 +1492,39 @@ model availability_blocks {
   created_at DateTime  @default(now()) @db.Timestamp(6)
 
   @@index([product_id, starts_on, ends_on], map: "availability_blocks_product_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model service_assignments {
+  id           Int       @id @default(autoincrement())
+  quote_id     BigInt
+  provider_id  Int
+  state        String    @default("propuesto") @db.VarChar(20)
+  scope        String?
+  reason       String?
+  offered_at   DateTime  @default(now()) @db.Timestamp(6)
+  responded_at DateTime? @db.Timestamp(6)
+  created_by   Int?
+  created_at   DateTime  @default(now()) @db.Timestamp(6)
+  providers    providers @relation(fields: [provider_id], references: [id], onUpdate: NoAction)
+  quotes       quotes    @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([provider_id, state], map: "service_assignments_provider_idx")
+  @@index([quote_id, id], map: "service_assignments_quote_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model service_events {
+  id         Int      @id @default(autoincrement())
+  quote_id   BigInt
+  admin_id   Int?
+  from_state String?  @db.VarChar(20)
+  to_state   String   @db.VarChar(20)
+  note       String?
+  created_at DateTime @default(now()) @db.Timestamp(6)
+  quotes     quotes   @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([quote_id, id], map: "service_events_quote_idx")
 }
 
 enum counters_type {

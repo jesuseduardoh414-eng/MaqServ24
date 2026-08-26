@@ -12,3 +12,11 @@ export {
   type RequestFieldType,
   type RequestForm,
 } from './request-fields';
+export {
+  UNIDADES,
+  UNIDADES_POR_CATEGORIA,
+  unidadesDe,
+  unidadPorDefectoDe,
+  formatearCantidad,
+  type UnidadServicio,
+} from './service-units';

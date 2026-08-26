@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import type { QuoteDetail, QuoteItem, QuoteRequestInput, QuoteSummary } from '@maqserv/types';
+import { formatearCantidad } from '@maqserv/config';
 import { imageUrl } from '../catalog/images';
 import { FreightService } from '../freight/freight.service';
 import { estadoCotizacion, sePuedeAceptar, diasParaVencer } from './quote-validity';
+import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './service-flow';
 
 /** Formato legacy: COT- + 8 alfanuméricos mayúsculas. */
 function newQuoteNumber(): string {
@@ -149,6 +151,9 @@ export class QuotesService {
       respondedBy: q.responded_by,
       acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
       canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
+      // Recién creada no hay servicio que seguir: falta que la respondan y
+      // que el cliente la acepte.
+      service: null,
     };
   }
 
@@ -170,9 +175,19 @@ export class QuotesService {
     if (estado === 'vencida') throw new BadRequestException('Esta cotizacion ya vencio. Pide una actualizacion.');
     if (estado === 'rechazada') throw new BadRequestException('Esta cotizacion fue descartada');
 
+    const ahora = new Date();
     await prisma.quotes.update({
       where: { id: q.id },
-      data: { accepted_at: new Date(), updated_at: new Date() },
+      data: {
+        accepted_at: ahora,
+        updated_at: ahora,
+        // Aceptar es lo que mete la operación al tablero. Antes el rastro
+        // terminaba aquí: lo que pasaba después vivía en llamadas.
+        service_state: estadoInicial(),
+      },
+    });
+    await prisma.service_events.create({
+      data: { quote_id: q.id, to_state: estadoInicial(), note: 'El cliente aceptó la cotización' },
     });
     return this.byNumber(userId, quoteNumber);
   }
@@ -232,6 +247,57 @@ export class QuotesService {
       respondedBy: q.responded_by,
       acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
       canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
+      service: await this.servicioDe(q),
+    };
+  }
+
+  /**
+   * En qué va el servicio, contado para el cliente.
+   *
+   * Se muestran SOLO los aliados que aceptaron. A quién más se le ofreció y
+   * quién dijo que no es información de operaciones: al cliente le importa
+   * quién lo va a atender, y enseñarle los rechazos lo haría dudar de una
+   * decisión que ya se resolvió.
+   */
+  private async servicioDe(q: {
+    id: bigint; service_state: string | null; service_unit: string | null;
+    service_quantity: unknown; service_started_at: Date | null; service_closed_at: Date | null;
+  }): Promise<QuoteDetail['service']> {
+    if (!esEstado(q.service_state)) return null;
+    const estado = q.service_state;
+
+    const [asignaciones, eventos] = await Promise.all([
+      prisma.service_assignments.findMany({
+        where: { quote_id: q.id, state: 'aceptado' },
+        include: { providers: { select: { name: true } } },
+      }),
+      prisma.service_events.findMany({
+        where: { quote_id: q.id },
+        orderBy: { id: 'asc' },
+        select: { to_state: true, created_at: true },
+      }),
+    ]);
+
+    const cantidad = q.service_quantity ? Number(q.service_quantity) : null;
+
+    return {
+      state: estado,
+      label: PASOS[estado].label,
+      message: PASOS[estado].cliente,
+      progress: avance(estado),
+      providers: asignaciones.map((a) => a.providers.name),
+      startedAt: q.service_started_at ? q.service_started_at.toISOString() : null,
+      closedAt: q.service_closed_at ? q.service_closed_at.toISOString() : null,
+      closed: cantidad ? formatearCantidad(cantidad, q.service_unit) : null,
+      // Solo los pasos del servicio: las respuestas de los aliados
+      // (`propuesto`, `rechazado`) son de operaciones, no del cliente.
+      history: eventos
+        .filter((e) => esEstado(e.to_state))
+        .map((e) => ({
+          label: PASOS[e.to_state as EstadoServicio].label,
+          note: null,
+          at: e.created_at ? e.created_at.toISOString() : null,
+        })),
     };
   }
 }

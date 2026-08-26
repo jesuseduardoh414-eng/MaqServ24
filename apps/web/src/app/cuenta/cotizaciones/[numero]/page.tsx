@@ -100,6 +100,15 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
             </p>
           ) : <div style={{ height: 20 }} />}
 
+          {/*
+            EN QUÉ VA EL SERVICIO (documento institucional, sección 16).
+
+            Va arriba de todo a propósito: una vez aceptada, el precio ya se
+            decidió y la única pregunta que el cliente vuelve a hacer es "¿y
+            ahora?". Antes eso solo se contestaba por teléfono.
+          */}
+          {q.service ? <SeguimientoServicio servicio={q.service} /> : null}
+
           {q.items.length > 0 ? (
             <div style={{ ...bloque, marginBottom: 16 }}>
               <h2 style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-muted)', margin: '0 0 14px' }}>
@@ -184,5 +193,68 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
       </main>
       <SiteFooter theme={theme} />
     </>
+  );
+}
+
+/**
+ * Seguimiento del servicio, contado para el cliente.
+ *
+ * Deliberadamente NO muestra a quién más se le ofreció ni quién dijo que no:
+ * eso es información de operaciones. Al cliente le importa quién lo va a
+ * atender y en qué va.
+ */
+function SeguimientoServicio({ servicio }: { servicio: NonNullable<QuoteDetail['service']> }) {
+  const cancelado = servicio.state === 'cancelado';
+  const color = cancelado ? 'var(--color-error)' : 'var(--color-primary)';
+
+  return (
+    <section
+      aria-label="Seguimiento del servicio"
+      style={{
+        border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
+        background: `color-mix(in srgb, ${color} 5%, transparent)`,
+        borderRadius: 16, padding: '18px 20px', marginBottom: 22,
+      }}
+    >
+      <div style={{ fontSize: 11.5, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 9 }}>
+        Tu servicio
+      </div>
+      <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text)' }}>{servicio.label}</div>
+      <p style={{ margin: '7px 0 0', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+        {servicio.message}
+      </p>
+
+      {/* La barra no reemplaza al texto: el color por sí solo no comunica. */}
+      {!cancelado ? (
+        <div style={{ height: 4, background: 'var(--color-border)', borderRadius: 4, margin: '14px 0 0', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${Math.round(servicio.progress * 100)}%`, background: color, borderRadius: 4 }} />
+        </div>
+      ) : null}
+
+      {servicio.providers.length > 0 ? (
+        <p style={{ margin: '13px 0 0', fontSize: 13.5, color: 'var(--color-text-muted)' }}>
+          Te atiende <strong style={{ color: 'var(--color-text)' }}>{servicio.providers.join(' y ')}</strong>.
+        </p>
+      ) : null}
+
+      {servicio.closed ? (
+        <p style={{ margin: '9px 0 0', fontSize: 13.5, color: 'var(--color-text-muted)' }}>
+          Se registraron <strong style={{ color: 'var(--color-text)' }}>{servicio.closed}</strong>
+          {servicio.closedAt ? ` el ${new Date(servicio.closedAt).toLocaleDateString('es-MX')}` : ''}.
+        </p>
+      ) : null}
+
+      {servicio.history.length > 1 ? (
+        <ol style={{ margin: '15px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 5 }}>
+          {servicio.history.map((h, i) => (
+            <li key={`${h.label}-${i}`} style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+              <span style={{ color, marginRight: 8 }}>·</span>
+              {h.label}
+              {h.at ? <span style={{ opacity: 0.7 }}> — {new Date(h.at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span> : null}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </section>
   );
 }
