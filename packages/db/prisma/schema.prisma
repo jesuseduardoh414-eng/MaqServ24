@@ -1578,6 +1578,25 @@ model clients {
   @@index([user_id], map: "clients_user_idx")
 }
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model email_log {
+  id          Int      @id @default(autoincrement())
+  kind        String   @db.VarChar(40)
+  to_email    String   @db.VarChar(190)
+  to_name     String?  @db.VarChar(190)
+  subject     String
+  state       String   @db.VarChar(20)
+  detail      String?
+  quote_id    BigInt?
+  order_id    Int?
+  provider_id Int?
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([created_at(sort: Desc)], map: "email_log_created_idx")
+  @@index([quote_id], map: "email_log_quote_idx")
+  @@index([state, created_at(sort: Desc)], map: "email_log_state_idx")
+}
+
 enum counters_type {
   referral
   browser

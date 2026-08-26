@@ -84,6 +84,7 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
   {
     title: 'Configuración',
     items: [
+      { href: '/correo', label: 'Correo', icon: 'ph-envelope-simple-open' },
       { href: '/pagos', label: 'Pagos', icon: 'ph-credit-card' },
       { href: '/traslado', label: 'Traslado', icon: 'ph-truck' },
       { href: '/admins', label: 'Administradores', icon: 'ph-user-gear' },

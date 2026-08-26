@@ -8,6 +8,8 @@ import { prisma } from '@maqserv/db';
 import { toFulfillment } from '@maqserv/types';
 import { AdminGuard, type AdminRequest } from './admin-auth';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailerService } from '../notifications/mailer.service';
+import { correoCotizacionRespondida } from '../notifications/email-templates';
 import { FulfillmentService, toShipping } from '../orders/fulfillment.service';
 import { DIAS_AVISO } from '../catalog/provider-trust';
 
@@ -19,6 +21,7 @@ const PAID_STATES = new Set(['approved', 'completed', 'paid']);
 export class AdminOpsController {
   constructor(
     private readonly notifications: NotificationsService,
+    private readonly mailer: MailerService,
     private readonly fulfillment: FulfillmentService,
   ) {}
 
@@ -294,8 +297,32 @@ export class AdminOpsController {
         userId: q.user_id ? Number(q.user_id) : null,
         type: 'quote_answered',
         title: `Ya respondimos tu cotización ${q.quote_number}`,
-        body: `Total cotizado: $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}. Revísala en tu cuenta.`,
+        body: `Total cotizado: ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}. Revísala en tu cuenta.`,
         link: '/cuenta/cotizaciones',
+      });
+
+      /**
+       * Y por correo. La campana solo la ve quien vuelve al sitio; el correo
+       * llega a quien cotizó y cerró la pestaña, que son casi todos: de las
+       * cotizaciones que hay, la gran mayoría son de invitados sin cuenta.
+       *
+       * No se envuelve en try/catch porque `enviar` nunca lanza: si el correo
+       * falla, queda registrado y la cotización se responde igual.
+       */
+      const plantilla = correoCotizacionRespondida({
+        nombre: q.name,
+        folio: q.quote_number,
+        total,
+        validUntil: parsed.data.validUntil ?? (q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null),
+        included: parsed.data.included ?? q.included,
+        excluded: parsed.data.excluded ?? q.excluded,
+      });
+      await this.mailer.enviar({
+        kind: 'quote_answered',
+        to: q.email,
+        toName: q.name,
+        quoteId: Number(q.id),
+        ...plantilla,
       });
     }
     return { ok: true, total };
