@@ -32,7 +32,15 @@ export interface ProveedorCandidato {
   verified: boolean;
   coverage: string[];
   categories: string[];
+  /** Lo que el aliado DECLARA que tarda. Es un numero escrito a mano. */
   responseMinutes: number | null;
+  /**
+   * Lo que tarda de verdad, medido sobre sus propuestas contestadas.
+   * Null mientras no haya con que medirlo.
+   */
+  responseMinutesReal?: number | null;
+  /** Servicios que acepto y termino cancelando. */
+  canceladosPropios?: number;
   monthsInNetwork: number | null;
   /** Equipos que ese aliado tiene en la categoría pedida y su estado. */
   equipos: Array<{ id: number; name: string; state: string; location: string | null }>;
@@ -128,11 +136,30 @@ export function emparejar(
       if (p.level === 'preferente') razones.push('Aliado preferente');
 
       // Tiempo de respuesta: hasta 20 puntos, cae a cero a partir de 2 horas.
-      if (p.responseMinutes !== null) {
-        puntaje += Math.max(0, 20 - Math.floor(p.responseMinutes / 6));
-        razones.push(`Responde en ~${p.responseMinutes} min`);
+      //
+      // Manda el MEDIDO sobre el declarado. El declarado es un numero que
+      // alguien escribio al dar de alta al aliado; el medido sale de sus
+      // propuestas contestadas. Ordenar por una promesa cuando ya existe el
+      // dato real es preferir el folleto sobre el historial.
+      const minutos = p.responseMinutesReal ?? p.responseMinutes;
+      if (minutos !== null && minutos !== undefined) {
+        puntaje += Math.max(0, 20 - Math.floor(minutos / 6));
+        razones.push(
+          p.responseMinutesReal != null
+            ? `Contesta en ~${minutos} min (medido)`
+            : `Dice responder en ~${minutos} min`,
+        );
       } else {
         advertencias.push('Sin historial de tiempo de respuesta');
+      }
+
+      // Cancelar despues de aceptar es lo que mas duele: la obra ya contaba con
+      // esa unidad. No descarta —puede haber tenido razon— pero pesa y se dice.
+      if (p.canceladosPropios && p.canceladosPropios > 0) {
+        puntaje -= p.canceladosPropios * 25;
+        advertencias.push(
+          `Cancelo ${p.canceladosPropios} servicio(s) que ya habia aceptado`,
+        );
       }
 
       // Antigüedad: hasta 10 puntos, uno por mes hasta los diez.
@@ -166,8 +193,8 @@ export function emparejar(
     .sort((a, b) => {
       if (b.puntaje !== a.puntaje) return b.puntaje - a.puntaje;
       // A igualdad, el que responde más rápido: es el que resuelve antes.
-      const ra = a.proveedor.responseMinutes ?? 9999;
-      const rb = b.proveedor.responseMinutes ?? 9999;
+      const ra = a.proveedor.responseMinutesReal ?? a.proveedor.responseMinutes ?? 9999;
+      const rb = b.proveedor.responseMinutesReal ?? b.proveedor.responseMinutes ?? 9999;
       return ra - rb;
     });
 }

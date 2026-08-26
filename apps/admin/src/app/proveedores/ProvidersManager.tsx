@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type CSSProperties } from 'react';
 import { DocumentAlerts } from './DocumentAlerts';
+import { ProviderHistory } from './ProviderHistory';
 
 export interface ProviderRow {
   id: number;
@@ -405,6 +406,12 @@ function ExpedienteModal({
             Agregar al expediente
           </button>
         </div>
+
+        {/*
+          Los papeles dicen si esta en regla. El cumplimiento dice si CUMPLE,
+          que es otra cosa: se puede tener todo vigente y no contestar nunca.
+        */}
+        <ProviderHistory providerId={p.id} colores={C} />
       </div>
     </div>
   );

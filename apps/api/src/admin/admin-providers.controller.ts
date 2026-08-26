@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { AdminGuard } from './admin-auth';
 import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
+import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
 
 /**
  * RED DE ALIADOS — alta y expediente de proveedores.
@@ -173,6 +174,58 @@ export class AdminProvidersController {
         productCount: equipos.get(p.id) ?? 0,
       };
     });
+  }
+
+  /**
+   * HISTORIAL DE CUMPLIMIENTO (documento institucional, seccion 23).
+   *
+   * El expediente dice si tiene los papeles. Esto dice si CUMPLE, que es otra
+   * cosa: se puede estar en regla y no contestar nunca, o aceptar y cancelar.
+   */
+  @Get(':id/history')
+  async history(@Param('id', ParseIntPipe) id: number) {
+    const [prov, asigs] = await Promise.all([
+      prisma.providers.findUnique({
+        where: { id },
+        select: { id: true, name: true, response_minutes: true },
+      }),
+      prisma.service_assignments.findMany({
+        where: { provider_id: id },
+        orderBy: { id: 'desc' },
+        include: { quotes: { select: { service_state: true, quote_number: true, service_category: true } } },
+      }),
+    ]);
+    if (!prov) throw new NotFoundException('Aliado no encontrado');
+
+    const h = historialDe(
+      asigs.map((a) => ({
+        state: a.state,
+        offered_at: a.offered_at,
+        responded_at: a.responded_at,
+        reason: a.reason,
+        serviceState: a.quotes.service_state,
+      })),
+    );
+
+    return {
+      ...h,
+      resumen: resumenHistorial(h),
+      // Los dos numeros juntos a proposito: uno es lo que el aliado prometio,
+      // el otro lo que cumple. Ensenar solo el declarado es repetir lo que
+      // alguien escribio a mano; ensenar solo el real esconde el compromiso.
+      minutosRespuestaDeclarado: prov.response_minutes,
+      desviacionRespuesta: desviacionRespuesta(prov.response_minutes, h.minutosRespuestaReal),
+      // Las ultimas para poder mirar caso por caso cuando un numero extrana.
+      recientes: asigs.slice(0, 8).map((a) => ({
+        quoteNumber: a.quotes.quote_number,
+        category: a.quotes.service_category,
+        state: a.state,
+        serviceState: a.quotes.service_state,
+        reason: a.reason,
+        offeredAt: a.offered_at,
+        respondedAt: a.responded_at,
+      })),
+    };
   }
 
   @Get(':id/documents')

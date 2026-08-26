@@ -4,6 +4,7 @@ import { AdminGuard } from './admin-auth';
 import { estadoDocumentos, estaVerificado, mesesEnRed } from '../catalog/provider-trust';
 import { disponibilidadDe } from '../catalog/availability';
 import { emparejar, motivoSinCobertura, type ProveedorCandidato } from '../quotes/matching';
+import { historialDe, type AsignacionHistorica } from '../catalog/provider-history';
 
 /**
  * QUIÉN PUEDE ATENDER ESTA SOLICITUD (documento, secciones 16 y 17).
@@ -61,6 +62,33 @@ export class AdminMatchingController {
         })
       : [];
 
+    /**
+     * Historial de los candidatos. Se pide de golpe para TODOS y no uno por
+     * aliado: con veinte candidatos serian veinte viajes mas a la base solo
+     * para ordenar una lista.
+     */
+    const historial = idsAliados.length
+      ? await prisma.service_assignments.findMany({
+          where: { provider_id: { in: idsAliados } },
+          select: {
+            provider_id: true, state: true, offered_at: true, responded_at: true, reason: true,
+            quotes: { select: { service_state: true } },
+          },
+        })
+      : [];
+    const porAliadoHist = new Map<number, AsignacionHistorica[]>();
+    for (const a of historial) {
+      const l = porAliadoHist.get(a.provider_id) ?? [];
+      l.push({
+        state: a.state,
+        offered_at: a.offered_at,
+        responded_at: a.responded_at,
+        reason: a.reason,
+        serviceState: a.quotes.service_state,
+      });
+      porAliadoHist.set(a.provider_id, l);
+    }
+
     const hoy = new Date();
     const bloques = equipos.length
       ? await prisma.availability_blocks.findMany({
@@ -98,6 +126,7 @@ export class AdminMatchingController {
 
     const candidatos: ProveedorCandidato[] = enCategoria.map((a) => {
       const docs = estadoDocumentos(a.provider_documents);
+      const hist = historialDe(porAliadoHist.get(a.id) ?? []);
       return {
         id: a.id,
         name: a.name,
@@ -107,6 +136,10 @@ export class AdminMatchingController {
         coverage: a.coverage,
         categories: a.categories,
         responseMinutes: a.response_minutes,
+        // El medido le gana al declarado: uno es lo que prometio, el otro lo
+        // que cumple.
+        responseMinutesReal: hist.minutosRespuestaReal,
+        canceladosPropios: hist.cancelados,
         monthsInNetwork: mesesEnRed(a.joined_at),
         equipos: equiposPorAliado.get(a.id) ?? [],
       };
