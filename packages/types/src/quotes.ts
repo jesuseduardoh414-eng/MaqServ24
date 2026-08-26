@@ -41,6 +41,11 @@ export interface QuoteRequestInput {
   acquisitionOption?: string;
   /** Dirección de entrega — si hay API de distancia se usa para el flete. */
   address?: string;
+  /**
+   * Obra que el cliente eligió, cuando ya tiene obras registradas. Manda sobre
+   * la dirección escrita: si eligió su obra, no hay nada que adivinar.
+   */
+  siteId?: number;
   comments?: string;
 }
 

@@ -29,6 +29,7 @@ const quoteSchema = z.object({
   }),
   acquisitionOption: z.string().max(100).optional(),
   address: z.string().max(400).optional(),
+    siteId: z.coerce.number().int().positive().optional(),
   comments: z.string().max(2000).optional(),
 });
 
@@ -65,6 +66,19 @@ export class QuotesController {
   @UseGuards(JwtGuard)
   mine(@Req() req: AuthedRequest) {
     return this.quotes.listByUser(req.userId);
+  }
+
+  /**
+   * Las obras del cliente de esta cuenta.
+   *
+   * Sirve para que el cotizador no le vuelva a pedir la ubicacion a quien ya
+   * la dio. Va aqui y no en `account` porque es un dato del cotizador: fuera
+   * de cotizar, al cliente no le sirve de nada una lista de sus obras.
+   */
+  @Get('mis-obras')
+  @UseGuards(JwtGuard)
+  misObras(@Req() req: AuthedRequest) {
+    return this.quotes.sitesOfUser(req.userId);
   }
 
   @Get(':quoteNumber')

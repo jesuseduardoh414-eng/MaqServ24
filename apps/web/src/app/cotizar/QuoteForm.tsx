@@ -7,6 +7,7 @@ import type { RequestForm } from '@maqserv/config';
 import { requestAnswersToText } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
 import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA } from './RequirementFields';
+import { SitePicker, type ObraCliente } from './SitePicker';
 import { Stepper } from './Stepper';
 
 const MONO = "'Inter', system-ui, sans-serif";
@@ -109,6 +110,12 @@ export function QuoteForm({
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState<QuoteDetail | null>(null);
   const [reqs, setReqs] = useState<Record<string, string>>({});
+  /**
+   * Obra elegida, cuando el cliente ya tiene obras registradas. Se guarda el
+   * objeto y no solo el id porque tambien rellena la direccion y el contacto.
+   */
+  const [obra, setObra] = useState<ObraCliente | null>(null);
+  const [direccion, setDireccion] = useState(user?.address ?? '');
 
   /**
    * ASISTENTE POR ETAPAS (manual, 23 / COTIZACIÓN).
@@ -247,6 +254,7 @@ export function QuoteForm({
           industry: String(form.get('industry') ?? '') || undefined,
         },
         address: String(form.get('address') ?? '') || undefined,
+        ...(obra ? { siteId: obra.id } : {}),
         // El resumen legible se antepone a los comentarios para que quien
         // cotiza lo lea sin depender de una pantalla nueva; el JSON va aparte.
         comments: [
@@ -418,9 +426,31 @@ export function QuoteForm({
             intro="Con esto calculamos el traslado y vemos qué aliados cubren esa zona."
           />
         ) : null}
+        {/* A quien ya nos dijo donde trabaja no se le vuelve a preguntar.
+            Si no tiene obras, esto no pinta nada. */}
+        <SitePicker
+          estilos={{ tarjeta: cardStyle, leyenda: legendStyle }}
+          onElegir={(o) => {
+            setObra(o);
+            // Rellena, no bloquea: una obra grande tiene varios accesos y el
+            // cliente tiene que poder escribir "por la puerta 4".
+            if (o?.address) setDireccion(o.address);
+          }}
+        />
         <div style={cardStyle}>
           <h2 style={legendStyle}>Dirección de entrega</h2>
-          <input className="qf-field" name="address" defaultValue={user?.address ?? ''} placeholder={labels.address} aria-label={labels.address} style={fieldStyle} />
+          {/* Controlado SOLO este campo: elegir una obra tiene que poder
+              rellenarlo, y un defaultValue no se vuelve a leer despues del
+              primer render. Los demas siguen saliendo de FormData. */}
+          <input
+            className="qf-field"
+            name="address"
+            value={direccion}
+            onChange={(e) => setDireccion(e.target.value)}
+            placeholder={labels.address}
+            aria-label={labels.address}
+            style={fieldStyle}
+          />
           <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
             Entre más exacta, mejor calculamos el costo de traslado.
           </p>

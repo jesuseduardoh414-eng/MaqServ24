@@ -6,6 +6,7 @@ import { imageUrl } from '../catalog/images';
 import { FreightService } from '../freight/freight.service';
 import { estadoCotizacion, sePuedeAceptar, diasParaVencer } from './quote-validity';
 import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './service-flow';
+import { resolverClienteYObra } from './client-resolver';
 
 /** Formato legacy: COT- + 8 alfanuméricos mayúsculas. */
 function newQuoteNumber(): string {
@@ -141,6 +142,30 @@ export class QuotesService {
       },
     });
 
+    /**
+     * A que cliente y obra pertenece. Va DESPUES de crearla y nunca lanza: el
+     * respaldo ya se agrupo una vez, pero si las solicitudes nuevas siguen
+     * entrando sueltas, en tres meses el modulo de clientes vuelve a estar
+     * vacio y hay que reagrupar a mano.
+     */
+    const ligada = await resolverClienteYObra({
+      companyName: input.customer.company,
+      contactName: input.customer.name,
+      email: input.customer.email,
+      phone: input.customer.phone,
+      industry: input.customer.industry,
+      address: input.address,
+      region: input.customer.region,
+      userId,
+      siteId: input.siteId ?? null,
+    });
+    if (ligada.clientId) {
+      await prisma.quotes.update({
+        where: { id: q.id },
+        data: { client_id: ligada.clientId, site_id: ligada.siteId },
+      });
+    }
+
     return {
       ...this.toSummary(q),
       items,
@@ -202,6 +227,42 @@ export class QuotesService {
       data: { quote_id: q.id, to_state: estadoInicial(), note: 'El cliente aceptó la cotización' },
     });
     return this.byNumber(userId, quoteNumber);
+  }
+
+  /**
+   * Obras del cliente ligado a esta cuenta.
+   *
+   * Devuelve vacio —no error— cuando la cuenta no tiene cliente todavia: es el
+   * caso de quien se acaba de registrar, y el cotizador simplemente pide la
+   * direccion como siempre.
+   */
+  async sitesOfUser(userId: number) {
+    const cliente = await prisma.clients.findFirst({
+      where: { user_id: userId, status: 1 },
+      select: { id: true, name: true },
+    });
+    if (!cliente) return { client: null, sites: [] };
+
+    const sites = await prisma.client_sites.findMany({
+      where: { client_id: cliente.id, status: 1 },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true, name: true, address: true, municipality: true,
+        contact_name: true, contact_phone: true, requirements: true,
+      },
+    });
+    return {
+      client: { id: cliente.id, name: cliente.name },
+      sites: sites.map((s) => ({
+        id: s.id,
+        name: s.name,
+        address: s.address,
+        municipality: s.municipality,
+        contactName: s.contact_name,
+        contactPhone: s.contact_phone,
+        requirements: s.requirements,
+      })),
+    };
   }
 
   async listByUser(userId: number): Promise<QuoteSummary[]> {
