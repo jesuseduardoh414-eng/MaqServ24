@@ -30,6 +30,9 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
       // Lo que pasa DESPUÉS de que el cliente acepta. Va junto a cotizaciones
       // porque es su continuación, no un módulo aparte.
       { href: '/servicios', label: 'Servicios', icon: 'ph-truck' },
+      // La empresa que contrata y sus frentes abiertos. Va aparte de Cuentas
+      // porque casi todas las solicitudes las hace alguien sin registrarse.
+      { href: '/clientes', label: 'Clientes y obras', icon: 'ph-buildings' },
     ],
   },
   {
@@ -46,9 +49,12 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
     ],
   },
   {
-    title: 'Clientes',
+    // Se llamaba "Clientes", pero el cliente —la empresa que contrata— ahora
+    // vive en Ventas. Esto es lo que rodea a la relacion: quien tiene cuenta,
+    // que opina y quien pidio que le escribieran.
+    title: 'Comunidad',
     items: [
-      { href: '/usuarios', label: 'Clientes', icon: 'ph-users' },
+      { href: '/usuarios', label: 'Cuentas', icon: 'ph-users' },
       { href: '/resenas', label: 'Reseñas', icon: 'ph-star' },
       { href: '/preguntas', label: 'Preguntas', icon: 'ph-chats-circle' },
       { href: '/suscriptores', label: 'Suscriptores', icon: 'ph-envelope-simple' },

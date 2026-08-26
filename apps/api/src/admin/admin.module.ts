@@ -5,6 +5,7 @@ import { AdminProvidersController } from './admin-providers.controller';
 import { AdminAvailabilityController } from './admin-availability.controller';
 import { AdminMatchingController } from './admin-matching.controller';
 import { AdminServicesController } from './admin-services.controller';
+import { AdminClientsController } from './admin-clients.controller';
 import { ServiceService } from '../quotes/service.service';
 import { MatchingService } from '../quotes/matching.service';
 import { AdminOpsController } from './admin-ops.controller';
@@ -31,7 +32,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
   // IntegrationsModule: los suscriptores se empujan a Perfex CRM con el mismo
   // PerfexService que usa el alta pública del footer.
   imports: [FreightModule, NotificationsModule, OrdersModule, IntegrationsModule],
-  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminPaymentsController, AdminFreightController, AdminFulfillmentController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminAdminsController, AdminProvidersController, AdminAvailabilityController, AdminMatchingController, AdminServicesController],
+  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminPaymentsController, AdminFreightController, AdminFulfillmentController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminAdminsController, AdminProvidersController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController],
   providers: [AdminGuard, ServiceService, MatchingService],
 })
 export class AdminModule {}
