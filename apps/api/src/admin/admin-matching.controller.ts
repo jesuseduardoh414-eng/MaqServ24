@@ -1,177 +1,130 @@
-import { Controller, Get, NotFoundException, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { AdminGuard } from './admin-auth';
-import { estadoDocumentos, estaVerificado, mesesEnRed } from '../catalog/provider-trust';
-import { disponibilidadDe } from '../catalog/availability';
-import { emparejar, motivoSinCobertura, type ProveedorCandidato } from '../quotes/matching';
-import { historialDe, type AsignacionHistorica } from '../catalog/provider-history';
+import { MatchingService } from '../quotes/matching.service';
+import { evaluarOferta, siguientesCandidatos, accionSugerida, type OfertaViva } from '../quotes/fallback';
+import { historialDe } from '../catalog/provider-history';
 
 /**
  * QUIÉN PUEDE ATENDER ESTA SOLICITUD (documento, secciones 16 y 17).
  *
- * Reemplaza el "¿a quién le hablamos?" que hoy vive en la cabeza de quien
- * cotiza. Cruza lo que ya tenemos: la categoría y la zona de la solicitud contra
- * la cobertura, el expediente y la disponibilidad real de cada aliado.
+ * Reemplaza el "¿a quién le hablamos?" que vivía en la cabeza de quien cotiza.
+ * El armado de candidatos está en `MatchingService` porque el tablero de
+ * servicios necesita exactamente los mismos para proponer un alterno.
  */
-
-/** Claves donde el cliente escribe dónde es la obra, en orden de preferencia. */
-const CLAVES_ZONA = ['obra_ubicacion', 'destino', 'origen'];
-
 @Controller('admin/quotes')
 @UseGuards(AdminGuard)
 export class AdminMatchingController {
+  constructor(private readonly matching: MatchingService) {}
+
   @Get(':id/matches')
   async matches(@Param('id', ParseIntPipe) id: number) {
-    const q = await prisma.quotes.findUnique({ where: { id } });
-    if (!q) throw new NotFoundException('Cotización no encontrada');
+    const r = await this.matching.paraCotizacion(id);
+    return {
+      quoteNumber: r.quoteNumber,
+      categoria: r.categoria,
+      zona: r.zona,
+      total: r.coincidencias.length,
+      // Sin candidatos, lo importante NO es la lista vacía sino el porqué: es el
+      // dato que el documento pide para dirigir el reclutamiento de aliados.
+      motivo: r.motivo,
+      matches: this.matching.aJson(r),
+    };
+  }
 
-    // La zona sale de las respuestas del formulario; si no las hay, de la
-    // dirección de entrega, que es lo único que siempre se pide.
-    const reqs = (q.requirements ?? {}) as Record<string, string>;
-    const zona =
-      CLAVES_ZONA.map((k) => reqs[k]).find((v) => v && v.trim()) ?? q.address ?? q.region ?? null;
-    const categoria = q.service_category;
+  /**
+   * PROVEEDOR ALTERNO (documento, secciones 16 y 24).
+   *
+   * Contesta dos cosas que el tablero no sabía: si alguna propuesta lleva
+   * demasiado sin respuesta, y a quién se le puede ofrecer ahora.
+   *
+   * El sistema PREPARA al siguiente; no le habla solo. Ofrecer automáticamente
+   * a dos aliados a la vez termina con dos unidades en la misma obra, o con un
+   * aliado que aparta una máquina para nada — y esa cuenta la paga la relación
+   * con el proveedor, que es el activo del modelo.
+   */
+  @Get(':id/alterno')
+  async alterno(@Param('id', ParseIntPipe) id: number) {
+    const [r, asignaciones] = await Promise.all([
+      this.matching.paraCotizacion(id),
+      prisma.service_assignments.findMany({
+        where: { quote_id: id },
+        include: { providers: { select: { id: true, name: true, response_minutes: true } } },
+        orderBy: { id: 'asc' },
+      }),
+    ]);
 
-    const aliados = await prisma.providers.findMany({
-      where: { status: 1 },
-      include: { provider_documents: { select: { expires_at: true } } },
-    });
-
-    const enCategoria = categoria
-      ? aliados.filter((a) => a.categories.includes(categoria))
-      : aliados;
-
-    // Equipos de esos aliados en la categoría pedida, con su disponibilidad.
-    // Se piden todos de golpe: uno por aliado serían tantos viajes como aliados.
-    const idsAliados = enCategoria.map((a) => a.id);
-    const cat = categoria
-      ? await prisma.categories.findUnique({ where: { cat_slug: categoria }, select: { id: true } })
-      : null;
-
-    const equipos = idsAliados.length
-      ? await prisma.products.findMany({
-          where: {
-            status: 1,
-            provider_id: { in: idsAliados },
-            ...(cat ? { category_id: cat.id } : {}),
-          },
-          select: {
-            id: true, name: true, stock: true, location: true,
-            availability_confirmed_at: true, provider_id: true,
-          },
-        })
-      : [];
-
-    /**
-     * Historial de los candidatos. Se pide de golpe para TODOS y no uno por
-     * aliado: con veinte candidatos serian veinte viajes mas a la base solo
-     * para ordenar una lista.
-     */
-    const historial = idsAliados.length
+    // Cuánto suele tardar cada aliado que tiene una propuesta viva aquí. Se
+    // calcula sobre TODO su historial, no solo sobre esta solicitud.
+    const vivos = asignaciones.filter((a) => a.state === 'propuesto');
+    const idsVivos = vivos.map((a) => a.provider_id);
+    const historial = idsVivos.length
       ? await prisma.service_assignments.findMany({
-          where: { provider_id: { in: idsAliados } },
+          where: { provider_id: { in: idsVivos } },
           select: {
             provider_id: true, state: true, offered_at: true, responded_at: true, reason: true,
             quotes: { select: { service_state: true } },
           },
         })
       : [];
-    const porAliadoHist = new Map<number, AsignacionHistorica[]>();
-    for (const a of historial) {
-      const l = porAliadoHist.get(a.provider_id) ?? [];
-      l.push({
-        state: a.state,
-        offered_at: a.offered_at,
-        responded_at: a.responded_at,
-        reason: a.reason,
-        serviceState: a.quotes.service_state,
-      });
-      porAliadoHist.set(a.provider_id, l);
+    const porAliado = new Map<number, typeof historial>();
+    for (const h of historial) {
+      porAliado.set(h.provider_id, [...(porAliado.get(h.provider_id) ?? []), h]);
     }
 
-    const hoy = new Date();
-    const bloques = equipos.length
-      ? await prisma.availability_blocks.findMany({
-          where: {
-            product_id: { in: equipos.map((e) => e.id) },
-            starts_on: { lte: hoy },
-            OR: [{ ends_on: null }, { ends_on: { gte: hoy } }],
-          },
-          select: { product_id: true, state: true, starts_on: true, ends_on: true },
-        })
-      : [];
-    const porEquipo = new Map<number, typeof bloques>();
-    for (const b of bloques) {
-      const l = porEquipo.get(b.product_id) ?? [];
-      l.push(b);
-      porEquipo.set(b.product_id, l);
-    }
-
-    const equiposPorAliado = new Map<number, ProveedorCandidato['equipos']>();
-    for (const e of equipos) {
-      if (e.provider_id === null) continue;
-      const disp = disponibilidadDe(
-        {
-          stock: e.stock,
-          location: e.location,
-          confirmedAt: e.availability_confirmed_at,
-          blocks: porEquipo.get(e.id) ?? [],
-        },
-        hoy,
+    const ahora = new Date();
+    const ofertas = vivos.map((a) => {
+      const hist = historialDe(
+        (porAliado.get(a.provider_id) ?? []).map((x) => ({
+          state: x.state,
+          offered_at: x.offered_at,
+          responded_at: x.responded_at,
+          reason: x.reason,
+          serviceState: x.quotes.service_state,
+        })),
       );
-      const l = equiposPorAliado.get(e.provider_id) ?? [];
-      l.push({ id: e.id, name: e.name, state: disp.state, location: disp.location });
-      equiposPorAliado.set(e.provider_id, l);
-    }
-
-    const candidatos: ProveedorCandidato[] = enCategoria.map((a) => {
-      const docs = estadoDocumentos(a.provider_documents);
-      const hist = historialDe(porAliadoHist.get(a.id) ?? []);
-      return {
-        id: a.id,
-        name: a.name,
-        slug: a.slug,
-        level: a.level,
-        verified: estaVerificado(a.level, docs),
-        coverage: a.coverage,
-        categories: a.categories,
-        responseMinutes: a.response_minutes,
-        // El medido le gana al declarado: uno es lo que prometio, el otro lo
-        // que cumple.
-        responseMinutesReal: hist.minutosRespuestaReal,
-        canceladosPropios: hist.cancelados,
-        monthsInNetwork: mesesEnRed(a.joined_at),
-        equipos: equiposPorAliado.get(a.id) ?? [],
+      const oferta: OfertaViva = {
+        assignmentId: a.id,
+        providerId: a.provider_id,
+        providerName: a.providers.name,
+        offeredAt: a.offered_at,
+        minutosRespuestaReal: hist.minutosRespuestaReal,
+        minutosRespuestaDeclarado: a.providers.response_minutes,
       };
+      return evaluarOferta(oferta, ahora);
     });
 
-    const coincidencias = emparejar({ categoria, zona }, candidatos);
+    // A quien ya rechazó, se retiró, o tiene una propuesta viva, no se le
+    // vuelve a ofrecer lo mismo: sin esto el mejor puntuado se propondría en
+    // bucle después de haber dicho que no.
+    const descartados = new Set(asignaciones.map((a) => a.provider_id));
+    const alternativas = siguientesCandidatos(this.matching.aJson(r), descartados);
+    const tieneAceptado = asignaciones.some((a) => a.state === 'aceptado');
 
     return {
-      quoteNumber: q.quote_number,
-      categoria,
-      zona,
-      total: coincidencias.length,
-      // Sin candidatos, lo importante NO es la lista vacía sino el porqué: es el
-      // dato que el documento pide para dirigir el reclutamiento de aliados.
-      motivo: coincidencias.length === 0
-        ? motivoSinCobertura({ categoria, zona }, aliados.length, enCategoria.length)
-        : null,
-      matches: coincidencias.map((c) => ({
-        providerId: c.proveedor.id,
-        name: c.proveedor.name,
-        level: c.proveedor.level,
-        verified: c.proveedor.verified,
-        phone: enCategoria.find((a) => a.id === c.proveedor.id)?.phone ?? null,
-        contactName: enCategoria.find((a) => a.id === c.proveedor.id)?.contact_name ?? null,
-        responseMinutes: c.proveedor.responseMinutes,
-        coverage: c.proveedor.coverage,
-        score: c.puntaje,
-        reasons: c.razones,
-        warnings: c.advertencias,
-        availableEquipment: c.equiposDisponibles,
-        equipment: c.proveedor.equipos,
+      quoteNumber: r.quoteNumber,
+      categoria: r.categoria,
+      zona: r.zona,
+      tieneAceptado,
+      ofertas: ofertas.map((o) => ({
+        assignmentId: o.assignmentId,
+        providerId: o.providerId,
+        providerName: o.providerName,
+        minutosEsperando: o.minutosEsperando,
+        margenMin: o.margenMin,
+        estancada: o.estancada,
+        texto: o.texto,
       })),
+      rechazos: asignaciones.filter((a) => a.state === 'rechazado' || a.state === 'retirado').length,
+      alternativas,
+      accion: accionSugerida({
+        tieneAceptado,
+        ofertasVivas: ofertas,
+        rechazos: asignaciones.filter((a) => a.state === 'rechazado' || a.state === 'retirado').length,
+        hayAlternativa: alternativas.length > 0,
+      }),
+      // Cuando no queda nadie, el porqué es el dato de reclutamiento.
+      motivo: alternativas.length === 0 ? (r.motivo ?? 'Ya se le ofreció a todos los aliados de esta línea en la zona.') : null,
     };
   }
 }

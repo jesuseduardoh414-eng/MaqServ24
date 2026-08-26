@@ -98,6 +98,35 @@ export function ServicesBoard({ initial }: { initial: ServicioRow[] }) {
   const [cerrando, setCerrando] = useState<ServicioRow | null>(null);
   /** Servicio al que se le está buscando aliado. */
   const [asignando, setAsignando] = useState<ServicioRow | null>(null);
+  /**
+   * Que hacer con cada servicio, segun el alterno. Se pide UNA vez para todo
+   * el tablero al montar: uno por tarjeta serian tantas peticiones como
+   * servicios cada vez que alguien abre la pantalla.
+   */
+  const [acciones, setAcciones] = useState<Record<number, { accion: string | null; alternativas: number }>>({});
+
+  useEffect(() => {
+    let vivo = true;
+    // Solo los que aun no tienen a nadie trabajando: un servicio en curso no
+    // necesita alterno, y preguntarlo seria gastar viajes para nada.
+    const pendientes = initial.filter((s) => !s.assignments.some((a) => a.state === 'aceptado'));
+    Promise.all(
+      pendientes.map((s) =>
+        fetch(`/api/admin/quotes/${s.id}/alterno`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => [s.id, d] as const)
+          .catch(() => [s.id, null] as const),
+      ),
+    ).then((pares) => {
+      if (!vivo) return;
+      const mapa: Record<number, { accion: string | null; alternativas: number }> = {};
+      for (const [id, d] of pares) {
+        if (d) mapa[id] = { accion: d.accion, alternativas: d.alternativas?.length ?? 0 };
+      }
+      setAcciones(mapa);
+    });
+    return () => { vivo = false; };
+  }, [initial]);
 
   const filtrados = useMemo(() => {
     const q = filtro.trim().toLowerCase();
@@ -259,6 +288,24 @@ export function ServicesBoard({ initial }: { initial: ServicioRow[] }) {
               {s.closed ? (
                 <div style={{ marginTop: 12, fontSize: 12.5, color: C.muted }}>
                   Cierre: <span style={{ color: C.ink, fontWeight: 600 }}>{s.closed}</span> · {fecha(s.closedAt)}
+                </div>
+              ) : null}
+
+              {/*
+                PROVEEDOR ALTERNO. Antes, una propuesta sin respuesta se quedaba
+                parada hasta que alguien se acordaba de ella. El silencio se
+                mide contra lo que ESE aliado suele tardar, no contra un plazo
+                fijo: cuatro horas dicen algo de quien contesta en once minutos
+                y no dicen nada de quien siempre tarda dos horas y media.
+              */}
+              {acciones[s.id]?.accion ? (
+                <div style={{ marginTop: 12, background: 'color-mix(in srgb, var(--color-warning) 9%, transparent)', border: `1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)`, borderRadius: 11, padding: '10px 13px', display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12.5, color: C.ink }}>{acciones[s.id].accion}</span>
+                  {acciones[s.id].alternativas > 0 ? (
+                    <button type="button" onClick={() => setAsignando(s)} style={{ ...botonSec, borderColor: C.warn, color: C.ink }}>
+                      Ver {acciones[s.id].alternativas} alterno(s)
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -468,9 +515,17 @@ function ModalAsignar({
 
         <div style={{ display: 'grid', gap: 10 }}>
           {(datos?.matches ?? []).map((m) => {
-            const yaTiene = servicio.assignments.some(
-              (a) => a.providerId === m.providerId && (a.state === 'propuesto' || a.state === 'aceptado'),
-            );
+            // Quien ya paso por aqui no es una alternativa: al que espera
+            // respuesta se le estaria duplicando, y al que ya dijo que no,
+            // insistir es solo ruido. Sin esto el mejor puntuado se propondria
+            // en bucle despues de haber rechazado.
+            const previa = servicio.assignments.find((a) => a.providerId === m.providerId);
+            const yaTiene = previa !== undefined && previa.state !== 'retirado';
+            const etiqueta =
+              previa?.state === 'rechazado' ? 'Ya dijo que no'
+                : previa?.state === 'aceptado' ? 'Ya aceptó'
+                  : previa ? 'Ya se le ofreció'
+                    : null;
             return (
               <div key={m.providerId} style={{ border: `1px solid ${C.line2}`, borderRadius: 13, padding: '13px 15px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -484,9 +539,12 @@ function ModalAsignar({
                     onClick={() => ofrecer(m.providerId)}
                     style={{ ...(yaTiene ? botonSec : boton), opacity: yaTiene || enviando !== null ? 0.5 : 1, cursor: yaTiene ? 'default' : 'pointer' }}
                   >
-                    {yaTiene ? 'Ya se le ofreció' : enviando === m.providerId ? 'Enviando…' : 'Ofrecerle'}
+                    {etiqueta ?? (enviando === m.providerId ? 'Enviando…' : 'Ofrecerle')}
                   </button>
                 </div>
+                {previa?.reason ? (
+                  <div style={{ marginTop: 7, fontSize: 12, color: C.dim }}>Dijo: “{previa.reason}”</div>
+                ) : null}
                 <ul style={{ margin: '9px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 3 }}>
                   {m.reasons.map((r) => (
                     <li key={r} style={{ fontSize: 12.5, color: C.muted }}><span style={{ color: C.accent, marginRight: 7 }}>+</span>{r}</li>

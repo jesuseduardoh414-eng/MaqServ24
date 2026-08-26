@@ -6,9 +6,9 @@
  * categoría— y ninguna fue aceptada. Sin datos no se puede enseñar el flujo, y
  * el flujo es justamente lo que hay que enseñar.
  *
- * Estos tres NO son clientes reales. Llevan [DEMO] en los comentarios y se
- * borran juntos. Cada uno está parado en una etapa distinta a propósito, para
- * que el tablero muestre el ciclo completo de un vistazo:
+ * Estos NO son clientes reales. Llevan [DEMO] en los comentarios y se borran
+ * juntos. Cada uno está parado en una etapa distinta a propósito, para que el
+ * tablero muestre el ciclo completo de un vistazo:
  *
  *   1. POR ASIGNAR   — aceptada, nadie asignado todavía. Es donde entra el
  *                      "Buscar aliado" y el emparejamiento.
@@ -16,6 +16,11 @@
  *   3. TERMINADO     — listo para capturar el cierre: cuántos viajes hizo la
  *                      pipa. Es el paso que el documento pide documentar y el
  *                      único que no se puede saltar.
+ *   4. SIN RESPUESTA — se le ofreció a un aliado que normalmente contesta en
+ *                      once minutos y lleva un día callado. Es el único que
+ *                      enseña el proveedor alterno: los otros tres ya tienen a
+ *                      alguien trabajando, que es justo cuando el sistema NO
+ *                      debe avisar de nada.
  *
  *   node migrate/24-servicios-demo.mjs           (crea)
  *   node migrate/24-servicios-demo.mjs --borrar  (elimina)
@@ -104,6 +109,35 @@ const SERVICIOS = [
       { slug: 'demo-pipas-agua-obra', estado: 'aceptado', hace: 11 },
     ],
   },
+  {
+    /**
+     * EL CASO DEL SILENCIO. Se le ofrecio a un aliado que normalmente contesta
+     * en once minutos y lleva horas sin decir nada. Sin un servicio asi, el
+     * proveedor alterno no se puede enseñar: los otros tres ya tienen a alguien
+     * trabajando, que es justo cuando el sistema NO debe avisar de nada.
+     *
+     * Es equipo menor en Monterrey a proposito: tres aliados cubren esa linea
+     * ahi, asi que ademas hay alternativas reales que proponer.
+     */
+    numero: 'COT-DEMO0004',
+    empresa: 'Edificaciones San Jeronimo',
+    contacto: 'Ing. Rocio Cantu',
+    email: 'demo4@maqser24.mx',
+    telefono: '81 8000 0004',
+    categoria: 'equipo-menor',
+    direccion: 'Av. Vasconcelos 1500, Monterrey, N.L.',
+    equipo: 'Compactador de placa + planta de luz',
+    subtotal: 9400,
+    flete: 900,
+    estado: 'por_asignar',
+    aceptadaHace: 1,
+    requisitos: {
+      obra_ubicacion: 'Av. Vasconcelos 1500, Monterrey, N.L.',
+      duracion: '5 dias',
+      horario: 'Lunes a viernes, 8:00 a 17:00',
+    },
+    aliados: [{ slug: 'demo-rentadora-industrial-norte', estado: 'propuesto', hace: 0.3 }],
+  },
 ];
 
 await c.connect();
@@ -189,10 +223,13 @@ try {
         console.log(`    ! aliado ${a.slug} no existe, se salta`);
         continue;
       }
+      // Una propuesta que sigue viva NO tiene fecha de respuesta: ponersela
+      // la haria parecer contestada y el alterno nunca la veria como silencio.
+      const contesto = a.estado === 'propuesto' ? null : hace(a.hace);
       await c.query(
         `insert into service_assignments (quote_id, provider_id, state, reason, offered_at, responded_at, created_at)
          values ($1,$2,$3,$4,$5,$6,$5)`,
-        [quoteId, p.rows[0].id, a.estado, a.motivo ?? null, hace(a.hace + 1), hace(a.hace)],
+        [quoteId, p.rows[0].id, a.estado, a.motivo ?? null, hace(a.hace + 1), contesto],
       );
       await c.query(
         `insert into service_events (quote_id, to_state, note, created_at)
@@ -202,7 +239,9 @@ try {
           a.estado,
           a.estado === 'aceptado'
             ? `${p.rows[0].name} aceptó`
-            : `${p.rows[0].name} rechazó${a.motivo ? `: ${a.motivo}` : ''}`,
+            : a.estado === 'propuesto'
+              ? `Se le ofreció a ${p.rows[0].name}`
+              : `${p.rows[0].name} rechazó${a.motivo ? `: ${a.motivo}` : ''}`,
           hace(a.hace),
         ],
       );

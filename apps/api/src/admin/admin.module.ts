@@ -6,6 +6,7 @@ import { AdminAvailabilityController } from './admin-availability.controller';
 import { AdminMatchingController } from './admin-matching.controller';
 import { AdminServicesController } from './admin-services.controller';
 import { ServiceService } from '../quotes/service.service';
+import { MatchingService } from '../quotes/matching.service';
 import { AdminOpsController } from './admin-ops.controller';
 import { AdminThemesController } from './admin-themes.controller';
 import { AdminCmsController } from './admin-cms.controller';
@@ -31,6 +32,6 @@ import { IntegrationsModule } from '../integrations/integrations.module';
   // PerfexService que usa el alta pública del footer.
   imports: [FreightModule, NotificationsModule, OrdersModule, IntegrationsModule],
   controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminPaymentsController, AdminFreightController, AdminFulfillmentController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminAdminsController, AdminProvidersController, AdminAvailabilityController, AdminMatchingController, AdminServicesController],
-  providers: [AdminGuard, ServiceService],
+  providers: [AdminGuard, ServiceService, MatchingService],
 })
 export class AdminModule {}
