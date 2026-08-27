@@ -1483,6 +1483,9 @@ model providers {
   joined_at           DateTime              @default(now()) @db.Timestamp(6)
   created_at          DateTime              @default(now()) @db.Timestamp(6)
   updated_at          DateTime              @default(now()) @db.Timestamp(6)
+  access_version      Int                   @default(1)
+  last_access_at      DateTime?             @db.Timestamp(6)
+  access_sent_at      DateTime?             @db.Timestamp(6)
   provider_documents  provider_documents[]
   service_assignments service_assignments[]
 

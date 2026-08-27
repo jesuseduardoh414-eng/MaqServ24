@@ -242,6 +242,37 @@ export function correoAsignacionAAliado(d: {
   };
 }
 
+export function correoAccesoAliado(d: {
+  aliado: string;
+  contacto: string | null;
+  url: string;
+  dias: number;
+  porContestar: number;
+}): { subject: string; html: string } {
+  // Si tiene solicitudes esperando, ESO es el asunto. Un correo que dice
+  // "accede a tu panel" se archiva; uno que dice "tienes 2 solicitudes" se abre.
+  const pendiente =
+    d.porContestar > 0
+      ? `<p style="margin:12px 0 0;"><strong style="color:${TINTA};">Tienes ${d.porContestar} solicitud${d.porContestar === 1 ? '' : 'es'} esperando tu respuesta.</strong></p>`
+      : '';
+
+  return {
+    subject:
+      d.porContestar > 0
+        ? `${d.porContestar} solicitud${d.porContestar === 1 ? '' : 'es'} para ${d.aliado}`
+        : `Tu acceso a MAQSER24, ${d.aliado}`,
+    html: marco(
+      `${titulo('Ya puedes contestarnos directo')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
+      <p style="margin:0;">Desde este enlace ves las solicitudes que te ofrecemos, confirmas si tus equipos siguen libres y revisas tus papeles — sin esperar a que te llamemos.</p>
+      ${pendiente}
+      ${boton('Abrir lo mío', d.url)}
+      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">No hace falta contraseña: el enlace es tuyo y sirve ${d.dias} días. Guarda este correo para volver a entrar.</p>`,
+      'Si alguien más de tu equipo debe recibir esto, dinos a qué correo y lo cambiamos.',
+    ),
+  };
+}
+
 export function correoDePrueba(destino: string): { subject: string; html: string } {
   return {
     subject: 'Prueba de correo · MAQSER24',

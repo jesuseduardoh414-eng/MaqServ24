@@ -40,6 +40,7 @@ export type TipoCorreo =
   | 'service_status'      // avanzó su servicio
   | 'provider_offer'      // al aliado: te ofrecemos esta solicitud
   | 'provider_assigned'   // al aliado: quedó tuya
+  | 'provider_access'     // al aliado: tu enlace para entrar
   | 'prueba';
 
 export interface CorreoParaEnviar {

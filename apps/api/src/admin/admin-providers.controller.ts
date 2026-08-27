@@ -18,6 +18,9 @@ import { AdminGuard } from './admin-auth';
 import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
+import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
+import { MailerService } from '../notifications/mailer.service';
+import { correoAccesoAliado } from '../notifications/email-templates';
 
 /**
  * RED DE ALIADOS — alta y expediente de proveedores.
@@ -61,6 +64,8 @@ const fecha = (v: string | null | undefined): Date | null =>
 @Controller('admin/providers')
 @UseGuards(AdminGuard)
 export class AdminProvidersController {
+  constructor(private readonly mailer: MailerService) {}
+
   /**
    * AVISOS DE EXPEDIENTE (documento institucional, sección 23).
    *
@@ -174,6 +179,77 @@ export class AdminProvidersController {
         productCount: equipos.get(p.id) ?? 0,
       };
     });
+  }
+
+  /**
+   * Mandarle al aliado su enlace de acceso.
+   *
+   * Es el paso que convierte la red de un directorio que operaciones mantiene
+   * a mano en algo que se mantiene solo. Sin correo del aliado no hay a donde
+   * mandarlo, y se dice asi en vez de fallar en silencio.
+   */
+  @Post(':id/acceso')
+  async enviarAcceso(@Param('id', ParseIntPipe) id: number) {
+    const p = await prisma.providers.findUnique({
+      where: { id },
+      select: { id: true, name: true, email: true, contact_name: true, status: true, access_version: true },
+    });
+    if (!p) throw new NotFoundException('Aliado no encontrado');
+    if (p.status !== 1) throw new BadRequestException('Este aliado esta dado de baja: su enlace no funcionaria.');
+    if (!p.email?.trim()) {
+      throw new BadRequestException('Este aliado no tiene correo. Agregaselo primero.');
+    }
+
+    const token = await firmarAcceso(p.id, p.access_version);
+    const url = urlDeAcceso(token);
+    const porContestar = await prisma.service_assignments.count({
+      where: { provider_id: id, state: 'propuesto' },
+    });
+
+    const plantilla = correoAccesoAliado({
+      aliado: p.name,
+      contacto: p.contact_name,
+      url,
+      dias: 30,
+      porContestar,
+    });
+    const estado = await this.mailer.enviar({
+      kind: 'provider_access',
+      to: p.email,
+      toName: p.contact_name,
+      providerId: p.id,
+      ...plantilla,
+    });
+
+    await prisma.providers.update({ where: { id }, data: { access_sent_at: new Date() } });
+
+    return {
+      estado,
+      // La URL se devuelve SIEMPRE, tambien cuando el correo no salio: mientras
+      // el envio este apagado, esta es la unica forma de darle acceso a un
+      // aliado — se le pasa por WhatsApp y funciona igual.
+      url,
+      mensaje:
+        estado === 'enviado'
+          ? `Enlace enviado a ${p.email}.`
+          : `El correo no salio (${estado}). Copia el enlace y mandaselo por otro medio.`,
+    };
+  }
+
+  /**
+   * Revocar lo emitido. Sube `access_version` y con eso TODOS los enlaces
+   * anteriores dejan de servir — es lo que se usa cuando a un aliado se le va
+   * el encargado con el correo en el telefono.
+   */
+  @Post(':id/revocar-acceso')
+  async revocarAcceso(@Param('id', ParseIntPipe) id: number) {
+    const p = await prisma.providers.findUnique({ where: { id }, select: { access_version: true } });
+    if (!p) throw new NotFoundException('Aliado no encontrado');
+    await prisma.providers.update({
+      where: { id },
+      data: { access_version: p.access_version + 1, updated_at: new Date() },
+    });
+    return { ok: true, mensaje: 'Los enlaces que se le hayan mandado antes ya no sirven.' };
   }
 
   /**

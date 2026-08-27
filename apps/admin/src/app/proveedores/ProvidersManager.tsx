@@ -80,6 +80,11 @@ const boton: CSSProperties = {
   padding: '11px 18px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
 };
 
+const botonSec: CSSProperties = {
+  background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 10,
+  padding: '11px 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+};
+
 /** Convierte "Apodaca, Escobedo , García" en tres municipios limpios. */
 const aLista = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
@@ -408,11 +413,92 @@ function ExpedienteModal({
         </div>
 
         {/*
+          El acceso del aliado. Es lo que convierte la red de un directorio que
+          alguien mantiene a mano en algo que se mantiene solo.
+        */}
+        <AccesoAliado p={p} />
+
+        {/*
           Los papeles dicen si esta en regla. El cumplimiento dice si CUMPLE,
           que es otra cosa: se puede tener todo vigente y no contestar nunca.
         */}
         <ProviderHistory providerId={p.id} colores={C} />
       </div>
     </div>
+  );
+}
+
+
+/**
+ * ENLACE DE ACCESO DEL ALIADO (documento institucional, seccion 20).
+ *
+ * El aliado no es un usuario de software: es el dueno de una rentadora que
+ * contesta desde la cabina de una camioneta. Un enlace que abre directo lo
+ * suyo se usa; una contrasena de un portal que abre dos veces al mes, no — y
+ * entonces todo vuelve al telefono, que es lo que se quiere quitar.
+ */
+function AccesoAliado({ p }: { p: ProviderRow }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  async function mandar() {
+    setOcupado(true); setMsg(null);
+    const r = await fetch(`/api/admin/providers/${p.id}/acceso`, { method: 'POST' });
+    const d = await r.json().catch(() => null);
+    setOcupado(false);
+    if (!r.ok) { setMsg(d?.message ?? 'No se pudo generar el enlace.'); return; }
+    setUrl(d.url);
+    setMsg(d.mensaje);
+  }
+
+  async function revocar() {
+    if (!window.confirm('Los enlaces que ya le hayas mandado dejaran de servir. ¿Seguimos?')) return;
+    setOcupado(true); setMsg(null);
+    const r = await fetch(`/api/admin/providers/${p.id}/revocar-acceso`, { method: 'POST' });
+    const d = await r.json().catch(() => null);
+    setOcupado(false);
+    setUrl(null);
+    setMsg(d?.mensaje ?? 'Listo.');
+  }
+
+  return (
+    <section style={{ borderTop: `1px solid ${C.line}`, marginTop: 22, paddingTop: 18 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: C.ink }}>Su acceso</h3>
+      <p style={{ margin: '0 0 13px', fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+        Un enlace que le abre lo suyo: contesta solicitudes, confirma si sus equipos siguen libres y
+        revisa sus papeles. Sin contrasena, y sirve 30 dias.
+      </p>
+
+      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+        <button type="button" style={{ ...boton, opacity: ocupado ? 0.6 : 1 }} onClick={mandar} disabled={ocupado}>
+          {p.email ? 'Mandarle su enlace' : 'Generar enlace'}
+        </button>
+        <button type="button" style={{ ...botonSec, color: C.dim }} onClick={revocar} disabled={ocupado}>
+          Revocar los anteriores
+        </button>
+      </div>
+
+      {msg ? <div style={{ marginTop: 12, fontSize: 13, color: C.ink }}>{msg}</div> : null}
+
+      {url ? (
+        <div style={{ marginTop: 10 }}>
+          {/*
+            El enlace se ensena SIEMPRE, tambien cuando el correo salio bien:
+            mientras el envio este apagado esta es la unica forma de darle
+            acceso, y se le puede pasar por WhatsApp igual de bien.
+          */}
+          <div style={{ fontSize: 11.5, color: C.dim, marginBottom: 5 }}>
+            Tambien puedes copiarlo y mandarselo por WhatsApp:
+          </div>
+          <input
+            readOnly
+            value={url}
+            onFocus={(e) => e.currentTarget.select()}
+            style={{ ...input, fontFamily: 'ui-monospace, monospace', fontSize: 11.5 }}
+          />
+        </div>
+      ) : null}
+    </section>
   );
 }
