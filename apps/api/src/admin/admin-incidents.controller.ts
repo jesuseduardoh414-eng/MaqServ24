@@ -1,10 +1,13 @@
 import {
   BadRequestException, Body, Controller, Get, NotFoundException,
-  Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards,
+  Param, ParseIntPipe, Patch, Post, Query, Req, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
 import { AdminGuard, type AdminRequest } from './admin-auth';
+import { supabaseStorage } from '../common/supabase-multer';
+import { imageUrl } from '../catalog/images';
 import { CATALOGO, RESPONSABLES, SEVERIDADES, TIPOS } from '../quotes/incidents';
 
 /**
@@ -30,6 +33,32 @@ const cerrarSchema = z.object({
   /** Al cerrar se puede corregir de quién fue: al abrir no siempre se sabe. */
   responsible: z.enum(RESPONSABLES).optional(),
 });
+
+/**
+ * Evidencias: FOTOS, y a propósito solo fotos.
+ *
+ * La evidencia de campo es una foto —la unidad que llegó dañada, el acceso que
+ * no permitía entrar, el odómetro—, y el motor de subida valida por los BYTES
+ * del archivo, no por lo que diga el navegador. Admitir PDF obligaría a abrir
+ * esa validación, que es la que impide que alguien suba cualquier cosa
+ * disfrazada de imagen. Si algún día hacen falta documentos, se amplía ahí y no
+ * aquí.
+ */
+const evidenceStorage = supabaseStorage();
+const MAX_EVIDENCIAS = 6;
+
+/**
+ * Deja siempre la RUTA del bucket, nunca la URL completa.
+ *
+ * La pantalla recibe las evidencias ya resueltas (para poder pintarlas), así que
+ * al reguardarlas devuelve direcciones absolutas. Sin esto, la misma columna
+ * acabaría con dos formatos y el día que cambie el almacenamiento solo se
+ * arreglarían la mitad.
+ */
+const aRutaBucket = (v: string): string => {
+  const i = v.indexOf('/uploads/');
+  return i >= 0 ? v.slice(i + 1) : v;
+};
 
 @Controller('admin/incidencias')
 @UseGuards(AdminGuard)
@@ -75,12 +104,54 @@ export class AdminIncidentsController {
       severity: r.severity,
       responsible: r.responsible,
       description: r.description,
-      evidence: r.evidence,
+      // Se guardan como ruta del bucket (`uploads/…`) y se sirven resueltas: si
+      // el almacenamiento cambia de sitio, las incidencias viejas siguen viéndose.
+      evidence: r.evidence.map((e) => imageUrl(e)).filter((u): u is string => !!u),
       state: r.state,
       resolution: r.resolution,
       openedAt: r.opened_at,
       closedAt: r.closed_at,
     }));
+  }
+
+  /**
+   * Sube las fotos y devuelve sus rutas. Va SEPARADO de abrir la incidencia
+   * porque la foto casi nunca llega al mismo tiempo que el aviso: primero
+   * llaman para decir que la máquina no entró, y la foto aparece un rato
+   * después. Con la subida pegada al alta, esa segunda foto no tendría dónde ir.
+   */
+  @Post('evidencias')
+  @UseInterceptors(
+    FilesInterceptor('files', MAX_EVIDENCIAS, { storage: evidenceStorage, limits: { fileSize: 8 * 1024 * 1024 } }),
+  )
+  subirEvidencias(@UploadedFiles() files?: Express.Multer.File[]) {
+    if (!files?.length) throw new BadRequestException('No llegó ninguna foto');
+    // `path` es lo que se guarda; `url` lo que se pinta. La pantalla no tiene
+    // que saber cómo se arma la dirección del bucket.
+    return {
+      archivos: files.map((f) => ({ path: `uploads/${f.filename}`, url: imageUrl(`uploads/${f.filename}`) })),
+    };
+  }
+
+  /**
+   * Sube fotos Y las suma a una incidencia que ya existe, en una sola llamada.
+   * Suma en vez de reemplazar: dos personas mandando fotos del mismo problema
+   * no deben pisarse.
+   */
+  @Post(':id/evidencias')
+  @UseInterceptors(
+    FilesInterceptor('files', MAX_EVIDENCIAS, { storage: evidenceStorage, limits: { fileSize: 8 * 1024 * 1024 } }),
+  )
+  async agregarEvidencias(@Param('id', ParseIntPipe) id: number, @UploadedFiles() files?: Express.Multer.File[]) {
+    if (!files?.length) throw new BadRequestException('No llegó ninguna foto');
+    const inc = await prisma.service_incidents.findUnique({ where: { id }, select: { evidence: true } });
+    if (!inc) throw new NotFoundException('Incidencia no encontrada');
+
+    const nuevas = files.map((f) => `uploads/${f.filename}`);
+    const total = [...inc.evidence.map(aRutaBucket), ...nuevas].slice(0, 12);
+    await prisma.service_incidents.update({ where: { id }, data: { evidence: total } });
+
+    return { ok: true, evidence: total.map((e) => imageUrl(e)) };
   }
 
   @Post()
@@ -113,7 +184,7 @@ export class AdminIncidentsController {
         // Ver decisión 1 en `incidents.ts`: "nadie" por defecto, a propósito.
         responsible: d.responsible ?? 'nadie',
         description: d.description.trim(),
-        evidence: d.evidence ?? [],
+        evidence: (d.evidence ?? []).map(aRutaBucket),
         opened_by: req.adminId ?? null,
       },
     });
@@ -187,7 +258,7 @@ export class AdminIncidentsController {
         ...(d.severity ? { severity: d.severity } : {}),
         ...(d.responsible ? { responsible: d.responsible } : {}),
         ...(d.description ? { description: d.description.trim() } : {}),
-        ...(d.evidence ? { evidence: d.evidence } : {}),
+        ...(d.evidence ? { evidence: d.evidence.map(aRutaBucket) } : {}),
       },
     });
     return { ok: true };

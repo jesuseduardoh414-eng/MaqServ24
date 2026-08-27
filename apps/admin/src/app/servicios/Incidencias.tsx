@@ -26,6 +26,8 @@ interface Incidencia {
   severity: string;
   responsible: string;
   description: string;
+  /** Fotos ya resueltas a URL por la API. */
+  evidence: string[];
   state: string;
   resolution: string | null;
   openedAt: string;
@@ -63,6 +65,26 @@ const botonSec: CSSProperties = {
 const fecha = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
+const MAX_FOTOS = 6;
+
+/**
+ * Sube fotos y devuelve sus rutas. El navegador arma el FormData y NO fija el
+ * Content-Type: si se pone a mano, se pierde el boundary y el servidor no puede
+ * separar los archivos.
+ */
+async function subirFotos(files: File[], incidenciaId?: number): Promise<string[]> {
+  const fd = new FormData();
+  for (const f of files.slice(0, MAX_FOTOS)) fd.append('files', f);
+  const url = incidenciaId ? `/api/admin/incidencias/${incidenciaId}/evidencias` : '/api/admin/incidencias/evidencias';
+  const r = await fetch(url, { method: 'POST', body: fd });
+  if (!r.ok) {
+    const e = await r.json().catch(() => null);
+    throw new Error(e?.message ?? 'No se pudieron subir las fotos');
+  }
+  const d = await r.json();
+  return incidenciaId ? (d.evidence ?? []) : (d.archivos ?? []).map((a: { path: string }) => a.path);
+}
+
 export function Incidencias({
   quoteId, quoteNumber, onCerrar,
 }: {
@@ -77,6 +99,9 @@ export function Incidencias({
   const [abriendo, setAbriendo] = useState(false);
   const [f, setF] = useState({ kind: 'retraso', severity: 'media', responsible: 'nadie', description: '' });
   const [ocupado, setOcupado] = useState(false);
+  /** Fotos elegidas para la incidencia que se está levantando (aún sin subir). */
+  const [fotos, setFotos] = useState<File[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   async function recargar() {
     const [r1, r2] = await Promise.all([
@@ -93,17 +118,41 @@ export function Incidencias({
   async function abrir() {
     if (f.description.trim().length < 4) return;
     setOcupado(true);
-    const r = await fetch('/api/admin/incidencias', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ quoteId, ...f, description: f.description.trim() }),
-    });
-    setOcupado(false);
-    if (r.ok) {
+    setError(null);
+    try {
+      // Las fotos van primero: si fallan, la incidencia no se crea a medias y
+      // quien la está levantando puede reintentar sin volver a escribirlo todo.
+      const evidence = fotos.length ? await subirFotos(fotos) : [];
+      const r = await fetch('/api/admin/incidencias', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quoteId, ...f, description: f.description.trim(), evidence }),
+      });
+      if (!r.ok) throw new Error('No se pudo registrar la incidencia');
       setF({ kind: 'retraso', severity: 'media', responsible: 'nadie', description: '' });
+      setFotos([]);
       setAbriendo(false);
       recargar();
       router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo registrar');
+    } finally {
+      setOcupado(false);
+    }
+  }
+
+  /** Foto que llega DESPUÉS, sobre una incidencia ya levantada. */
+  async function agregarFoto(id: number, files: FileList | null) {
+    if (!files?.length) return;
+    setOcupado(true);
+    setError(null);
+    try {
+      await subirFotos(Array.from(files), id);
+      recargar();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo subir la foto');
+    } finally {
+      setOcupado(false);
     }
   }
 
@@ -202,11 +251,49 @@ export function Incidencias({
               />
             </label>
 
-            <div style={{ display: 'flex', gap: 9, marginTop: 14 }}>
+            {/* Fotos. `capture` no se fuerza: en el celular abre la cámara y en
+                la computadora el explorador, y a veces la foto ya la mandaron
+                por WhatsApp y solo hay que adjuntarla. */}
+            <label style={{ display: 'grid', gap: 6, marginTop: 13 }}>
+              <span style={{ fontSize: 12, color: C.muted }}>Fotos (opcional, hasta {MAX_FOTOS})</span>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => setFotos(Array.from(e.target.files ?? []).slice(0, MAX_FOTOS))}
+                style={{ ...input, padding: '8px 10px', fontSize: 12.5, cursor: 'pointer' }}
+              />
+            </label>
+
+            {fotos.length > 0 ? (
+              <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
+                {fotos.map((file, i) => (
+                  <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      style={{ width: 62, height: 62, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line2}` }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFotos(fotos.filter((_, j) => j !== i))}
+                      aria-label={`Quitar ${file.name}`}
+                      style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: C.panel, color: C.ink, border: `1px solid ${C.line2}`, fontSize: 11, cursor: 'pointer', lineHeight: 1, padding: 0 }}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
+            <div style={{ display: 'flex', gap: 9, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
               <button type="button" style={{ ...boton, opacity: ocupado ? 0.6 : 1 }} onClick={abrir} disabled={ocupado}>
-                Registrar
+                {ocupado ? 'Guardando…' : 'Registrar'}
               </button>
-              <button type="button" style={botonSec} onClick={() => setAbriendo(false)}>Cancelar</button>
+              <button type="button" style={botonSec} onClick={() => { setAbriendo(false); setFotos([]); }}>Cancelar</button>
+              {error ? <span role="alert" style={{ fontSize: 12.5, color: C.bad, fontWeight: 600 }}>{error}</span> : null}
             </div>
           </div>
         )}
@@ -246,6 +333,24 @@ export function Incidencias({
 
               <p style={{ margin: '8px 0 0', fontSize: 13.5, color: C.muted, lineHeight: 1.55 }}>{i.description}</p>
 
+              {/* La evidencia es la mitad del registro: una incidencia sin foto
+                  es la palabra de alguien contra la de otro. */}
+              {i.evidence.length > 0 ? (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  {i.evidence.map((src, n) => (
+                    <a key={src} href={src} target="_blank" rel="noopener noreferrer" title="Abrir la foto">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={src}
+                        alt={`Evidencia ${n + 1} de ${i.kindLabel}`}
+                        loading="lazy"
+                        style={{ width: 62, height: 62, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line2}`, display: 'block' }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              ) : null}
+
               {i.resolution ? (
                 <p style={{ margin: '8px 0 0', fontSize: 13, color: C.ok, lineHeight: 1.55 }}>
                   Se resolvió: {i.resolution}
@@ -253,14 +358,30 @@ export function Incidencias({
               ) : null}
 
               {i.state === 'abierta' ? (
-                <button
-                  type="button"
-                  style={{ ...botonSec, marginTop: 11, padding: '7px 13px', fontSize: 12.5 }}
-                  onClick={() => cerrar(i.id)}
-                  disabled={ocupado}
-                >
-                  Marcar resuelta
-                </button>
+                <div style={{ display: 'flex', gap: 9, marginTop: 11, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    style={{ ...botonSec, padding: '7px 13px', fontSize: 12.5 }}
+                    onClick={() => cerrar(i.id)}
+                    disabled={ocupado}
+                  >
+                    Marcar resuelta
+                  </button>
+                  {/* La foto casi nunca llega con el aviso: llega después. */}
+                  {i.evidence.length < 12 ? (
+                    <label style={{ ...botonSec, padding: '7px 13px', fontSize: 12.5, cursor: ocupado ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                      + Agregar foto
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        disabled={ocupado}
+                        onChange={(e) => { agregarFoto(i.id, e.target.files); e.target.value = ''; }}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ))}
