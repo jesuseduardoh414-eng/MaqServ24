@@ -13,7 +13,14 @@ type BadgeKey = 'orders' | 'quotes' | 'withdraws';
 type Item = { href: string; label: string; icon: string; badge?: BadgeKey };
 
 const GROUPS: Array<{ title: string; items: Item[] }> = [
-  { title: 'Panel', items: [{ href: '/', label: 'Inicio', icon: 'ph-house' }] },
+  {
+    title: 'Panel',
+    items: [
+      { href: '/', label: 'Inicio', icon: 'ph-house' },
+      // Inicio dice que hay que atender; esto dice si lo que se hizo sirvio.
+      { href: '/indicadores', label: 'Indicadores', icon: 'ph-chart-line-up' },
+    ],
+  },
   {
     title: 'Catálogo',
     items: [
