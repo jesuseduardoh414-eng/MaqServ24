@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { CtaBlock } from '@maqserv/config';
+import { Icon } from '@/components/Icon';
 
 /**
  * Banda tipo anuncio/hero configurable: la imagen va de FONDO a sangre
@@ -43,7 +44,7 @@ export function Band({ block, kind, maxWidth = 1240 }: { block: CtaBlock; kind: 
             <p style={{ margin: 0, color: `color-mix(in srgb, ${textColor} 78%, transparent)`, fontSize: big ? 17.5 : 16, lineHeight: 1.6, fontWeight: 300, maxWidth: 480 }}>{block.subtitle}</p>
           ) : null}
           {block.cta ? (
-            <Link href={block.ctaLink || '/productos'} style={{ marginTop: '.55rem', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, paddingTop: 15, paddingBottom: 15, paddingLeft: 30, paddingRight: 30, borderRadius: 'var(--radius-md)', textDecoration: 'none', fontSize: 15, boxShadow: `0 16px 34px -16px color-mix(in srgb, ${accent} 80%, transparent)` }}>{block.cta} <span style={{ fontSize: 17 }}>→</span></Link>
+            <Link href={block.ctaLink || '/productos'} style={{ marginTop: '.55rem', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, paddingTop: 15, paddingBottom: 15, paddingLeft: 30, paddingRight: 30, borderRadius: 'var(--radius-md)', textDecoration: 'none', fontSize: 15, boxShadow: `0 16px 34px -16px color-mix(in srgb, ${accent} 80%, transparent)` }}>{block.cta}<Icon name="arrowRight" size={17} /></Link>
           ) : null}
         </div>
       </div>

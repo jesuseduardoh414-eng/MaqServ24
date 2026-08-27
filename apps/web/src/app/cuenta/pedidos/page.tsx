@@ -6,6 +6,7 @@ import type { OrderSummary } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { orderStatusLabel, paymentStatusLabel, toneColors, type StatusLabel } from '@/lib/order-status';
 import { formatPrice } from '@/lib/format';
 import { MyReviews } from './MyReviews';
@@ -70,7 +71,7 @@ export default async function MyOrdersPage() {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, borderBottom: '2px solid var(--color-text)', paddingBottom: 20, marginBottom: 28, flexWrap: 'wrap' }}>
             <h1 className="ord-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>{t(theme, 'account.orders.title')}</h1>
             <span style={{ fontFamily: MONO, fontSize: 13, color: 'var(--color-text-muted)' }}>{orders.length} PEDIDO{orders.length === 1 ? '' : 'S'}</span>
-            <Link href="/cuenta" style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none' }}>← MI CUENTA</Link>
+            <Link href="/cuenta" style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="arrowLeft" size={12} />MI CUENTA</Link>
           </div>
 
           {orders.length === 0 ? (
@@ -109,7 +110,7 @@ export default async function MyOrdersPage() {
                       <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--color-text-muted)' }}>TOTAL</span>
                       <strong style={{ fontFamily: DISPLAY, fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(o.total)}</strong>
                     </span>
-                    <span className="ord-cta" style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>VER DETALLE →</span>
+                    <span className="ord-cta" style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: '0.08em', color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>VER DETALLE<Icon name="arrowRight" size={11.5} /></span>
                   </div>
                 </Link>
               ))}

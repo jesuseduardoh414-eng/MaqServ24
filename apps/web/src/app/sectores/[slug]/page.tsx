@@ -95,7 +95,7 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
                   {sector.serviciosLista.map((item) => (
                     <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', background: 'var(--surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
                       <span style={{ width: 32, height: 32, flexShrink: 0, borderRadius: 9, background: 'color-mix(in srgb, var(--color-primary) 16%, transparent)', color: GOLD, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                       </span>
                       <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text)' }}>{item}</span>
                     </div>

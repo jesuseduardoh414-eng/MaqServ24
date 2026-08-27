@@ -4,6 +4,7 @@ import Image from 'next/image';
 import type { VendorPublic } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
@@ -54,8 +55,9 @@ export default async function VendorsPage() {
                 <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
                   {v.productCount} {t(theme, 'vendors.products')}
                 </span>
-                <span style={{ color: 'var(--color-primary)', fontWeight: 600, fontSize: 'var(--text-sm)' }}>
-                  {t(theme, 'vendors.visit')} →
+                <span style={{ color: 'var(--color-primary)', fontWeight: 600, fontSize: 'var(--text-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  {t(theme, 'vendors.visit')}
+                  <Icon name="arrowRight" size={14} style={{ width: '1em', height: '1em' }} />
                 </span>
               </Link>
             ))}

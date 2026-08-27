@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { toneColors, type Tone } from '@/lib/order-status';
+import { Icon } from '@/components/Icon';
 
 /**
  * Piezas compartidas del panel de vendedor (`/vendedor` y sus 3 subpáginas).
@@ -67,8 +68,9 @@ export function VendorHeader({
         </h1>
         {aside}
         {back ? (
-          <Link href={back.href} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none' }}>
-            ← {back.label.toUpperCase()}
+          <Link href={back.href} style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="arrowLeft" size={12} />
+            {back.label.toUpperCase()}
           </Link>
         ) : null}
       </div>

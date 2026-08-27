@@ -7,6 +7,7 @@ import { MainNav } from '@/components/MainNav';
 import { MobileNav } from '@/components/MobileNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { FooterNewsletter } from '@/components/FooterNewsletter';
+import { Icon } from '@/components/Icon';
 
 // Padding fluido: 26px en escritorio, 16px en móvil (sin media query, el
 // inline style no las admite).
@@ -46,16 +47,16 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
           <div className="tb-left" style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
             {cPhone ? (
               <a href={`tel:${cPhone.replace(/\s+/g, '')}`} style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ color: 'var(--color-primary)' }}>✆</span>{cPhone}
+                <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="phone" size={14} /></span>{cPhone}
               </a>
             ) : null}
             {cEmail ? (
               <a className="tb-email" href={`mailto:${cEmail}`} style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span style={{ color: 'var(--color-primary)' }}>✉</span>{cEmail}
+                <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="mail" size={14} /></span>{cEmail}
               </a>
             ) : null}
             <span className="tb-hours" style={{ display: 'flex', alignItems: 'center', gap: 7, opacity: 0.7 }}>
-              <span style={{ color: 'var(--color-primary)' }}>◷</span>{contact.hours || t(theme, 'topbar.hours')}
+              <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="clock" size={14} /></span>{contact.hours || t(theme, 'topbar.hours')}
             </span>
           </div>
           <div className="tb-right" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>

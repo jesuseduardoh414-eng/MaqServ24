@@ -6,6 +6,7 @@ import type { AuthUser, ProductCard, QuoteDetail } from '@maqserv/types';
 import type { RequestForm } from '@maqserv/config';
 import { requestAnswersToText } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
+import { Icon } from '@/components/Icon';
 import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA } from './RequirementFields';
 import { SitePicker, type ObraCliente } from './SitePicker';
 import { Stepper } from './Stepper';
@@ -279,14 +280,14 @@ export function QuoteForm({
   if (done) {
     return (
       <div style={{ ...cardStyle, maxWidth: 520, margin: '0 auto', textAlign: 'center', padding: '40px 28px' }}>
-        <div style={{ width: 52, height: 52, margin: '0 auto 18px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--color-success)', color: 'var(--color-bg)', fontSize: 26, fontWeight: 800 }} aria-hidden>✓</div>
+        <div style={{ width: 52, height: 52, margin: '0 auto 18px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--color-success)', color: 'var(--color-bg)', fontSize: 26, fontWeight: 800 }} aria-hidden><Icon name="check" size={26} /></div>
         <h2 style={{ fontFamily: DISPLAY, fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 10px' }}>{labels.successTitle}</h2>
         <p style={{ color: 'var(--color-text-muted)', margin: '0 0 20px', lineHeight: 1.6 }}>{labels.successBody}</p>
         <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
           <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{labels.numberLabel}</div>
           <div style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>{done.quoteNumber}</div>
         </div>
-        <Link href="/cuenta/cotizaciones" style={{ display: 'inline-block', marginTop: 22, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '13px 26px', borderRadius: 100 }}>Ver mis cotizaciones →</Link>
+        <Link href="/cuenta/cotizaciones" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 22, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '13px 26px', borderRadius: 100 }}>Ver mis cotizaciones<Icon name="arrowRight" size={15} /></Link>
       </div>
     );
   }
@@ -364,7 +365,7 @@ export function QuoteForm({
                       <input type="number" min={1} max={365} value={i.days} onChange={(e) => patchPicked(i.productId, { days: Number(e.target.value) || 1 })} style={numField} />
                     </label>
                   ) : null}
-                  <button type="button" onClick={() => removePicked(i.productId)} aria-label={`Quitar ${i.name}`} style={{ border: 'none', background: 'transparent', color: 'var(--color-error)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '4px 6px' }}>✕</button>
+                  <button type="button" onClick={() => removePicked(i.productId)} aria-label={`Quitar ${i.name}`} style={{ border: 'none', background: 'transparent', color: 'var(--color-error)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '4px 6px' }}><Icon name="x" size={14} /></button>
                 </div>
               ))}
             </div>
@@ -558,26 +559,26 @@ export function QuoteForm({
             <button
               type="button"
               onClick={() => setPaso((p) => Math.max(0, p - 1))}
-              style={{ flex: '0 0 auto', background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 100, padding: '15px 24px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 100, padding: '15px 24px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}
             >
-              ← Regresar
+              <Icon name="arrowLeft" size={15} />Regresar
             </button>
           ) : null}
           <button
             type="button"
             onClick={siguiente}
-            style={{ flex: 1, minWidth: 180, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: 'pointer' }}
+            style={{ flex: 1, minWidth: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: 'pointer' }}
           >
-            Continuar →
+            Continuar<Icon name="arrowRight" size={16} />
           </button>
         </div>
       ) : (
         <button
           type="button"
           onClick={() => setPaso((p) => Math.max(0, p - 1))}
-          style={{ justifySelf: 'start', background: 'transparent', color: 'var(--color-text-muted)', border: 'none', padding: 0, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
+          style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', color: 'var(--color-text-muted)', border: 'none', padding: 0, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
         >
-          ← Regresar
+          <Icon name="arrowLeft" size={13.5} />Regresar
         </button>
       )}
     </form>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Icon } from '@/components/Icon';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
@@ -137,7 +138,7 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
               {passErr ? <div style={errStyle}>Ingresa tu contraseña.</div> : null}
             </div>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-              <button type="button" onClick={() => setRemember((v) => !v)} style={checkbox(remember)}>{remember ? '✓' : ''}</button>
+              <button type="button" onClick={() => setRemember((v) => !v)} style={checkbox(remember)}>{remember ? <Icon name="check" size={13} /> : null}</button>
               <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>Mantener sesión iniciada</span>
             </label>
             {serverErr ? <div style={errStyle}>{serverErr}</div> : null}
@@ -181,7 +182,7 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
               {passErr ? <div style={errStyle}>La contraseña debe tener al menos 8 caracteres.</div> : null}
             </div>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-              <button type="button" onClick={() => setTerms((v) => !v)} style={checkbox(terms)}>{terms ? '✓' : ''}</button>
+              <button type="button" onClick={() => setTerms((v) => !v)} style={checkbox(terms)}>{terms ? <Icon name="check" size={13} /> : null}</button>
               <span style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>Acepto los <Link href="/terminos" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Términos</Link> y el <Link href="/privacidad" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Aviso de privacidad</Link>.</span>
             </label>
             {termsErr ? <div style={errStyle}>Debes aceptar los términos.</div> : null}
@@ -204,7 +205,7 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
               {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
             </div>
             <button type="button" onClick={submitForgot} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Enviando…' : 'Enviar enlace'}</button>
-            <button type="button" onClick={() => go('login')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: 'var(--color-text)', padding: 4 }}>← Volver a iniciar sesión</button>
+            <button type="button" onClick={() => go('login')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: 'var(--color-text)', padding: 4 }}><Icon name="arrowLeft" size={14} />Volver a iniciar sesión</button>
           </div>
         </div>
       ) : null}
@@ -212,7 +213,7 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
       {/* SUCCESS (forgot) */}
       {view === 'success' ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, margin: '0 auto 22px' }}>✓</div>
+          <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, margin: '0 auto 22px' }}><Icon name="check" size={34} /></div>
           <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>Revisa tu correo</h2>
           <p style={{ margin: '0 0 28px', fontSize: 15, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>Si el correo existe, recibirás un enlace para restablecer tu contraseña.</p>
           <button type="button" onClick={() => go('login')} style={primaryBtn}>Volver a iniciar sesión</button>

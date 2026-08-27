@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@maqserv/ui';
 import { useCart, type CartItem } from '@/components/CartProvider';
+import { Icon } from '@/components/Icon';
 
 /** Botón "añadir al carrito" del detalle de producto. No se renderiza en quoteMode (lo decide el server component). */
 export function AddToCart({
@@ -27,7 +28,7 @@ export function AddToCart({
         setTimeout(() => setAdded(false), 1600);
       }}
     >
-      {added ? `✓ ${addedLabel}` : label}
+      {added ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="check" size={15} />{addedLabel}</span> : label}
     </Button>
   );
 }

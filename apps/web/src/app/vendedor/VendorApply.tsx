@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { VendorApplication } from '@maqserv/types';
+import { Icon } from '@/components/Icon';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
@@ -99,7 +100,7 @@ export function VendorApply({
 
       {error ? (
         <p role="alert" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10, background: 'color-mix(in srgb, var(--color-error) 8%, var(--color-surface))', border: '1px solid color-mix(in srgb, var(--color-error) 40%, transparent)', color: 'var(--color-error)', padding: '13px 16px', borderRadius: 10, fontSize: 14.5, fontWeight: 600 }}>
-          <span style={{ fontSize: 17 }}>⚠</span> {error}
+          <Icon name="warning" size={17} /> {error}
         </p>
       ) : null}
 
@@ -107,9 +108,9 @@ export function VendorApply({
         <button
           type="submit"
           disabled={loading}
-          style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 100, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 100, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}
         >
-          {loading ? '…' : `${labels.submit} →`}
+          {loading ? '…' : <>{labels.submit}<Icon name="arrowRight" size={16} /></>}
         </button>
       </div>
     </form>

@@ -59,7 +59,7 @@ export function CatalogFilters() {
               <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.02em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{d.label}</span>
               <span className="cf-value" style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: '100%' }}>
                 <span style={{ fontSize: '14.5px', fontWeight: active ? 700 : 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cur[1]}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform .18s', transform: isOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9" /></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform .18s', transform: isOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9" /></svg>
               </span>
             </button>
             {isOpen ? (
@@ -77,7 +77,7 @@ export function CatalogFilters() {
                       style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, border: 'none', background: selected ? 'color-mix(in srgb, var(--color-primary) 14%, transparent)' : 'transparent', fontFamily: 'inherit', fontSize: 14, fontWeight: selected ? 700 : 600, color: 'var(--color-text)', textAlign: 'left', padding: '10px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
                       <span>{o[1]}</span>
-                      {selected ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : null}
+                      {selected ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : null}
                     </button>
                   );
                 })}

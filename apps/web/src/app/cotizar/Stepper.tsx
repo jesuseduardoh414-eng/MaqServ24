@@ -1,5 +1,7 @@
 'use client';
 
+import { Icon } from '@/components/Icon';
+
 /**
  * Indicador de etapas (manual, 23 / COTIZACIÓN).
  *
@@ -55,7 +57,7 @@ export function Stepper({
                 <span style={{ display: 'block', fontSize: 10.5, letterSpacing: '0.1em', color, fontWeight: 700 }}>
                   {/* El número se acompaña de una palomita al completarse: el color
                       por sí solo no distingue "hecho" de "pendiente". */}
-                  {hecho ? '✓' : i + 1} · PASO {i + 1}
+                  {hecho ? <Icon name="check" size={11} style={{ display: 'inline-block', verticalAlign: '-1px' }} /> : i + 1} · PASO {i + 1}
                 </span>
                 <span
                   style={{

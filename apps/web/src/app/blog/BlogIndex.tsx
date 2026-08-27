@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { BlogCard } from '@maqserv/types';
+import { Icon } from '@/components/Icon';
 
 /**
  * Bitácora (blog) — vista de lista del diseño "Blog.dc.html".
@@ -189,7 +190,7 @@ export function BlogIndex({ posts, eyebrow, title, subtitle }: { posts: BlogCard
               <Link href={`/blog/${featured.slug}`} className="blog-card">
                 <Media post={featured} height={320} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: MONO, fontSize: 12, letterSpacing: '0.14em', margin: '22px 0 14px' }}>
-                  <span style={{ color: AMBER }}>● {featured.category}</span>
+                  <span style={{ color: AMBER, display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="dot" size={14} fill />{featured.category}</span>
                   <span style={{ color: 'var(--color-text-muted)' }}>{fmtDate(featured.date)} · {featured.readTime}</span>
                 </div>
                 <h3 className="blog-featured-title" style={{ fontFamily: DISPLAY, margin: '0 0 14px', fontSize: 38, lineHeight: 1.03, fontWeight: 700, letterSpacing: '-0.03em' }}>{featured.title}</h3>
@@ -201,7 +202,7 @@ export function BlogIndex({ posts, eyebrow, title, subtitle }: { posts: BlogCard
                       <span style={{ fontSize: 14, fontWeight: 600 }}>{featured.author}</span>
                     </>
                   ) : null}
-                  <span className="blog-cta" style={{ marginLeft: featured.author ? 14 : 0, fontFamily: DISPLAY, fontWeight: 700, color: 'var(--color-text)' }}>Leer artículo →</span>
+                  <span className="blog-cta" style={{ marginLeft: featured.author ? 14 : 0, fontFamily: DISPLAY, fontWeight: 700, color: 'var(--color-text)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>Leer artículo<Icon name="arrowRight" size={15} /></span>
                 </div>
               </Link>
             ) : null}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@maqserv/ui';
+import { Icon } from '@/components/Icon';
 
 export function WishlistButton({
   productId,
@@ -37,7 +38,12 @@ export function WishlistButton({
 
   return (
     <Button size="lg" variant="ghost" onClick={toggle} aria-pressed={inWishlist === true}>
-      {inWishlist ? `♥ ${labels.remove}` : `♡ ${labels.add}`}
+      {/* El corazón lleno/vacío ya no es un glifo: ♥ y ♡ los dibuja la fuente
+          del sistema y no coinciden entre sí de una máquina a otra. */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+        <Icon name="heart" size={15} fill={inWishlist === true} />
+        {inWishlist ? labels.remove : labels.add}
+      </span>
     </Button>
   );
 }

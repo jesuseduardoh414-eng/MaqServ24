@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { NavItem } from '@/components/MainNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Icon } from '@/components/Icon';
 
 /** Accesos del área de cuenta (mismos que el menú de usuario del header). */
 const ACCOUNT_LINKS = [
@@ -86,7 +87,7 @@ export function MobileNav({
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
           <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
         </svg>
       </button>
@@ -106,7 +107,7 @@ export function MobileNav({
               {/* El toggle de tema vive aquí en móvil: en el header no cabe. */}
               <ThemeToggle />
               <button type="button" className="mnav-close" aria-label="Cerrar" onClick={() => setOpen(false)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
                   <line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" />
                 </svg>
               </button>
@@ -157,8 +158,12 @@ export function MobileNav({
 
             {contact.phone || contact.email ? (
               <div className="mnav-contact">
-                {contact.phone ? <a href={`tel:${contact.phone.replace(/\s+/g, '')}`}>✆ {contact.phone}</a> : null}
-                {contact.email ? <a href={`mailto:${contact.email}`}>✉ {contact.email}</a> : null}
+                {contact.phone ? (
+                  <a href={`tel:${contact.phone.replace(/\s+/g, '')}`}><Icon name="phone" size={14} /> {contact.phone}</a>
+                ) : null}
+                {contact.email ? (
+                  <a href={`mailto:${contact.email}`}><Icon name="mail" size={14} /> {contact.email}</a>
+                ) : null}
               </div>
             ) : null}
           </div>

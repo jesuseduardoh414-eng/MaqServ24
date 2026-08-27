@@ -6,6 +6,7 @@ import type { VendorMe } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
 import { VendorApply } from './VendorApply';
 import { Badge, DISPLAY, Field, MONO, VendorHeader, VendorMain, cardStyle, eyebrowStyle } from './vendor-kit';
@@ -89,7 +90,7 @@ export default async function VendorPanelPage() {
                 <Link key={l.href} href={l.href} className="vn-card" style={{ ...cardStyle, textDecoration: 'none', display: 'grid', gap: 7, alignContent: 'start' }}>
                   <span style={{ fontFamily: DISPLAY, fontSize: 19, fontWeight: 700, color: 'var(--color-text)', letterSpacing: '-0.02em' }}>{l.label}</span>
                   <span style={{ fontSize: 13.5, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>{l.hint}</span>
-                  <span className="vn-cta" style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginTop: 4 }}>ABRIR →</span>
+                  <span className="vn-cta" style={{ fontFamily: MONO, fontSize: 11.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)', marginTop: 4, display: 'inline-flex', alignItems: 'center', gap: 6, justifySelf: 'start' }}>ABRIR<Icon name="arrowRight" size={11.5} /></span>
                 </Link>
               ))}
             </nav>
@@ -107,8 +108,9 @@ export default async function VendorPanelPage() {
                 {t(theme, view === 'revision' ? 'vendor.apply.pending' : 'vendor.apply.inactive')}
               </p>
               {view === 'inactiva' ? (
-                <Link href="/contacto" style={{ display: 'inline-block', marginTop: 14, fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}>
-                  {t(theme, 'nav.contact').toUpperCase()} →
+                <Link href="/contacto" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}>
+                  {t(theme, 'nav.contact').toUpperCase()}
+                  <Icon name="arrowRight" size={12} />
                 </Link>
               ) : null}
             </section>

@@ -3,6 +3,7 @@
 import { useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Eyebrow } from '@/components/Carousel';
+import { Icon } from '@/components/Icon';
 
 /**
  * Carrusel de categorías (sin efecto de hover). Muestra `perView` tarjetas;
@@ -55,12 +56,12 @@ export function CategoryStrip({
         <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
           {viewAllLabel ? (
             <Link href={viewAllHref} style={{ color: titleColor, fontWeight: 700, fontSize: '14px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {viewAllLabel} <span style={{ color: accentColor }}>↗</span>
+              {viewAllLabel} <span style={{ color: accentColor, display: 'flex' }}><Icon name="arrowRight" size={14} /></span>
             </Link>
           ) : null}
           <div style={{ display: 'flex', gap: 12 }}>
-            <button type="button" aria-label="Anterior" style={arrow} onClick={() => scroll(-1)}>←</button>
-            <button type="button" aria-label="Siguiente" style={arrow} onClick={() => scroll(1)}>→</button>
+            <button type="button" aria-label="Anterior" style={arrow} onClick={() => scroll(-1)}><Icon name="arrowLeft" size={18} /></button>
+            <button type="button" aria-label="Siguiente" style={arrow} onClick={() => scroll(1)}><Icon name="arrowRight" size={18} /></button>
           </div>
         </div>
       </div>

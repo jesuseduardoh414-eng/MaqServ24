@@ -8,6 +8,7 @@ import { getTheme, t } from '@/lib/theme';
 import { cookies } from 'next/headers';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { QuoteAccept } from './QuoteAccept';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -67,8 +68,8 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
       <SiteHeader theme={theme} />
       <main style={{ background: 'var(--color-bg)', color: 'var(--color-text)', minHeight: '60vh' }}>
         <div style={CONTAINER}>
-          <Link href="/cuenta/cotizaciones" style={{ fontSize: 13, color: 'var(--color-text-muted)', textDecoration: 'none' }}>
-            ← Mis cotizaciones
+          <Link href="/cuenta/cotizaciones" style={{ fontSize: 13, color: 'var(--color-text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="arrowLeft" size={13} />Mis cotizaciones
           </Link>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', margin: '18px 0 6px' }}>

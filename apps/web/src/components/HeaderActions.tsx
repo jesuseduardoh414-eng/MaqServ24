@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/CartProvider';
 import { NotificationsBell } from '@/components/NotificationsBell';
+import { Icon } from '@/components/Icon';
 
 /** Accesos del menú de usuario (área de cuenta). */
 const ACCOUNT_LINKS = [
@@ -128,7 +129,7 @@ export function HeaderActions({
             <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-text)', whiteSpace: 'nowrap', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user.name.split(' ')[0]}
             </span>
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-muted)', transform: menuOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s', flexShrink: 0 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--color-text-muted)', transform: menuOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s', flexShrink: 0 }}>
               <path d="M6 9l6 6 6-6" />
             </svg>
           </button>
@@ -208,7 +209,7 @@ export function HeaderActions({
               aria-label="Cerrar"
               style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 'var(--radius-sm)', width: 34, height: 34, cursor: 'pointer', color: 'var(--grey)' }}
             >
-              ✕
+              <Icon name="x" size={15} style={{ margin: "0 auto" }} />
             </button>
           </form>
         </div>

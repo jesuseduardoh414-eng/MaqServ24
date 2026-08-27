@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Icon } from '@/components/Icon';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
@@ -67,7 +68,7 @@ export function ContactForm({ needs }: { needs: string[] }) {
   if (done) {
     return (
       <div style={{ border: '1px solid var(--color-text)', borderRadius: 6, padding: '48px 40px', textAlign: 'center' }}>
-        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 22px' }}>✓</div>
+        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 22px' }}><Icon name="check" size={32} /></div>
         <h3 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>¡Mensaje enviado!</h3>
         <p style={{ margin: '0 auto 24px', fontSize: 16, lineHeight: 1.6, color: 'var(--color-text-muted)', maxWidth: '40ch' }}>Gracias por escribirnos. Un asesor te contactará muy pronto.</p>
         <button type="button" onClick={reset} style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '13px 26px', borderRadius: 100, cursor: 'pointer' }}>Enviar otro mensaje</button>
@@ -123,7 +124,7 @@ export function ContactForm({ needs }: { needs: string[] }) {
       {serverErr ? <div style={{ ...errStyle, marginTop: 0 }}>{serverErr}</div> : null}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-        <button type="button" onClick={submit} disabled={busy} style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '16px 34px', borderRadius: 100, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Enviando…' : 'Enviar mensaje →'}</button>
+        <button type="button" onClick={submit} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '16px 34px', borderRadius: 100, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Enviando…' : <>Enviar mensaje<Icon name="arrowRight" size={16} /></>}</button>
         <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.06em' }}>RESPUESTA EN &lt; 24 H HÁBILES</span>
       </div>
     </div>

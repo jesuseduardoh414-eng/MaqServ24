@@ -11,6 +11,7 @@ import { ProductQuestions } from '@/components/ProductQuestions';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 import { estadoDeProducto, contextoDisponibilidad } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
+import { Icon, Stars } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
 
 const MONO = "'Inter', system-ui, sans-serif";
@@ -19,10 +20,6 @@ const DISPLAY = 'var(--font-display)';
 const PANEL =
   'radial-gradient(115% 92% at 50% 22%, color-mix(in srgb, var(--color-surface) 82%, var(--color-text) 4%) 0%, var(--color-bg) 88%)';
 
-function starsStr(r: number): string {
-  const full = Math.round(r);
-  return '★★★★★'.slice(0, full) + '☆☆☆☆☆'.slice(0, 5 - full);
-}
 function initialsOf(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || name.slice(0, 2).toUpperCase();
 }
@@ -132,7 +129,8 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
     ['f', `https://www.facebook.com/sharer/sharer.php?u=${enc(shareUrl)}`],
     ['in', `https://www.linkedin.com/sharing/share-offsite/?url=${enc(shareUrl)}`],
     ['X', `https://twitter.com/intent/tweet?text=${enc(product.name)}&url=${enc(shareUrl)}`],
-    ['✆', `https://wa.me/?text=${enc(`${product.name} ${shareUrl}`)}`],
+    // 'wa' no se pinta: es la clave con la que el <a> decide poner el icono.
+    ['wa', `https://wa.me/?text=${enc(`${product.name} ${shareUrl}`)}`],
   ];
 
   const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 4%, transparent) 0 16px, transparent 16px 32px)';
@@ -176,8 +174,8 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
               )}
               {images.length > 1 ? (
                 <>
-                  <button type="button" aria-label="Anterior" onClick={() => move(-1)} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: '1px solid var(--color-border)', background: 'color-mix(in srgb, var(--color-bg) 88%, transparent)', color: 'var(--color-text)', cursor: 'pointer', fontSize: 18, display: 'grid', placeItems: 'center', boxShadow: 'var(--shadow-sm)' }}>‹</button>
-                  <button type="button" aria-label="Siguiente" onClick={() => move(1)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: '1px solid var(--color-border)', background: 'color-mix(in srgb, var(--color-bg) 88%, transparent)', color: 'var(--color-text)', cursor: 'pointer', fontSize: 18, display: 'grid', placeItems: 'center', boxShadow: 'var(--shadow-sm)' }}>›</button>
+                  <button type="button" aria-label="Anterior" onClick={() => move(-1)} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: '1px solid var(--color-border)', background: 'color-mix(in srgb, var(--color-bg) 88%, transparent)', color: 'var(--color-text)', cursor: 'pointer', fontSize: 18, display: 'grid', placeItems: 'center', boxShadow: 'var(--shadow-sm)' }}><Icon name="chevronLeft" size={18} /></button>
+                  <button type="button" aria-label="Siguiente" onClick={() => move(1)} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', width: 44, height: 44, borderRadius: '50%', border: '1px solid var(--color-border)', background: 'color-mix(in srgb, var(--color-bg) 88%, transparent)', color: 'var(--color-text)', cursor: 'pointer', fontSize: 18, display: 'grid', placeItems: 'center', boxShadow: 'var(--shadow-sm)' }}><Icon name="chevronRight" size={18} /></button>
                 </>
               ) : null}
             </div>
@@ -199,7 +197,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
             <h1 className="pd-name" style={{ fontFamily: DISPLAY, margin: '0 0 16px', fontSize: 46, lineHeight: 0.98, fontWeight: 800, letterSpacing: '-0.04em' }}>{product.name}</h1>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-              <span style={{ color: 'var(--color-primary)', fontSize: 16, letterSpacing: 2 }}>{starsStr(rating.average || 5)}</span>
+              <span style={{ color: 'var(--color-primary)', fontSize: 16, letterSpacing: 2 }}><Stars value={rating.average || 5} size={16} /></span>
               <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)' }}>{rating.count > 0 ? `${rating.average.toFixed(1)} · ${rating.count} opiniones` : 'Sin opiniones aún'}</span>
               <span style={{ marginLeft: 'auto' }}><AvailabilityBadge info={disp} tamano="ficha" /></span>
             </div>
@@ -269,7 +267,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                 </div>
                 <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
                   <button type="button" onClick={buyNow} style={{ flex: 1, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '16px 28px', borderRadius: 100, cursor: 'pointer' }}>Comprar ahora</button>
-                  <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 100, cursor: 'pointer' }}>{fav ? '♥' : '♡'}</button>
+                  <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 100, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
                 </div>
                 {/* COTIZAR SIEMPRE, tambien en los equipos que se pueden comprar.
                     Antes aqui habia un 'Solicitar informacion' que abria el correo:
@@ -278,15 +276,16 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     segun el servicio, y ademas la plataforma se centra en cotizar. */}
                 <Link
                   href={`/cotizar?producto=${product.slug}`}
-                  style={{ display: 'block', textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-text)', padding: '14px 20px', borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-text)', padding: '14px 20px', borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box' }}
                 >
-                  Cotizar este equipo →
+                  Cotizar este equipo
+                  <Icon name="arrowRight" size={15} />
                 </Link>
               </>
             ) : (
               <div style={{ display: 'flex', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
-                <Link href={`/cotizar?producto=${product.slug}`} style={{ flex: 1, minWidth: 200, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 100 }}>Solicitar cotización →</Link>
-                <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 100, cursor: 'pointer' }}>{fav ? '♥' : '♡'}</button>
+                <Link href={`/cotizar?producto=${product.slug}`} style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 100 }}>Solicitar cotización<Icon name="arrowRight" size={16} /></Link>
+                <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 100, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
               </div>
             )}
 
@@ -310,7 +309,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                 <span style={{ width: 80, flexShrink: 0 }}>COMPARTIR</span>
                 <span style={{ display: 'flex', gap: 8 }}>
                   {shares.map(([label, href]) => (
-                    <a key={label} href={href} target="_blank" rel="noopener noreferrer" style={{ width: 30, height: 30, border: '1px solid var(--color-border)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text)', textDecoration: 'none', fontSize: 12 }}>{label}</a>
+                    <a key={label} href={href} target="_blank" rel="noopener noreferrer" style={{ width: 30, height: 30, border: '1px solid var(--color-border)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-text)', textDecoration: 'none', fontSize: 12 }}>{label === 'wa' ? <Icon name="phone" size={12} label="WhatsApp" /> : label}</a>
                   ))}
                 </span>
               </div>
@@ -349,7 +348,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                 <div className="pd-reviews-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 56, alignItems: 'start' }}>
                   <div style={{ border: '1px solid var(--color-border)', borderRadius: 4, padding: 28, textAlign: 'center' }}>
                     <div style={{ fontFamily: DISPLAY, fontSize: 56, fontWeight: 800, lineHeight: 1 }}>{rating.average.toFixed(1)}</div>
-                    <div style={{ color: 'var(--color-primary)', fontSize: 18, letterSpacing: 2, margin: '8px 0' }}>{starsStr(rating.average)}</div>
+                    <div style={{ color: 'var(--color-primary)', fontSize: 18, letterSpacing: 2, margin: '8px 0' }}><Stars value={rating.average} size={18} /></div>
                     <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)' }}>{rating.count} OPINIONES</div>
                   </div>
                   <div>
@@ -359,7 +358,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                           <span style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: MONO, fontSize: 13, fontWeight: 700, color: 'var(--color-primary-fg)', background: 'var(--color-primary)' }}>{initialsOf(r.author)}</span>
                           <div>
                             <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>{r.author}{r.verified ? <span style={{ fontFamily: MONO, fontSize: 9, color: 'var(--color-success)', border: '1px solid color-mix(in srgb,var(--color-success) 40%,transparent)', borderRadius: 4, padding: '1px 5px' }}>✓ COMPRA</span> : null}</div>
-                            <div style={{ color: 'var(--color-primary)', fontSize: 13, letterSpacing: 1 }}>{starsStr(r.rating)}</div>
+                            <div style={{ color: 'var(--color-primary)', fontSize: 13, letterSpacing: 1 }}><Stars value={r.rating} size={13} /></div>
                           </div>
                           <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', marginLeft: 'auto' }}>{fmtReviewDate(r.date)}</span>
                         </div>

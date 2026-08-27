@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { AuthUser, CheckoutResult, CouponCheck, PaymentMethod, PaymentMethodId } from '@maqserv/types';
 import type { CheckoutConfig } from '@maqserv/config';
 import { cartLineTotal, useCart } from '@/components/CartProvider';
+import { Icon } from '@/components/Icon';
 import { FREIGHT_ADDRESS_KEY, freightCostOf, useFreightQuote } from '@/components/useFreightQuote';
 import { formatPrice } from '@/lib/format';
 
@@ -209,7 +210,7 @@ export function CheckoutForm({
             return (
               <div key={n} style={{ display: 'flex', alignItems: 'center' }}>
                 <div style={{ display: 'grid', placeItems: 'center', gap: 6 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 14, fontWeight: 700, background: on ? 'var(--color-text)' : 'transparent', color: on ? 'var(--color-bg)' : strong ? 'var(--color-text)' : 'var(--color-text-muted)', border: `1px solid ${strong ? 'var(--color-text)' : 'var(--color-border)'}` }}>{done ? '✓' : n}</span>
+                  <span style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 14, fontWeight: 700, background: on ? 'var(--color-text)' : 'transparent', color: on ? 'var(--color-bg)' : strong ? 'var(--color-text)' : 'var(--color-text-muted)', border: `1px solid ${strong ? 'var(--color-text)' : 'var(--color-border)'}` }}>{done ? <Icon name="check" size={14} /> : n}</span>
                   <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: strong ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{name}</span>
                 </div>
                 {i < STEPS.length - 1 ? <span style={{ width: 90, height: 1, background: i < ACTIVE_STEP ? 'var(--color-text)' : 'var(--color-border)', margin: '0 4px 18px' }} /> : null}
@@ -220,7 +221,7 @@ export function CheckoutForm({
 
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, borderBottom: '2px solid var(--color-text)', paddingBottom: 20, marginBottom: 28, flexWrap: 'wrap' }}>
           <h1 className="co-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>{labels.title}</h1>
-          <Link href="/carrito" style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none', marginLeft: 'auto' }}>← VOLVER AL CARRITO</Link>
+          <Link href="/carrito" style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="arrowLeft" size={12} />VOLVER AL CARRITO</Link>
         </div>
 
         {children}

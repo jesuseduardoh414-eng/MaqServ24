@@ -4,6 +4,7 @@ import { SHIP_METHODS, fulfillmentFlow, fulfillmentStep, shipTracker, toShipMeth
 import { getTheme, t } from '@/lib/theme';
 import { paymentStatusLabel, toneColors } from '@/lib/order-status';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const MONO = "'Inter', system-ui, sans-serif";
@@ -80,13 +81,13 @@ export default async function TrackPage({ searchParams }: { searchParams: Promis
             <input name="email" type="email" required defaultValue={sp.email ?? ''} placeholder="tu@correo.com" style={inputStyle} />
           </div>
           <div>
-            <button type="submit" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 100, cursor: 'pointer' }}>Rastrear →</button>
+            <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 100, cursor: 'pointer' }}>Rastrear<Icon name="arrowRight" size={16} /></button>
           </div>
         </form>
 
         {notFound ? (
           <div role="alert" style={{ marginTop: 28, display: 'flex', alignItems: 'center', gap: 12, background: 'color-mix(in srgb, var(--color-error) 8%, var(--color-surface))', border: '1px solid color-mix(in srgb, var(--color-error) 40%, transparent)', color: 'var(--color-error)', padding: '14px 18px', borderRadius: 12, fontSize: 14.5, fontWeight: 600 }}>
-            <span style={{ fontSize: 18 }}>⚠</span> {t(theme, 'track.notFound')}
+            <Icon name="warning" size={18} /> {t(theme, 'track.notFound')}
           </div>
         ) : null}
 

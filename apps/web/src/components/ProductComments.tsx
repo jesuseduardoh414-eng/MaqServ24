@@ -1,14 +1,5 @@
 import type { ProductComment, ProductCommentsSummary } from '@maqserv/types';
-
-function Stars({ value, size = 'var(--text-base)' }: { value: number; size?: string }) {
-  const full = Math.round(value);
-  return (
-    <span aria-label={`${value} de 5`} style={{ color: 'var(--color-warning)', fontSize: size, letterSpacing: '.08em' }}>
-      {'★'.repeat(full)}
-      <span style={{ color: 'var(--color-border)' }}>{'★'.repeat(5 - full)}</span>
-    </span>
-  );
-}
+import { Stars } from '@/components/Icon';
 
 /**
  * Opiniones del producto — SOLO LECTURA. Las reseñas se dejan desde "Mis compras"
@@ -32,7 +23,7 @@ export function ProductComments({
         <h2 style={{ fontSize: 'var(--text-xl)', margin: 0 }}>{labels.title}</h2>
         {count > 0 ? (
           <span style={{ display: 'inline-flex', gap: '.4rem', alignItems: 'center' }}>
-            <Stars value={average} />
+            <Stars value={average} size={16} style={{ color: 'var(--color-warning)' }} />
             <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', fontVariantNumeric: 'tabular-nums' }}>
               {average} ({count})
             </span>
@@ -51,12 +42,12 @@ export function ProductComments({
                   <strong>{c.author}</strong>
                   {c.verified ? (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '11.5px', fontWeight: 700, color: 'var(--color-success)', background: 'color-mix(in srgb, var(--color-success) 14%, transparent)', padding: '2px 8px', borderRadius: 999 }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                       Compra verificada
                     </span>
                   ) : null}
                 </span>
-                <Stars value={c.rating} size="var(--text-sm)" />
+                <Stars value={c.rating} size={14} style={{ color: 'var(--color-warning)' }} />
               </div>
               <p style={{ margin: 0, fontSize: 'var(--text-sm)', lineHeight: 1.6, color: 'var(--color-text)' }}>{c.text}</p>
             </article>

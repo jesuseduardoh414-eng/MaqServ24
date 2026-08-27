@@ -7,6 +7,7 @@ import { SHIP_METHODS, fulfillmentStep, shipTracker, toShipMethod } from '@maqse
 import { getTheme, t } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { OrderStatusLive } from '@/components/OrderStatusLive';
 import { orderStatusLabel, toneColors } from '@/lib/order-status';
 import { formatPrice } from '@/lib/format';
@@ -114,7 +115,7 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
             {STEPS.map(([n, name], i) => (
               <div key={n} style={{ display: 'flex', alignItems: 'center' }}>
                 <div style={{ display: 'grid', placeItems: 'center', gap: 6 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 14, fontWeight: 700, background: i === 2 ? 'var(--color-text)' : 'transparent', color: i === 2 ? 'var(--color-bg)' : 'var(--color-text)', border: '1px solid var(--color-text)' }}>{i === 2 ? n : '✓'}</span>
+                  <span style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 14, fontWeight: 700, background: i === 2 ? 'var(--color-text)' : 'transparent', color: i === 2 ? 'var(--color-bg)' : 'var(--color-text)', border: '1px solid var(--color-text)' }}>{i === 2 ? n : <Icon name="check" size={14} />}</span>
                   <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: 'var(--color-text)' }}>{name}</span>
                 </div>
                 {i < STEPS.length - 1 ? <span style={{ width: 90, height: 1, background: 'var(--color-text)', margin: '0 4px 18px' }} /> : null}
@@ -125,7 +126,7 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
           {/* Confirmación */}
           <div style={{ borderBottom: '2px solid var(--color-text)', paddingBottom: 22, marginBottom: 28 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-              <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--color-success)', color: 'var(--color-bg)', fontSize: 21, fontWeight: 800 }} aria-hidden>✓</span>
+              <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--color-success)', color: 'var(--color-bg)', fontSize: 21, fontWeight: 800 }} aria-hidden><Icon name="check" size={21} /></span>
               <h1 className="or-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 44, fontWeight: 800, letterSpacing: '-0.04em' }}>{t(theme, 'order.thanks')}</h1>
             </div>
             <p style={{ margin: 0, fontFamily: MONO, fontSize: 12.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)' }}>
@@ -184,8 +185,8 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
                       <span style={{ color: 'var(--color-text)', textAlign: 'right', maxWidth: '65%', lineHeight: 1.55 }}>{ship.notes}</span>
                     </div>
                   ) : null}
-                  <Link href={`/rastreo?orden=${encodeURIComponent(order.orderNumber)}&email=${encodeURIComponent(cust.email ?? '')}`} style={{ display: 'inline-block', marginTop: 14, fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}>
-                    VER SEGUIMIENTO COMPLETO →
+                  <Link href={`/rastreo?orden=${encodeURIComponent(order.orderNumber)}&email=${encodeURIComponent(cust.email ?? '')}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}>
+                    VER SEGUIMIENTO COMPLETO<Icon name="arrowRight" size={12} />
                   </Link>
                 </section>
               ) : null}
@@ -269,8 +270,8 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
                   <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(order.total)}</span>
                 </div>
 
-                <Link href="/cuenta/pedidos" style={{ display: 'block', textAlign: 'center', width: '100%', boxSizing: 'border-box', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: 15, borderRadius: 100 }}>
-                  {t(theme, 'account.orders.title')} →
+                <Link href="/cuenta/pedidos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', boxSizing: 'border-box', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: 15, borderRadius: 100 }}>
+                  {t(theme, 'account.orders.title')}<Icon name="arrowRight" size={15} />
                 </Link>
                 <Link href="/productos" style={{ display: 'block', textAlign: 'center', margin: '12px 0 20px', fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textDecoration: 'none', textTransform: 'uppercase' }}>
                   Seguir explorando equipo

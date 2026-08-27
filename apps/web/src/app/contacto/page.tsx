@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { defaultTheme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { ContactForm } from './ContactForm';
 
 const MONO = "'Inter', system-ui, sans-serif";
@@ -122,7 +123,7 @@ export default async function ContactPage() {
                     <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.18em', color: 'var(--color-primary)', marginBottom: 12, textTransform: 'uppercase' }}>{c.urgent.eyebrow}</div>
                     <p style={{ margin: '0 0 20px', fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em' }}>{c.urgent.title}</p>
                     {c.phone ? (
-                      <a href={telHref(c.phone)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: '13px 24px', borderRadius: 100, textDecoration: 'none' }}>{c.urgent.ctaLabel} →</a>
+                      <a href={telHref(c.phone)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: '13px 24px', borderRadius: 100, textDecoration: 'none' }}>{c.urgent.ctaLabel}<Icon name="arrowRight" size={15} /></a>
                     ) : null}
                   </div>
                 </div>

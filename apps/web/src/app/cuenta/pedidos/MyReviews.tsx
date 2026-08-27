@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Icon } from '@/components/Icon';
 
 interface Reviewable {
   productId: number;
@@ -24,7 +25,10 @@ function StarPick({ value, onChange, readOnly }: { value: number; onChange?: (n:
           onClick={() => onChange?.(n)}
           aria-label={`${n} estrellas`}
           style={{ border: 'none', background: 'transparent', padding: 0, cursor: readOnly ? 'default' : 'pointer', fontSize: 22, lineHeight: 1, color: n <= value ? 'var(--color-warning)' : 'var(--color-border)' }}
-        >★</button>
+        >
+          {/* El botón ya se anuncia con su aria-label ("N estrellas"): icono decorativo. */}
+          <Icon name="star" size={22} fill={n <= value} />
+        </button>
       ))}
     </span>
   );

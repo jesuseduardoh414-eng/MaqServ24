@@ -6,6 +6,7 @@ import type { BlogCard, BlogDetail } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
 import { getBlog, getBlogs } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { BlogShare } from './BlogShare';
 
 type Params = { slug: string };
@@ -107,7 +108,7 @@ export default async function BlogPage({ params }: { params: Promise<Params> }) 
 
       <main className="blog-art-wrap" style={{ maxWidth: 1200, margin: '0 auto', padding: '48px 40px 40px', background: 'var(--color-bg)' }}>
         <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.1em', color: 'var(--color-text-muted)', marginBottom: 34 }}>
-          <Link href="/blog" style={{ color: 'var(--color-text-muted)' }}>← BITÁCORA</Link>
+          <Link href="/blog" style={{ color: 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="arrowLeft" size={12} />BITÁCORA</Link>
           {'  /  '}
           <span style={{ color: 'var(--color-text)' }}>{blog.category}</span>
         </div>
@@ -116,7 +117,7 @@ export default async function BlogPage({ params }: { params: Promise<Params> }) 
           {/* Artículo */}
           <article style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontFamily: MONO, fontSize: 12, letterSpacing: '0.14em', color: 'var(--color-text-muted)', marginBottom: 22 }}>
-              <span style={{ color: 'var(--color-primary)' }}>● {blog.category}</span>
+              <span style={{ color: 'var(--color-primary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="dot" size={12} fill />{blog.category}</span>
               <span>{fmtDate(blog.date)}</span>
               <span>· {blog.readTime}</span>
             </div>
@@ -148,7 +149,7 @@ export default async function BlogPage({ params }: { params: Promise<Params> }) 
             <div className="blog-article" dangerouslySetInnerHTML={{ __html: blog.contentHtml }} />
 
             <div style={{ marginTop: 48, paddingTop: 26, borderTop: '2px solid var(--color-text)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-              <Link href="/blog" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 17, color: 'var(--color-text)' }}>← Volver a la bitácora</Link>
+              <Link href="/blog" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 17, color: 'var(--color-text)', display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="arrowLeft" size={17} />Volver a la bitácora</Link>
               <BlogShare title={blog.title} />
             </div>
           </article>

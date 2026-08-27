@@ -1,4 +1,5 @@
 import type { ProviderBadge as Aliado } from '@maqserv/types';
+import { Icon } from '@/components/Icon';
 
 /**
  * Sello de proveedor (22 / PROVEEDORES Y CONFIANZA).
@@ -29,8 +30,8 @@ export function ProviderTrust({ p, tamano = 'lista' }: { p: Aliado; tamano?: 'li
           minWidth: 0,
         }}
       >
-        <span aria-hidden style={{ color, flexShrink: 0, fontWeight: 700 }}>
-          {p.verified ? '✓' : '·'}
+        <span aria-hidden style={{ color, flexShrink: 0, fontWeight: 700, display: 'flex' }}>
+          <Icon name={p.verified ? 'check' : 'dot'} size={12} />
         </span>
         <span
           style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}

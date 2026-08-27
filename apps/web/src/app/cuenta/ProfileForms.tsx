@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { type AuthUser, missingProfileFields, type RequiredProfileField } from '@maqserv/types';
+import { Icon } from '@/components/Icon';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
@@ -273,7 +274,7 @@ export function ProfileForms({
                     <span style={{ display: 'block', fontSize: 14, fontWeight: 600 }}>{l.label}</span>
                     <span style={{ display: 'block', fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>{l.hint}</span>
                   </span>
-                  <span style={{ color: 'var(--color-text-muted)', fontSize: 15 }} aria-hidden>→</span>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: 15, display: 'flex' }} aria-hidden><Icon name="arrowRight" size={15} /></span>
                 </Link>
               ))}
             </div>

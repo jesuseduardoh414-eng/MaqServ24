@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getTheme, t } from '@/lib/theme';
 import { getProducts, getCategories, getSubcategories } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { ProductCard } from '@/components/ProductCard';
 import { Pagination } from '@/components/Pagination';
 import { Band } from '@/components/Band';
@@ -160,9 +161,10 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
               {hasFilters(sp) ? (
                 <Link
                   href={`/productos${sp.q ? `?q=${encodeURIComponent(sp.q)}` : ''}`}
-                  style={{ display: 'inline-block', marginTop: 14, fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}
                 >
-                  Quitar los filtros →
+                  Quitar los filtros
+                  <Icon name="arrowRight" size={14} />
                 </Link>
               ) : null}
             </div>

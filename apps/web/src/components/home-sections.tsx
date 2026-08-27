@@ -15,6 +15,7 @@ import {
 } from '@/lib/api';
 import { categoryHref, categoryCountLabel } from '@/lib/category-link';
 import { Carousel, Eyebrow } from '@/components/Carousel';
+import { Icon, Stars, type IconName } from '@/components/Icon';
 import { CategoryStrip } from '@/components/CategoryStrip';
 import { CountUp } from '@/components/CountUp';
 import { HomeProductGrid } from '@/components/HomeProductGrid';
@@ -64,10 +65,12 @@ export async function Hero({ theme }: { theme: Theme }) {
   const showBadge = h.showBadge && badge;
 
   const trust = [
-    { icon: '✓', title: t(theme, 'home.hero.trust1.title'), text: t(theme, 'home.hero.trust1.text') },
-    { icon: '▤', title: t(theme, 'home.hero.trust2.title'), text: t(theme, 'home.hero.trust2.text') },
-    { icon: '⛟', title: t(theme, 'home.hero.trust3.title'), text: t(theme, 'home.hero.trust3.text') },
-    { icon: '☎', title: t(theme, 'home.hero.trust4.title'), text: t(theme, 'home.hero.trust4.text') },
+    // Antes eran glifos del teclado. ⛟ y ▤ no existen en muchas fuentes: en
+    // esas máquinas el hero mostraba dos cuadros vacíos donde va un icono.
+    { icon: 'check' as IconName, title: t(theme, 'home.hero.trust1.title'), text: t(theme, 'home.hero.trust1.text') },
+    { icon: 'specs' as IconName, title: t(theme, 'home.hero.trust2.title'), text: t(theme, 'home.hero.trust2.text') },
+    { icon: 'truck' as IconName, title: t(theme, 'home.hero.trust3.title'), text: t(theme, 'home.hero.trust3.text') },
+    { icon: 'mapPin' as IconName, title: t(theme, 'home.hero.trust4.title'), text: t(theme, 'home.hero.trust4.text') },
   ];
 
   return (
@@ -85,7 +88,7 @@ export async function Hero({ theme }: { theme: Theme }) {
         <div>
           {showBadge ? (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${h.accentColor} 35%, transparent)`, borderRadius: 'var(--radius-sm)', padding: '8px 15px', fontSize: '12px', fontWeight: 700, color: h.accentColor, letterSpacing: '.14em', textTransform: 'uppercase' }}>
-              <span>★</span> {badge}
+              <Icon name="star" size={13} fill /> {badge}
             </div>
           ) : null}
           <h1 style={{ fontSize: 'clamp(2.4rem, 5vw, 3.6rem)', lineHeight: 1.02, letterSpacing: '-.01em', margin: showBadge ? '22px 0 0' : '0', color: h.titleColor, textTransform: 'uppercase' }}>
@@ -102,7 +105,7 @@ export async function Hero({ theme }: { theme: Theme }) {
           </p>
           <div style={{ display: 'flex', gap: 14, marginTop: 32, flexWrap: 'wrap' }}>
             <Link href={h.primaryLink} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: h.primaryBg, color: h.primaryText, fontWeight: 700, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: `0 18px 34px -16px color-mix(in srgb, ${h.primaryBg} 60%, transparent)` }}>
-              {t(theme, 'home.hero.ctaPrimary')} <span>→</span>
+              {t(theme, 'home.hero.ctaPrimary')} <Icon name="arrowRight" size={17} />
             </Link>
             <Link href={h.secondaryLink} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'transparent', color: '#fff', border: `1.5px solid ${h.secondaryBorder}`, fontWeight: 600, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
               {t(theme, 'home.hero.ctaSecondary')}
@@ -113,7 +116,9 @@ export async function Hero({ theme }: { theme: Theme }) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20, marginTop: 34 }}>
               {trust.map((it) => (
                 <div key={it.title} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                  <span style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: `color-mix(in srgb, ${h.accentColor} 14%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: h.accentColor, fontSize: '17px', flexShrink: 0 }}>{it.icon}</span>
+                  <span style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: `color-mix(in srgb, ${h.accentColor} 14%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: h.accentColor, flexShrink: 0 }}>
+                    <Icon name={it.icon} size={19} />
+                  </span>
                   <span>
                     <span style={{ display: 'block', color: '#fff', fontWeight: 700, fontSize: '13.5px' }}>{it.title}</span>
                     <span style={{ display: 'block', color: 'var(--grey)', fontSize: '11.5px', fontWeight: 300 }}>{it.text}</span>
@@ -144,7 +149,7 @@ export async function Hero({ theme }: { theme: Theme }) {
                 <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{t(theme, 'home.hero.stat1.label')}</div>
               </div>
               <div style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11, animation: 'floatY2 7s ease-in-out infinite' }}>
-                <div style={{ color: h.accentColor, fontSize: '14px' }}>★★★★★</div>
+                <div style={{ color: h.accentColor }}><Stars value={5} size={13} /></div>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--color-text)' }}>{t(theme, 'home.hero.stat2.num')}</div>
                   <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{t(theme, 'home.hero.stat2.label')}</div>
@@ -248,7 +253,7 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
               <p style={{ color: 'var(--color-text-muted)', fontSize: '16px', margin: 0, fontWeight: 300, lineHeight: 1.6 }}>{t(theme, 'home.featured.subtitle')}</p>
             </div>
             <Link href="/productos" style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '14.5px', padding: '13px 24px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
-              {t(theme, 'home.featured.viewAll')} <span>→</span>
+              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={17} />
             </Link>
           </div>
         )}
@@ -262,7 +267,7 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
         {isCenter ? (
           <div style={{ textAlign: 'center', marginTop: 40 }}>
             <Link href="/productos" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '15px', padding: '15px 30px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
-              {t(theme, 'home.featured.viewAll')} <span>→</span>
+              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={17} />
             </Link>
           </div>
         ) : null}
@@ -325,7 +330,7 @@ export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
             {items.map((w) => (
               <div key={w.id}>
                 <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 9, color: 'var(--color-text)' }}>
-                  <span style={{ color: accent, fontSize: '16px' }}>◆</span>{w.title}
+                  <Icon name="diamond" size={14} style={{ color: accent }} />{w.title}
                 </div>
                 <div style={{ color: 'var(--color-text-muted)', fontSize: '13.5px', lineHeight: 1.55, fontWeight: 300 }}>{w.description}</div>
               </div>
@@ -385,7 +390,7 @@ export async function SectorsSection({ theme }: { theme: Theme }) {
                   // líneas), y un inline le ganaría a la clase.
                   <span className="sector-desc" style={{ fontSize: '12.5px', color: 'rgba(255,255,255,.78)', lineHeight: 1.5, marginBottom: 12, fontWeight: 300 }}>{s.description}</span>
                 ) : null}
-                <span style={{ color: ctaColor, fontWeight: 700, fontSize: '13px' }}>{t(theme, 'home.sectors.cta')} →</span>
+                <span style={{ color: ctaColor, fontWeight: 700, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'home.sectors.cta')}<Icon name="arrowRight" size={13} /></span>
               </span>
             </Link>
           ))}
@@ -419,7 +424,7 @@ export async function OfferSection({ theme }: { theme: Theme }) {
             <h2 style={{ ...H2, fontSize: 'clamp(1.8rem, 3.6vw, 2.3rem)', lineHeight: 1.08, color: titleColor, margin: '0 0 14px' }}>{t(theme, 'home.offer.title')}</h2>
             <p style={{ color: 'rgba(255,255,255,.7)', fontSize: '15.5px', maxWidth: 440, margin: '0 0 26px', lineHeight: 1.55, fontWeight: 300 }}>{t(theme, 'home.offer.subtitle')}</p>
             <Link href={ctaLink} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: accent, color: 'var(--color-primary-fg)', fontWeight: 700, fontSize: '15px', padding: '15px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: `0 16px 32px -16px color-mix(in srgb, ${accent} 95%, transparent)` }}>
-              {t(theme, 'home.offer.cta')} <span>→</span>
+              {t(theme, 'home.offer.cta')} <Icon name="arrowRight" size={17} />
             </Link>
           </div>
           <div style={{ position: 'relative', height: 230, borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)' }}>
@@ -453,9 +458,8 @@ export async function ReviewsSection({ theme }: { theme: Theme }) {
             style={{ margin: 0, scrollSnapAlign: 'start', flex: '0 0 min(400px, 84vw)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 30, boxShadow: 'var(--shadow-sm)' }}
           >
             <div style={{ fontFamily: 'var(--font-display)', fontSize: '44px', lineHeight: 0.6, color: accent }}>&ldquo;</div>
-            <div style={{ color: accent, fontSize: '15px', margin: '8px 0 14px' }}>
-              {'★'.repeat(r.rating)}
-              <span style={{ color: 'var(--color-border)' }}>{'★'.repeat(5 - r.rating)}</span>
+            <div style={{ color: accent, margin: '8px 0 14px' }}>
+              <Stars value={r.rating} size={15} />
             </div>
             <blockquote style={{ fontSize: '15px', lineHeight: 1.6, margin: '0 0 24px', fontWeight: 300, color: 'var(--color-text)' }}>{r.review}</blockquote>
             <figcaption style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
@@ -581,7 +585,7 @@ export async function BlogSection({ theme }: { theme: Theme }) {
             <span style={{ padding: 18, display: 'grid', gap: '.4rem' }}>
               <strong style={{ lineHeight: 1.3 }}>{b.title}</strong>
               <span style={{ color: 'var(--color-text-muted)', fontSize: '13.5px', fontWeight: 300 }}>{b.excerpt}</span>
-              <span style={{ color: 'var(--color-accent)', fontWeight: 600, fontSize: '13.5px' }}>{t(theme, 'home.blog.readMore')} →</span>
+              <span style={{ color: 'var(--color-accent)', fontWeight: 600, fontSize: '13.5px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'home.blog.readMore')}<Icon name="arrowRight" size={13.5} /></span>
             </span>
           </Link>
         ))}

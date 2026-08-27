@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { CheckoutConfig } from '@maqserv/config';
 import { cartLineTotal, useCart } from '@/components/CartProvider';
+import { Icon } from '@/components/Icon';
 import { FREIGHT_ADDRESS_KEY, freightCostOf, useFreightQuote } from '@/components/useFreightQuote';
 import { formatPrice } from '@/lib/format';
 
@@ -106,7 +107,7 @@ export function CartView({ config }: { config: CheckoutConfig }) {
 
   const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
   const Check = ({ on, onClick }: { on: boolean; onClick: () => void }) => (
-    <button type="button" onClick={onClick} aria-pressed={on} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 5, border: `2px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'transparent', color: 'var(--color-bg)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 13, lineHeight: 1, padding: 0 }}>{on ? '✓' : ''}</button>
+    <button type="button" onClick={onClick} aria-pressed={on} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 5, border: `2px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'transparent', color: 'var(--color-bg)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 13, lineHeight: 1, padding: 0 }}>{on ? <Icon name="check" size={13} /> : null}</button>
   );
 
   return (
@@ -156,8 +157,8 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                 <Check on={allSelected} onClick={toggleAll} />
                 <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>{selectedItems.length}/{cart.items.length} seleccionados</span>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 18 }}>
-                  <button type="button" disabled={selectedItems.length === 0} onClick={() => saveToFav(selectedItems.map((i) => i.productId))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-text)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}>♡ MOVER A FAVORITOS</button>
-                  <button type="button" disabled={selectedItems.length === 0} onClick={() => selectedItems.forEach((i) => cart.remove(i.productId))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-error)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}>✕ QUITAR</button>
+                  <button type="button" disabled={selectedItems.length === 0} onClick={() => saveToFav(selectedItems.map((i) => i.productId))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-text)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="heart" size={12} />MOVER A FAVORITOS</button>
+                  <button type="button" disabled={selectedItems.length === 0} onClick={() => selectedItems.forEach((i) => cart.remove(i.productId))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-error)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="x" size={12} />QUITAR</button>
                 </div>
               </div>
 
@@ -179,8 +180,8 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                       <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)' }}>/ {item.unitLabel ?? 'MES'}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 16, fontFamily: MONO, fontSize: 12 }}>
-                      <button type="button" onClick={() => saveToFav([item.productId])} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 0 }}>♡ Guardar</button>
-                      <button type="button" onClick={() => cart.remove(item.productId)} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', padding: 0 }}>✕ Quitar</button>
+                      <button type="button" onClick={() => saveToFav([item.productId])} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="heart" size={13} />Guardar</button>
+                      <button type="button" onClick={() => cart.remove(item.productId)} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="x" size={13} />Quitar</button>
                     </div>
                   </div>
                   <div className="cart-line-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 14 }}>
@@ -193,7 +194,7 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                   </div>
                 </div>
               ))}
-              <Link href="/productos" style={{ display: 'inline-block', marginTop: 24, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: 'var(--color-text)', textDecoration: 'none' }}>← Seguir explorando</Link>
+              <Link href="/productos" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 24, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: 'var(--color-text)', textDecoration: 'none' }}><Icon name="arrowLeft" size={15} />Seguir explorando</Link>
             </div>
 
             {/* Columna derecha */}
@@ -205,14 +206,14 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                   <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon(); }} placeholder="Código" style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 100, padding: '11px 16px', fontFamily: MONO, fontSize: 13, background: 'var(--color-bg)', color: 'var(--color-text)', outline: 'none' }} />
                   <button type="button" onClick={applyCoupon} style={{ background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', fontFamily: DISPLAY, fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 100, cursor: 'pointer' }}>Aplicar</button>
                 </div>
-                {coupon ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-success)', marginTop: 8 }}>✓ {coupon.code} aplicado{coupon.label ? ` (${coupon.label})` : ''}</div> : null}
+                {coupon ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-success)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="check" size={11} /><span>{coupon.code} aplicado{coupon.label ? ` (${coupon.label})` : ''}</span></div> : null}
                 {couponMsg ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 8 }}>{couponMsg}</div> : null}
               </div>
 
               {/* Operador (opcional; monto y textos definidos en Panel → Pagos) */}
               {config.operator.enabled ? (
                 <button type="button" onClick={() => setOperator(!operator)} style={{ textAlign: 'left', cursor: 'pointer', background: operator ? 'color-mix(in srgb, var(--color-primary) 10%, var(--color-bg))' : 'var(--color-surface)', border: `1px solid ${operator ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 4, padding: 22, fontFamily: 'inherit', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  <span style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 5, border: `2px solid ${operator ? 'var(--color-text)' : 'var(--color-border)'}`, background: operator ? 'var(--color-text)' : 'transparent', color: 'var(--color-bg)', display: 'grid', placeItems: 'center', fontSize: 13, marginTop: 2 }}>{operator ? '✓' : ''}</span>
+                  <span style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 5, border: `2px solid ${operator ? 'var(--color-text)' : 'var(--color-border)'}`, background: operator ? 'var(--color-text)' : 'transparent', color: 'var(--color-bg)', display: 'grid', placeItems: 'center', fontSize: 13, marginTop: 2 }}>{operator ? <Icon name="check" size={13} /> : null}</span>
                   <div>
                     <div style={{ fontFamily: DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--color-text)' }}>{config.operator.label}</div>
                     <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4, lineHeight: 1.5 }}>{config.operator.help} <strong style={{ color: 'var(--color-text)' }}>+{formatPrice(config.operator.amount)}</strong> por equipo</div>
@@ -270,7 +271,7 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                     <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700 }}>Total</span>
                     <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(total)}</span>
                   </div>
-                  <Link href="/checkout" aria-disabled={selectedItems.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Proceder al pago →</Link>
+                  <Link href="/checkout" aria-disabled={selectedItems.length === 0} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Proceder al pago<Icon name="arrowRight" size={16} /></Link>
                   {/* Alternativa al pago directo: cotizar todo el carrito con un asesor. */}
                   <Link href="/cotizar" aria-disabled={selectedItems.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', marginTop: 10, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', padding: 14, borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Solicitar cotización</Link>
                   {config.note ? (

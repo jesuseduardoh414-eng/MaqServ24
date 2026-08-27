@@ -6,6 +6,7 @@ import type { QuoteSummary } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { toneColors } from '@/lib/order-status';
 import { formatPrice } from '@/lib/format';
 
@@ -81,7 +82,7 @@ export default async function MyQuotesPage() {
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, borderBottom: '2px solid var(--color-text)', paddingBottom: 20, marginBottom: 28, flexWrap: 'wrap' }}>
             <h1 className="qt-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>{t(theme, 'account.quotes.title')}</h1>
             <span style={{ fontFamily: MONO, fontSize: 13, color: 'var(--color-text-muted)' }}>{quotes.length} COTIZACIÓN{quotes.length === 1 ? '' : 'ES'}</span>
-            <Link href="/cuenta" style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none' }}>← MI CUENTA</Link>
+            <Link href="/cuenta" style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="arrowLeft" size={12} />MI CUENTA</Link>
           </div>
 
           {quotes.length === 0 ? (
@@ -142,9 +143,10 @@ export default async function MyQuotesPage() {
                       ) : (
                         <Link
                           href={`/cuenta/cotizaciones/${q.quoteNumber}`}
-                          style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none', whiteSpace: 'nowrap' }}
+                          style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                         >
-                          {q.state === 'vigente' ? 'Ver y aceptar →' : 'Ver detalle →'}
+                          {q.state === 'vigente' ? 'Ver y aceptar' : 'Ver detalle'}
+                          <Icon name="arrowRight" size={13.5} />
                         </Link>
                       )}
                     </div>

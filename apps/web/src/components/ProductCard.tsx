@@ -12,6 +12,7 @@ import { useCart } from '@/components/CartProvider';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
 import { estadoDeProducto } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
+import { Icon } from '@/components/Icon';
 
 // Panel radial de la foto del producto. Era claro (#ffffff -> #e9ebef) del
 // diseño anterior; en una identidad dark-first un recuadro blanco por tarjeta
@@ -120,8 +121,9 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
       </Link>
 
       <button type="button" aria-label="Favorito" aria-pressed={faved} onClick={toggleFav}
-        style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)', border: '1px solid var(--color-border)', color: faved ? 'var(--color-error)' : 'var(--color-text-muted)', fontSize: '15px', cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}>
-        {faved ? '♥' : '♡'}
+        style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)', border: '1px solid var(--color-border)', color: faved ? 'var(--color-error)' : 'var(--color-text-muted)', fontSize: '15px', cursor: 'pointer', boxShadow: 'var(--shadow-sm)', display: 'grid', placeItems: 'center' }}>
+        {/* El botón ya dice "Favorito" en su aria-label: el icono va decorativo. */}
+        <Icon name="heart" size={15} fill={faved} />
       </button>
 
       <div style={{ padding: 18, display: 'flex', flexDirection: 'column', flex: 1 }}>
@@ -158,12 +160,12 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
               <>
                 {canAdd ? (
                   <button type="button" onClick={add} style={addBtn}>
-                    {added ? '✓ Agregado' : <><span style={{ fontSize: '14px', marginTop: -1 }}>+</span>Agregar</>}
+                    {added ? <><Icon name="check" size={14} />Agregado</> : <><span style={{ fontSize: '14px', marginTop: -1 }}>+</span>Agregar</>}
                   </button>
                 ) : (
                   <Link href={`/productos/${p.slug}`} style={addBtn}>Ver</Link>
                 )}
-                <Link href={quoteHref} style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none', whiteSpace: 'nowrap' }}>Cotizar →</Link>
+                <Link href={quoteHref} style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>Cotizar<Icon name="arrowRight" size={11.5} /></Link>
               </>
             )}
           </div>

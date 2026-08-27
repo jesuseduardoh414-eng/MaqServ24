@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, type ReactNode } from 'react';
+import { Icon } from '@/components/Icon';
 
 /**
  * Carrusel horizontal con encabezado (eyebrow + título) y botones ←/→.
@@ -60,8 +61,8 @@ export function Carousel({
           </h2>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button type="button" aria-label="Anterior" style={arrow} onClick={() => by(-1)}>←</button>
-          <button type="button" aria-label="Siguiente" style={arrow} onClick={() => by(1)}>→</button>
+          <button type="button" aria-label="Anterior" style={arrow} onClick={() => by(-1)}><Icon name="arrowLeft" size={18} /></button>
+          <button type="button" aria-label="Siguiente" style={arrow} onClick={() => by(1)}><Icon name="arrowRight" size={18} /></button>
         </div>
       </div>
       <div
