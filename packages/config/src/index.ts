@@ -24,3 +24,12 @@ export {
   etiquetaPrecio,
   type UnidadServicio,
 } from './service-units';
+export {
+  ATRIBUTOS_POR_CATEGORIA,
+  atributosDe,
+  numeroDe,
+  desajustes,
+  fichaDe,
+  type AtributoProducto,
+  type Desajuste,
+} from './product-attributes';

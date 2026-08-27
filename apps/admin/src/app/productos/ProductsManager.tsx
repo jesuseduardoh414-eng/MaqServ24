@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { unidadesDe } from '@maqserv/config';
+import { unidadesDe, atributosDe } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
 
 export interface ProductRow {
@@ -37,10 +37,12 @@ interface Form {
   isRental: boolean; rentalFreight: string; featured: boolean; status: number;
   /** Unidad en la que esta el precio: mes, dia, viaje, tonelada. '' = por pieza. */
   priceUnit: string;
+  /** Ficha tecnica estructurada, por clave de atributo. */
+  attributes: Record<string, string>;
 }
 
 export function ProductsManager({ initial, categories }: { initial: ProductRow[]; categories: CatOption[] }) {
-  const emptyForm: Form = { name: '', brand: '', categoryId: categories[0]?.id ?? 0, price: '', oldPrice: '', stock: '', short: '', description: '', specs: [], isRental: false, rentalFreight: '', featured: false, status: 1, priceUnit: '' };
+  const emptyForm: Form = { name: '', brand: '', categoryId: categories[0]?.id ?? 0, price: '', oldPrice: '', stock: '', short: '', description: '', specs: [], isRental: false, rentalFreight: '', featured: false, status: 1, priceUnit: '', attributes: {} };
 
   const [items, setItems] = useState<ProductRow[]>(initial);
   const [query, setQuery] = useState('');
@@ -153,6 +155,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
           specs: Array.isArray(d.specs) ? d.specs.map((s: { label?: string; value?: string }) => ({ label: String(s.label ?? ''), value: String(s.value ?? '') })) : [],
           isRental: !!d.isRental, rentalFreight: d.rentalFreight != null ? String(d.rentalFreight) : '',
           priceUnit: d.priceUnit ?? '',
+          attributes: (d.attributes as Record<string, string> | null) ?? {},
           featured: !!d.featured, status: d.status ?? 1,
         });
         setCurrentImage(d.image ?? null);
@@ -180,6 +183,8 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
       // Vacio = por pieza. Se manda siempre para poder BORRAR la unidad de un
       // producto que dejo de ser renta; omitirlo dejaria la anterior pegada.
       fd.append('priceUnit', form.priceUnit);
+      // Va como JSON porque el alta usa multipart (sube la foto) y ahi todo es texto.
+      fd.append('attributes', JSON.stringify(form.attributes));
       if (form.isRental && form.rentalFreight !== '') fd.append('rentalFreight', String(parseFloat(form.rentalFreight) || 0));
       fd.append('featured', form.featured ? '1' : '');
       fd.append('status', String(form.status));
@@ -466,6 +471,55 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
                 <div><label style={labelStyle}>Stock</label><input value={form.stock} onChange={(e) => setF('stock', e.target.value)} type="number" placeholder="0" style={inputStyle} /></div>
                 {form.isRental ? <div><label style={labelStyle}>Flete de renta (opcional)</label><input value={form.rentalFreight} onChange={(e) => setF('rentalFreight', e.target.value)} type="number" placeholder="0" style={inputStyle} /></div> : null}
               </div>
+              {/*
+                FICHA TECNICA ESTRUCTURADA (documento institucional, 17).
+                Los campos salen de la CATEGORIA elegida, y sus llaves coinciden
+                con las del formulario de solicitud: ese es el puente que
+                permite descartar una plataforma que no alcanza la altura pedida.
+              */}
+              {(() => {
+                const attrs = atributosDe(categories.find((c) => c.id === form.categoryId)?.slug);
+                if (attrs.length === 0) return null;
+                return (
+                  <div style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Ficha técnica</div>
+                    <p style={{ margin: '0 0 12px', fontSize: 12.5, color: C.muted, lineHeight: 1.55 }}>
+                      Lo que se llene aquí se puede buscar y comparar. Lo que se deje vacío no descarta
+                      el equipo: se trata como desconocido, no como incumplido.
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
+                      {attrs.map((a) => (
+                        <div key={a.clave}>
+                          <label style={labelStyle}>
+                            {a.label}{a.unidad ? ` (${a.unidad})` : ''}
+                            {a.compara ? <span style={{ color: C.amber }} title="Se compara contra lo que pide la solicitud"> ·</span> : null}
+                          </label>
+                          {a.tipo === 'opcion' ? (
+                            <select
+                              value={form.attributes[a.clave] ?? ''}
+                              onChange={(e) => setF('attributes', { ...form.attributes, [a.clave]: e.target.value })}
+                              style={inputStyle}
+                            >
+                              <option value="">Sin especificar</option>
+                              {(a.opciones ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          ) : (
+                            <input
+                              type={a.tipo === 'numero' ? 'number' : 'text'}
+                              step="any"
+                              value={form.attributes[a.clave] ?? ''}
+                              onChange={(e) => setF('attributes', { ...form.attributes, [a.clave]: e.target.value })}
+                              placeholder={a.hint ?? ''}
+                              style={inputStyle}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Descripción corta */}
               <div><label style={labelStyle}>Descripción corta (resumen arriba de la ficha)</label><input value={form.short} onChange={(e) => setF('short', e.target.value)} placeholder="Miniexcavadora compacta para espacios reducidos…" style={inputStyle} /></div>
               {/* Descripción */}

@@ -47,8 +47,21 @@ export interface ProveedorCandidato {
    */
   requisitosObra?: Array<{ texto: string; estado: string; nota: string }>;
   monthsInNetwork: number | null;
-  /** Equipos que ese aliado tiene en la categoría pedida y su estado. */
-  equipos: Array<{ id: number; name: string; state: string; location: string | null }>;
+  /**
+   * Equipos que ese aliado tiene en la categoría pedida y su estado.
+   *
+   * `noAlcanza` lista los atributos por los que ese equipo NO sirve para esta
+   * solicitud: una plataforma de 12 m cuando piden 18. Vacio = sirve, o no hay
+   * con que comparar — y las dos cosas se tratan igual, porque no poder
+   * comprobar algo no es motivo para descartar.
+   */
+  equipos: Array<{
+    id: number;
+    name: string;
+    state: string;
+    location: string | null;
+    noAlcanza?: Array<{ texto: string }>;
+  }>;
 }
 
 export interface SolicitudParaEmparejar {
@@ -208,7 +221,21 @@ export function emparejar(
       // no se dan de alta unidades —se cobran por viaje o por tonelada—, y
       // castigarlos los volvería irrecomendables. Como el filtro es por
       // categoría, solo se comparan aliados de la misma línea entre sí.
-      const equiposDisponibles = p.equipos.filter((e) => ASIGNABLES.has(e.state)).length;
+      /**
+       * Solo cuentan los que ademas ALCANZAN lo que la solicitud pide. Una
+       * plataforma de 12 m disponible no sirve para una obra que necesita 18:
+       * contarla como capacidad inflaria el puntaje del aliado con un equipo
+       * que no puede ir.
+       */
+      const sirven = p.equipos.filter((e) => ASIGNABLES.has(e.state) && (e.noAlcanza ?? []).length === 0);
+      const cortos = p.equipos.filter((e) => ASIGNABLES.has(e.state) && (e.noAlcanza ?? []).length > 0);
+      const equiposDisponibles = sirven.length;
+
+      if (cortos.length > 0) {
+        advertencias.push(
+          `${cortos.length} equipo(s) suyo(s) libre(s) no alcanzan lo pedido: ${cortos[0].noAlcanza![0].texto}`,
+        );
+      }
       if (equiposDisponibles > 0) {
         puntaje += Math.min(45, 30 + (equiposDisponibles - 1) * 5);
         razones.push(`${equiposDisponibles} equipo(s) asignable(s) hoy`);

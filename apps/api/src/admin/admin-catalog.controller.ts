@@ -9,6 +9,22 @@ import { mkdirSync } from 'fs';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { productSlug, slugify } from '@maqserv/config';
+
+/**
+ * El JSON de atributos, o null si viene vacio o roto.
+ *
+ * NUNCA lanza: una ficha tecnica mal formada no puede impedir dar de alta un
+ * equipo. Se pierde la ficha, no el producto.
+ */
+function leerAtributos(v: string | undefined): object | null {
+  if (!v || !v.trim()) return null;
+  try {
+    const o = JSON.parse(v);
+    return o && typeof o === 'object' && !Array.isArray(o) ? o : null;
+  } catch {
+    return null;
+  }
+}
 import { AdminGuard } from './admin-auth';
 import { imageUrl } from '../catalog/images';
 
@@ -27,6 +43,11 @@ const productSchema = z.object({
   rentalFreight: z.coerce.number().min(0).optional(),
   /** Unidad del precio. Cadena vacia = por pieza, y hay que poder guardarla. */
   priceUnit: z.string().max(20).optional(),
+  /**
+   * Ficha tecnica estructurada. Llega como JSON en un campo del formulario
+   * porque el alta usa multipart (sube la foto) y ahi todo es texto.
+   */
+  attributes: z.string().max(4000).optional(),
   featured: z.coerce.boolean().optional(),
   status: z.coerce.number().int().min(0).max(1).optional(),
   lote: z.string().max(190).optional(),
@@ -108,6 +129,7 @@ export class AdminCatalogController {
       brand: p.Marca,
       isRental: p.is_rental,
       priceUnit: p.price_unit,
+      attributes: p.attributes ?? null,
       rentalFreight: p.rental_freight ? Number(p.rental_freight) : null,
       featured: p.featured === 1,
       status: p.status,
@@ -138,6 +160,7 @@ export class AdminCatalogController {
         Marca: d.brand ?? null,
         is_rental: d.isRental ?? false,
         price_unit: d.priceUnit?.trim() || null,
+        attributes: leerAtributos(d.attributes) as never,
         rental_freight: d.rentalFreight ?? null,
         featured: d.featured ? 1 : 0,
         status: d.status ?? 1,
@@ -180,6 +203,7 @@ export class AdminCatalogController {
         // Se compara con undefined, no con truthy: '' es un valor valido
         // ("por pieza") y con `|| null` no habria forma de quitar la unidad.
         ...(d.priceUnit !== undefined ? { price_unit: d.priceUnit.trim() || null } : {}),
+        ...(d.attributes !== undefined ? { attributes: leerAtributos(d.attributes) as never } : {}),
         ...(d.rentalFreight !== undefined ? { rental_freight: d.rentalFreight } : {}),
         ...(d.featured !== undefined ? { featured: d.featured ? 1 : 0 } : {}),
         ...(d.status !== undefined ? { status: d.status } : {}),

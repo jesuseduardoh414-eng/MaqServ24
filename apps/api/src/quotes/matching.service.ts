@@ -5,6 +5,7 @@ import { disponibilidadDe } from '../catalog/availability';
 import { historialDe, type AsignacionHistorica } from '../catalog/provider-history';
 import { emparejar, motivoSinCobertura, type Coincidencia, type ProveedorCandidato } from './matching';
 import { evaluarRequisitos } from '../catalog/requirements-match';
+import { desajustes } from '@maqserv/config';
 
 /**
  * ARMAR LOS CANDIDATOS DE UNA SOLICITUD.
@@ -76,7 +77,7 @@ export class MatchingService {
             where: { status: 1, provider_id: { in: idsAliados }, ...(cat ? { category_id: cat.id } : {}) },
             select: {
               id: true, name: true, stock: true, location: true,
-              availability_confirmed_at: true, provider_id: true,
+              availability_confirmed_at: true, provider_id: true, attributes: true,
             },
           })
         : Promise.resolve([]),
@@ -136,7 +137,15 @@ export class MatchingService {
       );
       equiposPorAliado.set(e.provider_id, [
         ...(equiposPorAliado.get(e.provider_id) ?? []),
-        { id: e.id, name: e.name, state: disp.state, location: disp.location },
+        {
+          id: e.id,
+          name: e.name,
+          state: disp.state,
+          location: disp.location,
+          // Lo que la solicitud pide se contrasta contra la ficha del equipo.
+          // Las llaves coinciden a proposito: ese es todo el puente.
+          noAlcanza: desajustes(categoria, e.attributes as Record<string, unknown> | null, reqs),
+        },
       ]);
     }
 
