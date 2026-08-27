@@ -475,7 +475,7 @@ function ModalAsignar({
 }) {
   const [datos, setDatos] = useState<{
     motivo: string | null;
-    matches: Array<{ providerId: number; name: string; verified: boolean; level: string; score: number; reasons: string[]; warnings: string[] }>;
+    matches: Array<{ providerId: number; name: string; verified: boolean; level: string; score: number; reasons: string[]; warnings: string[]; siteRequirements?: Array<{ texto: string; estado: string; nota: string }> }>;
   } | null>(null);
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState<number | null>(null);

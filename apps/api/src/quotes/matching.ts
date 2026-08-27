@@ -41,6 +41,11 @@ export interface ProveedorCandidato {
   responseMinutesReal?: number | null;
   /** Servicios que acepto y termino cancelando. */
   canceladosPropios?: number;
+  /**
+   * Lo que la obra exige, cruzado contra SU expediente. Vacio cuando la obra
+   * no exige nada.
+   */
+  requisitosObra?: Array<{ texto: string; estado: string; nota: string }>;
   monthsInNetwork: number | null;
   /** Equipos que ese aliado tiene en la categoría pedida y su estado. */
   equipos: Array<{ id: number; name: string; state: string; location: string | null }>;
@@ -160,6 +165,31 @@ export function emparejar(
         advertencias.push(
           `Cancelo ${p.canceladosPropios} servicio(s) que ya habia aceptado`,
         );
+      }
+
+      /**
+       * Lo que la obra exige (documento institucional, 23).
+       *
+       * NO descarta, advierte — mismo criterio que la zona. Un aliado sin la
+       * poliza al dia puede conseguirla en un dia, y a veces la obra la pide
+       * como formalidad; esconderlo dejaria solicitudes sin cubrir. Pero resta,
+       * porque entre dos que pueden, el que ya acredita llega antes.
+       */
+      const faltantes = (p.requisitosObra ?? []).filter((r) => r.estado === 'falta');
+      const porConfirmar = (p.requisitosObra ?? []).filter((r) => r.estado === 'por-confirmar');
+      if (faltantes.length > 0) {
+        puntaje -= faltantes.length * 15;
+        advertencias.push(
+          `La obra exige ${faltantes.map((f) => f.texto).join(', ')} y no lo acredita`,
+        );
+      }
+      if (porConfirmar.length > 0) {
+        advertencias.push(
+          `Confirmarle: ${porConfirmar.map((f) => f.texto).join(', ')}`,
+        );
+      }
+      if ((p.requisitosObra ?? []).length > 0 && faltantes.length === 0 && porConfirmar.length === 0) {
+        razones.push('Acredita todo lo que la obra exige');
       }
 
       // Antigüedad: hasta 10 puntos, uno por mes hasta los diez.

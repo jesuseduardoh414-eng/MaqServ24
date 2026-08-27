@@ -4,6 +4,7 @@ import { estadoDocumentos, estaVerificado, mesesEnRed } from '../catalog/provide
 import { disponibilidadDe } from '../catalog/availability';
 import { historialDe, type AsignacionHistorica } from '../catalog/provider-history';
 import { emparejar, motivoSinCobertura, type Coincidencia, type ProveedorCandidato } from './matching';
+import { evaluarRequisitos } from '../catalog/requirements-match';
 
 /**
  * ARMAR LOS CANDIDATOS DE UNA SOLICITUD.
@@ -32,8 +33,18 @@ export interface ResultadoEmparejamiento {
 @Injectable()
 export class MatchingService {
   async paraCotizacion(quoteId: number): Promise<ResultadoEmparejamiento> {
-    const q = await prisma.quotes.findUnique({ where: { id: quoteId } });
+    const q = await prisma.quotes.findUnique({
+      where: { id: quoteId },
+      include: { client_sites: { select: { requirements: true } } },
+    });
     if (!q) throw new NotFoundException('Cotización no encontrada');
+
+    /**
+     * Lo que la obra exige para dejar entrar. Sale de la OBRA y no de la
+     * solicitud: es una condicion del lugar, no de este pedido, y por eso se
+     * hereda a todo lo que salga de ahi.
+     */
+    const exigeLaObra = q.client_sites?.requirements ?? [];
 
     // La zona sale de las respuestas del formulario; si no las hay, de la
     // dirección de entrega, que es lo único que siempre se pide.
@@ -44,7 +55,9 @@ export class MatchingService {
 
     const aliados = await prisma.providers.findMany({
       where: { status: 1 },
-      include: { provider_documents: { select: { expires_at: true } } },
+      // Se trae el TIPO ademas de la vigencia: sin el no se puede saber si un
+      // documento acredita el seguro que la obra pide o solo el alta fiscal.
+      include: { provider_documents: { select: { kind: true, expires_at: true } } },
     });
     const enCategoria = categoria
       ? aliados.filter((a) => a.categories.includes(categoria))
@@ -143,6 +156,9 @@ export class MatchingService {
         // que cumple.
         responseMinutesReal: hist.minutosRespuestaReal,
         canceladosPropios: hist.cancelados,
+        requisitosObra: exigeLaObra.length
+          ? evaluarRequisitos(exigeLaObra, a.provider_documents, hoy)
+          : [],
         monthsInNetwork: mesesEnRed(a.joined_at),
         equipos: equiposPorAliado.get(a.id) ?? [],
       };
@@ -182,6 +198,7 @@ export class MatchingService {
       warnings: c.advertencias,
       availableEquipment: c.equiposDisponibles,
       equipment: c.proveedor.equipos,
+      siteRequirements: c.proveedor.requisitosObra ?? [],
     }));
   }
 }

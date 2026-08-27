@@ -38,13 +38,25 @@ const money = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigi
 const fecha = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: '2-digit' }) : '—';
 
-/** Los que más se repiten en obra. Se pueden escribir otros. */
+/**
+ * Los que más se repiten en obra. Se pueden escribir otros.
+ *
+ * IMPORTAN LAS PALABRAS EXACTAS: estas etiquetas coinciden con el catálogo de
+ * `requirements-match` en la API, que es el que cruza lo que la obra exige
+ * contra el expediente del aliado. Uno escrito a mano también sirve —el
+ * catálogo reconoce sinónimos— pero uno que no reconozca sale como "hay que
+ * confirmarlo con el aliado" en vez de verificarse solo.
+ *
+ * "Acceso sólo por la mañana" se quitó de aquí a propósito: no es algo que un
+ * aliado pueda acreditar con un papel, así que va en Notas y no como requisito.
+ */
 const SUGERIDOS = [
   'Inducción de seguridad',
   'Seguro vigente del operador',
+  'Póliza de responsabilidad civil',
+  'DC-3 del operador',
   'Vehículo con torreta',
   'Extintor a bordo',
-  'Acceso sólo por la mañana',
 ];
 
 export function SiteEditor({
