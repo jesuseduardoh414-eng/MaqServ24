@@ -9,6 +9,7 @@ import { AdminClientsController } from './admin-clients.controller';
 import { AdminMailController } from './admin-mail.controller';
 import { AdminAnalyticsController } from './admin-analytics.controller';
 import { AdminIncidentsController } from './admin-incidents.controller';
+import { AdminAgendaController } from './admin-agenda.controller';
 import { ServiceService } from '../quotes/service.service';
 import { MatchingService } from '../quotes/matching.service';
 import { AdminOpsController } from './admin-ops.controller';
@@ -35,7 +36,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
   // IntegrationsModule: los suscriptores se empujan a Perfex CRM con el mismo
   // PerfexService que usa el alta pública del footer.
   imports: [FreightModule, NotificationsModule, OrdersModule, IntegrationsModule],
-  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminPaymentsController, AdminFreightController, AdminFulfillmentController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminAdminsController, AdminProvidersController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController],
+  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminPaymentsController, AdminFreightController, AdminFulfillmentController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminAdminsController, AdminProvidersController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController, AdminAgendaController],
   providers: [AdminGuard, ServiceService, MatchingService],
 })
 export class AdminModule {}
