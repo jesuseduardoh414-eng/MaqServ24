@@ -21,6 +21,7 @@ import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/p
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAccesoAliado } from '../notifications/email-templates';
+import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incidents';
 
 /**
  * RED DE ALIADOS — alta y expediente de proveedores.
@@ -260,7 +261,7 @@ export class AdminProvidersController {
    */
   @Get(':id/history')
   async history(@Param('id', ParseIntPipe) id: number) {
-    const [prov, asigs] = await Promise.all([
+    const [prov, asigs, incidencias] = await Promise.all([
       prisma.providers.findUnique({
         where: { id },
         select: { id: true, name: true, response_minutes: true },
@@ -269,6 +270,16 @@ export class AdminProvidersController {
         where: { provider_id: id },
         orderBy: { id: 'desc' },
         include: { quotes: { select: { service_state: true, quote_number: true, service_category: true } } },
+      }),
+      /**
+       * Incidencias donde se le marco RESPONSABLE. Las demas quedan en el
+       * expediente del servicio: un aliado que aguanto una obra caotica no
+       * debe salir peor puntuado por haber estado ahi.
+       */
+      prisma.service_incidents.findMany({
+        where: { provider_id: id },
+        select: { id: true, kind: true, severity: true, responsible: true, state: true, description: true, opened_at: true },
+        orderBy: { opened_at: 'desc' },
       }),
     ]);
     if (!prov) throw new NotFoundException('Aliado no encontrado');
@@ -283,9 +294,35 @@ export class AdminProvidersController {
       })),
     );
 
+    // Puntualidad: la mitad que faltaba. Hasta que existio el compromiso de
+    // llegada, esto se reportaba como no medible — que era honesto pero era un
+    // hueco.
+    const punt = resumenPuntualidad(asigs.map((a) => ({ committed_at: a.committed_at, arrived_at: a.arrived_at })));
+    const suyas = incidencias.filter((i) => i.responsible === 'aliado');
+
     return {
       ...h,
       resumen: resumenHistorial(h),
+      puntualidad: {
+        ...punt,
+        texto: textoPuntualidad(punt),
+      },
+      incidencias: {
+        total: incidencias.length,
+        // Solo las suyas cuentan contra el: ver decision 2 en incidents.ts.
+        propias: suyas.length,
+        abiertas: incidencias.filter((i) => i.state === 'abierta').length,
+        recientes: incidencias.slice(0, 6).map((i) => ({
+          id: i.id,
+          kind: i.kind,
+          label: CATALOGO[i.kind as keyof typeof CATALOGO]?.label ?? i.kind,
+          severity: i.severity,
+          responsible: i.responsible,
+          state: i.state,
+          description: i.description,
+          openedAt: i.opened_at,
+        })),
+      },
       // Los dos numeros juntos a proposito: uno es lo que el aliado prometio,
       // el otro lo que cumple. Ensenar solo el declarado es repetir lo que
       // alguien escribio a mano; ensenar solo el real esconde el compromiso.

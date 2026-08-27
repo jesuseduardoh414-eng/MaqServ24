@@ -65,6 +65,12 @@ export class AdminAnalyticsController {
     ]);
 
     const ids = solicitudes.map((q) => q.id);
+    const incidencias = ids.length
+      ? await prisma.service_incidents.findMany({
+          where: { quote_id: { in: ids } },
+          select: { quote_id: true, state: true, severity: true },
+        })
+      : [];
     const asignaciones = ids.length
       ? await prisma.service_assignments.findMany({
           where: { quote_id: { in: ids } },
@@ -189,13 +195,22 @@ export class AdminAnalyticsController {
       }),
       indicador({
         clave: 'cancelaciones',
-        label: 'Cancelaciones',
+        label: 'Cancelaciones e incidencias',
         revela: 'Calidad operacional.',
-        valor: porcentaje(cancelados, terminados),
+        // Un servicio con tres incidencias es UN servicio con problemas, no
+        // tres: se cuentan servicios afectados y no incidencias sueltas, si no
+        // una obra mala inflaria el indicador ella sola.
+        valor: porcentaje(
+          new Set([
+            ...solicitudes.filter((q) => q.service_state === 'cancelado').map((q) => String(q.id)),
+            ...incidencias.map((i) => String(i.quote_id)),
+          ]).size,
+          terminados,
+        ),
         formato: 'porcentaje',
         muestra: terminados,
         subirEsBueno: false,
-        nota: 'Sobre los servicios que ya terminaron. Las incidencias de campo todavía no se registran, así que este indicador sólo cubre la mitad de lo que pide el documento.',
+        nota: `Servicios terminados que se cancelaron o tuvieron alguna incidencia. En el periodo: ${cancelados} cancelado(s) y ${new Set(incidencias.map((i) => String(i.quote_id))).size} servicio(s) con incidencia.`,
       }),
       indicador({
         clave: 'repeticion',

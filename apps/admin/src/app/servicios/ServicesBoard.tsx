@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Incidencias } from './Incidencias';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -98,6 +99,8 @@ export function ServicesBoard({ initial }: { initial: ServicioRow[] }) {
   const [cerrando, setCerrando] = useState<ServicioRow | null>(null);
   /** Servicio al que se le está buscando aliado. */
   const [asignando, setAsignando] = useState<ServicioRow | null>(null);
+  /** Servicio cuyas incidencias se están viendo. */
+  const [incidencias, setIncidencias] = useState<ServicioRow | null>(null);
   /**
    * Que hacer con cada servicio, segun el alterno. Se pide UNA vez para todo
    * el tablero al montar: uno por tarjeta serian tantas peticiones como
@@ -317,6 +320,15 @@ export function ServicesBoard({ initial }: { initial: ServicioRow[] }) {
                   <button type="button" onClick={() => setAsignando(s)} style={botonSec}>Sumar otro aliado</button>
                 )}
 
+                {/*
+                  Levantar una incidencia tiene que costar tres clics: si cuesta
+                  trabajo no se levanta, y entonces el registro dice que todo va
+                  bien porque nadie tuvo tiempo de decir lo contrario.
+                */}
+                <button type="button" onClick={() => setIncidencias(s)} style={botonSec}>
+                  Incidencias
+                </button>
+
                 {s.next.map((n) =>
                   n.state === 'cerrado' ? (
                     <button key={n.state} type="button" onClick={() => setCerrando(s)} disabled={ocupado === s.id} style={botonSec}>
@@ -356,6 +368,7 @@ export function ServicesBoard({ initial }: { initial: ServicioRow[] }) {
 
       {cerrando ? <ModalCierre servicio={cerrando} onCerrar={() => setCerrando(null)} onGuardar={mover} ocupado={ocupado === cerrando.id} /> : null}
       {asignando ? <ModalAsignar servicio={asignando} onCerrar={() => setAsignando(null)} onListo={() => { setAsignando(null); router.refresh(); }} /> : null}
+      {incidencias ? <Incidencias quoteId={incidencias.id} quoteNumber={incidencias.quoteNumber} onCerrar={() => setIncidencias(null)} /> : null}
     </div>
   );
 }

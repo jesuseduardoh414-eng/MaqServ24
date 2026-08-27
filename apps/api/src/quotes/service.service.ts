@@ -67,6 +67,21 @@ export class ServiceService {
     }
 
     const ahora = new Date();
+
+    /**
+     * Llegar a la obra sella la hora REAL de llegada en la asignación del
+     * aliado que la está atendiendo. Es la otra mitad de la puntualidad: sin
+     * esto habría compromiso pero nada contra qué compararlo.
+     *
+     * Sólo la primera vez: reabrir "en sitio" no reescribe cuándo llegó.
+     */
+    if (hacia === 'en_sitio') {
+      await prisma.service_assignments.updateMany({
+        where: { quote_id: quoteId, state: 'aceptado', arrived_at: null },
+        data: { arrived_at: ahora },
+      });
+    }
+
     // Cada paso sella SU fecha; las demás no se tocan.
     const sello =
       hacia === 'en_curso' && !q.service_started_at ? { service_started_at: ahora }
@@ -231,7 +246,17 @@ export class ServiceService {
   async responder(
     assignmentId: number,
     estado: 'aceptado' | 'rechazado' | 'retirado',
-    opts: { reason?: string | null; adminId?: number | null } = {},
+    opts: {
+      reason?: string | null;
+      adminId?: number | null;
+      /**
+       * Cuándo se compromete a llegar. Es lo que hace medible la puntualidad:
+       * la solicitud trae una fecha que el CLIENTE quiere; esto es lo que el
+       * ALIADO promete. Medir contra el deseo culparía al aliado de no cumplir
+       * algo que nunca prometió.
+       */
+      committedAt?: Date | null;
+    } = {},
   ) {
     const a = await prisma.service_assignments.findUnique({
       where: { id: assignmentId },
@@ -244,7 +269,12 @@ export class ServiceService {
 
     await prisma.service_assignments.update({
       where: { id: assignmentId },
-      data: { state: estado, reason: opts.reason?.trim() || null, responded_at: new Date() },
+      data: {
+        state: estado,
+        reason: opts.reason?.trim() || null,
+        responded_at: new Date(),
+        ...(estado === 'aceptado' && opts.committedAt ? { committed_at: opts.committedAt } : {}),
+      },
     });
 
     const quoteId = Number(a.quote_id);

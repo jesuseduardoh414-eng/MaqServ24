@@ -1021,6 +1021,7 @@ model quotes {
   client_sites        client_sites?         @relation(fields: [site_id], references: [id], onUpdate: NoAction)
   service_assignments service_assignments[]
   service_events      service_events[]
+  service_incidents   service_incidents[]
 
   @@index([client_id], map: "quotes_client_idx")
   @@index([site_id], map: "quotes_site_idx")
@@ -1488,6 +1489,7 @@ model providers {
   access_sent_at      DateTime?             @db.Timestamp(6)
   provider_documents  provider_documents[]
   service_assignments service_assignments[]
+  service_incidents   service_incidents[]
 
   @@index([level])
 }
@@ -1517,11 +1519,14 @@ model service_assignments {
   responded_at DateTime? @db.Timestamp(6)
   created_by   Int?
   created_at   DateTime  @default(now()) @db.Timestamp(6)
+  committed_at DateTime? @db.Timestamp(6)
+  arrived_at   DateTime? @db.Timestamp(6)
   providers    providers @relation(fields: [provider_id], references: [id], onUpdate: NoAction)
   quotes       quotes    @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([provider_id, state], map: "service_assignments_provider_idx")
   @@index([quote_id, id], map: "service_assignments_quote_idx")
+  @@index([committed_at], map: "service_assignments_committed_idx")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -1598,6 +1603,31 @@ model email_log {
   @@index([created_at(sort: Desc)], map: "email_log_created_idx")
   @@index([quote_id], map: "email_log_quote_idx")
   @@index([state, created_at(sort: Desc)], map: "email_log_state_idx")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model service_incidents {
+  id          Int        @id @default(autoincrement())
+  quote_id    BigInt
+  provider_id Int?
+  kind        String     @db.VarChar(20)
+  severity    String     @default("media") @db.VarChar(10)
+  responsible String     @default("nadie") @db.VarChar(20)
+  description String
+  evidence    String[]   @default([])
+  state       String     @default("abierta") @db.VarChar(10)
+  resolution  String?
+  opened_by   Int?
+  closed_by   Int?
+  opened_at   DateTime   @default(now()) @db.Timestamp(6)
+  closed_at   DateTime?  @db.Timestamp(6)
+  created_at  DateTime   @default(now()) @db.Timestamp(6)
+  providers   providers? @relation(fields: [provider_id], references: [id], onUpdate: NoAction)
+  quotes      quotes     @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([state, opened_at(sort: Desc)], map: "service_incidents_open_idx")
+  @@index([provider_id, state], map: "service_incidents_provider_idx")
+  @@index([quote_id, id], map: "service_incidents_quote_idx")
 }
 
 enum counters_type {
