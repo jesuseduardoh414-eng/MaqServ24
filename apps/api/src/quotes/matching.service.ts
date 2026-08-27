@@ -29,6 +29,8 @@ export interface ResultadoEmparejamiento {
   motivo: string | null;
   /** Datos de contacto, por id de aliado. */
   contacto: Map<number, { phone: string | null; contactName: string | null }>;
+  /** Dónde está la obra, si ya se geocodificó. Es lo que ancla el mapa. */
+  punto: { lat: number; lon: number } | null;
 }
 
 @Injectable()
@@ -200,6 +202,7 @@ export class MatchingService {
       contacto: new Map(
         enCategoria.map((a) => [a.id, { phone: a.phone, contactName: a.contact_name }]),
       ),
+      punto,
     };
   }
 
@@ -221,6 +224,12 @@ export class MatchingService {
       availableEquipment: c.equiposDisponibles,
       equipment: c.proveedor.equipos,
       siteRequirements: c.proveedor.requisitosObra ?? [],
+      // Para el mapa: dónde está y hasta dónde llega. Sin esto, la pantalla
+      // sólo podía LEER "a 12 km" en una frase, no mostrarlo.
+      lat: c.proveedor.lat,
+      lng: c.proveedor.lng,
+      coverageRadiusKm: c.proveedor.coverageRadiusKm ?? null,
+      distanceKm: c.distanciaKm,
     }));
   }
 }

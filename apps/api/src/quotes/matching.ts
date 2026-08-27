@@ -143,6 +143,14 @@ export interface Coincidencia {
   advertencias: string[];
   /** Equipos suyos que hoy se podrían asignar. */
   equiposDisponibles: number;
+  /**
+   * Kilómetros por carretera hasta la obra, cuando los dos están ubicados.
+   *
+   * Ya se calculaba para escribir "A 12 km de la obra", pero se perdía dentro
+   * de esa frase. Guardarlo permite pintarlo en el mapa y ordenar por cercanía:
+   * dos máquinas iguales no valen lo mismo si una está a 5 km y la otra a 150.
+   */
+  distanciaKm: number | null;
 }
 
 /** Compara municipios ignorando acentos, mayúsculas y espacios de sobra. */
@@ -315,7 +323,7 @@ export function emparejar(
         advertencias.push('No tiene equipos registrados en esta categoría');
       }
 
-      return { proveedor: p, puntaje, razones, advertencias, equiposDisponibles };
+      return { proveedor: p, puntaje, razones, advertencias, equiposDisponibles, distanciaKm: cob.km };
     })
     .sort((a, b) => {
       if (b.puntaje !== a.puntaje) return b.puntaje - a.puntaje;

@@ -28,6 +28,10 @@ export class AdminMatchingController {
       // Sin candidatos, lo importante NO es la lista vacía sino el porqué: es el
       // dato que el documento pide para dirigir el reclutamiento de aliados.
       motivo: r.motivo,
+      // La obra: es lo que ancla el mapa. Sin coordenadas no hay mapa que
+      // pintar, y la pantalla tiene que poder decir por qué en vez de mostrar
+      // un mapa vacío.
+      obra: r.punto ? { lat: r.punto.lat, lng: r.punto.lon, label: r.zona ?? 'La obra' } : null,
       matches: this.matching.aJson(r),
     };
   }

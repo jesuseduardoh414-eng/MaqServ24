@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { D, FONT } from '@/components/editor-kit';
+import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 
 /**
  * ¿QUIÉN PUEDE ATENDER ESTA SOLICITUD? (documento, secciones 16 y 17).
@@ -29,6 +30,11 @@ interface Match {
   warnings: string[];
   availableEquipment: number;
   equipment: Array<{ id: number; name: string; state: string; location: string | null }>;
+  lat: number | null;
+  lng: number | null;
+  coverageRadiusKm: number | null;
+  /** Kilómetros por carretera hasta la obra, si los dos están ubicados. */
+  distanceKm: number | null;
 }
 
 interface Respuesta {
@@ -37,6 +43,8 @@ interface Respuesta {
   zona: string | null;
   total: number;
   motivo: string | null;
+  /** Dónde está la obra. Null si la dirección todavía no se geocodificó. */
+  obra: { lat: number; lng: number; label: string } | null;
   matches: Match[];
 }
 
@@ -51,6 +59,44 @@ export function QuoteMatches({ quoteId }: { quoteId: number }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Respuesta | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /**
+   * La obra y los candidatos ubicados, en un solo mapa.
+   *
+   * "A 12 km de la obra" contesta cuánto, pero no HACIA DÓNDE: dos aliados a la
+   * misma distancia pueden estar en lados opuestos de la ciudad, y con el
+   * tráfico de Monterrey eso son dos horas de diferencia. El mapa muestra lo
+   * que la lista no puede.
+   *
+   * La obra va primero para que quede debajo de los círculos de cobertura y
+   * encima no la tape nadie.
+   */
+  const puntos = useMemo<PuntoMapa[]>(() => {
+    if (!data?.obra) return [];
+    const obra: PuntoMapa = {
+      id: -1,
+      nombre: 'La obra',
+      lat: data.obra.lat,
+      lng: data.obra.lng,
+      tipo: 'obra',
+      detalle: data.obra.label,
+    };
+    const aliados = data.matches
+      .filter((m): m is Match & { lat: number; lng: number } => m.lat != null && m.lng != null)
+      .map((m) => ({
+        id: m.providerId,
+        nombre: m.name,
+        lat: m.lat,
+        lng: m.lng,
+        radioKm: m.coverageRadiusKm,
+        tipo: 'aliado' as const,
+        detalle: m.distanceKm != null ? `A ${m.distanceKm} km de la obra` : null,
+      }));
+    return [obra, ...aliados];
+  }, [data]);
+
+  /** Cuántos candidatos NO se pueden pintar: se dice, no se esconde. */
+  const sinUbicar = (data?.matches ?? []).filter((m) => m.lat == null || m.lng == null).length;
 
   async function abrir() {
     setOpen(true);
@@ -114,6 +160,36 @@ export function QuoteMatches({ quoteId }: { quoteId: number }) {
           <div style={{ fontSize: 13, color: D.warn, padding: '14px 0' }}>{error}</div>
         ) : null}
 
+        {/* El mapa antes de la lista: la primera pregunta al asignar es "¿quién
+            está cerca?", y eso se ve, no se lee. */}
+        {puntos.length > 1 ? (
+          <div style={{ marginBottom: 16 }}>
+            <MapaCobertura puntos={puntos} alto={240} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, color: D.muted }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0A32E' }} /> La obra
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#008CFF' }} /> Aliado y hasta dónde llega
+              </span>
+              {sinUbicar > 0 ? (
+                <span style={{ color: D.warn }}>
+                  {sinUbicar} candidato{sinUbicar === 1 ? '' : 's'} sin ubicar: no aparece{sinUbicar === 1 ? '' : 'n'} en el mapa
+                </span>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Sin mapa hay que decir POR QUÉ, o parece que se rompió. */}
+        {data && data.matches.length > 0 && puntos.length <= 1 ? (
+          <div style={{ marginBottom: 16, padding: '11px 14px', border: `1px solid ${D.cardBorder}`, borderRadius: 11, fontSize: 12.5, color: D.muted, lineHeight: 1.55 }}>
+            {!data.obra
+              ? 'No hay mapa porque la obra todavía no tiene ubicación. Ponle coordenadas en Clientes y obras y aquí verás quién está cerca.'
+              : 'No hay mapa porque ninguno de los candidatos está ubicado. Usa “Ponerlo en el mapa” en el expediente de cada aliado.'}
+          </div>
+        ) : null}
+
         {data && data.matches.length === 0 ? (
           <div style={{ padding: '26px 0', textAlign: 'center' }}>
             <div style={{ fontSize: 14.5, fontWeight: 700, color: '#B4B4B9' }}>Nadie en la red cubre esto todavía</div>
@@ -139,6 +215,11 @@ export function QuoteMatches({ quoteId }: { quoteId: number }) {
                   ) : null}
                 </div>
                 <span style={{ fontSize: 11.5, color: D.muted2, whiteSpace: 'nowrap' }}>
+                  {/* La distancia, al frente: es lo que decide entre dos
+                      aliados equivalentes y lo que se paga en el traslado. */}
+                  {m.distanceKm != null ? (
+                    <span style={{ color: D.text, fontWeight: 700 }}>{m.distanceKm} km · </span>
+                  ) : null}
                   {NIVEL[m.level] ?? m.level}
                   {/* El puntaje se muestra en chico y al final: es para ordenar,
                       no para que nadie decida con él. Lo que se lee son las razones. */}

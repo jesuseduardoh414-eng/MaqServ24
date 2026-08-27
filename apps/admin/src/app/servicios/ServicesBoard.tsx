@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Incidencias } from './Incidencias';
 import { useRouter } from 'next/navigation';
+import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 
 /**
  * TABLERO DE OPERACIONES.
@@ -475,7 +476,8 @@ function ModalAsignar({
 }) {
   const [datos, setDatos] = useState<{
     motivo: string | null;
-    matches: Array<{ providerId: number; name: string; verified: boolean; level: string; score: number; reasons: string[]; warnings: string[]; siteRequirements?: Array<{ texto: string; estado: string; nota: string }> }>;
+    obra?: { lat: number; lng: number; label: string } | null;
+    matches: Array<{ providerId: number; name: string; verified: boolean; level: string; score: number; reasons: string[]; warnings: string[]; siteRequirements?: Array<{ texto: string; estado: string; nota: string }>; lat?: number | null; lng?: number | null; coverageRadiusKm?: number | null; distanceKm?: number | null }>;
   } | null>(null);
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState<number | null>(null);
@@ -491,6 +493,25 @@ function ModalAsignar({
     // cerrar antes de que conteste la API.
     return () => { vivo = false; };
   }, [servicio.id]);
+
+  /** La obra y los candidatos ubicados. Mismo mapa que en cotizaciones. */
+  const puntos = useMemo<PuntoMapa[]>(() => {
+    if (!datos?.obra) return [];
+    return [
+      { id: -1, nombre: 'La obra', lat: datos.obra.lat, lng: datos.obra.lng, tipo: 'obra', detalle: datos.obra.label },
+      ...datos.matches
+        .filter((m) => m.lat != null && m.lng != null)
+        .map((m) => ({
+          id: m.providerId,
+          nombre: m.name,
+          lat: m.lat as number,
+          lng: m.lng as number,
+          radioKm: m.coverageRadiusKm ?? null,
+          tipo: 'aliado' as const,
+          detalle: m.distanceKm != null ? `A ${m.distanceKm} km de la obra` : null,
+        })),
+    ];
+  }, [datos]);
 
   async function ofrecer(providerId: number) {
     setEnviando(providerId);
@@ -521,6 +542,22 @@ function ModalAsignar({
         </p>
 
         {cargando ? <div style={{ fontSize: 13, color: C.muted, padding: '18px 0' }}>Consultando la red…</div> : null}
+
+        {/* El mapa antes de la lista: al asignar, la primera pregunta es quién
+            está cerca, y "a 12 km" no dice hacia qué lado. */}
+        {puntos.length > 1 ? (
+          <div style={{ marginBottom: 16 }}>
+            <MapaCobertura puntos={puntos} alto={230} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, color: C.muted }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0A32E' }} /> La obra
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#008CFF' }} /> Aliado y hasta dónde llega
+              </span>
+            </div>
+          </div>
+        ) : null}
 
         {datos && datos.matches.length === 0 && !cargando ? (
           <div style={{ padding: '22px 0', fontSize: 13, color: C.muted, lineHeight: 1.6 }}>{datos.motivo}</div>
