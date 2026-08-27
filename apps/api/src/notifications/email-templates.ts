@@ -273,6 +273,63 @@ export function correoAccesoAliado(d: {
   };
 }
 
+export function correoRecordatorioAliado(d: {
+  aliado: string;
+  contacto: string | null;
+  url: string;
+  equipos: Array<{ nombre: string; cuando: string }>;
+  documentos: Array<{ texto: string; nombre: string }>;
+  diasFrescura: number;
+}): { subject: string; html: string } {
+  const equipos =
+    d.equipos.length > 0
+      ? `<p style="margin:16px 0 6px;"><strong style="color:${TINTA};">Confirmanos si estos siguen libres:</strong></p>
+         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${BORDE};border-radius:3px;">
+           ${d.equipos
+             .slice(0, 12)
+             .map(
+               (e, i) =>
+                 `<tr>
+                    <td style="padding:8px 14px;color:${TINTA};font-size:14px;${i ? `border-top:1px solid ${BORDE};` : ''}">${esc(e.nombre)}</td>
+                    <td style="padding:8px 14px;color:${GRIS};font-size:13px;text-align:right;${i ? `border-top:1px solid ${BORDE};` : ''}">${esc(e.cuando)}</td>
+                  </tr>`,
+             )
+             .join('')}
+         </table>
+         ${d.equipos.length > 12 ? `<p style="margin:8px 0 0;font-size:13px;color:${GRIS};">Y ${d.equipos.length - 12} mas.</p>` : ''}`
+      : '';
+
+  // Los papeles van en el MISMO correo: dos mensajes el mismo dia por cosas del
+  // mismo expediente ensenan a archivar sin leer.
+  const papeles =
+    d.documentos.length > 0
+      ? `<div style="margin:18px 0 0;padding:12px 14px;border:1px solid ${AZUL};border-radius:3px;background:#F0F7FF;">
+           <div style="font-size:12px;color:${AZUL};font-weight:bold;letter-spacing:1px;margin-bottom:6px;">TUS PAPELES</div>
+           ${d.documentos.map((x) => `<div style="color:${TINTA};font-size:14px;margin-bottom:3px;">${esc(x.texto)} — ${esc(x.nombre)}</div>`).join('')}
+           <div style="margin-top:6px;font-size:12.5px;color:${GRIS};">Un papel vencido te quita el sello de verificado y te saca de las propuestas. Mandanos el renovado y lo subimos.</div>
+         </div>`
+      : '';
+
+  const asunto =
+    d.equipos.length > 0
+      ? `${d.aliado}: confirmanos ${d.equipos.length} equipo${d.equipos.length === 1 ? '' : 's'}`
+      : `${d.aliado}: revisa tus papeles`;
+
+  return {
+    subject: asunto,
+    html: marco(
+      `${titulo('Ayudanos a ofrecerte mas trabajo')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
+      <p style="margin:0;">Solo te proponemos equipos que sabemos que estan libres. Cuando pasan ${d.diasFrescura} dias sin confirmar, dejamos de ofrecerlos — no porque no confiemos, sino porque no queremos comprometerte con algo que ya rentaste.</p>
+      ${equipos}
+      ${papeles}
+      ${boton('Confirmar en un clic', d.url)}
+      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">No hace falta contrasena: el enlace es tuyo.</p>`,
+      'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
+    ),
+  };
+}
+
 export function correoDePrueba(destino: string): { subject: string; html: string } {
   return {
     subject: 'Prueba de correo · MAQSER24',

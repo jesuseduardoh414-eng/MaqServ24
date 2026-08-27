@@ -51,6 +51,8 @@ const TIPO: Record<string, string> = {
   service_status: 'Avance del servicio',
   provider_offer: 'Oferta a un aliado',
   provider_assigned: 'Asignación a un aliado',
+  provider_access: 'Enlace de acceso',
+  availability_reminder: 'Recordatorio de disponibilidad',
   prueba: 'Prueba',
 };
 
@@ -82,6 +84,17 @@ export function MailPanel({
   const [msg, setMsg] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [filtro, setFiltro] = useState<string | null>(null);
+  /**
+   * Vista previa de los recordatorios. Se pide primero y se manda despues:
+   * antes de escribirle a la red entera hay que poder ver a quien le toca y
+   * por que.
+   */
+  const [previa, setPrevia] = useState<{
+    mensaje: string;
+    alcanzados: number;
+    omitidos: number;
+    candidatos: Array<{ providerId: number; name: string; motivo: string; seLeEscribe: boolean; equipos: unknown[]; documentos: unknown[] }>;
+  } | null>(null);
 
   const encendido = estado?.habilitado ?? false;
   const color = encendido ? C.ok : estado?.configurado ? C.warn : C.bad;
@@ -105,6 +118,23 @@ export function MailPanel({
     const d = await r.json().catch(() => null);
     setOcupado(false);
     setMsg(d?.mensaje ?? 'No se pudo mandar.');
+    router.refresh();
+  }
+
+  async function verRecordatorios() {
+    setOcupado(true); setMsg(null);
+    const r = await fetch('/api/admin/mail/recordatorios');
+    setPrevia(r.ok ? await r.json() : null);
+    setOcupado(false);
+  }
+
+  async function mandarRecordatorios() {
+    setOcupado(true); setMsg(null);
+    const r = await fetch('/api/admin/mail/recordatorios', { method: 'POST' });
+    const d = await r.json().catch(() => null);
+    setOcupado(false);
+    setPrevia(null);
+    setMsg(d?.mensaje ?? 'No se pudo.');
     router.refresh();
   }
 
@@ -180,6 +210,48 @@ export function MailPanel({
         {msg ? (
           <div style={{ marginTop: 12, fontSize: 13, color: C.ink, background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 10, padding: '10px 13px' }}>
             {msg}
+          </div>
+        ) : null}
+      </div>
+
+      {/*
+        RECORDATORIOS (documento institucional, 18).
+        La regla de los 14 dias ya existia y ya funcionaba: un equipo sin
+        confirmar deja de proponerse solo. Faltaba que alguien se enterara.
+      */}
+      <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: 18, marginBottom: 20 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 4 }}>Recordar a los aliados</div>
+        <p style={{ margin: '0 0 13px', fontSize: 12.5, color: C.muted, lineHeight: 1.6 }}>
+          Un correo por aliado con sus equipos sin confirmar y sus papeles por vencer, con su enlace
+          para resolverlo en un clic. A nadie se le escribe dos veces en la misma semana.
+        </p>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" style={botonSec} onClick={verRecordatorios} disabled={ocupado}>
+            Ver a quién le toca
+          </button>
+          {previa && previa.alcanzados > 0 ? (
+            <button type="button" style={{ ...boton, opacity: ocupado ? 0.6 : 1 }} onClick={mandarRecordatorios} disabled={ocupado}>
+              Mandar a {previa.alcanzados}
+            </button>
+          ) : null}
+        </div>
+
+        {previa ? (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 13, color: C.ink, marginBottom: 10 }}>{previa.mensaje}</div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {previa.candidatos.map((c) => (
+                <div key={c.providerId} style={{ display: 'flex', gap: 11, fontSize: 12.5, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                  <span style={{ minWidth: 12, color: c.seLeEscribe ? C.ok : C.dim }}>{c.seLeEscribe ? '→' : '·'}</span>
+                  <span style={{ color: c.seLeEscribe ? C.ink : C.dim, minWidth: 210 }}>{c.name}</span>
+                  {/* El motivo se lee siempre, tambien cuando NO se le escribe:
+                      un aliado sin correo es un dato a corregir, no una fila
+                      que desaparece. */}
+                  <span style={{ color: C.muted }}>{c.motivo}</span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
       </div>

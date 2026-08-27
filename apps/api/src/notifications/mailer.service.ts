@@ -41,6 +41,7 @@ export type TipoCorreo =
   | 'provider_offer'      // al aliado: te ofrecemos esta solicitud
   | 'provider_assigned'   // al aliado: quedó tuya
   | 'provider_access'     // al aliado: tu enlace para entrar
+  | 'availability_reminder' // al aliado: confirma que sigue libre
   | 'prueba';
 
 export interface CorreoParaEnviar {

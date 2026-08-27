@@ -3,6 +3,7 @@ import { prisma } from '@maqserv/db';
 import { z } from 'zod';
 import { AdminGuard } from './admin-auth';
 import { MailerService } from '../notifications/mailer.service';
+import { RemindersService } from '../notifications/reminders.service';
 import { correoDePrueba } from '../notifications/email-templates';
 
 /**
@@ -16,7 +17,10 @@ import { correoDePrueba } from '../notifications/email-templates';
 @Controller('admin/mail')
 @UseGuards(AdminGuard)
 export class AdminMailController {
-  constructor(private readonly mailer: MailerService) {}
+  constructor(
+    private readonly mailer: MailerService,
+    private readonly reminders: RemindersService,
+  ) {}
 
   /** Cómo está la configuración y qué ha pasado últimamente. */
   @Get('status')
@@ -78,6 +82,23 @@ export class AdminMailController {
         createdAt: r.created_at,
       })),
     };
+  }
+
+  /**
+   * A quien le tocaria un recordatorio hoy. NO manda nada.
+   *
+   * Antes de escribirle a la red entera conviene ver a quien le toca y por
+   * que, y eso no deberia requerir mandar nada.
+   */
+  @Get('recordatorios')
+  verRecordatorios() {
+    return this.reminders.enviar({ soloVer: true });
+  }
+
+  /** Manda los recordatorios de disponibilidad y papeles. */
+  @Post('recordatorios')
+  mandarRecordatorios() {
+    return this.reminders.enviar();
   }
 
   /** ¿El servidor de correo contesta? Antes de encenderlo conviene saberlo. */
