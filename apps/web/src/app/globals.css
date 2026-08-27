@@ -82,6 +82,26 @@ h1, h2, h3, h4 {
   --ph-stripes: repeating-linear-gradient(135deg, var(--ph-a) 0 15px, var(--ph-b) 15px 30px);
 }
 
+/*
+ * FONDO DE LAS BANDAS OSCURAS (hero, barra superior, pie, bandas CTA).
+ *
+ * Antes usaban `--color-secondary`, que en modo oscuro es el gunmetal #2B333D:
+ * eso pintaba de GRIS el hero y la barra superior sobre un sitio negro. El
+ * gunmetal es un color de ELEMENTO (bordes, insignias, chips), no de fondo.
+ *
+ * - Modo oscuro → el negro tecnológico del propio fondo: las bandas continúan
+ *   la página en lugar de recortarse en gris.
+ * - Modo claro  → sigue siendo el grafito `--color-secondary`, porque ahí la
+ *   banda necesita contrastar contra el blanco y su texto va en blanco.
+ *
+ * Se deriva de los tokens de la BD, así que sigue siendo configurable desde el
+ * admin (cambiar el fondo/secundario del tema cambia también las bandas).
+ */
+:root { --band: var(--color-secondary); }
+@media (prefers-color-scheme: dark) { :root { --band: var(--color-bg); } }
+:root[data-theme="light"] { --band: var(--color-secondary); }
+:root[data-theme="dark"] { --band: var(--color-bg); }
+
 @keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 @keyframes floatY2 { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(9px); } }
 @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }

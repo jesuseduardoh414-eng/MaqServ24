@@ -5,6 +5,24 @@ import { CartProvider } from '@/components/CartProvider';
 import { DevAutoRefresh } from '@/components/DevAutoRefresh';
 import './globals.css';
 
+/**
+ * CADUCIDAD DE LAS PÁGINAS (red de seguridad del panel).
+ *
+ * Sin esto, las páginas salían del build como estáticas PURAS y se quedaban
+ * congeladas para siempre: medido el 2026-08-27, la home llevaba 2 h 40 min
+ * sirviendo el mismo prerender (`X-Vercel-Cache: HIT` con el `Age` subiendo sin
+ * parar, ni un solo `STALE`) mientras la API ya devolvía el hero recién
+ * publicado. El `revalidate: 60` de los fetch (`CONTENT_CACHE`) NO bastaba.
+ *
+ * Al declararlo en el layout raíz, lo heredan todas las rutas: lo que el
+ * cliente publica desde el panel aparece solo, como mucho un minuto después.
+ *
+ * Esto NO sustituye a `REVALIDATE_SECRET` (que hace el cambio instantáneo y
+ * hoy falta en Vercel, ver `/api/revalidate` → 503): es la red por debajo, para
+ * que una variable mal puesta no vuelva a dejar el panel sin efecto.
+ */
+export const revalidate = 60;
+
 export async function generateMetadata() {
   const theme = await getTheme();
   return { title: t(theme, 'site.name') };

@@ -12,7 +12,8 @@ const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', paddi
 
 // Eyebrow dorado (oscurece el primario para leerse sobre fondo claro, sin salir del token).
 const GOLD = 'color-mix(in srgb, var(--color-primary) 82%, #000)';
-const INK = 'var(--color-secondary)'; // tinta oscura del tema (bandas oscuras)
+const INK = 'var(--band)'; // fondo de las bandas oscuras (negro en modo oscuro)
+const CHIP = 'var(--color-secondary)'; // gunmetal: SOLO piezas pequeñas sobre fondo claro
 
 interface InfSitio {
   frase: string | null; titulo: string | null; descripcion: string | null;
@@ -98,7 +99,7 @@ export default async function AboutPage() {
             <div style={{ borderRadius: 'var(--radius-lg)', overflow: 'hidden', position: 'relative', background: 'var(--surface-2)' }}>
               {imgs[1] ? <Image src={imgs[1]} alt="" fill sizes="30vw" style={{ objectFit: 'cover' }} /> : <span className="ph" style={{ position: 'absolute', inset: 0 }} />}
             </div>
-            <div style={{ borderRadius: 'var(--radius-lg)', background: INK, color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 22 }}>
+            <div style={{ borderRadius: 'var(--radius-lg)', background: INK, border: '1px solid var(--color-border)', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: 22 }}>
               {/* Decia '24/7 · Soporte y disponibilidad', escrito fijo en la pagina.
                   Es el ejemplo que el manual pone como prohibido mientras la red no
                   pueda garantizarlo. Se cambia por las seis lineas de servicio, que si
@@ -111,7 +112,7 @@ export default async function AboutPage() {
 
         {/* ===== STATS ===== */}
         {qs.stats.length > 0 ? (
-          <section style={{ background: INK }}>
+          <section style={{ background: INK, borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
             <div style={{ ...CONTAINER, paddingTop: 52, paddingBottom: 52, display: 'grid', gridTemplateColumns: `repeat(${qs.stats.length}, 1fr)`, gap: 24 }} className="qs-stats">
               {qs.stats.map((s, i) => (
                 <div key={i} style={{ textAlign: 'center', padding: '0 12px', borderRight: i < qs.stats.length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
@@ -133,7 +134,7 @@ export default async function AboutPage() {
             <div style={{ display: 'grid', gridTemplateColumns: `repeat(${purpose.length}, 1fr)`, gap: 24 }} className="qs-cards-3">
               {purpose.map((p) => (
                 <div key={p.title} style={{ background: 'var(--surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '36px 32px' }}>
-                  <div style={{ width: 52, height: 52, borderRadius: 14, background: INK, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 22 }} dangerouslySetInnerHTML={{ __html: svg(p.icon) }} />
+                  <div style={{ width: 52, height: 52, borderRadius: 14, background: CHIP, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 22 }} dangerouslySetInnerHTML={{ __html: svg(p.icon) }} />
                   <h3 style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 800, color: 'var(--color-text)' }}>{p.title}</h3>
                   <div className="qs-body" style={{ margin: 0, fontSize: '15.5px', lineHeight: 1.65, color: 'var(--color-text-muted)' }} dangerouslySetInnerHTML={{ __html: p.html as string }} />
                 </div>
@@ -171,7 +172,7 @@ export default async function AboutPage() {
                 <div aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: 15, height: 2, background: 'var(--color-border)' }} />
                 {qs.timeline.map((m, i) => (
                   <div key={i} style={{ position: 'relative', paddingRight: 24 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: INK, border: '4px solid var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: CHIP, border: '4px solid var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
                       <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-primary)' }} />
                     </div>
                     <div style={{ fontFamily: 'var(--font-heading)', fontSize: 24, fontWeight: 900, color: GOLD, marginBottom: 6 }}>{m.year}</div>
@@ -219,7 +220,7 @@ export default async function AboutPage() {
 
         {/* ===== CTA ===== */}
         <section style={{ ...CONTAINER, paddingTop: 20, paddingBottom: 80 }}>
-          <div style={{ background: INK, borderRadius: 26, padding: '60px 56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40, position: 'relative', overflow: 'hidden' }} className="qs-cta">
+          <div style={{ background: INK, border: '1px solid var(--color-border)', borderRadius: 26, padding: '60px 56px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40, position: 'relative', overflow: 'hidden' }} className="qs-cta">
             <div aria-hidden style={{ position: 'absolute', right: -60, top: -60, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, color-mix(in srgb, var(--color-primary) 22%, transparent), transparent 70%)' }} />
             <div style={{ position: 'relative', maxWidth: 640 }}>
               <h2 style={{ margin: '0 0 12px', fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.8rem, 3.4vw, 2.4rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>{qs.ctaTitle}</h2>

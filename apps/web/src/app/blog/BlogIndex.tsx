@@ -13,7 +13,7 @@ import type { BlogCard } from '@maqserv/types';
 
 const MONO = "'Inter', system-ui, sans-serif";
 const DISPLAY = 'var(--font-display)';
-const DARK = 'var(--color-secondary)';
+const DARK = 'var(--band)';
 const AMBER = 'var(--color-primary)';
 
 // Orden canónico de las categorías (coincide con el selector del admin).

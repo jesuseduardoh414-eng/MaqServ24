@@ -41,7 +41,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
       {/* Barra superior. En móvil se queda solo el teléfono (lo demás vive en el
           drawer): con todo visible se apilaba en 4 renglones y se comía media
           pantalla. */}
-      <div style={{ background: 'var(--color-secondary)', color: 'rgba(255,255,255,.66)', fontSize: '12.5px', fontWeight: 300 }}>
+      <div style={{ background: 'var(--band)', color: 'rgba(255,255,255,.66)', fontSize: '12.5px', fontWeight: 300, borderBottom: '1px solid var(--color-border)' }}>
         <div className="tb-row" style={{ ...CONTAINER, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', paddingTop: 9, paddingBottom: 9 }}>
           <div className="tb-left" style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
             {cPhone ? (
@@ -178,7 +178,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
 export function SiteFooter({ theme }: { theme: Theme }) {
   const brand = t(theme, 'site.name');
   const year = new Date().getFullYear();
-  // El footer es siempre oscuro (--color-secondary) → logo para fondo oscuro (blanco).
+  // El footer es siempre oscuro (--band) → logo para fondo oscuro (blanco).
   const b = theme.tokens.branding ?? {};
   const footerLogo = b.logoDark || b.logoLight || b.logoAlt || null;
 
@@ -190,7 +190,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
   const linkStyle: React.CSSProperties = { color: 'rgba(255,255,255,.66)', textDecoration: 'none', fontSize: '13.5px', fontWeight: 300 };
 
   return (
-    <footer style={{ background: 'var(--color-secondary)', color: 'rgba(255,255,255,.66)', marginTop: 40 }}>
+    <footer style={{ background: 'var(--band)', color: 'rgba(255,255,255,.66)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
       <div style={{ ...CONTAINER, paddingTop: 64 }}>
         {f.showNewsletter ? (
           <FooterNewsletter

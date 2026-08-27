@@ -12,7 +12,7 @@ type Params = { slug: string };
 
 const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(16px, 4vw, 26px)' };
 const GOLD = 'color-mix(in srgb, var(--color-primary) 82%, #000)';
-const INK = 'var(--color-secondary)';
+const INK = 'var(--band)';
 
 const strip = (h: string) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -106,7 +106,7 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
           </div>
 
           {/* Tarjeta de cotización (CTA, sticky) */}
-          <aside style={{ position: 'sticky', top: 100, background: INK, borderRadius: 'var(--radius-lg)', padding: '32px 28px', color: '#fff' }} className="sector-cta">
+          <aside style={{ position: 'sticky', top: 100, background: INK, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '32px 28px', color: '#fff' }} className="sector-cta">
             <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-heading)', fontSize: '23px', fontWeight: 800 }}>¿Interesado en este sector?</h3>
             <p style={{ margin: '0 0 24px', fontSize: '14.5px', lineHeight: 1.6, color: 'rgba(255,255,255,.78)' }}>Cuéntanos sobre tu obra y te preparamos una propuesta a la medida con la maquinaria adecuada.</p>
             <Link href="/contacto" style={{ display: 'block', textAlign: 'center', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontSize: '16px', fontWeight: 700, padding: '15px', borderRadius: 'var(--radius-md)', textDecoration: 'none', marginBottom: 10 }}>Solicitar cotización</Link>
@@ -116,7 +116,7 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
 
         {/* ===== CTA FINAL ===== */}
         <section style={{ ...CONTAINER, paddingTop: 4, paddingBottom: 80 }}>
-          <div style={{ background: INK, borderRadius: 26, padding: '56px 52px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40, position: 'relative', overflow: 'hidden', flexWrap: 'wrap' }} className="sector-cta-band">
+          <div style={{ background: INK, border: '1px solid var(--color-border)', borderRadius: 26, padding: '56px 52px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40, position: 'relative', overflow: 'hidden', flexWrap: 'wrap' }} className="sector-cta-band">
             <div aria-hidden style={{ position: 'absolute', right: -60, top: -60, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, color-mix(in srgb, var(--color-primary) 22%, transparent), transparent 70%)' }} />
             <div style={{ position: 'relative', maxWidth: 600 }}>
               <h2 style={{ margin: '0 0 12px', fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.7rem, 3.2vw, 2.25rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>¿Necesitas maquinaria para este sector?</h2>

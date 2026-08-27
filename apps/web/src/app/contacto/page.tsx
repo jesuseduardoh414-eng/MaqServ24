@@ -116,7 +116,7 @@ export default async function ContactPage() {
               })}
 
               {c.urgent.show ? (
-                <div style={{ marginTop: 26, background: 'var(--color-secondary)', color: '#fff', borderRadius: 6, padding: 32, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ marginTop: 26, background: 'var(--band)', border: '1px solid var(--color-border)', color: '#fff', borderRadius: 6, padding: 32, position: 'relative', overflow: 'hidden' }}>
                   <div aria-hidden style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: 'var(--color-primary)', opacity: 0.16, borderRadius: '50%' }} />
                   <div style={{ position: 'relative' }}>
                     <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.18em', color: 'var(--color-primary)', marginBottom: 12, textTransform: 'uppercase' }}>{c.urgent.eyebrow}</div>

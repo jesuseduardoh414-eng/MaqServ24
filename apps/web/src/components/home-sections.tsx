@@ -50,9 +50,15 @@ function CenterHead({ eyebrow, title, subtitle, eyebrowColor, titleColor }: { ey
 export async function Hero({ theme }: { theme: Theme }) {
   const hero = await getHero().catch(() => null);
   const h = theme.tokens.hero; // ajustes configurables (colores, links, toggles, opacidad)
-  const title = hero?.title ?? t(theme, 'home.hero.title');
-  const accent = t(theme, 'home.hero.titleAccent');
-  const hasAccent = accent && accent !== 'home.hero.titleAccent';
+  const rawTitle = (hero?.title ?? t(theme, 'home.hero.title')).trim();
+  const accent = t(theme, 'home.hero.titleAccent').trim();
+  const hasAccent = !!accent && accent !== 'home.hero.titleAccent';
+  // El título del CMS suele traer la frase ENTERA ("Encuentra maquinaria
+  // disponible para tu obra") mientras el copy del acento es su segunda mitad:
+  // al concatenarlos, el hero pintaba esa mitad dos veces. Si el título ya
+  // termina en el acento, se recorta ahí y el acento se pinta una sola vez.
+  const dup = hasAccent && rawTitle.toLowerCase().endsWith(accent.toLowerCase());
+  const title = dup ? rawTitle.slice(0, rawTitle.length - accent.length).trim() : rawTitle;
   const subtitle = hero?.subtitle ?? t(theme, 'home.hero.subtitle');
   const badge = (hero?.badge ?? '').trim();
   const showBadge = h.showBadge && badge;
@@ -65,12 +71,17 @@ export async function Hero({ theme }: { theme: Theme }) {
   ];
 
   return (
-    <section style={{ position: 'relative', background: 'var(--color-secondary)', overflow: 'hidden' }}>
+    <section style={{ position: 'relative', background: 'var(--band)', overflow: 'hidden' }}>
       {/* patrón de puntos + anillo giratorio (el círculo de acento va en el visual) */}
       <div aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize: '26px 26px', opacity: 0.5 }} />
       <div aria-hidden style={{ position: 'absolute', right: '5%', top: '50%', transform: 'translateY(-50%)', width: 520, height: 520, border: '1px dashed rgba(255,255,255,.12)', borderRadius: '50%', animation: 'spinSlow 60s linear infinite' }} />
 
-      <div style={{ ...CONTAINER, position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0,1.08fr) minmax(0,.92fr)', gap: 44, alignItems: 'center', paddingTop: 52, paddingBottom: 30 }} className="hero-grid">
+      {/* El hero NO usa CONTAINER (1240 px): con el texto centrado en esa caja
+          quedaban ~340 px de aire a la izquierda en pantallas grandes, el título
+          se partía en más renglones y la banda crecía a lo alto. Caja más ancha
+          + menos aire arriba = el mismo texto en menos renglones y un hero que
+          ya no se come la pantalla de entrada. */}
+      <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0 clamp(16px, 3vw, 26px)', position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0,1.08fr) minmax(0,.92fr)', gap: 44, alignItems: 'center', paddingTop: 34, paddingBottom: 26 }} className="hero-grid">
         <div>
           {showBadge ? (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${h.accentColor} 35%, transparent)`, borderRadius: 'var(--radius-sm)', padding: '8px 15px', fontSize: '12px', fontWeight: 700, color: h.accentColor, letterSpacing: '.14em', textTransform: 'uppercase' }}>
@@ -81,7 +92,7 @@ export async function Hero({ theme }: { theme: Theme }) {
             {title}
             {hasAccent ? (
               <>
-                <br />
+                {title ? <br /> : null}
                 <span style={{ color: h.accentColor }}>{accent}</span>
               </>
             ) : null}
@@ -99,7 +110,7 @@ export async function Hero({ theme }: { theme: Theme }) {
           </div>
 
           {h.showTrust ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20, marginTop: 44 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20, marginTop: 34 }}>
               {trust.map((it) => (
                 <div key={it.title} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                   <span style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: `color-mix(in srgb, ${h.accentColor} 14%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: h.accentColor, fontSize: '17px', flexShrink: 0 }}>{it.icon}</span>
@@ -114,7 +125,7 @@ export async function Hero({ theme }: { theme: Theme }) {
         </div>
 
         {/* visual */}
-        <div style={{ position: 'relative', minHeight: 420 }} className="hero-visual">
+        <div style={{ position: 'relative', minHeight: 380 }} className="hero-visual">
           {/* círculo de acento: SOLO adorno, detrás y más pequeño que la imagen */}
           <div aria-hidden style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(340px, 72%)', aspectRatio: '1', borderRadius: '50%', background: h.accentColor, opacity: h.overlay / 100 }} />
           {/* imagen del producto (PNG transparente): más grande que el círculo, puede salirse de él */}
@@ -389,13 +400,15 @@ export async function SectorsSection({ theme }: { theme: Theme }) {
 export async function OfferSection({ theme }: { theme: Theme }) {
   const cfg = theme.tokens.offer;
   if (cfg && cfg.show === false) return null;
-  const bg = cfg?.bg ?? 'var(--color-secondary)';
+  const bg = cfg?.bg ?? 'var(--band)';
   const accent = cfg?.accentColor ?? 'var(--color-primary)';
   const titleColor = cfg?.titleColor ?? '#fff';
   const ctaLink = cfg?.ctaLink || '/productos';
   return (
     <section style={{ ...CONTAINER, paddingTop: 80, paddingBottom: 80 }}>
-      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: bg, boxShadow: 'var(--shadow)' }}>
+      {/* Borde gunmetal: en oscuro la banda es negra como la página, y sin él
+          la tarjeta perdería su silueta. El gris va aquí, en el elemento. */}
+      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: bg, border: '1px solid var(--color-border)', boxShadow: 'var(--shadow)' }}>
         <div aria-hidden style={{ position: 'absolute', right: '-4%', top: '-30%', width: 440, height: 440, background: `radial-gradient(circle, color-mix(in srgb, ${accent} 32%, transparent), transparent 62%)`, borderRadius: '50%' }} />
         <div aria-hidden style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '44%', backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,.05) 0 15px, transparent 15px 30px)', borderLeft: '1px solid rgba(255,255,255,.06)' }} />
         <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 30, alignItems: 'center', padding: 'clamp(32px, 5vw, 50px)' }}>
