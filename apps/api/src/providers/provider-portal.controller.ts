@@ -1,9 +1,15 @@
 import {
-  BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Patch, Req, UseGuards,
+  BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Patch, Post,
+  Req, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO } from '../catalog/provider-trust';
+import { supabaseStorage } from '../common/supabase-multer';
+import { imageUrl } from '../catalog/images';
+import {
+  estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, DOC_LABEL, TIPOS_DOC, type TipoDoc,
+} from '../catalog/provider-trust';
 import { disponibilidadDe, DIAS_FRESCURA } from '../catalog/availability';
 import { documentosQueAvisan, textoAviso } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial } from '../catalog/provider-history';
@@ -28,6 +34,40 @@ import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
  *    distinto según quién apretó el botón — y el historial es lo que después
  *    ordena el emparejamiento.
  */
+/**
+ * Lo que el aliado puede cambiar de su propia ficha: cómo localizarlo y hasta
+ * dónde llega.
+ *
+ * Lo que NO aparece aquí es tan importante como lo que sí. El nivel, las
+ * categorías y el estado de alta se quedan fuera a propósito: son el criterio
+ * con el que la plataforma decide a quién proponer. Si el aliado pudiera
+ * editarlos, cualquiera se pondría "preferente" en las seis categorías y el
+ * emparejamiento dejaría de significar algo. Su cobertura sí, porque es un
+ * hecho suyo que solo él conoce de primera mano.
+ */
+const perfilSchema = z.object({
+  contactName: z.string().max(190).optional().nullable(),
+  phone: z.string().max(40).optional().nullable(),
+  email: z.string().max(190).optional().nullable(),
+  city: z.string().max(120).optional().nullable(),
+  address: z.string().max(500).optional().nullable(),
+  coverage: z.array(z.string().max(120)).max(60).optional(),
+  responseMinutes: z.coerce.number().int().min(0).max(10080).optional().nullable(),
+});
+
+const documentoSchema = z.object({
+  kind: z.enum(TIPOS_DOC),
+  name: z.string().max(190).optional(),
+  expiresAt: z.string().max(20).optional(),
+});
+
+/** Foto del papel: en campo se le toma foto a la póliza, no se escanea. */
+const docStorage = supabaseStorage();
+
+/** `'2027-03-01'` → Date; vacío → null (un input date sin llenar manda ''). */
+const fecha = (v: string | null | undefined): Date | null =>
+  v && v.trim() ? new Date(`${v}T00:00:00Z`) : null;
+
 @Controller('aliado')
 @UseGuards(ProviderLinkGuard)
 export class ProviderPortalController {
@@ -116,6 +156,13 @@ export class ProviderPortalController {
         coverage: p.coverage,
         categories: p.categories,
         monthsInNetwork: mesesEnRed(p.joined_at),
+        // Editables desde el portal. Van aquí para que la pantalla rellene el
+        // formulario con lo que hay y el aliado corrija, en vez de recapturar.
+        phone: p.phone,
+        email: p.email,
+        city: p.city,
+        address: p.address,
+        responseMinutes: p.response_minutes,
       },
 
       /**
@@ -188,6 +235,18 @@ export class ProviderPortalController {
         estado: docs,
         avisos: avisos.map((a) => ({ ...a, expiresAt: a.expiresAt.toISOString().slice(0, 10), texto: textoAviso(a) })),
         diasAviso: DIAS_AVISO,
+        // El expediente COMPLETO, no solo lo que urge: para renovar hay que ver
+        // qué se entregó y cuándo vence, incluido lo que está en regla.
+        lista: p.provider_documents
+          .map((d) => ({
+            id: d.id,
+            kind: d.kind,
+            kindLabel: DOC_LABEL[d.kind as TipoDoc] ?? d.kind,
+            name: d.name,
+            expiresAt: d.expires_at ? d.expires_at.toISOString().slice(0, 10) : null,
+          }))
+          .sort((a, b) => (a.expiresAt ?? '9999').localeCompare(b.expiresAt ?? '9999')),
+        tipos: TIPOS_DOC.map((t) => ({ clave: t, label: DOC_LABEL[t] })),
       },
 
       /**
@@ -279,5 +338,91 @@ export class ProviderPortalController {
       },
     });
     return { ok: true };
+  }
+
+  /**
+   * Sus propios datos. Antes esto solo se podía cambiar llamando a la oficina,
+   * que es justo lo que el documento (20) pide quitar de en medio.
+   *
+   * Solo se escribe lo que vino: un formulario que manda tres campos no puede
+   * borrar los otros cuatro por omisión.
+   */
+  @Patch('perfil')
+  async perfil(@Req() req: AliadoRequest, @Body() body: unknown) {
+    const p = perfilSchema.safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Datos inválidos');
+    const d = p.data;
+    const limpio = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim() || null);
+
+    await prisma.providers.update({
+      where: { id: req.providerId },
+      data: {
+        ...(d.contactName !== undefined ? { contact_name: limpio(d.contactName) } : {}),
+        ...(d.phone !== undefined ? { phone: limpio(d.phone) } : {}),
+        ...(d.email !== undefined ? { email: limpio(d.email) } : {}),
+        ...(d.city !== undefined ? { city: limpio(d.city) } : {}),
+        // La dirección NO se geocodifica aquí: mover el punto en el mapa cambia
+        // a qué obras se le propone, y eso lo revisa la oficina desde el panel.
+        ...(d.address !== undefined ? { address: limpio(d.address) } : {}),
+        ...(d.coverage !== undefined
+          ? { coverage: d.coverage.map((c) => c.trim()).filter(Boolean) }
+          : {}),
+        ...(d.responseMinutes !== undefined ? { response_minutes: d.responseMinutes } : {}),
+        updated_at: new Date(),
+      },
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Renovar un papel. Crea uno nuevo en vez de sobrescribir el vencido: el
+   * expediente es un historial, y saber que la póliza anterior venció en marzo
+   * es parte de lo que se audita.
+   *
+   * El sello de verificado se recalcula solo (`estadoDocumentos`), así que subir
+   * la renovación devuelve el sello sin que nadie tenga que aprobarlo a mano.
+   */
+  @Post('documentos')
+  @UseInterceptors(FileInterceptor('file', { storage: docStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
+  async subirDocumento(
+    @Req() req: AliadoRequest,
+    @Body() body: unknown,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    const p = documentoSchema.safeParse(body);
+    if (!p.success) throw new BadRequestException('Elige qué documento es y hasta cuándo vale.');
+    const d = p.data;
+
+    const doc = await prisma.provider_documents.create({
+      data: {
+        provider_id: req.providerId,
+        kind: d.kind,
+        name: d.name?.trim() || DOC_LABEL[d.kind],
+        file: file ? `uploads/${file.filename}` : null,
+        issued_at: new Date(),
+        expires_at: fecha(d.expiresAt),
+      },
+      select: { id: true, kind: true, name: true, expires_at: true, file: true },
+    });
+
+    // El estado nuevo del expediente viaja de vuelta: el aliado acaba de subir
+    // un papel para recuperar el sello y tiene que ver si lo consiguió.
+    const todos = await prisma.provider_documents.findMany({
+      where: { provider_id: req.providerId },
+      select: { expires_at: true },
+    });
+
+    return {
+      ok: true,
+      documento: {
+        id: doc.id,
+        kind: doc.kind,
+        kindLabel: DOC_LABEL[doc.kind as TipoDoc] ?? doc.kind,
+        name: doc.name,
+        expiresAt: doc.expires_at ? doc.expires_at.toISOString().slice(0, 10) : null,
+        file: imageUrl(doc.file),
+      },
+      estadoDocumentos: estadoDocumentos(todos),
+    };
   }
 }

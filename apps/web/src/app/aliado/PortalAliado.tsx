@@ -34,6 +34,11 @@ export interface DatosPortal {
     coverage: string[];
     categories: string[];
     monthsInNetwork: number | null;
+    phone: string | null;
+    email: string | null;
+    city: string | null;
+    address: string | null;
+    responseMinutes: number | null;
   };
   porContestar: Array<{
     assignmentId: number;
@@ -67,6 +72,8 @@ export interface DatosPortal {
     estado: string;
     avisos: Array<{ documentId: number; kind: string; name: string | null; expiresAt: string; texto: string; urgencia: string }>;
     diasAviso: number;
+    lista: Array<{ id: number; kind: string; kindLabel: string; name: string | null; expiresAt: string | null }>;
+    tipos: Array<{ clave: string; label: string }>;
   };
   cumplimiento: {
     resumen: string;
@@ -97,11 +104,20 @@ const btnSec: React.CSSProperties = {
   borderRadius: 'var(--radius-sm)', padding: '12px 20px', fontWeight: 600, fontSize: 15,
   cursor: 'pointer', fontFamily: 'inherit',
 };
+/** 16px o más: por debajo de eso, iOS hace zoom al enfocar el campo. */
+const campo: React.CSSProperties = {
+  border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)',
+  borderRadius: 'var(--radius-sm)', padding: '11px 13px', fontSize: 16, fontFamily: 'inherit',
+  width: '100%', boxSizing: 'border-box',
+};
 
 export function PortalAliado({ datos, token }: { datos: DatosPortal; token: string }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [subiendoDoc, setSubiendoDoc] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const { aliado, porContestar, enCurso, equipos, documentos, cumplimiento } = datos;
 
   async function llamar(url: string, body?: unknown) {
@@ -148,6 +164,56 @@ export function PortalAliado({ datos, token }: { datos: DatosPortal; token: stri
     const ok = await llamar(`${API}/aliado/equipos/${productId}/ubicacion`, { location: donde });
     setOcupado(null);
     if (ok) { setMsg('Actualizado.'); router.refresh(); }
+  }
+
+  /** Sus datos. Antes había que llamar a la oficina para cambiar un teléfono. */
+  async function guardarDatos(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    setGuardando(true); setMsg(null);
+    const ok = await llamar(`${API}/aliado/perfil`, {
+      contactName: String(fd.get('contactName') ?? ''),
+      phone: String(fd.get('phone') ?? ''),
+      email: String(fd.get('email') ?? ''),
+      city: String(fd.get('city') ?? ''),
+      address: String(fd.get('address') ?? ''),
+      // Se escriben separadas por coma porque así se leen: "Apodaca, Escobedo".
+      coverage: String(fd.get('coverage') ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+    });
+    setGuardando(false);
+    if (ok) { setMsg('Listo, tus datos quedaron actualizados.'); setEditando(false); router.refresh(); }
+  }
+
+  /**
+   * Renovar un papel. Va por FormData porque puede llevar la foto del documento;
+   * el Content-Type NO se fija a mano o se pierde el boundary del multipart.
+   */
+  async function subirDocumento(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const fd = new FormData(form);
+    setGuardando(true); setMsg(null);
+    const r = await fetch(`${API}/aliado/documentos`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: fd,
+    });
+    setGuardando(false);
+    if (!r.ok) {
+      const j = await r.json().catch(() => null);
+      setMsg(j?.message ?? 'No se pudo subir. Intenta otra vez.');
+      return;
+    }
+    const d = await r.json();
+    // Se le dice si recuperó el sello: es la razón por la que subió el papel.
+    setMsg(
+      d?.estadoDocumentos === 'al-dia'
+        ? 'Recibido. Tu expediente quedó al día.'
+        : 'Recibido. Todavía tienes papeles por renovar.',
+    );
+    setSubiendoDoc(false);
+    form.reset();
+    router.refresh();
   }
 
   return (
@@ -276,14 +342,18 @@ export function PortalAliado({ datos, token }: { datos: DatosPortal; token: stri
         </section>
       ) : null}
 
-      {documentos.avisos.length > 0 ? (
-        <section style={{ marginBottom: 30 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 6px' }}>Tus papeles</h2>
-          <p style={{ margin: '0 0 12px', fontSize: 13.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-            Un papel vencido te quita el sello de verificado y te saca de las propuestas. Mándanos
-            el renovado y lo subimos.
-          </p>
-          <div style={{ ...card, display: 'grid', gap: 8 }}>
+      {/* Los papeles YA NO se mandan a la oficina: se suben aquí. La sección se
+          muestra siempre, no solo cuando algo urge — si solo apareciera con un
+          aviso, no habría dónde renovar antes de que sea tarde. */}
+      <section style={{ marginBottom: 30 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 6px' }}>Tus papeles</h2>
+        <p style={{ margin: '0 0 12px', fontSize: 13.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+          Un papel vencido te quita el sello de verificado y te saca de las propuestas. Sube el
+          renovado aquí mismo y el sello vuelve solo.
+        </p>
+
+        {documentos.avisos.length > 0 ? (
+          <div style={{ ...card, display: 'grid', gap: 8, marginBottom: 12, borderColor: 'var(--color-warning)' }}>
             {documentos.avisos.map((d) => (
               <div key={d.documentId} style={{ fontSize: 13.5, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <span style={{ color: d.urgencia === 'vencido' ? 'var(--color-error)' : 'var(--color-warning)', fontWeight: 700, minWidth: 150 }}>
@@ -293,8 +363,110 @@ export function PortalAliado({ datos, token }: { datos: DatosPortal; token: stri
               </div>
             ))}
           </div>
-        </section>
-      ) : null}
+        ) : null}
+
+        <div style={{ ...card, display: 'grid', gap: 10 }}>
+          {documentos.lista.length === 0 ? (
+            <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-muted)' }}>
+              Todavía no tienes papeles entregados. Sin expediente no hay sello de verificado.
+            </p>
+          ) : (
+            documentos.lista.map((d) => (
+              <div key={d.id} style={{ display: 'flex', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap', fontSize: 13.5 }}>
+                <span>{d.name || d.kindLabel}</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>
+                  {d.expiresAt ? `vence ${d.expiresAt}` : 'sin vencimiento'}
+                </span>
+              </div>
+            ))
+          )}
+
+          {!subiendoDoc ? (
+            <button type="button" style={{ ...btnSec, marginTop: 4 }} onClick={() => setSubiendoDoc(true)}>
+              Subir o renovar un papel
+            </button>
+          ) : (
+            <form onSubmit={subirDocumento} style={{ display: 'grid', gap: 12, marginTop: 4 }}>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>¿Qué papel es?</span>
+                <select name="kind" required style={campo}>
+                  {documentos.tipos.map((t) => (
+                    <option key={t.clave} value={t.clave}>{t.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>¿Hasta cuándo vale? (si no vence, déjalo vacío)</span>
+                <input type="date" name="expiresAt" style={campo} />
+              </label>
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Foto del documento</span>
+                {/* Foto y no archivo: en obra se le toma foto a la póliza. */}
+                <input type="file" name="file" accept="image/*" style={campo} />
+              </label>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button type="submit" style={{ ...btn, opacity: guardando ? 0.6 : 1 }} disabled={guardando}>
+                  {guardando ? 'Subiendo…' : 'Subir'}
+                </button>
+                <button type="button" style={btnSec} onClick={() => setSubiendoDoc(false)}>Cancelar</button>
+              </div>
+            </form>
+          )}
+        </div>
+      </section>
+
+      {/* Sus datos. El documento (20) pide que el aliado se mantenga solo; un
+          teléfono viejo es una asignación que nadie contesta. */}
+      <section style={{ marginBottom: 30 }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, margin: '0 0 12px' }}>Tus datos</h2>
+        <div style={card}>
+          {!editando ? (
+            <>
+              <div style={{ display: 'grid', gap: 7, fontSize: 14 }}>
+                <div><span style={{ color: 'var(--color-text-muted)' }}>Contacto: </span>{aliado.contactName || '—'}</div>
+                <div><span style={{ color: 'var(--color-text-muted)' }}>Teléfono: </span>{aliado.phone || '—'}</div>
+                <div><span style={{ color: 'var(--color-text-muted)' }}>Correo: </span>{aliado.email || '—'}</div>
+                <div><span style={{ color: 'var(--color-text-muted)' }}>Ciudad: </span>{aliado.city || '—'}</div>
+                <div><span style={{ color: 'var(--color-text-muted)' }}>Zonas que cubres: </span>{aliado.coverage.length > 0 ? aliado.coverage.join(', ') : '—'}</div>
+              </div>
+              <button type="button" style={{ ...btnSec, marginTop: 14 }} onClick={() => setEditando(true)}>
+                Corregir mis datos
+              </button>
+            </>
+          ) : (
+            <form onSubmit={guardarDatos} style={{ display: 'grid', gap: 12 }}>
+              {([
+                ['contactName', 'Nombre de quien contesta', aliado.contactName, 'text'],
+                ['phone', 'Teléfono', aliado.phone, 'tel'],
+                ['email', 'Correo', aliado.email, 'email'],
+                ['city', 'Ciudad', aliado.city, 'text'],
+                ['address', 'Dirección de tu base', aliado.address, 'text'],
+              ] as const).map(([name, label, valor, tipo]) => (
+                <label key={name} style={{ display: 'grid', gap: 5 }}>
+                  <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{label}</span>
+                  <input name={name} type={tipo} defaultValue={valor ?? ''} style={campo} />
+                </label>
+              ))}
+              <label style={{ display: 'grid', gap: 5 }}>
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Zonas que cubres, separadas por coma</span>
+                <input name="coverage" defaultValue={aliado.coverage.join(', ')} placeholder="Apodaca, Escobedo, García" style={campo} />
+              </label>
+              {/* Lo que decide a quién se le propone un trabajo no se edita aquí
+                  a propósito: nivel y categorías las fija la oficina. */}
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+                Para cambiar las categorías de servicio que atiendes, escríbenos: eso lo revisamos con
+                tu expediente.
+              </p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button type="submit" style={{ ...btn, opacity: guardando ? 0.6 : 1 }} disabled={guardando}>
+                  {guardando ? 'Guardando…' : 'Guardar'}
+                </button>
+                <button type="button" style={btnSec} onClick={() => setEditando(false)}>Cancelar</button>
+              </div>
+            </form>
+          )}
+        </div>
+      </section>
 
       {/* Decisión 2: si el sistema lo ordena con estos números, tiene derecho a verlos. */}
       <section>

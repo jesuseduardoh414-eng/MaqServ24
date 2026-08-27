@@ -15,7 +15,7 @@ import { prisma } from '@maqserv/db';
 import { slugify } from '@maqserv/config';
 import { z } from 'zod';
 import { AdminGuard } from './admin-auth';
-import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO } from '../catalog/provider-trust';
+import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
@@ -33,8 +33,9 @@ import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incide
  * documento pide que el sello tenga un significado real y no sea decorativo.
  */
 
+// TIPOS_DOC vive en `provider-trust` (junto a las reglas que evalúan el
+// expediente): el portal del aliado también lo usa para renovar sus papeles.
 const NIVELES = ['registrado', 'validado', 'activo', 'preferente'] as const;
-const TIPOS_DOC = ['fiscal', 'legal', 'seguro', 'tecnico', 'seguridad', 'otro'] as const;
 
 const providerSchema = z.object({
   name: z.string().min(2).max(190),

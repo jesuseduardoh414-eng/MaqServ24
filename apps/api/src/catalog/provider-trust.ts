@@ -17,6 +17,26 @@ import type { DocsStatus, ProviderLevel } from '@maqserv/types';
 /** Días antes del vencimiento en que un documento empieza a avisar. */
 export const DIAS_AVISO = 30;
 
+/**
+ * Tipos de documento del expediente. Vive aquí, junto a las reglas que los
+ * evalúan, porque ahora los usan dos lados: el panel (que da de alta el
+ * expediente) y el portal del aliado (que lo renueva). Duplicar la lista era
+ * garantizar que un día aceptaran tipos distintos.
+ *
+ * La etiqueta es para el aliado: "seguro" no le dice qué papel subir.
+ */
+export const TIPOS_DOC = ['fiscal', 'legal', 'seguro', 'tecnico', 'seguridad', 'otro'] as const;
+export type TipoDoc = (typeof TIPOS_DOC)[number];
+
+export const DOC_LABEL: Record<TipoDoc, string> = {
+  fiscal: 'Constancia de situación fiscal',
+  legal: 'Documento legal (acta, poder)',
+  seguro: 'Póliza de seguro',
+  tecnico: 'Documento técnico del equipo',
+  seguridad: 'Documento de seguridad',
+  otro: 'Otro',
+};
+
 /** Niveles que, con el expediente en regla, cuentan como verificados. */
 const NIVELES_VERIFICABLES: ProviderLevel[] = ['validado', 'activo', 'preferente'];
 
