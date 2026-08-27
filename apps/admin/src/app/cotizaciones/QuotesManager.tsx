@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { D, FONT } from '@/components/editor-kit';
 import { QuoteRespond } from './QuoteRespond';
 import { QuoteMatches } from './QuoteMatches';
+import { QuoteContact } from './QuoteContact';
 
 export interface QuoteItem {
   id: number;
@@ -18,6 +19,9 @@ export interface QuoteItem {
   status: string;
   comments: string | null;
   createdAt: string | null;
+  /** Primer contacto con el cliente: alimenta el indicador de primera respuesta. */
+  firstContactAt: string | null;
+  firstContactVia: string | null;
   /** Calculados en el servidor para no romper la hidratación. */
   days: number;
   dateLabel: string;
@@ -225,6 +229,9 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
                 {pend ? (
                   <>
+                    {/* Se registra ANTES de cotizar: es lo que separa "ya le
+                        contestamos" de "ya le pusimos precio". */}
+                    <QuoteContact quoteId={q.id} firstContactAt={q.firstContactAt} firstContactVia={q.firstContactVia} />
                     {/* Antes de poner precio hay que saber quién la puede atender. */}
                     <QuoteMatches quoteId={q.id} />
                     <QuoteRespond quoteId={q.id} subtotal={q.subtotal} />

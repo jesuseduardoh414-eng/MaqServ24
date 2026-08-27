@@ -16,6 +16,8 @@ interface QuoteRow {
   status: string;
   comments: string | null;
   createdAt: string | null;
+  firstContactAt: string | null;
+  firstContactVia: string | null;
 }
 
 const DAY = 86_400_000;

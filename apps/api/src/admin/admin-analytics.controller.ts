@@ -51,7 +51,7 @@ export class AdminAnalyticsController {
     const campos = {
       id: true, quote_number: true, created_at: true, responded_at: true,
       accepted_at: true, service_state: true, client_id: true, total: true,
-      service_category: true,
+      service_category: true, first_contact_at: true, first_contact_via: true,
     } as const;
 
     const [solicitudes, previas, equipos, aliados] = await Promise.all([
@@ -91,6 +91,21 @@ export class AdminAnalyticsController {
       .filter((q) => q.created_at)
       .map((q) => horas(q.created_at!, q.responded_at!));
 
+    /**
+     * Tiempo a primera respuesta: cuánto tarda el cliente en saber ALGO de
+     * nosotros, que no es lo mismo que cuánto tarda en tener precio.
+     *
+     * Entra todo lo que tiene contacto sellado, incluido el que se selló al
+     * cotizar: cuando nadie llamó antes, el primer contacto real fue esa
+     * cotización, y ocultarlo dejaría el indicador midiendo solo los casos
+     * bien atendidos — justo los que no hacen falta vigilar. `via` permite
+     * decir en la nota cuánto del número es atención temprana de verdad.
+     */
+    const contactadas = solicitudes.filter((q) => q.first_contact_at && q.created_at);
+    const tiemposContacto = contactadas.map((q) => horas(q.created_at!, q.first_contact_at!));
+    const contactoPrevio = contactadas.filter((q) => q.first_contact_via !== 'cotizacion').length;
+    const contactadasPrevias = previas.filter((q) => q.first_contact_at && q.created_at);
+
     const conCategoria = solicitudes.filter((q) => q.service_category);
     const cubiertas = conCategoria.filter((q) => conAliado.has(String(q.id))).length;
 
@@ -121,6 +136,7 @@ export class AdminAnalyticsController {
       cotizacion: mediana(
         previas.filter((q) => q.responded_at && q.created_at).map((q) => horas(q.created_at!, q.responded_at!)),
       ),
+      primeraRespuesta: mediana(contactadasPrevias.map((q) => horas(q.created_at!, q.first_contact_at!))),
     };
 
     const lista: Indicador[] = [
@@ -144,15 +160,22 @@ export class AdminAnalyticsController {
         subirEsBueno: true,
         nota: 'Se cuenta como cubierta la solicitud a la que se le pudo ofrecer al menos un aliado.',
       }),
-      noMedible({
+      indicador({
         clave: 'primera-respuesta',
         label: 'Tiempo a primera respuesta',
         revela: 'Velocidad real del sistema.',
+        valor: mediana(tiemposContacto),
         formato: 'horas',
-        // No es lo mismo que el tiempo a cotización, y fingir que sí sería
-        // enseñar el mismo número con dos nombres.
-        motivo:
-          'No se registra cuándo se contacta al cliente por primera vez, sólo cuándo se le pone precio. Hará falta anotar el primer contacto —una llamada, un correo— para separarlo del tiempo a cotización.',
+        muestra: contactadas.length,
+        anterior: anterior.primeraRespuesta,
+        subirEsBueno: false,
+        // La nota dice de qué está hecho el número. Sin esto, una operación que
+        // nunca llama antes de cotizar vería este indicador clavado al de
+        // cotización y creería que mide lo mismo.
+        nota:
+          contactoPrevio > 0
+            ? `Mediana desde que entra la solicitud hasta que el cliente sabe algo. ${contactoPrevio} de ${contactadas.length} tuvieron contacto ANTES de la cotización; en el resto, el primer contacto fue la cotización misma.`
+            : 'Mediana desde que entra la solicitud hasta que el cliente sabe algo. Hoy nadie contacta antes de cotizar, así que coincide con el tiempo a cotización: marca "Ya le hablé" en la cotización cuando llames y este número empezará a contar la atención temprana.',
       }),
       indicador({
         clave: 'cotizacion',

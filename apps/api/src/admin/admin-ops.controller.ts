@@ -236,8 +236,50 @@ export class AdminOpsController {
         conditions: q.conditions,
         comments: q.comments,
         createdAt: q.created_at ? q.created_at.toISOString() : null,
+        // Para que la pantalla sepa si ya hay que ofrecer el botón de "ya le
+        // hablé" o mostrar cuándo y por dónde se le habló.
+        firstContactAt: q.first_contact_at ? q.first_contact_at.toISOString() : null,
+        firstContactVia: q.first_contact_via,
+        firstContactBy: q.first_contact_by,
       })),
     };
+  }
+
+  /**
+   * "Ya le hablé al cliente." Sella el primer contacto sin tener que cotizar.
+   *
+   * Es el dato que faltaba para separar dos cosas que no son lo mismo: cuánto
+   * tarda la operación en DAR SEÑALES DE VIDA y cuánto tarda en PONER PRECIO.
+   * Una llamada de veinte minutos diciendo "lo estamos viendo" sostiene a un
+   * cliente que si no se va con otro; una cotización impecable a los dos días
+   * llega cuando ya se fue.
+   *
+   * Solo se sella la PRIMERA vez: registrar la tercera llamada no puede
+   * reescribir cuándo fue la primera.
+   */
+  @Patch('quotes/:id/contacto')
+  async marcarContacto(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+    const p = z
+      .object({ via: z.enum(['llamada', 'whatsapp', 'correo', 'visita']).optional() })
+      .safeParse(body ?? {});
+    if (!p.success) throw new BadRequestException('Medio de contacto no válido');
+
+    const q = await prisma.quotes.findUnique({
+      where: { id },
+      select: { id: true, first_contact_at: true, first_contact_via: true },
+    });
+    if (!q) throw new NotFoundException('Cotización no encontrada');
+    if (q.first_contact_at) {
+      return { ok: true, yaEstaba: true, at: q.first_contact_at.toISOString(), via: q.first_contact_via };
+    }
+
+    const quien = await prisma.admins.findUnique({ where: { id: req.adminId }, select: { name: true } });
+    const at = new Date();
+    await prisma.quotes.update({
+      where: { id },
+      data: { first_contact_at: at, first_contact_by: quien?.name ?? null, first_contact_via: p.data.via ?? 'llamada' },
+    });
+    return { ok: true, yaEstaba: false, at: at.toISOString(), via: p.data.via ?? 'llamada' };
   }
 
   /** Responder cotización: ajustar montos/condiciones y marcar completed. */
@@ -283,6 +325,11 @@ export class AdminOpsController {
               // despues hay una diferencia comercial, hace falta saber de quien
               // salio la cifra.
               responded_by: (await prisma.admins.findUnique({ where: { id: req.adminId }, select: { name: true } }))?.name ?? null,
+              // Si nadie registró un contacto antes, el primer contacto real
+              // FUE esta cotización. Sellarlo aquí no infla el indicador: lo
+              // dice tal cual es —al cliente no le habló nadie hasta ahora— y
+              // `via` deja ver qué parte del número es atención temprana.
+              ...(q.first_contact_at ? {} : { first_contact_at: new Date(), first_contact_via: 'cotizacion' }),
             }
           : parsed.data.validUntil
             ? { valid_until: new Date(`${parsed.data.validUntil}T00:00:00Z`) }
