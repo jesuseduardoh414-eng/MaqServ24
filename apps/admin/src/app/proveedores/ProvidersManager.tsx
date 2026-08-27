@@ -3,6 +3,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { DocumentAlerts } from './DocumentAlerts';
 import { ProviderHistory } from './ProviderHistory';
+import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
 
 export interface ProviderRow {
   id: number;
@@ -17,6 +18,10 @@ export interface ProviderRow {
   coverage: string[];
   categories: string[];
   responseMinutes: number | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  coverageRadiusKm: number | null;
   notes: string | null;
   status: number;
   docsStatus: 'al-dia' | 'por-vencer' | 'vencido' | 'sin-documentos';
@@ -203,6 +208,33 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           </div>
         ))}
       </div>
+
+      {/*
+        DONDE ESTA LA RED (documento institucional, 17).
+        Un mapa contesta de un vistazo lo que una lista de municipios no: si
+        hay un hueco geografico, y de que tamano.
+      */}
+      {provs.some((x) => x.lat != null && x.lng != null) ? (
+        <div style={{ marginBottom: 22 }}>
+          <MapaCobertura
+            puntos={provs
+              .filter((x) => x.lat != null && x.lng != null && x.status === 1)
+              .map<PuntoMapa>((x) => ({
+                id: x.id,
+                nombre: x.name,
+                lat: x.lat!,
+                lng: x.lng!,
+                radioKm: x.coverageRadiusKm,
+                tipo: 'aliado',
+                detalle: x.categories.join(', '),
+              }))}
+          />
+          <div style={{ fontSize: 12, color: C.dim, marginTop: 8 }}>
+            El circulo es hasta donde llega cada aliado. Los que no aparecen todavia no estan
+            ubicados: abre su expediente y usa &quot;Ponerlo en el mapa&quot;.
+          </div>
+        </div>
+      ) : null}
 
       {/*
         Los contadores de arriba dicen CUANTOS. Esto dice que papel, de quien y
@@ -416,6 +448,13 @@ function ExpedienteModal({
           El acceso del aliado. Es lo que convierte la red de un directorio que
           alguien mantiene a mano en algo que se mantiene solo.
         */}
+        {/*
+          DONDE ESTA Y HASTA DONDE LLEGA. Con esto la cobertura pasa de
+          "escribio este municipio?" a "esta a menos de N kilometros?", que es
+          la pregunta real y la unica que funciona fuera del area metropolitana.
+        */}
+        <UbicacionAliado p={p} />
+
         <AccesoAliado p={p} />
 
         {/*
@@ -496,6 +535,90 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
             value={url}
             onFocus={(e) => e.currentTarget.select()}
             style={{ ...input, fontFamily: 'ui-monospace, monospace', fontSize: 11.5 }}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+
+/** Ubicacion del aliado y su radio de cobertura. */
+function UbicacionAliado({ p }: { p: ProviderRow }) {
+  const [dir, setDir] = useState(p.address ?? '');
+  const [radio, setRadio] = useState(p.coverageRadiusKm ? String(p.coverageRadiusKm) : '');
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    p.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng } : null,
+  );
+  const [msg, setMsg] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+
+  async function guardar() {
+    setOcupado(true); setMsg(null);
+    await fetch(`/api/admin/providers/${p.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        address: dir,
+        coverageRadiusKm: radio.trim() ? Number(radio) : null,
+      }),
+    });
+    setOcupado(false);
+    setMsg('Guardado.');
+  }
+
+  async function ubicar() {
+    setOcupado(true); setMsg(null);
+    // Se guarda ANTES de geocodificar: la direccion que el usuario acaba de
+    // escribir es la que hay que buscar, no la que estaba en la base.
+    await guardar();
+    const r = await fetch(`/api/admin/providers/${p.id}/geocodificar`, { method: 'POST' });
+    const d = await r.json().catch(() => null);
+    setOcupado(false);
+    setMsg(d?.mensaje ?? 'No se pudo ubicar.');
+    if (d?.ok) setCoords({ lat: d.lat, lng: d.lng });
+  }
+
+  return (
+    <section style={{ borderTop: `1px solid ${C.line}`, marginTop: 22, paddingTop: 18 }}>
+      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: C.ink }}>Dónde está y hasta dónde llega</h3>
+      <p style={{ margin: '0 0 13px', fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+        Con esto dejamos de decidir la cobertura por el nombre del municipio. Los que ya tienen
+        radio se comparan por distancia real a la obra.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
+        <div style={{ gridColumn: '1 / -1' }}>
+          <span style={label}>Dirección de su base</span>
+          <input style={input} value={dir} onChange={(e) => setDir(e.target.value)} placeholder="Av. Industrias 200, Apodaca, N.L." />
+        </div>
+        <div>
+          <span style={label}>Llega hasta (km)</span>
+          <input style={input} type="number" min={1} value={radio} onChange={(e) => setRadio(e.target.value)} placeholder="40" />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 9, marginTop: 13, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button type="button" style={{ ...boton, opacity: ocupado ? 0.6 : 1 }} onClick={ubicar} disabled={ocupado}>
+          Ponerlo en el mapa
+        </button>
+        <button type="button" style={botonSec} onClick={guardar} disabled={ocupado}>Sólo guardar</button>
+        {coords ? (
+          <span style={{ fontSize: 12, color: C.ok }}>
+            Ubicado en {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
+          </span>
+        ) : (
+          <span style={{ fontSize: 12, color: C.dim }}>Sin ubicar</span>
+        )}
+      </div>
+
+      {msg ? <div style={{ marginTop: 11, fontSize: 13, color: C.ink }}>{msg}</div> : null}
+
+      {coords ? (
+        <div style={{ marginTop: 13 }}>
+          <MapaCobertura
+            alto={220}
+            puntos={[{ id: p.id, nombre: p.name, lat: coords.lat, lng: coords.lng, radioKm: p.coverageRadiusKm ?? (radio ? Number(radio) : null), tipo: 'aliado' }]}
           />
         </div>
       ) : null}

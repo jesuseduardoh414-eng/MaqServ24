@@ -1490,11 +1490,16 @@ model providers {
   last_access_at      DateTime?             @db.Timestamp(6)
   access_sent_at      DateTime?             @db.Timestamp(6)
   reminder_sent_at    DateTime?             @db.Timestamp(6)
+  lat                 Decimal?              @db.Decimal(10, 7)
+  lng                 Decimal?              @db.Decimal(10, 7)
+  coverage_radius_km  Int?
+  address             String?
   provider_documents  provider_documents[]
   service_assignments service_assignments[]
   service_incidents   service_incidents[]
 
   @@index([level])
+  @@index([lat, lng], map: "providers_geo_idx")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
@@ -1567,6 +1572,7 @@ model client_sites {
   quotes        quotes[]
 
   @@index([client_id, status], map: "client_sites_client_idx")
+  @@index([lat, lng], map: "client_sites_geo_idx")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

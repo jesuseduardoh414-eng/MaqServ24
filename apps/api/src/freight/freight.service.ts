@@ -39,12 +39,12 @@ export interface FreightQuote {
   message: string;
 }
 
-interface GeoPoint {
+export interface GeoPoint {
   lat: number;
   lon: number;
 }
 
-const ROAD_FACTOR = 1.32; // línea recta → carretera (aprox. México)
+export const ROAD_FACTOR = 1.32; // línea recta → carretera (aprox. México)
 const GEO_TTL_MS = 24 * 60 * 60 * 1000;
 const UA = 'MaqServ24/1.0 (cotizador de traslado)';
 
@@ -52,7 +52,7 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function haversineKm(a: GeoPoint, b: GeoPoint): number {
+export function haversineKm(a: GeoPoint, b: GeoPoint): number {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
   const dLon = ((b.lon - a.lon) * Math.PI) / 180;
@@ -145,7 +145,12 @@ export class FreightService {
    * (p. ej. "Albino Espinosa 807-855, Centro, 64000 Monterrey, N.L." no existe en OSM),
    * así que se reintenta quitando componentes desde el inicio: calle → colonia → ciudad.
    */
-  private async geocode(address: string): Promise<GeoPoint | null> {
+  /**
+   * Publico a proposito: la red de aliados y las obras necesitan EXACTAMENTE el
+   * mismo geocodificador que el cotizador de traslado, con su cache y su
+   * reintento por componentes. Tener dos seria tener dos formas de fallar.
+   */
+  async geocode(address: string): Promise<GeoPoint | null> {
     const key = address.trim().toLowerCase();
     const hit = this.geoCache.get(key);
     if (hit && Date.now() - hit.at < GEO_TTL_MS) return hit.point;

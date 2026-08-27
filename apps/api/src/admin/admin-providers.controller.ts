@@ -21,6 +21,7 @@ import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/p
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAccesoAliado } from '../notifications/email-templates';
+import { FreightService } from '../freight/freight.service';
 import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incidents';
 
 /**
@@ -48,6 +49,10 @@ const providerSchema = z.object({
   responseMinutes: z.coerce.number().int().min(0).max(10080).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
   status: z.coerce.number().int().min(0).max(1).optional(),
+  /** Dirección de su base, para poder geocodificarla. */
+  address: z.string().max(500).optional().nullable(),
+  /** Hasta dónde llega desde ahí. Null = sólo vale su lista de municipios. */
+  coverageRadiusKm: z.coerce.number().int().min(1).max(1500).optional().nullable(),
 });
 
 const documentSchema = z.object({
@@ -65,7 +70,10 @@ const fecha = (v: string | null | undefined): Date | null =>
 @Controller('admin/providers')
 @UseGuards(AdminGuard)
 export class AdminProvidersController {
-  constructor(private readonly mailer: MailerService) {}
+  constructor(
+    private readonly mailer: MailerService,
+    private readonly freight: FreightService,
+  ) {}
 
   /**
    * AVISOS DE EXPEDIENTE (documento institucional, sección 23).
@@ -76,6 +84,48 @@ export class AdminProvidersController {
    * Va ANTES de las rutas con `:id` a propósito: si se declarara después, Nest
    * podría leer "alerts" como un id y la ruta nunca respondería.
    */
+  /**
+   * Poner al aliado en el mapa.
+   *
+   * Reusa el MISMO geocodificador que el cotizador de traslado, con su cache y
+   * su reintento por componentes: tener dos seria tener dos formas de fallar y
+   * dos resultados distintos para la misma direccion.
+   */
+  @Post(':id/geocodificar')
+  async geocodificar(@Param('id', ParseIntPipe) id: number) {
+    const p = await prisma.providers.findUnique({
+      where: { id },
+      select: { address: true, city: true, state: true, name: true },
+    });
+    if (!p) throw new NotFoundException('Aliado no encontrado');
+
+    // Si no capturaron direccion, se intenta con ciudad y estado: es peor
+    // precision pero mejor que nada, y el radio absorbe el error.
+    const consulta = [p.address, p.city, p.state].map((x) => x?.trim()).filter(Boolean).join(', ');
+    if (!consulta) {
+      throw new BadRequestException('Sin dirección ni ciudad no hay a dónde ubicarlo.');
+    }
+
+    const punto = await this.freight.geocode(consulta);
+    if (!punto) {
+      return {
+        ok: false,
+        mensaje: `No encontramos "${consulta}". Prueba con una direccion mas simple: calle y municipio bastan.`,
+      };
+    }
+
+    await prisma.providers.update({
+      where: { id },
+      data: { lat: punto.lat, lng: punto.lon, updated_at: new Date() },
+    });
+    return {
+      ok: true,
+      lat: punto.lat,
+      lng: punto.lon,
+      mensaje: `${p.name} quedó ubicado. Falta decirle hasta cuántos km llega.`,
+    };
+  }
+
   @Get('alerts')
   async alerts() {
     const limite = new Date(Date.now() + DIAS_AVISO * 24 * 60 * 60 * 1000);
@@ -171,6 +221,10 @@ export class AdminProvidersController {
         coverage: p.coverage,
         categories: p.categories,
         responseMinutes: p.response_minutes,
+        address: p.address,
+        lat: p.lat != null ? Number(p.lat) : null,
+        lng: p.lng != null ? Number(p.lng) : null,
+        coverageRadiusKm: p.coverage_radius_km,
         notes: p.notes,
         status: p.status,
         docsStatus: docs,
@@ -382,6 +436,8 @@ export class AdminProvidersController {
         coverage: d.coverage ?? [],
         categories: d.categories ?? [],
         response_minutes: d.responseMinutes ?? null,
+        address: d.address?.trim() || null,
+        coverage_radius_km: d.coverageRadiusKm ?? null,
         notes: d.notes ?? null,
         status: d.status ?? 1,
       },
@@ -410,6 +466,10 @@ export class AdminProvidersController {
         ...(d.coverage !== undefined ? { coverage: d.coverage } : {}),
         ...(d.categories !== undefined ? { categories: d.categories } : {}),
         ...(d.responseMinutes !== undefined ? { response_minutes: d.responseMinutes } : {}),
+        // Condicionales, como el resto del update: sin esto, editar el telefono
+        // le borraria la direccion y las coordenadas dejarian de tener sentido.
+        ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
+        ...(d.coverageRadiusKm !== undefined ? { coverage_radius_km: d.coverageRadiusKm } : {}),
         ...(d.notes !== undefined ? { notes: d.notes } : {}),
         ...(d.status !== undefined ? { status: d.status } : {}),
         updated_at: new Date(),

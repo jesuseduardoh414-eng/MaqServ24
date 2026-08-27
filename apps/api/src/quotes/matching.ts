@@ -31,6 +31,10 @@ export interface ProveedorCandidato {
   level: string;
   verified: boolean;
   coverage: string[];
+  /** Coordenadas de su base y hasta donde llega. Null = solo vale su lista. */
+  lat?: number | null;
+  lng?: number | null;
+  coverageRadiusKm?: number | null;
   categories: string[];
   /** Lo que el aliado DECLARA que tarda. Es un numero escrito a mano. */
   responseMinutes: number | null;
@@ -69,6 +73,64 @@ export interface SolicitudParaEmparejar {
   categoria: string | null;
   /** Municipio o texto de la ubicación de obra. */
   zona: string | null;
+  /** Coordenadas de la obra, si ya se geocodificó. */
+  punto?: { lat: number; lon: number } | null;
+}
+
+/** Kilometros en linea recta entre dos puntos. */
+export function distanciaKm(
+  a: { lat: number; lon: number },
+  b: { lat: number; lon: number },
+): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLon = ((b.lon - a.lon) * Math.PI) / 180;
+  const la1 = (a.lat * Math.PI) / 180;
+  const la2 = (b.lat * Math.PI) / 180;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/** Linea recta -> carretera. El mismo factor que usa el cotizador de traslado. */
+const FACTOR_CARRETERA = 1.32;
+
+export interface Cobertura {
+  cubre: boolean;
+  /** Kilometros por carretera, cuando se pudo calcular. */
+  km: number | null;
+  /** Como se decidio: por distancia medida o por la lista de municipios. */
+  como: 'distancia' | 'municipio' | 'sin-dato';
+}
+
+/**
+ * ¿Este aliado alcanza esta obra?
+ *
+ * Manda la DISTANCIA sobre el texto cuando los dos tienen coordenadas y el
+ * aliado declaró un radio: "¿está a menos de 40 km?" es la pregunta real, y
+ * "¿escribió este municipio?" era sólo la que se podía contestar. El texto
+ * sigue siendo el respaldo, porque cambiar de criterio de golpe dejaría sin
+ * cobertura a todo aliado que aún no se ha geocodificado.
+ */
+export function coberturaDe(
+  p: {
+    coverage: string[];
+    lat?: number | null;
+    lng?: number | null;
+    coverageRadiusKm?: number | null;
+  },
+  solicitud: SolicitudParaEmparejar,
+): Cobertura {
+  if (p.lat != null && p.lng != null && p.coverageRadiusKm && solicitud.punto) {
+    const km =
+      Math.round(
+        distanciaKm({ lat: p.lat, lon: p.lng }, solicitud.punto) * FACTOR_CARRETERA * 10,
+      ) / 10;
+    return { cubre: km <= p.coverageRadiusKm, km, como: 'distancia' };
+  }
+  if (solicitud.zona) {
+    return { cubre: cubreZona(p.coverage, solicitud.zona), km: null, como: 'municipio' };
+  }
+  return { cubre: false, km: null, como: 'sin-dato' };
 }
 
 export interface Coincidencia {
@@ -135,10 +197,18 @@ export function emparejar(
       const advertencias: string[] = [];
       let puntaje = 0;
 
-      const enZona = cubreZona(p.coverage, zona);
-      if (enZona) {
+      const cob = coberturaDe(p, solicitud);
+      if (cob.cubre) {
         puntaje += 50;
-        razones.push(`Cubre ${zona}`);
+        razones.push(
+          cob.km !== null ? `A ${cob.km} km de la obra` : `Cubre ${zona}`,
+        );
+      } else if (cob.km !== null) {
+        // Con distancia medida el aviso es concreto: no "no cubre esa zona"
+        // sino cuantos kilometros se sale, que es lo que decide si vale la pena.
+        advertencias.push(
+          `La obra queda a ${cob.km} km y él llega hasta ${p.coverageRadiusKm}: habría que cotizar el traslado`,
+        );
       } else if (zona) {
         advertencias.push(`No declara cobertura en ${zona}: habría que cotizar el traslado`);
       }

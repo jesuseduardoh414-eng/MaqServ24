@@ -36,7 +36,7 @@ export class MatchingService {
   async paraCotizacion(quoteId: number): Promise<ResultadoEmparejamiento> {
     const q = await prisma.quotes.findUnique({
       where: { id: quoteId },
-      include: { client_sites: { select: { requirements: true } } },
+      include: { client_sites: { select: { requirements: true, lat: true, lng: true } } },
     });
     if (!q) throw new NotFoundException('Cotización no encontrada');
 
@@ -46,6 +46,16 @@ export class MatchingService {
      * hereda a todo lo que salga de ahi.
      */
     const exigeLaObra = q.client_sites?.requirements ?? [];
+
+    /**
+     * Donde esta la obra, si ya se geocodifico. Con esto la cobertura pasa de
+     * "escribio este municipio?" a "esta a menos de N kilometros?", que es la
+     * pregunta real.
+     */
+    const punto =
+      q.client_sites?.lat != null && q.client_sites?.lng != null
+        ? { lat: Number(q.client_sites.lat), lon: Number(q.client_sites.lng) }
+        : null;
 
     // La zona sale de las respuestas del formulario; si no las hay, de la
     // dirección de entrega, que es lo único que siempre se pide.
@@ -159,6 +169,9 @@ export class MatchingService {
         level: a.level,
         verified: estaVerificado(a.level, docs),
         coverage: a.coverage,
+        lat: a.lat != null ? Number(a.lat) : null,
+        lng: a.lng != null ? Number(a.lng) : null,
+        coverageRadiusKm: a.coverage_radius_km,
         categories: a.categories,
         responseMinutes: a.response_minutes,
         // El medido le gana al declarado: uno es lo que prometió, el otro lo
@@ -173,7 +186,7 @@ export class MatchingService {
       };
     });
 
-    const coincidencias = emparejar({ categoria, zona }, candidatos);
+    const coincidencias = emparejar({ categoria, zona, punto }, candidatos);
 
     return {
       quoteNumber: q.quote_number,

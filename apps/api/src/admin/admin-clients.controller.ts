@@ -6,6 +6,7 @@ import { prisma } from '@maqserv/db';
 import { z } from 'zod';
 import { AdminGuard } from './admin-auth';
 import { esEstado, PASOS } from '../quotes/service-flow';
+import { FreightService } from '../freight/freight.service';
 
 /**
  * CLIENTES Y OBRAS (documento institucional, sección 17 · Módulo Clientes).
@@ -47,6 +48,8 @@ const vacio = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null
 @Controller('admin/clients')
 @UseGuards(AdminGuard)
 export class AdminClientsController {
+  constructor(private readonly freight: FreightService) {}
+
   @Get()
   async list(@Query('search') search?: string) {
     const term = search?.trim();
@@ -160,6 +163,8 @@ export class AdminClientsController {
         address: s.address,
         municipality: s.municipality,
         state: s.state,
+        lat: s.lat != null ? Number(s.lat) : null,
+        lng: s.lng != null ? Number(s.lng) : null,
         contactName: s.contact_name,
         contactPhone: s.contact_phone,
         requirements: s.requirements,
@@ -272,6 +277,39 @@ export class AdminClientsController {
       data: { status: 0, updated_at: new Date() },
     });
     return { ok: true };
+  }
+
+  /**
+   * Poner la obra en el mapa.
+   *
+   * Es la otra mitad de la cobertura por distancia: sin el punto de la obra,
+   * el radio del aliado no tiene contra qué medirse y todo vuelve a decidirse
+   * por el nombre del municipio.
+   */
+  @Post('sites/:siteId/geocodificar')
+  async geocodificarObra(@Param('siteId', ParseIntPipe) siteId: number) {
+    const s = await prisma.client_sites.findUnique({
+      where: { id: siteId },
+      select: { name: true, address: true, municipality: true, state: true },
+    });
+    if (!s) throw new NotFoundException('Obra no encontrada');
+
+    const consulta = [s.address, s.municipality, s.state].map((x) => x?.trim()).filter(Boolean).join(', ');
+    if (!consulta) throw new BadRequestException('Sin dirección ni municipio no hay a dónde ubicarla.');
+
+    const punto = await this.freight.geocode(consulta);
+    if (!punto) {
+      return {
+        ok: false,
+        mensaje: `No encontramos "${consulta}". Prueba con calle y municipio nada más.`,
+      };
+    }
+
+    await prisma.client_sites.update({
+      where: { id: siteId },
+      data: { lat: punto.lat, lng: punto.lon, updated_at: new Date() },
+    });
+    return { ok: true, lat: punto.lat, lng: punto.lon, mensaje: `${s.name} quedó ubicada.` };
   }
 
   /** Mover una solicitud suelta a una obra. Es cómo se limpia el histórico. */
