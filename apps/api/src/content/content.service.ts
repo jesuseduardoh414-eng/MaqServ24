@@ -211,8 +211,17 @@ export class ContentService {
   }
 
   /**
-   * Mensaje del formulario de Contacto: valida y empuja un lead a Perfex CRM
-   * (fire-and-forget). Cualquier alta nueva se sigue desde el CRM del brief.
+   * Mensaje del formulario de Contacto.
+   *
+   * SE GUARDA PRIMERO, se empuja al CRM después. Antes solo se empujaba a Perfex
+   * (fire-and-forget) y no se guardaba nada: con Perfex sin credenciales —el
+   * estado real— el mensaje se descartaba en silencio mientras la persona veía
+   * un "gracias, te contactamos". El acuse de recibo hacía creer que el canal
+   * funcionaba.
+   *
+   * El orden importa: `create` va con await (si la BD falla, el visitante debe
+   * enterarse y volver a intentar), y el lead al CRM queda fuera del camino
+   * crítico — que Perfex esté caído no puede tumbar el formulario.
    */
   async contactMessage(data: { name?: string; email?: string; phone?: string; company?: string; need?: string; message?: string }): Promise<{ ok: boolean }> {
     const name = String(data.name ?? '').trim();
@@ -222,7 +231,29 @@ export class ContentService {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 190) throw new BadRequestException('Correo no válido');
     if (message.length < 4) throw new BadRequestException('Cuéntanos brevemente qué necesitas');
     const need = String(data.need ?? '').trim();
-    void this.perfex.pushLead({ name, email, source: `Contacto web${need ? ` · ${need}` : ''}` });
+
+    const saved = await prisma.contact_messages.create({
+      data: {
+        name,
+        email,
+        // Se recortan en vez de rechazarse: un teléfono largo no vale perder el mensaje.
+        phone: String(data.phone ?? '').trim().slice(0, 40) || null,
+        company: String(data.company ?? '').trim().slice(0, 190) || null,
+        need: need.slice(0, 120) || null,
+        message,
+      },
+      select: { id: true },
+    });
+
+    // `crm_pushed` se sella solo si Perfex confirmó. Los que queden en false son
+    // exactamente el atraso que hay que subir cuando el CRM se configure.
+    void this.perfex
+      .pushLead({ name, email, source: `Contacto web${need ? ` · ${need}` : ''}` })
+      .then((sent) =>
+        sent ? prisma.contact_messages.update({ where: { id: saved.id }, data: { crm_pushed: true } }) : null,
+      )
+      .catch(() => null);
+
     return { ok: true };
   }
 

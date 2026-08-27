@@ -1639,6 +1639,26 @@ model service_incidents {
   @@index([quote_id, id], map: "service_incidents_quote_idx")
 }
 
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model contact_messages {
+  id         Int       @id @default(autoincrement())
+  name       String    @db.VarChar(120)
+  email      String    @db.VarChar(190)
+  phone      String?   @db.VarChar(40)
+  company    String?   @db.VarChar(190)
+  need       String?   @db.VarChar(120)
+  message    String
+  state      String    @default("nuevo") @db.VarChar(20)
+  handled_by String?   @db.VarChar(190)
+  handled_at DateTime? @db.Timestamp(6)
+  crm_pushed Boolean   @default(false)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
+
+  @@index([created_at(sort: Desc)], map: "contact_messages_created_idx")
+  @@index([email])
+  @@index([state, created_at(sort: Desc)], map: "contact_messages_state_idx")
+}
+
 enum counters_type {
   referral
   browser

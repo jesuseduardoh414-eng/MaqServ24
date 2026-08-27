@@ -9,7 +9,7 @@ import { usePathname } from 'next/navigation';
  * (Hoy solo existe el rol superadmin: todos ven todo. Cuando haya roles,
  * bastará con filtrar estos grupos/ítems según permisos.)
  */
-type BadgeKey = 'orders' | 'quotes' | 'withdraws';
+type BadgeKey = 'orders' | 'quotes' | 'withdraws' | 'messages';
 type Item = { href: string; label: string; icon: string; badge?: BadgeKey };
 
 const GROUPS: Array<{ title: string; items: Item[] }> = [
@@ -66,6 +66,9 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
       { href: '/usuarios', label: 'Cuentas', icon: 'ph-users' },
       { href: '/resenas', label: 'Reseñas', icon: 'ph-star' },
       { href: '/preguntas', label: 'Preguntas', icon: 'ph-chats-circle' },
+      // Quien escribió por el formulario de Contacto y espera respuesta. Lleva
+      // contador porque un mensaje sin contestar es un cliente perdiéndose.
+      { href: '/mensajes', label: 'Mensajes', icon: 'ph-chat-centered-text', badge: 'messages' },
       { href: '/suscriptores', label: 'Suscriptores', icon: 'ph-envelope-simple' },
     ],
   },
@@ -110,7 +113,7 @@ type Badges = Record<BadgeKey, number>;
 
 export function SidebarNav({ collapsed, query }: { collapsed: boolean; query: string }) {
   const pathname = usePathname() || '/';
-  const [badges, setBadges] = useState<Badges>({ orders: 0, quotes: 0, withdraws: 0 });
+  const [badges, setBadges] = useState<Badges>({ orders: 0, quotes: 0, withdraws: 0, messages: 0 });
 
   // Contadores en vivo (pendientes) desde el resumen del panel.
   useEffect(() => {
@@ -123,6 +126,7 @@ export function SidebarNav({ collapsed, query }: { collapsed: boolean; query: st
           orders: d.pendingOrders ?? 0,
           quotes: d.pendingQuotes ?? 0,
           withdraws: d.withdrawsPending ?? 0,
+          messages: d.pendingMessages ?? 0,
         });
       })
       .catch(() => {});

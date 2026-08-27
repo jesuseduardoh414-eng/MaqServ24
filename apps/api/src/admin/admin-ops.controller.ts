@@ -52,7 +52,7 @@ export class AdminOpsController {
     const [
       products, orders, unpaid, toPrepare, shipped, quotes, pendingQuotes,
       vendorsPending, withdrawsPending, withdrawsAmount, unansweredQuestions,
-      pendingReviews, sold, customers, docsExpired, docsExpiring,
+      pendingReviews, sold, customers, docsExpired, docsExpiring, pendingMessages,
     ] = await Promise.all([
       prisma.products.count({ where: { status: 1 } }),
       prisma.orders.count(),
@@ -88,12 +88,15 @@ export class AdminOpsController {
           },
         },
       }),
+      // Mensajes de contacto que nadie ha contestado. Va en "por atender"
+      // porque es alguien esperando respuesta, igual que una cotización.
+      prisma.contact_messages.count({ where: { state: 'nuevo' } }),
     ]);
 
     return {
       // Por atender
       toPrepare, shipped, unpaid, pendingQuotes, vendorsPending,
-      docsExpired, docsExpiring,
+      docsExpired, docsExpiring, pendingMessages,
       withdrawsPending, withdrawsAmount: withdrawsAmount._sum.amount ?? 0,
       unansweredQuestions, pendingReviews,
       // Negocio
