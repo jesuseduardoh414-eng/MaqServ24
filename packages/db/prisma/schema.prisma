@@ -167,6 +167,11 @@ model comments {
   rating     Int?     @default(5)
   order_id   Int?
   status     Int      @default(1)
+
+  /// Una reseña por usuario+producto (verificado sin duplicados antes de
+  /// agregarlo): cierra la carrera de dos envíos simultáneos y habilita upsert.
+  @@unique([user_id, product_id], map: "comments_user_product_key")
+  @@index([product_id, status], map: "comments_product_status_idx")
 }
 
 model conversations {
@@ -250,6 +255,9 @@ model product_questions {
   answered_at DateTime? @db.Timestamp(0)
   updated_at  DateTime  @default(now()) @db.Timestamp(0)
   featured    Int       @default(0)
+
+  @@index([product_id, status], map: "product_questions_product_status_idx")
+  @@index([featured, status], map: "product_questions_featured_status_idx")
 }
 
 model favorite_sellers {
@@ -765,10 +773,12 @@ model orders {
   shipping         String?        @db.VarChar(255)
   pickup_location  String?        @db.VarChar(255)
   totalQty         String
-  pay_amount       Float          @db.Real
+  /// double precision, no real: un float de 32 bits pierde los centavos arriba
+  /// de ~$83,886 y los totales de maquinaria pesada lo cruzan con facilidad.
+  pay_amount       Float          @db.DoublePrecision
   txnid            String?        @db.VarChar(255)
   charge_id        String?        @db.VarChar(255)
-  order_number     String         @db.VarChar(255)
+  order_number     String         @unique(map: "orders_order_number_key") @db.VarChar(255)
   payment_status   String         @db.VarChar(255)
   customer_email   String?        @db.VarChar(255)
   customer_name    String?        @db.VarChar(255)
@@ -809,7 +819,16 @@ model orders {
   shipped_at       DateTime?      @db.Timestamp(0)
   tracking         String?        @db.VarChar(80)
   stock_released   Boolean        @default(false)
+  /// Clave que manda el cliente en el checkout: si el mismo intento llega dos
+  /// veces (proxy que agotó su tiempo, usuario que reintenta tras un error),
+  /// el unique lo frena y se devuelve la orden ya creada en vez de duplicar
+  /// stock retenido y usos de cupón.
+  idempotency_key  String?        @unique(map: "orders_idempotency_key_key") @db.VarChar(64)
   events           order_events[]
+
+  @@index([user_id], map: "orders_user_id_idx")
+  @@index([fulfillment], map: "orders_fulfillment_idx")
+  @@index([payment_status, created_at], map: "orders_payment_status_created_idx")
 }
 
 /// Tabla NUEVA (no viene del Laravel viejo): historial de envío de cada orden.
@@ -912,8 +931,9 @@ model products {
   photo                     String?
   size                      String?
   color                     String?
-  cprice                    Float     @db.Real
-  pprice                    Float?    @db.Real
+  /// double precision, no real: float de 32 bits pierde centavos en precios altos.
+  cprice                    Float     @db.DoublePrecision
+  pprice                    Float?    @db.DoublePrecision
   description               String
   stock                     Int?
   policy                    String?
@@ -965,6 +985,7 @@ model products {
   attributes                Json?
 
   @@index([provider_id], map: "products_provider_idx")
+  @@index([status, category_id], map: "products_status_category_idx")
   @@index([attributes], type: Gin)
 }
 
@@ -1412,6 +1433,8 @@ model wishlists {
   id         Int @id @default(autoincrement())
   user_id    Int
   product_id Int
+
+  @@index([user_id], map: "wishlists_user_id_idx")
 }
 
 model withdraws {
