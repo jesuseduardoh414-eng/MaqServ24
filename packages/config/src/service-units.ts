@@ -133,3 +133,52 @@ export function etiquetaPrecio(precio: number, unidad: string | null | undefined
   const u = unidad ? UNIDADES[unidad] : undefined;
   return u ? `${p} / ${u.singular}` : p;
 }
+
+/**
+ * Claves del CARRITO ('dia' | 'sem' | 'mes' | ...) ⇄ claves de `UNIDADES`
+ * ('semana' en vez de 'sem'). La única traducción que difiere es la semana.
+ */
+export const unidadDeCarrito = (clave: string): string => (clave === 'sem' ? 'semana' : clave);
+export const claveDeCarrito = (unidad: string): string => (unidad === 'semana' ? 'sem' : unidad);
+
+/**
+ * Precio que se COBRA por periodo en carrito y checkout. FUENTE ÚNICA:
+ * la ficha de producto lo muestra y `orders.service` lo cobra con esta misma
+ * función — si alguna vez divergen, el cliente paga algo distinto de lo que
+ * vio (pasó: el server asumía `cprice` mensual e ignoraba `price_unit`, y un
+ * equipo capturado por hora se cobraba ÷20, hasta en $0).
+ *
+ * Reglas:
+ * - Si el periodo pedido ES la unidad capturada, se cobra `base` tal cual
+ *   (sin redondeo a centenas: eso inflaría un $1,550/mes a $1,600).
+ * - Entre unidades de tiempo se convierte con los factores del ramo y se
+ *   redondea a centenas (regla comercial)… pero NUNCA a $0: si la centena se
+ *   come el precio, se cobra el equivalente exacto a peso.
+ * - Un viaje/tonelada/m³ no es fracción de un mes: sin conversión posible se
+ *   cobra la unidad capturada.
+ */
+export function precioPeriodoCarrito(
+  base: number,
+  unidadBase: string | null | undefined,
+  periodoCarrito: string,
+): number {
+  const origen = unidadBase ?? 'mes';
+  const destino = unidadDeCarrito(periodoCarrito);
+  if (destino === origen) return Math.round(base * 100) / 100;
+  const p = precioEnUnidad(base, origen, destino);
+  if (p === null) return Math.round(base * 100) / 100;
+  const centenas = Math.round(p / 100) * 100;
+  return centenas > 0 ? centenas : Math.max(1, Math.round(p));
+}
+
+/**
+ * Unidad en la que de verdad se va a cobrar una línea de renta: solo se puede
+ * elegir OTRA unidad cuando la capturada y la pedida son ambas de tiempo; en
+ * cualquier otro caso manda la capturada (clave de `UNIDADES`, no de carrito).
+ */
+export function unidadDeCobro(unidadBase: string | null | undefined, periodoPedido: string | null | undefined): string {
+  const origen = unidadBase ?? 'mes';
+  if (!periodoPedido) return origen;
+  const pedido = unidadDeCarrito(periodoPedido);
+  return esUnidadDeTiempo(origen) && esUnidadDeTiempo(pedido) && UNIDADES[pedido] ? pedido : origen;
+}

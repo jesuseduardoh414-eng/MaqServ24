@@ -17,19 +17,33 @@ export interface PaymentMethod {
   available: boolean;
 }
 
-/** Periodo de renta: el servidor deriva el precio del mensual del producto. */
-export type RentalPeriod = 'dia' | 'sem' | 'mes';
+/**
+ * Periodo/unidad de cobro de una línea de renta. Entre unidades de tiempo el
+ * servidor convierte desde `products.price_unit` (fuente única en
+ * `precioPeriodoCarrito` de @maqserv/config); las demás ('viaje', 'tonelada'…)
+ * solo pueden cobrarse en su propia unidad. 'sem' es la clave de carrito de
+ * 'semana' — histórico, se conserva.
+ */
+export type RentalPeriod =
+  | 'dia' | 'sem' | 'mes'
+  | 'hora' | 'jornada' | 'viaje' | 'tonelada' | 'm3' | 'litro';
 
 export interface CheckoutItemInput {
   productId: number;
   qty: number;
-  /** Renta: periodo elegido (día/semana/mes). Default 'mes'. */
+  /** Renta: periodo elegido. Default: la unidad en la que está capturado el precio. */
   period?: RentalPeriod;
 }
 
 export interface CheckoutInput {
   items: CheckoutItemInput[];
   method: PaymentMethodId;
+  /**
+   * Clave única por INTENTO de compra (la genera el navegador y se conserva
+   * entre reintentos): si la misma llega dos veces, el servidor devuelve la
+   * orden ya creada en vez de duplicarla.
+   */
+  idempotencyKey?: string;
   /** Cupón opcional; el descuento lo calcula y aplica el servidor. */
   couponCode?: string;
   /** Agregar operador certificado (monto configurable en Panel → Pagos). */

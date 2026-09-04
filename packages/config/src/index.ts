@@ -22,6 +22,10 @@ export {
   precioEnUnidad,
   unidadesEquivalentes,
   etiquetaPrecio,
+  unidadDeCarrito,
+  claveDeCarrito,
+  precioPeriodoCarrito,
+  unidadDeCobro,
   type UnidadServicio,
 } from './service-units';
 export {
