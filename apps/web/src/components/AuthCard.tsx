@@ -38,7 +38,7 @@ function field(err: boolean, extra?: React.CSSProperties): React.CSSProperties {
 /**
  * Textos visibles de la card, resueltos SERVER-SIDE desde el tema (requisito
  * duro: todo copy editable en Panel → Diseño). Los defaults replican el texto
- * original para que un consumidor sin tema (p. ej. AuthShell) no cambie.
+ * original para que un consumidor sin tema no cambie.
  */
 export interface AuthLabels {
   tabLogin: string; tabRegister: string;
