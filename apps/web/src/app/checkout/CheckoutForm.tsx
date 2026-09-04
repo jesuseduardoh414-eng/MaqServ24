@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { AuthUser, CheckoutResult, CouponCheck, PaymentMethod, PaymentMethodId } from '@maqserv/types';
 import type { CheckoutConfig } from '@maqserv/config';
-import { cartLineTotal, useCart } from '@/components/CartProvider';
+import { cartLineKey, cartLineTotal, useCart } from '@/components/CartProvider';
 import { Icon } from '@/components/Icon';
 import { FREIGHT_ADDRESS_KEY, freightCostOf, useFreightQuote } from '@/components/useFreightQuote';
 import { formatPrice } from '@/lib/format';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 const STEPS: Array<[string, string]> = [['1', 'Carrito'], ['2', 'Datos'], ['3', 'Pago']];
@@ -28,7 +28,6 @@ const fieldStyle: React.CSSProperties = {
   background: 'var(--color-bg)',
   border: '1px solid var(--color-border)',
   borderRadius: 4,
-  outline: 'none',
 };
 
 const legendStyle: React.CSSProperties = {
@@ -98,6 +97,12 @@ export function CheckoutForm({
   const [coupon, setCoupon] = useState<CouponCheck | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
 
+  // Se cobra EXACTAMENTE lo seleccionado en el paso Carrito (antes se mandaba
+  // el carrito completo aunque el paso 1 mostrara un total por menos líneas).
+  const items = cart.selectedItems;
+  const subtotal = items.reduce((s, i) => s + cartLineTotal(i), 0);
+  const units = items.reduce((n, i) => n + i.qty, 0);
+
   // Traslado: se recotiza solo conforme el cliente escribe su dirección.
   const freightCfg = config.freight;
   const { quote: freight, loading: freightLoading, run: quoteFreight } = useFreightQuote();
@@ -105,16 +110,31 @@ export function CheckoutForm({
   const [city, setCity] = useState(user.city ?? '');
   const [zip, setZip] = useState(user.zip ?? '');
   const freightAddress = [addr, city, zip ? `CP ${zip}` : ''].filter(Boolean).join(', ');
-  const freightKey = cart.items.map((i) => `${i.productId}:${i.qty}`).join(',');
+  const freightKey = items.map((i) => `${i.productId}:${i.qty}`).join(',');
+
+  /**
+   * Clave de idempotencia: una por INTENTO de compra. Si el proxy agota su
+   * tiempo pero la petición llegó (Render despertando), el reintento del
+   * cliente lleva la MISMA clave y el servidor devuelve la orden ya creada en
+   * vez de duplicar stock retenido y usos de cupón. Cambiar el contenido del
+   * intento (items, método, cupón) genera clave nueva.
+   */
+  const idempotencyKey = useMemo(
+    () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `ck-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [freightKey, method, coupon?.code, cart.operator],
+  );
 
   useEffect(() => {
     if (!freightCfg.enabled || freightCfg.mode === 'quote' || !freightKey) return;
-    const items = cart.items.map((i) => ({ productId: i.productId, qty: i.qty }));
-    if (freightCfg.mode === 'flat') { quoteFreight('', items); return; }
+    const payload = items.map((i) => ({ productId: i.productId, qty: i.qty }));
+    if (freightCfg.mode === 'flat') { quoteFreight('', payload); return; }
     if (freightAddress.trim().length < 5) return;
     const t = setTimeout(() => {
       localStorage.setItem(FREIGHT_ADDRESS_KEY, freightAddress);
-      quoteFreight(freightAddress, items);
+      quoteFreight(freightAddress, payload);
     }, 700); // no pegarle a la API en cada tecla
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,7 +148,7 @@ export function CheckoutForm({
     const res = await fetch('/api/proxy/orders/coupon/check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, subtotal: cart.total }),
+      body: JSON.stringify({ code, subtotal }),
     });
     const data = (await res.json().catch(() => null)) as CouponCheck | null;
     if (res.ok && data?.valid) setCoupon(data);
@@ -137,9 +157,9 @@ export function CheckoutForm({
 
   // Mismo cálculo que el carrito y que el servidor (Panel → Pagos manda).
   const discount = coupon?.valid ? coupon.discount : 0;
-  const operatorCost = cart.operator && config.operator.enabled ? cart.count * config.operator.amount : 0;
+  const operatorCost = cart.operator && config.operator.enabled ? units * config.operator.amount : 0;
   const freightCost = freightCostOf(freight);
-  const taxable = Math.max(0, cart.total - discount) + operatorCost + freightCost;
+  const taxable = Math.max(0, subtotal - discount) + operatorCost + freightCost;
   const taxAdds = config.tax.enabled && !config.tax.included;
   const tax = taxAdds ? taxable * (config.tax.rate / 100) : 0;
   const includedTax = config.tax.enabled && config.tax.included ? taxable - taxable / (1 + config.tax.rate / 100) : 0;
@@ -148,18 +168,34 @@ export function CheckoutForm({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+
+    // Candado del traslado por km: no se confirma hasta que el resumen muestre
+    // el costo que el servidor va a cobrar. Antes, enviar antes del cálculo
+    // mostraba "a cotizar" y la orden cobraba el traslado de todos modos.
+    if (freightCfg.enabled && freightCfg.mode === 'km' && freightAddress.trim().length >= 5) {
+      if (freightLoading) {
+        setError('Estamos calculando el costo del traslado; espera unos segundos.');
+        return;
+      }
+      if (!freight) {
+        setError('Aún no se calcula el traslado a tu dirección; espera a que aparezca en el resumen.');
+        return;
+      }
+    }
+
     setLoading(true);
     const form = new FormData(e.currentTarget);
     const res = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        items: cart.items.map((i) => ({
+        items: items.map((i) => ({
           productId: i.productId,
           qty: i.qty,
           ...(i.period ? { period: i.period } : {}),
         })),
         method,
+        idempotencyKey,
         ...(coupon?.valid ? { couponCode: coupon.code } : {}),
         ...(cart.operator ? { operator: true } : {}),
         customer: {
@@ -179,7 +215,8 @@ export function CheckoutForm({
       setError((data as { message?: string } | null)?.message ?? 'No pudimos procesar tu pedido');
       return;
     }
-    cart.clear();
+    // Solo salen del carrito las líneas COMPRADAS: lo deseleccionado se queda.
+    cart.removeLines(items.map(cartLineKey));
     if (data.redirectUrl) {
       window.location.href = data.redirectUrl; // MercadoPago Checkout Pro
       return;
@@ -189,7 +226,6 @@ export function CheckoutForm({
 
   const shell = (children: React.ReactNode) => (
     <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         @media (max-width: 900px){
           .co-grid{ grid-template-columns:1fr !important; gap:32px !important; }
@@ -229,13 +265,13 @@ export function CheckoutForm({
     </div>
   );
 
-  if (cart.items.length === 0) {
+  if (items.length === 0) {
     return shell(
       <div style={{ textAlign: 'center', padding: '80px 20px' }}>
         <div style={{ fontSize: 56, marginBottom: 20 }}>🛒</div>
         <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 700 }}>{labels.emptyCart}</h2>
         <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted)' }}>Agrega equipo a tu carrito para poder finalizar la compra.</p>
-        <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 100 }}>{labels.browse}</Link>
+        <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 'var(--radius-button)' }}>{labels.browse}</Link>
       </div>,
     );
   }
@@ -289,7 +325,7 @@ export function CheckoutForm({
               );
             })}
             {available.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--color-text-muted)' }}>No hay métodos de pago activos. Configúralos en el panel.</p>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--color-text-muted)' }}>Por el momento no hay métodos de pago disponibles. Escríbenos y con gusto te ayudamos a completar tu pedido.</p>
             ) : null}
           </div>
         </section>
@@ -300,8 +336,8 @@ export function CheckoutForm({
         <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', color: 'var(--color-text-muted)', padding: '18px 24px 0', textTransform: 'uppercase' }}>{labels.summaryTitle}</div>
 
         <div style={{ padding: '14px 24px 0' }}>
-          {cart.items.map((i) => (
-            <div key={i.productId} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0' }}>
+          {items.map((i) => (
+            <div key={cartLineKey(i)} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0' }}>
               <span style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 3, overflow: 'hidden', background: 'var(--color-bg)', backgroundImage: i.image ? undefined : stripe, display: 'block' }}>
                 {i.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -326,7 +362,7 @@ export function CheckoutForm({
           {couponError ? <p role="alert" style={{ color: 'var(--color-error)', margin: '0 0 6px', fontSize: 12.5 }}>{couponError}</p> : null}
 
           <div style={{ paddingTop: 8 }}>
-            <div style={rowStyle}><span>Subtotal</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(cart.total)}</span></div>
+            <div style={rowStyle}><span>Subtotal</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(subtotal)}</span></div>
 
             {discount > 0 ? (
               <div style={{ ...rowStyle, color: 'var(--color-success)' }}>
@@ -336,7 +372,7 @@ export function CheckoutForm({
             ) : null}
 
             {operatorCost > 0 ? (
-              <div style={rowStyle}><span>{config.operator.label} ({cart.count})</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(operatorCost)}</span></div>
+              <div style={rowStyle}><span>{config.operator.label} ({units})</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(operatorCost)}</span></div>
             ) : null}
 
             {/* Traslado: antes del impuesto, porque el impuesto se calcula sobre él. */}
@@ -369,7 +405,7 @@ export function CheckoutForm({
             <p role="alert" style={{ color: 'var(--color-error)', margin: '0 0 12px', fontSize: 13, textAlign: 'center' }}>{error}</p>
           ) : null}
 
-          <button type="submit" disabled={loading || available.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: loading || available.length === 0 ? 'default' : 'pointer', opacity: loading || available.length === 0 ? 0.6 : 1 }}>
+          <button type="submit" disabled={loading || available.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', cursor: loading || available.length === 0 ? 'default' : 'pointer', opacity: loading || available.length === 0 ? 0.6 : 1 }}>
             {loading ? 'Procesando…' : labels.submit}
           </button>
 

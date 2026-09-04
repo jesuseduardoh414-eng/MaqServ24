@@ -18,7 +18,7 @@ export default async function CheckoutPage() {
   const [theme, user] = await Promise.all([getTheme(), getSessionUser()]);
   if (!user) redirect('/login');
 
-  const methods = (await fetch(`${API_URL}/payments/methods`, { cache: 'no-store' })
+  const methods = (await fetch(`${API_URL}/payments/methods`, { cache: 'no-store', signal: AbortSignal.timeout(15_000) })
     .then((r) => r.json())
     .catch(() => [])) as PaymentMethod[];
 

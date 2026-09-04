@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { CheckoutConfig } from '@maqserv/config';
-import { cartLineTotal, useCart } from '@/components/CartProvider';
+import { cartLineKey, cartLineTotal, useCart, type CartItem } from '@/components/CartProvider';
 import { Icon } from '@/components/Icon';
 import { FREIGHT_ADDRESS_KEY, freightCostOf, useFreightQuote } from '@/components/useFreightQuote';
 import { formatPrice } from '@/lib/format';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 const STEPS: Array<[string, string]> = [['1', 'Carrito'], ['2', 'Datos'], ['3', 'Pago']];
@@ -21,8 +21,9 @@ export function CartView({ config }: { config: CheckoutConfig }) {
   const operator = cart.operator;
   const setOperator = cart.setOperator;
 
-  // Selección: guardamos los DES-seleccionados (todo entra seleccionado por defecto).
-  const [deselected, setDeselected] = useState<Set<number>>(new Set());
+  // Selección: vive en el CartProvider para que el checkout cobre EXACTAMENTE
+  // lo seleccionado (antes era estado local y el checkout mandaba todo).
+  const deselected = cart.deselected;
   const [couponInput, setCouponInput] = useState('');
   const [couponCode, setCouponCode] = useState<string | null>(null);
   const [coupon, setCoupon] = useState<{ discount: number; label: string | null; code: string } | null>(null);
@@ -33,7 +34,7 @@ export function CartView({ config }: { config: CheckoutConfig }) {
   const [addr, setAddr] = useState('');
   const { quote: freight, loading: freightLoading, run: quoteFreight } = useFreightQuote();
 
-  const selectedItems = cart.items.filter((i) => !deselected.has(i.productId));
+  const selectedItems = cart.selectedItems;
   const allSelected = cart.items.length > 0 && selectedItems.length === cart.items.length;
   const selUnits = selectedItems.reduce((n, i) => n + i.qty, 0);
   const subtotal = useMemo(() => selectedItems.reduce((s, i) => s + cartLineTotal(i), 0), [selectedItems]);
@@ -47,8 +48,8 @@ export function CartView({ config }: { config: CheckoutConfig }) {
   const includedTax = config.tax.enabled && config.tax.included ? taxable - taxable / (1 + config.tax.rate / 100) : 0;
   const total = taxable + tax;
 
-  const toggleSel = (id: number) => setDeselected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleAll = () => setDeselected(allSelected ? new Set(cart.items.map((i) => i.productId)) : new Set());
+  const toggleSel = cart.toggleSelected;
+  const toggleAll = () => cart.setAllSelected(!allSelected);
 
   // Revalida el cupón contra el endpoint real cuando cambia el código o el subtotal.
   useEffect(() => {
@@ -93,14 +94,14 @@ export function CartView({ config }: { config: CheckoutConfig }) {
     setCouponCode(code);
   }
 
-  async function saveToFav(ids: number[]) {
+  async function saveToFav(lines: CartItem[]) {
     let unauth = false;
-    for (const id of ids) {
+    for (const line of lines) {
       try {
-        const r = await fetch('/api/proxy/wishlist/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: id }) });
+        const r = await fetch('/api/proxy/wishlist/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: line.productId }) });
         if (r.status === 401) { unauth = true; break; }
       } catch { /* best-effort */ }
-      cart.remove(id);
+      cart.remove(cartLineKey(line));
     }
     if (unauth) router.push('/login');
   }
@@ -112,7 +113,6 @@ export function CartView({ config }: { config: CheckoutConfig }) {
 
   return (
     <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         @media (max-width: 900px){
           .cart-grid{ grid-template-columns:1fr !important; }
@@ -147,7 +147,7 @@ export function CartView({ config }: { config: CheckoutConfig }) {
             <div style={{ fontSize: 56, marginBottom: 20 }}>🛒</div>
             <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 700 }}>Tu carrito está vacío</h2>
             <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted)' }}>Explora nuestro catálogo y agrega el equipo que tu obra necesita.</p>
-            <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 100 }}>Ver productos</Link>
+            <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 'var(--radius-button)' }}>Ver productos</Link>
           </div>
         ) : (
           <div className="cart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 56, alignItems: 'start' }}>
@@ -157,14 +157,14 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                 <Check on={allSelected} onClick={toggleAll} />
                 <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>{selectedItems.length}/{cart.items.length} seleccionados</span>
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 18 }}>
-                  <button type="button" disabled={selectedItems.length === 0} onClick={() => saveToFav(selectedItems.map((i) => i.productId))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-text)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="heart" size={12} />MOVER A FAVORITOS</button>
-                  <button type="button" disabled={selectedItems.length === 0} onClick={() => selectedItems.forEach((i) => cart.remove(i.productId))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-error)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="x" size={12} />QUITAR</button>
+                  <button type="button" disabled={selectedItems.length === 0} onClick={() => saveToFav(selectedItems)} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-text)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="heart" size={12} />MOVER A FAVORITOS</button>
+                  <button type="button" disabled={selectedItems.length === 0} onClick={() => cart.removeLines(selectedItems.map(cartLineKey))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-error)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="x" size={12} />QUITAR</button>
                 </div>
               </div>
 
               {cart.items.map((item) => (
-                <div key={item.productId} className="cart-line" style={{ display: 'grid', gridTemplateColumns: '26px 120px 1fr auto', gap: 20, padding: '24px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center' }}>
-                  <Check on={!deselected.has(item.productId)} onClick={() => toggleSel(item.productId)} />
+                <div key={cartLineKey(item)} className="cart-line" style={{ display: 'grid', gridTemplateColumns: '26px 120px 1fr auto', gap: 20, padding: '24px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center' }}>
+                  <Check on={!deselected.has(cartLineKey(item))} onClick={() => toggleSel(cartLineKey(item))} />
                   <Link href={`/productos/${item.slug}`} style={{ height: 100, borderRadius: 3, overflow: 'hidden', background: 'var(--color-surface)', backgroundImage: item.image ? undefined : stripe, display: 'block' }}>
                     {item.image ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -180,15 +180,15 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                       <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)' }}>/ {item.unitLabel ?? 'MES'}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 16, fontFamily: MONO, fontSize: 12 }}>
-                      <button type="button" onClick={() => saveToFav([item.productId])} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="heart" size={13} />Guardar</button>
-                      <button type="button" onClick={() => cart.remove(item.productId)} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="x" size={13} />Quitar</button>
+                      <button type="button" onClick={() => saveToFav([item])} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="heart" size={13} />Guardar</button>
+                      <button type="button" onClick={() => cart.remove(cartLineKey(item))} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="x" size={13} />Quitar</button>
                     </div>
                   </div>
                   <div className="cart-line-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 100, overflow: 'hidden' }}>
-                      <button type="button" aria-label="Menos" onClick={() => cart.setQty(item.productId, item.qty - 1)} style={{ background: 'transparent', border: 'none', width: 38, height: 40, fontSize: 20, cursor: 'pointer', color: 'var(--color-text)' }}>−</button>
+                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', overflow: 'hidden' }}>
+                      <button type="button" aria-label="Menos" onClick={() => cart.setQty(cartLineKey(item), item.qty - 1)} style={{ background: 'transparent', border: 'none', width: 38, height: 40, fontSize: 20, cursor: 'pointer', color: 'var(--color-text)' }}>−</button>
                       <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, width: 30, textAlign: 'center' }}>{item.qty}</span>
-                      <button type="button" aria-label="Más" onClick={() => cart.setQty(item.productId, item.qty + 1)} style={{ background: 'transparent', border: 'none', width: 38, height: 40, fontSize: 20, cursor: 'pointer', color: 'var(--color-text)' }}>+</button>
+                      <button type="button" aria-label="Más" onClick={() => cart.setQty(cartLineKey(item), item.qty + 1)} style={{ background: 'transparent', border: 'none', width: 38, height: 40, fontSize: 20, cursor: 'pointer', color: 'var(--color-text)' }}>+</button>
                     </div>
                     <div style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>{formatPrice(cartLineTotal(item))}</div>
                   </div>
@@ -203,8 +203,8 @@ export function CartView({ config }: { config: CheckoutConfig }) {
               <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '22px 24px' }}>
                 <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', color: 'var(--color-text-muted)', marginBottom: 12 }}>CUPÓN</div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon(); }} placeholder="Código" style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 100, padding: '11px 16px', fontFamily: MONO, fontSize: 13, background: 'var(--color-bg)', color: 'var(--color-text)', outline: 'none' }} />
-                  <button type="button" onClick={applyCoupon} style={{ background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', fontFamily: DISPLAY, fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 100, cursor: 'pointer' }}>Aplicar</button>
+                  <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon(); }} placeholder="Código" style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', padding: '11px 16px', fontFamily: MONO, fontSize: 13, background: 'var(--color-bg)', color: 'var(--color-text)' }} />
+                  <button type="button" onClick={applyCoupon} style={{ background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', fontFamily: DISPLAY, fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 'var(--radius-button)', cursor: 'pointer' }}>Aplicar</button>
                 </div>
                 {coupon ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-success)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="check" size={11} /><span>{coupon.code} aplicado{coupon.label ? ` (${coupon.label})` : ''}</span></div> : null}
                 {couponMsg ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 8 }}>{couponMsg}</div> : null}
@@ -271,9 +271,9 @@ export function CartView({ config }: { config: CheckoutConfig }) {
                     <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700 }}>Total</span>
                     <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(total)}</span>
                   </div>
-                  <Link href="/checkout" aria-disabled={selectedItems.length === 0} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Proceder al pago<Icon name="arrowRight" size={16} /></Link>
+                  <Link href="/checkout" aria-disabled={selectedItems.length === 0} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Proceder al pago<Icon name="arrowRight" size={16} /></Link>
                   {/* Alternativa al pago directo: cotizar todo el carrito con un asesor. */}
-                  <Link href="/cotizar" aria-disabled={selectedItems.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', marginTop: 10, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', padding: 14, borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Solicitar cotización</Link>
+                  <Link href="/cotizar" aria-disabled={selectedItems.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', marginTop: 10, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', padding: 14, borderRadius: 'var(--radius-button)', textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Solicitar cotización</Link>
                   {config.note ? (
                     <p style={{ margin: '16px 0 20px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6, textTransform: 'uppercase' }}>{config.note}</p>
                   ) : null}
