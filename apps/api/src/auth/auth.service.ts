@@ -1,7 +1,7 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import type { AuthResponse, AuthUser } from '@maqserv/types';
-import { adminCreateUser, adminSetMetadata, passwordGrant, refreshGrant, sendPasswordReset } from '../common/supabase-auth';
+import { adminCreateUser, adminDeleteUser, adminSetMetadata, passwordGrant, refreshGrant, sendPasswordReset } from '../common/supabase-auth';
 
 /**
  * Auth de CLIENTES vía Supabase Auth. Los usuarios legacy se importaron a auth.users
@@ -34,27 +34,48 @@ export class AuthService {
     };
   }
 
+  private readonly logger = new Logger(AuthService.name);
+
   async register(input: { name: string; email: string; password: string }): Promise<AuthResponse> {
     const exists = await prisma.users.findUnique({ where: { email: input.email } });
     if (exists) throw new ConflictException('Ya existe una cuenta con ese correo');
 
-    // 1) crea la identidad en Supabase Auth, 2) la fila de la app, 3) enlaza id en el metadata
+    // 1) crea la identidad en Supabase Auth, 2) la fila de la app, 3) enlaza id en el metadata.
+    // Los pasos 2 y 3 llevan COMPENSACIÓN: si fallan, se borra la identidad de
+    // Auth. Sin ella, una caída de BD a media alta dejaba una identidad
+    // huérfana y ese correo daba "already registered" → 500 permanente.
     const authUser = await adminCreateUser(input.email, input.password, { role: 'customer' });
-    const u = await prisma.users.create({
-      data: {
-        name: input.name,
-        email: input.email,
-        auth_id: authUser.id,
-        created_at: new Date(),
-        updated_at: new Date(),
-      },
-    });
-    await adminSetMetadata(authUser.id, { role: 'customer', app_user_id: u.id });
+    let u;
+    try {
+      u = await prisma.users.create({
+        data: {
+          name: input.name,
+          email: input.email,
+          auth_id: authUser.id,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      });
+      await adminSetMetadata(authUser.id, { role: 'customer', app_user_id: u.id });
+    } catch (err) {
+      // Deshacer TODO lo que alcanzó a crearse, en orden inverso, para que el
+      // correo quede libre y el siguiente intento arranque limpio.
+      if (u) {
+        await prisma.users.delete({ where: { id: u.id } }).catch((e: Error) =>
+          this.logger.error(`Registro de ${input.email}: no se pudo compensar la fila users ${u!.id}: ${e.message}`),
+        );
+      }
+      await adminDeleteUser(authUser.id).catch((e: Error) =>
+        this.logger.error(`Registro de ${input.email}: no se pudo compensar la identidad huérfana ${authUser.id}: ${e.message}`),
+      );
+      throw err;
+    }
 
     const session = await passwordGrant(input.email, input.password);
     const token = session.access_token;
     if (!token) throw new UnauthorizedException('No se pudo iniciar sesión tras el registro');
-    return { token, refresh_token: session.refresh_token, user: this.toAuthUser(u) };
+    // `u!`: el catch de arriba re-lanza, así que llegar aquí implica que se asignó.
+    return { token, refresh_token: session.refresh_token, user: this.toAuthUser(u!) };
   }
 
   async login(input: { email: string; password: string }): Promise<AuthResponse> {

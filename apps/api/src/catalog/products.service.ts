@@ -216,14 +216,17 @@ export class ProductsService {
     const where: Record<string, unknown> = { status: 1 };
     if (opts.featured) where.featured = 1;
     if (opts.vendorId) where.user_id = opts.vendorId;
-    if (opts.subcategory) {
-      const sub = await prisma.subcategories.findFirst({ where: { sub_slug: opts.subcategory } });
-      where.subcategory_id = sub ? sub.id : -1;
-    }
-    if (opts.category) {
-      const cat = await prisma.categories.findUnique({ where: { cat_slug: opts.category } });
-      where.category_id = cat ? cat.id : -1; // categoría inexistente → 0 resultados
-    }
+    // Los 4 lookups previos (subcategoría, categoría, búsqueda, calificación)
+    // son independientes entre sí: en paralelo cuestan 1 RTT en vez de hasta 4
+    // en serie (~100 ms por viaje a la BD).
+    const [sub, cat, searchIds, ratedIds] = await Promise.all([
+      opts.subcategory ? prisma.subcategories.findFirst({ where: { sub_slug: opts.subcategory } }) : null,
+      opts.category ? prisma.categories.findUnique({ where: { cat_slug: opts.category } }) : null,
+      opts.search ? this.searchIds(opts.search) : null,
+      opts.minRating ? this.ratedIds(opts.minRating) : null,
+    ]);
+    if (opts.subcategory) where.subcategory_id = sub ? sub.id : -1;
+    if (opts.category) where.category_id = cat ? cat.id : -1; // categoría inexistente → 0 resultados
 
     // Precio: `cprice` es el precio de venta/renta mensual que ve el cliente.
     if (opts.minPrice !== undefined || opts.maxPrice !== undefined) {
@@ -250,8 +253,8 @@ export class ProductsService {
      * que INTERSECTAR: los dos escriben en `where.id` y el segundo pisaba al primero.
      */
     const idSets: number[][] = [];
-    if (opts.search) idSets.push(await this.searchIds(opts.search));
-    if (opts.minRating) idSets.push(await this.ratedIds(opts.minRating));
+    if (searchIds) idSets.push(searchIds);
+    if (ratedIds) idSets.push(ratedIds);
     if (idSets.length > 0) {
       const ids = idSets.reduce((a, b) => {
         const keep = new Set(b);

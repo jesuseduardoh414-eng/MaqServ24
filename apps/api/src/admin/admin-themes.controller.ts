@@ -96,16 +96,34 @@ export class AdminThemesController {
       },
     });
 
-    // Invalidación bajo demanda del sitio (si el secret está configurado)
+    // Invalidación bajo demanda del sitio. El resultado VIAJA al panel: antes
+    // fallaba en silencio total (sin secret se saltaba sin log, y un 503/401
+    // del endpoint no es excepción, así que ni el warn corría) y el admin veía
+    // "publicado" con el sitio viejo — el incidente de REVALIDATE_SECRET.
+    let revalidated = false;
+    let revalidateError: string | null = null;
     const secret = process.env.REVALIDATE_SECRET;
-    if (secret) {
+    if (!secret) {
+      revalidateError = 'REVALIDATE_SECRET no está configurado en la API: el sitio se actualizará solo por caducidad de caché (~1 min).';
+      this.logger.warn(revalidateError);
+    } else {
       try {
-        await fetch(`${SITE_URL}/api/revalidate?secret=${encodeURIComponent(secret)}&path=/`, { method: 'POST' });
+        const res = await fetch(
+          `${SITE_URL}/api/revalidate?secret=${encodeURIComponent(secret)}&path=/`,
+          { method: 'POST', signal: AbortSignal.timeout(8_000) },
+        );
+        if (res.ok) {
+          revalidated = true;
+        } else {
+          revalidateError = `El sitio respondió ${res.status} al revalidar (¿REVALIDATE_SECRET distinto en Vercel?). Se actualizará por caducidad de caché (~1 min).`;
+          this.logger.warn(revalidateError);
+        }
       } catch (err) {
-        this.logger.warn(`Revalidación del sitio falló: ${(err as Error).message}`);
+        revalidateError = `No se pudo contactar al sitio para revalidar: ${(err as Error).message}. Se actualizará por caducidad de caché (~1 min).`;
+        this.logger.warn(revalidateError);
       }
     }
-    return { ok: true, publishedAt: new Date().toISOString() };
+    return { ok: true, publishedAt: new Date().toISOString(), revalidated, revalidateError };
   }
 
   @Post(':id/discard')

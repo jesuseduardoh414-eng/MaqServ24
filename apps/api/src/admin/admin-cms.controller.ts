@@ -69,7 +69,12 @@ export class AdminCmsController {
 
   @Get('blogs')
   async blogs() {
-    const rows = await prisma.blogs.findMany({ orderBy: { id: 'desc' } });
+    // Sin `details`: el listado no pinta el cuerpo del artículo y esa columna
+    // puede traer artículos enteros en HTML.
+    const rows = await prisma.blogs.findMany({
+      orderBy: { id: 'desc' },
+      select: { id: true, title: true, status: true, category: true, source: true, photo: true, views: true, created_at: true },
+    });
     return rows.map((b) => ({
       id: b.id,
       slug: productSlug(b.title, b.id),

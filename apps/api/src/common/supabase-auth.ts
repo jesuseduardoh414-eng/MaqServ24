@@ -9,10 +9,18 @@ export interface SupabaseClaims extends JWTPayload {
 }
 
 let _jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
-/** Verifica un access token de Supabase contra el JWKS público (ES256). */
+/**
+ * Verifica un access token de Supabase contra el JWKS público (ES256).
+ * `issuer`/`audience` fijados (endurecimiento estándar): además de la firma,
+ * el token debe haber sido emitido por ESTE proyecto y para usuarios
+ * autenticados — no cualquier JWT que pase el JWKS.
+ */
 export async function verifySupabaseToken(token: string): Promise<SupabaseClaims> {
   if (!_jwks) _jwks = createRemoteJWKSet(new URL(base() + '/auth/v1/.well-known/jwks.json'));
-  const { payload } = await jwtVerify(token, _jwks);
+  const { payload } = await jwtVerify(token, _jwks, {
+    issuer: base() + '/auth/v1',
+    audience: 'authenticated',
+  });
   return payload as SupabaseClaims;
 }
 

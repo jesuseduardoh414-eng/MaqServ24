@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
@@ -34,6 +35,10 @@ export class ProductQuestionsController {
     }));
   }
 
+  // Límite propio como el resto de los formularios (contacto 5/min, cotizar
+  // 5/min…): era el ÚNICO sin tope dedicado y un cliente autenticado podía
+  // inyectar cientos de preguntas por minuto directo al panel de moderación.
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post()
   @UseGuards(JwtGuard)
   async ask(@Req() req: AuthedRequest, @Param('id', ParseIntPipe) productId: number, @Body() body: unknown) {

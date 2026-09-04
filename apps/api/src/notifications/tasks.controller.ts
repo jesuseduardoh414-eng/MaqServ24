@@ -1,5 +1,6 @@
-import { Controller, ForbiddenException, Post, Query } from '@nestjs/common';
+import { Controller, Headers, Post, Query } from '@nestjs/common';
 import { RemindersService } from './reminders.service';
+import { comprobarTasksSecret } from '../common/tasks-secret';
 
 /**
  * TAREAS PROGRAMADAS.
@@ -19,22 +20,20 @@ import { RemindersService } from './reminders.service';
  * 2. Sin `TASKS_SECRET` configurado, la ruta NO existe. No hay valor por
  *    defecto: una ruta que dispara correos a toda la red no puede quedar
  *    abierta porque alguien olvidó una variable.
+ *
+ * (La guardia vive en common/tasks-secret.ts — la comparten las tareas de
+ * órdenes vencidas en OrdersModule.)
  */
 @Controller('tareas')
 export class TasksController {
   constructor(private readonly reminders: RemindersService) {}
 
-  private comprobar(secreto: string | undefined) {
-    const esperado = process.env.TASKS_SECRET;
-    if (!esperado || esperado.length < 16) {
-      throw new ForbiddenException('Las tareas programadas no están habilitadas.');
-    }
-    if (secreto !== esperado) throw new ForbiddenException('Secreto inválido.');
-  }
-
   @Post('recordatorios')
-  async recordatorios(@Query('secret') secret?: string) {
-    this.comprobar(secret);
+  async recordatorios(
+    @Query('secret') secret?: string,
+    @Headers('x-tasks-secret') headerSecret?: string,
+  ) {
+    comprobarTasksSecret(secret, headerSecret);
     return this.reminders.enviar();
   }
 }

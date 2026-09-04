@@ -40,14 +40,17 @@ export class WishlistController {
   async list(@Req() req: AuthedRequest): Promise<ProductCard[]> {
     const rows = await prisma.wishlists.findMany({ where: { user_id: req.userId } });
     if (rows.length === 0) return [];
-    const products = await prisma.products.findMany({
-      where: { id: { in: rows.map((r) => r.product_id) }, status: 1 },
-      select: {
-        id: true, name: true, Marca: true, cprice: true, pprice: true,
-        photo: true, is_rental: true, featured: true, stock: true, category_id: true, price_unit: true,
-      },
-    });
-    const cats = await prisma.categories.findMany({ select: { id: true, cat_slug: true } });
+    // Productos y categorías en paralelo: son independientes (−1 RTT).
+    const [products, cats] = await Promise.all([
+      prisma.products.findMany({
+        where: { id: { in: rows.map((r) => r.product_id) }, status: 1 },
+        select: {
+          id: true, name: true, Marca: true, cprice: true, pprice: true,
+          photo: true, is_rental: true, featured: true, stock: true, category_id: true, price_unit: true,
+        },
+      }),
+      prisma.categories.findMany({ select: { id: true, cat_slug: true } }),
+    ]);
     const catMap = new Map(cats.map((c) => [c.id, c.cat_slug]));
     return products.map((p) => ({
       id: p.id,

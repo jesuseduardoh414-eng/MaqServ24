@@ -133,7 +133,18 @@ export class AdminOpsController {
     }
     const [total, rows, byState] = await Promise.all([
       prisma.orders.count({ where }),
-      prisma.orders.findMany({ where, orderBy: { id: 'desc' }, skip: (p - 1) * 20, take: 20 }),
+      // `select` explícito SIN `cart`: es un bytea con el carrito completo y el
+      // listado no lo usa — 20 filas × blob por página era puro peso muerto.
+      prisma.orders.findMany({
+        where, orderBy: { id: 'desc' }, skip: (p - 1) * 20, take: 20,
+        select: {
+          id: true, order_number: true, customer_name: true, customer_email: true,
+          method: true, pay_amount: true, status: true, payment_status: true,
+          created_at: true, fulfillment: true, ship_method: true, carrier: true,
+          tracking: true, ship_unit: true, branch: true, scheduled_at: true,
+          shipped_at: true, delivered_at: true, returned_at: true, ship_notes: true,
+        },
+      }),
       // Contadores GLOBALES (sin filtro): alimentan las pestañas y las tarjetas.
       prisma.orders.groupBy({ by: ['fulfillment'], _count: { _all: true } }),
     ]);

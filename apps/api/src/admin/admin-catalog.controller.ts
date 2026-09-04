@@ -79,7 +79,7 @@ export class AdminCatalogController {
     const size = Math.min(500, Math.max(1, Number(pageSize ?? 20) || 20));
     const where: Record<string, unknown> = {};
     if (search) where.name = { contains: search };
-    const [total, rows] = await Promise.all([
+    const [total, rows, cats] = await Promise.all([
       prisma.products.count({ where }),
       prisma.products.findMany({
         where,
@@ -91,8 +91,9 @@ export class AdminCatalogController {
           featured: true, photo: true, is_rental: true, category_id: true, Marca: true,
         },
       }),
+      // Categorías dentro del mismo Promise.all: era un RTT regalado.
+      prisma.categories.findMany({ select: { id: true, cat_name: true } }),
     ]);
-    const cats = await prisma.categories.findMany({ select: { id: true, cat_name: true } });
     const catMap = new Map(cats.map((c) => [c.id, c.cat_name]));
     return {
       total,

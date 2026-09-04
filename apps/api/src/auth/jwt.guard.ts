@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { verifySupabaseToken } from '../common/supabase-auth';
 
 /** Forma mínima del request que necesitamos (evita depender de @types/express). */
@@ -13,6 +13,8 @@ export interface AuthedRequest {
  */
 @Injectable()
 export class JwtGuard implements CanActivate {
+  private readonly logger = new Logger(JwtGuard.name);
+
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest<AuthedRequest>();
     const header = req.headers.authorization;
@@ -24,7 +26,12 @@ export class JwtGuard implements CanActivate {
       if (typeof uid !== 'number') throw new Error('token sin app_user_id');
       req.userId = uid;
       return true;
-    } catch {
+    } catch (err) {
+      // El MOTIVO va al log: sin esto, un Supabase pausado (JWKS inalcanzable)
+      // se reportaba igual que un token vencido y el diagnóstico costaba horas.
+      // El 401 al cliente sigue siendo genérico a propósito.
+      const msg = (err as Error)?.message ?? String(err);
+      if (!/exp|expired/i.test(msg)) this.logger.warn(`Token rechazado: ${msg}`);
       throw new UnauthorizedException('Token inválido o expirado');
     }
   }
