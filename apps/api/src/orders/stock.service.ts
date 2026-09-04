@@ -107,21 +107,30 @@ export class StockService {
     const lines = this.linesFor(items, scope);
     if (lines.length === 0) return false;
 
-    // Candado: solo pasa quien encuentre el flag todavía en false.
-    const claim = await prisma.orders.updateMany({
-      where: { id: orderId, stock_released: false },
-      data: { stock_released: true },
-    });
-    if (claim.count === 0) return false; // otro proceso se adelantó
-
-    for (const l of lines) {
-      // `stock: { not: null }` respeta a los productos sin control de inventario y, de
-      // paso, ignora los que ya no existen.
-      await prisma.products.updateMany({
-        where: { id: l.productId, stock: { not: null } },
-        data: { stock: { increment: l.qty } },
+    // Candado + devoluciones en UNA transacción. Antes el flag se marcaba en
+    // una escritura suelta y los increment iban después: un corte del proceso
+    // entre ambas (Render free reiniciándose es rutina) dejaba el flag en
+    // "devuelto" con el stock sin devolver — y como el flag ES el candado,
+    // ninguna reintentada lo tocaría jamás. Con la transacción, o pasa todo o
+    // no pasa nada y el siguiente intento vuelve a encontrar el flag en false.
+    const devuelto = await prisma.$transaction(async (tx) => {
+      const claim = await tx.orders.updateMany({
+        where: { id: orderId, stock_released: false },
+        data: { stock_released: true },
       });
-    }
+      if (claim.count === 0) return false; // otro proceso se adelantó
+
+      for (const l of lines) {
+        // `stock: { not: null }` respeta a los productos sin control de inventario y, de
+        // paso, ignora los que ya no existen.
+        await tx.products.updateMany({
+          where: { id: l.productId, stock: { not: null } },
+          data: { stock: { increment: l.qty } },
+        });
+      }
+      return true;
+    });
+    if (!devuelto) return false;
     this.logger.log(`Orden ${orderId}: stock devuelto (${scope}), ${lines.length} línea(s)`);
     return true;
   }
@@ -136,6 +145,11 @@ export class StockService {
       if (qty === 0) continue;
       byProduct.set(i.productId, (byProduct.get(i.productId) ?? 0) + qty);
     }
-    return [...byProduct].map(([productId, qty]) => ({ productId, qty }));
+    // ORDEN FIJO por producto: dos checkouts con los mismos equipos en orden
+    // inverso tomaban los candados de fila cruzados y Postgres abortaba uno
+    // por deadlock. Con todos bloqueando en el mismo orden, no hay ciclo.
+    return [...byProduct]
+      .map(([productId, qty]) => ({ productId, qty }))
+      .sort((a, b) => a.productId - b.productId);
   }
 }

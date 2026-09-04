@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import {
   LEGACY_STATUS, fulfillmentStep, toFulfillment, toShipMethod,
@@ -51,6 +51,19 @@ export class FulfillmentService {
     const from = toFulfillment(order.fulfillment);
     if (from === next) return false;
 
+    /**
+     * ESTADOS TERMINALES: una orden cancelada o cerrada no se reactiva. La
+     * cancelación ya DEVOLVIÓ el stock (y el candado `stock_released` impide
+     * volver a retenerlo): moverla a preparando/enviado entregaría equipo cuyo
+     * inventario ya volvió a la tienda — sobreventa silenciosa. Si de verdad
+     * hay que revivir una compra, se crea una orden nueva.
+     */
+    if (from === 'cancelado' || from === 'cerrado') {
+      throw new BadRequestException(
+        `Una orden ${from === 'cancelado' ? 'cancelada' : 'cerrada'} no puede reactivarse: su inventario ya se liquidó. Crea una orden nueva si hace falta.`,
+      );
+    }
+
     const now = new Date();
     // Cada paso sella SU fecha; las demás no se tocan (reabrir un paso no borra el pasado).
     const stamp =
@@ -59,20 +72,28 @@ export class FulfillmentService {
           : next === 'recolectado' ? { returned_at: now }
             : {};
 
-    await prisma.orders.update({
-      where: { id: order.id },
-      data: { fulfillment: next, status: LEGACY_STATUS[next], ...stamp, updated_at: now },
+    // Estado + evento en UNA transacción, con candado optimista en el WHERE:
+    // dos admins simultáneos no pueden grabar la misma transición dos veces, y
+    // un corte a media escritura ya no deja historial que mienta por omisión.
+    const cambio = await prisma.$transaction(async (tx) => {
+      const r = await tx.orders.updateMany({
+        where: { id: order.id, fulfillment: order.fulfillment },
+        data: { fulfillment: next, status: LEGACY_STATUS[next], ...stamp, updated_at: now },
+      });
+      if (r.count === 0) return false; // otro proceso movió la orden primero
+      await tx.order_events.create({
+        data: {
+          order_id: order.id,
+          admin_id: opts.adminId ?? null,
+          from_state: from,
+          to_state: next,
+          note: opts.note?.trim() || null,
+          created_at: now,
+        },
+      });
+      return true;
     });
-    await prisma.order_events.create({
-      data: {
-        order_id: order.id,
-        admin_id: opts.adminId ?? null,
-        from_state: from,
-        to_state: next,
-        note: opts.note?.trim() || null,
-        created_at: now,
-      },
-    });
+    if (!cambio) return false;
 
     /**
      * Inventario: la orden retiene stock desde que se crea, y aquí es donde lo suelta.

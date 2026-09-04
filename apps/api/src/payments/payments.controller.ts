@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PaymentsService } from './payments.service';
 
@@ -21,13 +21,20 @@ export class PaymentsController {
    */
   @SkipThrottle()
   @Post('mercadopago/webhook')
-  webhook(@Query() query: Record<string, unknown>, @Body() body: unknown) {
-    return this.payments.handleMercadoPagoWebhook(query, body);
+  webhook(
+    @Query() query: Record<string, unknown>,
+    @Body() body: unknown,
+    @Headers() headers: Record<string, string | undefined>,
+  ) {
+    return this.payments.handleMercadoPagoWebhook(query, body, headers);
   }
 
   @SkipThrottle()
   @Get('mercadopago/webhook')
-  webhookGet(@Query() query: Record<string, unknown>) {
-    return this.payments.handleMercadoPagoWebhook(query, null);
+  webhookGet(
+    @Query() query: Record<string, unknown>,
+    @Headers() headers: Record<string, string | undefined>,
+  ) {
+    return this.payments.handleMercadoPagoWebhook(query, null, headers);
   }
 }

@@ -9,10 +9,17 @@ const checkoutSchema = z.object({
   items: z.array(z.object({
     productId: z.number().int().positive(),
     qty: z.number().int().min(1).max(999),
-    // Renta: periodo elegido; el servidor deriva el precio del mensual del producto.
-    period: z.enum(['dia', 'sem', 'mes']).optional(),
+    // Renta: periodo/unidad elegida. El servidor convierte el precio desde
+    // `products.price_unit` (fuente única en @maqserv/config); las unidades no
+    // temporales ('viaje', 'tonelada'…) solo se cobran en su propia unidad.
+    // Antes solo aceptaba dia/sem/mes y una pipa por viaje daba 400 sin remedio.
+    period: z.enum(['dia', 'sem', 'semana', 'mes', 'hora', 'jornada', 'viaje', 'tonelada', 'm3', 'litro'])
+      .transform((p) => (p === 'semana' ? 'sem' as const : p))
+      .optional(),
   })).min(1),
   method: z.enum(['transferencia', 'mercadopago']),
+  /** Clave por intento de compra: reintentos con la misma clave no duplican la orden. */
+  idempotencyKey: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
   couponCode: z.string().max(50).optional(),
   /** Agregar operador certificado (monto configurable en Panel → Pagos). */
   operator: z.boolean().optional(),
