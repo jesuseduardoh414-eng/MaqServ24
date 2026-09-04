@@ -29,16 +29,45 @@ export interface Grant {
   refresh_token?: string;
   user?: { id: string; app_metadata?: SupabaseClaims['app_metadata'] };
   error?: string;
+  /** El servicio no contestó (o falló del suyo). NO es culpa de las credenciales. */
+  unavailable?: boolean;
 }
 
+/**
+ * Supabase Auth es un TERCERO, y el login es la ruta que más se pulsa.
+ *
+ * Un `fetch` sin tope aquí no es "lento": ocupa un worker hasta que el otro
+ * extremo conteste. En un plan con poca concurrencia, unos cuantos intentos
+ * atorados dejan sin acceso a TODO el mundo, no solo a quien intentaba entrar.
+ * Es el mismo fallo que ya tumbó el panel con el 504 del middleware.
+ *
+ * Y se devuelve `unavailable` en vez de un error a secas porque el que llama
+ * traduce cualquier fallo a "correo o contraseña incorrectos": sin esa marca,
+ * una caída de Supabase le dice al cliente que su contraseña está mal y lo manda
+ * a restablecerla sin motivo.
+ */
+const TOPE_AUTH_MS = 10_000;
+
 async function tokenGrant(qs: string, bodyObj: Record<string, string>): Promise<Grant> {
-  const r = await fetch(base() + '/auth/v1/token?' + qs, {
-    method: 'POST',
-    headers: { apikey: anon(), 'Content-Type': 'application/json' },
-    body: JSON.stringify(bodyObj),
-  });
+  let r: Response;
+  try {
+    r = await fetch(base() + '/auth/v1/token?' + qs, {
+      method: 'POST',
+      headers: { apikey: anon(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyObj),
+      signal: AbortSignal.timeout(TOPE_AUTH_MS),
+    });
+  } catch (err) {
+    const motivo = (err as Error)?.name === 'TimeoutError' ? 'no respondió a tiempo' : 'no está disponible';
+    return { error: `El servicio de acceso ${motivo}.`, unavailable: true };
+  }
   const b = await r.json().catch(() => ({}));
-  return r.ok ? (b as Grant) : { error: b.error_description || b.msg || b.message || `HTTP ${r.status}` };
+  if (r.ok) return b as Grant;
+  // Un 5xx es de Supabase, no de quien intenta entrar.
+  return {
+    error: b.error_description || b.msg || b.message || `HTTP ${r.status}`,
+    unavailable: r.status >= 500,
+  };
 }
 
 export const passwordGrant = (email: string, password: string) =>
@@ -90,6 +119,7 @@ export async function sendPasswordReset(email: string, redirectTo?: string): Pro
       method: 'POST',
       headers: { apikey: anon(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
+      signal: AbortSignal.timeout(TOPE_AUTH_MS),
     });
   } catch {
     /* no revelamos fallos de red al cliente por seguridad */

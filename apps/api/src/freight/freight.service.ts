@@ -62,6 +62,9 @@ export function haversineKm(a: GeoPoint, b: GeoPoint): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/** Tope para los geocodificadores externos (ver googleDistance). */
+const TOPE_GEO_MS = 6_000;
+
 /**
  * Cotizador de traslado: distancia entre la base y la ubicación del cliente × tarifa.
  *
@@ -111,12 +114,23 @@ export class FreightService {
     return this.osmDistance(from, dest);
   }
 
+  /**
+   * Los dos geocodificadores son servicios de TERCEROS y los dos fallan solos:
+   * Nominatim es gratuito y se satura, y Google puede tardar. Sin tope, cotizar
+   * un flete deja la petición colgada y el cliente mirando un spinner eterno.
+   *
+   * Seis segundos porque los dos que llaman ya saben fallar: `googleDistance`
+   * devuelve null (y se cae al respaldo gratuito) y `geocode` corta el ciclo de
+   * reintentos sin cachear, así que el peor caso es una espera, no tres.
+   */
   private async googleDistance(origin: string, destination: string): Promise<FreightDistance | null> {
     const apiKey = process.env.GOOGLE_DISTANCE_MATRIX_API_KEY;
     if (!apiKey) return null;
     try {
       const params = new URLSearchParams({ origins: origin, destinations: destination, key: apiKey, units: 'metric' });
-      const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params}`);
+      const res = await fetch(`https://maps.googleapis.com/maps/api/distancematrix/json?${params}`, {
+        signal: AbortSignal.timeout(TOPE_GEO_MS),
+      });
       if (!res.ok) return null;
       const data = (await res.json()) as {
         status: string;
@@ -180,6 +194,7 @@ export class FreightService {
     const params = new URLSearchParams({ q, format: 'json', limit: '1', countrycodes: 'mx' });
     const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
       headers: { 'User-Agent': UA, 'Accept-Language': 'es' },
+      signal: AbortSignal.timeout(TOPE_GEO_MS),
     });
     if (!res.ok) return null;
     const rows = (await res.json()) as Array<{ lat: string; lon: string }>;

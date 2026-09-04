@@ -39,10 +39,16 @@ export class PerfexService {
         source: data.source ?? 'Ecommerce',
         status: '1',
       });
+      // El CRM del cliente es un tercero y el lead se manda mientras alguien
+      // espera a que su formulario responda: sin tope, un Perfex caído convierte
+      // "suscribirse al boletín" en una pantalla colgada. El catch de abajo ya
+      // trata el fallo como lo que es —un lead que no se sincronizó—, sin tumbar
+      // la operación.
       const res = await fetch(`${cfg.url}/api/leads`, {
         method: 'POST',
         headers: { authtoken: cfg.token, 'Content-Type': 'application/x-www-form-urlencoded' },
         body: form,
+        signal: AbortSignal.timeout(8_000),
       });
       if (!res.ok) {
         this.logger.warn(`Perfex respondió ${res.status} para ${data.email}`);
