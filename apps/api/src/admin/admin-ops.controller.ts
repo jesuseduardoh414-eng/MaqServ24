@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/quote-validity';
 import { prisma } from '@maqserv/db';
 import { toFulfillment } from '@maqserv/types';
+import { etiquetaMetodoPago } from '../orders/orders.service';
 import { AdminGuard, type AdminRequest } from './admin-auth';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
@@ -162,7 +163,7 @@ export class AdminOpsController {
         orderNumber: o.order_number,
         customer: o.customer_name,
         email: o.customer_email,
-        method: o.method,
+        method: etiquetaMetodoPago(o.method),
         total: o.pay_amount,
         status: o.status,
         paymentStatus: o.payment_status,

@@ -21,9 +21,34 @@ function newOrderNumber(): string {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 const METHOD_LABEL: Record<string, string> = {
-  transferencia: 'Deposito bancario',
+  transferencia: 'Depósito bancario',
   mercadopago: 'MercadoPago',
 };
+
+/**
+ * EL METODO DE PAGO SE GUARDA COMO TEXTO DENTRO DE CADA PEDIDO, no como clave.
+ *
+ * Asi que corregir `METHOD_LABEL` solo arregla los pedidos NUEVOS: los que ya
+ * estan en la base conservan la cadena con la que se crearon, y ahi hay dos
+ * heredadas del Laravel viejo que se le muestran al cliente con faltas:
+ * "Deposito bancario" (sin acento) y "Targeta de credito,debito o prepaga".
+ *
+ * Se normaliza AL LEER —y no con un UPDATE— por dos razones: reescribir el
+ * historico de pedidos para arreglar una tilde es desproporcionado, y hacerlo
+ * aqui deja una sola fuente para las tres pantallas que lo pintan (mis pedidos,
+ * el detalle del pedido y el panel).
+ */
+const METODOS_HEREDADOS: Record<string, string> = {
+  'deposito bancario': 'Depósito bancario',
+  'targeta de credito,debito o prepaga': 'Tarjeta de crédito, débito o prepaga',
+};
+
+const sinAcentos = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+export function etiquetaMetodoPago(raw: string | null | undefined): string {
+  if (!raw) return '';
+  return METODOS_HEREDADOS[sinAcentos(raw)] ?? raw;
+}
 
 @Injectable()
 export class OrdersService {
@@ -44,7 +69,7 @@ export class OrdersService {
       orderNumber: o.order_number,
       status: o.status,
       paymentStatus: o.payment_status,
-      method: o.method ?? '',
+      method: etiquetaMetodoPago(o.method),
       total: o.pay_amount,
       totalQty: Number(o.totalQty) || 0,
       createdAt: o.created_at ? o.created_at.toISOString() : null,

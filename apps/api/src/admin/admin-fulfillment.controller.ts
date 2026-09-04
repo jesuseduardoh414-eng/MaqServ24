@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { toShipMethod, type ShipMethod } from '@maqserv/types';
 import { AdminGuard, type AdminRequest } from './admin-auth';
+import { etiquetaMetodoPago } from '../orders/orders.service';
 import { FulfillmentService, toShipping } from '../orders/fulfillment.service';
 import { hasRentalItems, parseCart } from '../orders/cart.util';
 
@@ -37,7 +38,7 @@ export class AdminFulfillmentController {
       orderNumber: o.order_number,
       status: o.status,
       paymentStatus: o.payment_status,
-      method: o.method ?? '',
+      method: etiquetaMetodoPago(o.method),
       total: o.pay_amount,
       totalQty: Number(o.totalQty) || 0,
       createdAt: o.created_at ? o.created_at.toISOString() : null,

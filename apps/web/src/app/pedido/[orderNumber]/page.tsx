@@ -287,7 +287,9 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
 
 /** Instrucciones de pago para métodos offline (del gateway legacy, editable en Panel → Pagos). */
 async function InstructionsBlock({ theme, method }: { theme: Awaited<ReturnType<typeof getTheme>>; method: string }) {
-  if (!/deposito|transferencia/i.test(method)) return null;
+  // Con y sin tilde a proposito: los pedidos guardan el metodo como TEXTO, y en
+  // la base conviven "Deposito bancario" (heredado) y "Depósito bancario".
+  if (!/dep[oó]sito|transferencia/i.test(method)) return null;
   const methods = (await fetch(`${API_URL}/payments/methods`, { next: { revalidate: 60 } })
     .then((r) => r.json())
     .catch(() => [])) as Array<{ id: string; instructions: string | null }>;
