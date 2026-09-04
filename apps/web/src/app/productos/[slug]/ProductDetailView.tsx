@@ -196,8 +196,12 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
             {product.brand ? <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.16em', color: 'var(--color-primary)', marginBottom: 12, textTransform: 'uppercase' }}>{product.brand}</div> : null}
             <h1 className="pd-name" style={{ fontFamily: DISPLAY, margin: '0 0 16px', fontSize: 46, lineHeight: 0.98, fontWeight: 800, letterSpacing: '-0.04em' }}>{product.name}</h1>
 
+            {/* Sin reseñas, las estrellas van VACIAS. El `|| 5` que habia aqui
+                pintaba cinco estrellas llenas junto a "Sin opiniones aun": una
+                calificacion perfecta inventada en los 25 de 27 productos que no
+                tienen ni una opinion. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-              <span style={{ color: 'var(--color-primary)', fontSize: 16, letterSpacing: 2 }}><Stars value={rating.average || 5} size={16} /></span>
+              <span style={{ color: 'var(--color-primary)', fontSize: 16, letterSpacing: 2 }}><Stars value={rating.average} size={16} /></span>
               <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)' }}>{rating.count > 0 ? `${rating.average.toFixed(1)} · ${rating.count} opiniones` : 'Sin opiniones aún'}</span>
               <span style={{ marginLeft: 'auto' }}><AvailabilityBadge info={disp} tamano="ficha" /></span>
             </div>
