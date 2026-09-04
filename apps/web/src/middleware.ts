@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SESSION_COOKIE, REFRESH_COOKIE } from '@/lib/cookies';
+import { SESSION_COOKIE, REFRESH_COOKIE, ALIADO_COOKIE } from '@/lib/cookies';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const WEEK = 60 * 60 * 24 * 7;
 const REFRESH_SKEW = 120; // renovar cuando falten <2 min para expirar
+/** Los 30 días que dura el enlace del aliado (ver provider-access.ts en la API). */
+const ALIADO_MAX_AGE = 60 * 60 * 24 * 30;
 
 /** Lee el claim `exp` de un JWT SIN verificar la firma (solo para decidir si renovar). */
 function jwtExp(token: string): number | null {
@@ -26,6 +28,34 @@ function jwtExp(token: string): number | null {
 export async function middleware(req: NextRequest) {
   // El logout borra las cookies en su propio handler; no renovar aquí.
   if (req.nextUrl.pathname === '/api/auth/logout') return NextResponse.next();
+
+  /**
+   * EL ENLACE DEL ALIADO NO SE QUEDA EN LA BARRA DE DIRECCIONES.
+   *
+   * El correo trae `/aliado?t=<jwt>` y ese token ES la credencial, durante 30
+   * dias. Dejarlo en la URL lo escribe en el historial del navegador, en los
+   * logs de acceso de Vercel y Render (que registran el query string) y en
+   * cualquier captura que el aliado comparta por WhatsApp.
+   *
+   * Se canjea aqui —y no en la pagina— porque un Server Component no puede
+   * escribir cookies, y porque asi siguen funcionando los enlaces YA enviados.
+   */
+  if (req.nextUrl.pathname === '/aliado') {
+    const t = req.nextUrl.searchParams.get('t');
+    if (t) {
+      const limpia = new URL(req.nextUrl);
+      limpia.searchParams.delete('t');
+      const res = NextResponse.redirect(limpia);
+      res.cookies.set(ALIADO_COOKIE, t, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: ALIADO_MAX_AGE,
+      });
+      return res;
+    }
+  }
 
   const access = req.cookies.get(SESSION_COOKIE)?.value;
   const refresh = req.cookies.get(REFRESH_COOKIE)?.value;

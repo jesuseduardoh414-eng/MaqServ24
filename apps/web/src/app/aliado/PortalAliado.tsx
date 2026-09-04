@@ -111,7 +111,12 @@ const campo: React.CSSProperties = {
   width: '100%', boxSizing: 'border-box',
 };
 
-export function PortalAliado({ datos, token }: { datos: DatosPortal; token: string }) {
+/**
+ * No recibe token. La credencial del aliado vive en una cookie httpOnly que el
+ * proxy adjunta; el JavaScript de esta pantalla nunca la ve, igual que pasa con
+ * la sesion de un cliente.
+ */
+export function PortalAliado({ datos }: { datos: DatosPortal }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -123,7 +128,7 @@ export function PortalAliado({ datos, token }: { datos: DatosPortal; token: stri
   async function llamar(url: string, body?: unknown) {
     const r = await fetch(url, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
       body: body ? JSON.stringify(body) : undefined,
     });
     if (!r.ok) {
@@ -195,7 +200,6 @@ export function PortalAliado({ datos, token }: { datos: DatosPortal; token: stri
     setGuardando(true); setMsg(null);
     const r = await fetch(`${API}/aliado/documentos`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
       body: fd,
     });
     setGuardando(false);

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
+import { ALIADO_COOKIE } from '@/lib/cookies';
 import { getTheme } from '@/lib/theme';
 import { SiteFooter } from '@/components/SiteHeader';
 import { PortalAliado, type DatosPortal } from './PortalAliado';
@@ -28,14 +30,26 @@ export default async function AliadoPage({
 }: {
   searchParams: Promise<{ t?: string }>;
 }) {
+  /**
+   * El token llega por cookie: el middleware canjea el `?t=` del correo y
+   * redirige a la URL limpia. El `searchParams` se conserva como respaldo por
+   * si el middleware no alcanzó a correr en esa petición.
+   */
   const { t } = await searchParams;
+  const token = (await cookies()).get(ALIADO_COOKIE)?.value ?? t;
   const theme = await getTheme();
 
-  if (!t) {
+  if (!token) {
     return <SinAcceso theme={theme} motivo="Este enlace está incompleto." />;
   }
 
-  const res = await fetch(`${API_URL}/aliado?t=${encodeURIComponent(t)}`, { cache: 'no-store', signal: AbortSignal.timeout(15_000) });
+  // Por cabecera y no por `?t=`: un query string queda escrito en los logs de
+  // acceso de Render igual que quedaba en los del navegador.
+  const res = await fetch(`${API_URL}/aliado`, {
+    cache: 'no-store',
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(15_000),
+  });
   if (!res.ok) {
     return (
       <SinAcceso
@@ -49,7 +63,7 @@ export default async function AliadoPage({
   return (
     <>
       <main style={{ background: 'var(--color-bg)', color: 'var(--color-text)', minHeight: '100vh' }}>
-        <PortalAliado datos={datos} token={t} />
+        <PortalAliado datos={datos} />
       </main>
       <SiteFooter theme={theme} />
     </>

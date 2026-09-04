@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/session';
+import { ALIADO_COOKIE } from '@/lib/cookies';
 import { clientIpHeaders } from '@/lib/client-ip';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -55,24 +56,24 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
   /**
    * De donde sale la credencial.
    *
-   * Para casi todo, de la cookie httpOnly: el navegador nunca ve el token del
-   * cliente. Para el portal del aliado no hay cookie que valga —no tiene
-   * cuenta— y la credencial es el enlace firmado, que SI viaja en la cabecera.
-   * Se separan a proposito: mezclarlas dejaria que cualquier pagina mandara un
-   * Authorization propio y se saltara la cookie en el resto de las rutas.
+   * SIEMPRE de una cookie httpOnly: el navegador nunca ve ninguna credencial.
+   * Son dos cookies distintas a proposito. La del cliente es su sesion; la del
+   * aliado es el enlace firmado que le llego por correo, que no es una sesion
+   * —no tiene cuenta— y por eso ni comparte cookie ni caduca igual.
+   *
+   * Antes la del aliado viajaba en la cabecera `Authorization` puesta por el
+   * navegador. Se dejo de hacer: obligaba a que el token viviera en el
+   * JavaScript de la pagina, y de ahi a la URL del correo, al historial y a los
+   * logs de acceso. Ahora ninguna cabecera `Authorization` del navegador se
+   * usa para nada, que ademas cierra la via de saltarse la cookie.
    */
   const propio = CON_TOKEN_PROPIO.test(joined);
-  const cabecera = propio ? req.headers.get('authorization') : null;
-  const token = req.cookies.get(SESSION_COOKIE)?.value;
+  const credencial = propio
+    ? req.cookies.get(ALIADO_COOKIE)?.value
+    : req.cookies.get(SESSION_COOKIE)?.value;
   const headers: Record<string, string> = {
     ...clientIpHeaders(req),
-    ...(propio
-      ? cabecera
-        ? { Authorization: cabecera }
-        : {}
-      : token
-        ? { Authorization: `Bearer ${token}` }
-        : {}),
+    ...(credencial ? { Authorization: `Bearer ${credencial}` } : {}),
   };
   const init: RequestInit = { method: req.method, headers };
 
