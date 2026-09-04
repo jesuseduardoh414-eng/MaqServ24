@@ -18,7 +18,7 @@ export async function getSessionUser(): Promise<AuthUser | null> {
   try {
     const res = await fetch(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store', // la sesión nunca se cachea
+      cache: 'no-store', signal: AbortSignal.timeout(15_000), // la sesión nunca se cachea
     });
     if (!res.ok) return null;
     return (await res.json()) as AuthUser;

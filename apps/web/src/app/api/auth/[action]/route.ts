@@ -18,7 +18,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ action: str
   try {
     const res = await fetch(`${API_URL}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
+      cache: 'no-store', signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) return NextResponse.json({ user: null });
     return NextResponse.json({ user: await res.json() });
@@ -44,13 +44,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
   // Restablecer contraseña: siempre respondemos ok (anti-enumeración).
   if (action === 'forgot') {
     const body = await req.json().catch(() => null);
-    const apiRes = await fetch(`${API_URL}/auth/forgot-password`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
-      body: JSON.stringify({ email: body?.email }),
-    });
-    const data = await apiRes.json().catch(() => ({ ok: true }));
-    return NextResponse.json(data, { status: apiRes.ok ? 200 : apiRes.status });
+    try {
+      const apiRes = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
+        body: JSON.stringify({ email: body?.email }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = await apiRes.json().catch(() => ({ ok: true }));
+      return NextResponse.json(data, { status: apiRes.ok ? 200 : apiRes.status });
+    } catch {
+      return NextResponse.json({ ok: true }); // anti-enumeración también en fallo
+    }
   }
 
   if (action !== 'login' && action !== 'register') {
@@ -59,12 +64,30 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
 
   const body = await req.json().catch(() => null);
   const remember = body?.remember !== false; // login: casilla; register: siempre recuerda
-  const apiRes = await fetch(`${API_URL}/auth/${action}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
-    body: JSON.stringify(body),
-  });
-  const data = await apiRes.json();
+  let apiRes: Response;
+  try {
+    // Tope explícito: con Render despertando, el fetch colgado dejaba al login
+    // esperando hasta que Vercel matara la función (500 crudo).
+    apiRes = await fetch(`${API_URL}/auth/${action}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+    });
+  } catch {
+    return NextResponse.json(
+      { message: 'El servidor está iniciando; espera unos segundos e inténtalo de nuevo.' },
+      { status: 504 },
+    );
+  }
+  // Render devuelve HTML mientras despierta: sin el catch, el .json() daba 500 crudo.
+  const data = await apiRes.json().catch(() => null);
+  if (data === null) {
+    return NextResponse.json(
+      { message: 'El servidor está iniciando; espera unos segundos e inténtalo de nuevo.' },
+      { status: 503 },
+    );
+  }
 
   if (!apiRes.ok) {
     return NextResponse.json(data, { status: apiRes.status });

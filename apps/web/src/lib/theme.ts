@@ -24,12 +24,28 @@ export const CONTENT_CACHE: RequestInit =
   process.env.NODE_ENV === 'production' ? { next: { revalidate: 60 } } : { next: { revalidate: 5 } };
 
 /**
+ * Tope de espera SIN AbortSignal (mismo truco que lib/api.ts): un fetch con
+ * `next.revalidate` no admite `signal`, así que el tope va por Promise.race.
+ * Sin él, una conexión COLGADA (Render dormido) no rechaza nunca: el catch no
+ * corre, el tema decide qué secciones se pintan y toda página pública espera
+ * hasta que Vercel mata la función — 500 en vez del tema default.
+ */
+function conTope<T>(promesa: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promesa,
+    new Promise<never>((_, rechazar) =>
+      setTimeout(() => rechazar(new Error(`API /theme no respondió en ${ms} ms`)), ms),
+    ),
+  ]);
+}
+
+/**
  * Tema activo desde la API (que lo lee de la BD).
  * Fallback al tema default si la API no responde: el sitio nunca se cae por el tema.
  */
 export const getTheme = cache(async (): Promise<Theme> => {
   try {
-    const res = await fetch(`${API_URL}/theme`, CONTENT_CACHE);
+    const res = await conTope(fetch(`${API_URL}/theme`, CONTENT_CACHE), 6_000);
     if (!res.ok) throw new Error(`API /theme respondió ${res.status}`);
     return themeSchema.parse(await res.json());
   } catch (err) {

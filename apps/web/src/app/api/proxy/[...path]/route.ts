@@ -85,9 +85,19 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
 
   // Reenviar el query string (?search, ?page, …): sin esto la búsqueda llegaba
   // vacía a la API y devolvía todo el catálogo.
-  const apiRes = await fetch(`${API_URL}/${joined}${req.nextUrl.search}`, init);
-  const data = await apiRes.json().catch(() => null);
-  return NextResponse.json(data, { status: apiRes.status });
+  // Tope explícito: sin él, un Render dormido colgaba la función hasta que la
+  // plataforma la matara — 500 crudo en vez de un 504 explicable.
+  init.signal = AbortSignal.timeout(20_000);
+  try {
+    const apiRes = await fetch(`${API_URL}/${joined}${req.nextUrl.search}`, init);
+    const data = await apiRes.json().catch(() => null);
+    return NextResponse.json(data, { status: apiRes.status });
+  } catch {
+    return NextResponse.json(
+      { message: 'El servidor está iniciando; espera unos segundos e inténtalo de nuevo.' },
+      { status: 504 },
+    );
+  }
 }
 
 export const GET = forward;

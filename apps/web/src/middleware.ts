@@ -37,10 +37,15 @@ export async function middleware(req: NextRequest) {
   if (exp !== null && exp - now > REFRESH_SKEW) return NextResponse.next();
 
   try {
+    // TOPE OBLIGATORIO: el matcher cubre TODAS las rutas, así que un fetch
+    // colgado aquí (API de Render dormida) es un MIDDLEWARE_INVOCATION_TIMEOUT
+    // en el sitio completo para el visitante — exactamente el incidente del
+    // panel admin. Mismo fix que apps/admin/src/middleware.ts.
     const r = await fetch(`${API_URL}/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refresh }),
+      signal: AbortSignal.timeout(8_000),
     });
 
     if (!r.ok) {

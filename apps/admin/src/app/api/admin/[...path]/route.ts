@@ -38,7 +38,18 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
   // Reenviar el query string (?page, ?search, …); sin esto la paginación y la
   // búsqueda del admin no llegaban a la API.
   const search = req.nextUrl.search;
-  const apiRes = await fetch(`${API_URL}/admin/${joined}${search}`, init);
+  // Tope explícito: con Render dormido, el fetch colgado dejaba la función a
+  // merced del verdugo de la plataforma (error crudo, sin mensaje).
+  init.signal = AbortSignal.timeout(20_000);
+  let apiRes: Response;
+  try {
+    apiRes = await fetch(`${API_URL}/admin/${joined}${search}`, init);
+  } catch {
+    return NextResponse.json(
+      { message: 'El servidor está iniciando (Render); espera unos segundos e inténtalo de nuevo.' },
+      { status: 504 },
+    );
+  }
   const data = await apiRes.json().catch(() => null);
 
   // Login exitoso → guardar cookies httpOnly (access + refresh)

@@ -38,6 +38,30 @@ export async function adminFetch<T>(path: string): Promise<T | null> {
   }
 }
 
+/**
+ * Sesión del admin. DISTINGUE "sesión inválida" (→ null → redirect al login)
+ * de "la API no responde" (→ throw → error.tsx con el mensaje de Render
+ * dormido). Antes ambos devolvían null y una API caída expulsaba al admin al
+ * login con la sesión válida — parecía problema de credenciales y era el 504.
+ */
 export async function getAdmin(): Promise<{ id: number; name: string; email: string; role: string } | null> {
-  return adminFetch('/admin/auth/me');
+  const jar = await cookies();
+  const token = jar.get(ADMIN_COOKIE)?.value;
+  if (!token) return null;
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/admin/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch {
+    throw new Error('La API no responde (Render dormido o caído)');
+  }
+  if (!res.ok) return null; // 401/403 real: la sesión no sirve
+  try {
+    return (await res.json()) as { id: number; name: string; email: string; role: string };
+  } catch {
+    throw new Error('La API respondió algo que no es JSON (¿despertando?)');
+  }
 }
