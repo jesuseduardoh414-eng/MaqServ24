@@ -11,7 +11,10 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 type Params = { slug: string };
 
 const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(16px, 4vw, 26px)' };
-const GOLD = 'color-mix(in srgb, var(--color-primary) 82%, #000)';
+// La banda es OSCURA (var(--band)): el acento va ACLARADO, no oscurecido.
+// El mix con #000 venía del diseño para fondos claros y sobre negro daba
+// ~3.9:1 en textos de 13px — reprobaba AA.
+const GOLD = 'color-mix(in srgb, var(--color-primary) 65%, #fff)';
 const INK = 'var(--band)';
 
 const strip = (h: string) => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -21,8 +24,10 @@ async function fetchBySlug(slug: string): Promise<StrategicSectorDetail | null> 
   if (!id) return null;
   try {
     return await getSector(id);
-  } catch {
-    return null;
+  } catch (err) {
+    // 404 real → notFound(); API caída → error boundary (no un 404 indexable).
+    if (err instanceof Error && /→ 404/.test(err.message)) return null;
+    throw err;
   }
 }
 
@@ -78,7 +83,7 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
         {/* ===== CONTENIDO + SIDEBAR (solo datos de BD) ===== */}
         <section style={{ ...CONTAINER, paddingTop: 60, paddingBottom: 48, display: 'grid', gridTemplateColumns: '1fr 360px', gap: 48, alignItems: 'start' }} className="sector-grid">
           <div style={{ minWidth: 0 }}>
-            <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: GOLD }}>Sobre este sector</p>
+            <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: GOLD }}>{t(theme, 'sector.about')}</p>
             {sector.description ? (
               <div className="sector-rich" style={{ fontSize: '17px', lineHeight: 1.7, color: 'var(--color-text-muted)' }} dangerouslySetInnerHTML={{ __html: sector.description }} />
             ) : null}
@@ -90,7 +95,7 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
 
             {sector.serviciosLista.length > 0 ? (
               <div style={{ marginTop: 34 }}>
-                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 800, color: 'var(--color-text)', margin: '0 0 20px' }}>Servicios incluidos</h3>
+                <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: '20px', fontWeight: 800, color: 'var(--color-text)', margin: '0 0 20px' }}>{t(theme, 'sector.services.title')}</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }} className="sector-list">
                   {sector.serviciosLista.map((item) => (
                     <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 18px', background: 'var(--surface-2)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
@@ -107,10 +112,10 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
 
           {/* Tarjeta de cotización (CTA, sticky) */}
           <aside style={{ position: 'sticky', top: 100, background: INK, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '32px 28px', color: '#fff' }} className="sector-cta">
-            <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-heading)', fontSize: '23px', fontWeight: 800 }}>¿Interesado en este sector?</h3>
-            <p style={{ margin: '0 0 24px', fontSize: '14.5px', lineHeight: 1.6, color: 'rgba(255,255,255,.78)' }}>Cuéntanos sobre tu obra y te preparamos una propuesta a la medida con la maquinaria adecuada.</p>
-            <Link href="/contacto" style={{ display: 'block', textAlign: 'center', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontSize: '16px', fontWeight: 700, padding: '15px', borderRadius: 'var(--radius-md)', textDecoration: 'none', marginBottom: 10 }}>Solicitar cotización</Link>
-            <Link href="/productos" style={{ display: 'block', textAlign: 'center', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,.25)', fontSize: '16px', fontWeight: 700, padding: '15px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>Ver catálogo</Link>
+            <h3 style={{ margin: '0 0 8px', fontFamily: 'var(--font-heading)', fontSize: '23px', fontWeight: 800 }}>{t(theme, 'sector.cta.title')}</h3>
+            <p style={{ margin: '0 0 24px', fontSize: '14.5px', lineHeight: 1.6, color: 'rgba(255,255,255,.78)' }}>{t(theme, 'sector.cta.body')}</p>
+            <Link href="/contacto" style={{ display: 'block', textAlign: 'center', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontSize: '16px', fontWeight: 700, padding: '15px', borderRadius: 'var(--radius-md)', textDecoration: 'none', marginBottom: 10 }}>{t(theme, 'sector.cta.quote')}</Link>
+            <Link href="/productos" style={{ display: 'block', textAlign: 'center', background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,.25)', fontSize: '16px', fontWeight: 700, padding: '15px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>{t(theme, 'sector.cta.catalog')}</Link>
           </aside>
         </section>
 
@@ -119,12 +124,12 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
           <div style={{ background: INK, border: '1px solid var(--color-border)', borderRadius: 26, padding: '56px 52px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 40, position: 'relative', overflow: 'hidden', flexWrap: 'wrap' }} className="sector-cta-band">
             <div aria-hidden style={{ position: 'absolute', right: -60, top: -60, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle, color-mix(in srgb, var(--color-primary) 22%, transparent), transparent 70%)' }} />
             <div style={{ position: 'relative', maxWidth: 600 }}>
-              <h2 style={{ margin: '0 0 12px', fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.7rem, 3.2vw, 2.25rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>¿Necesitas maquinaria para este sector?</h2>
-              <p style={{ margin: 0, fontSize: '16.5px', lineHeight: 1.6, color: 'rgba(255,255,255,.78)' }}>Nuestros especialistas te ayudan a elegir el equipo ideal para tu proyecto.</p>
+              <h2 style={{ margin: '0 0 12px', fontFamily: 'var(--font-heading)', fontSize: 'clamp(1.7rem, 3.2vw, 2.25rem)', fontWeight: 900, color: '#fff', letterSpacing: '-0.02em' }}>{t(theme, 'sector.band.title')}</h2>
+              <p style={{ margin: 0, fontSize: '16.5px', lineHeight: 1.6, color: 'rgba(255,255,255,.78)' }}>{t(theme, 'sector.band.body')}</p>
             </div>
             <div style={{ position: 'relative', display: 'flex', gap: 14, flexShrink: 0, flexWrap: 'wrap' }}>
-              <Link href="/contacto" style={{ background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontSize: '16px', fontWeight: 700, padding: '16px 30px', borderRadius: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>Solicitar cotización</Link>
-              <Link href="/" style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,.3)', fontSize: '16px', fontWeight: 700, padding: '16px 30px', borderRadius: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>Ver otros sectores</Link>
+              <Link href="/contacto" style={{ background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontSize: '16px', fontWeight: 700, padding: '16px 30px', borderRadius: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>{t(theme, 'sector.cta.quote')}</Link>
+              <Link href="/" style={{ background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,.3)', fontSize: '16px', fontWeight: 700, padding: '16px 30px', borderRadius: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>{t(theme, 'sector.band.others')}</Link>
             </div>
           </div>
         </section>

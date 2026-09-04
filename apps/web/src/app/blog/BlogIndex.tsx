@@ -12,7 +12,7 @@ import { Icon } from '@/components/Icon';
  * tiempo de lectura son datos reales de la BD (nada inventado).
  */
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 const DARK = 'var(--band)';
 const AMBER = 'var(--color-primary)';
@@ -108,7 +108,6 @@ export function BlogIndex({ posts, eyebrow, title, subtitle }: { posts: BlogCard
 
   return (
     <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         .blog-cta:hover { color: var(--color-primary) !important; }
         .blog-card { text-decoration: none; color: inherit; display: block; }
@@ -148,7 +147,7 @@ export function BlogIndex({ posts, eyebrow, title, subtitle }: { posts: BlogCard
                     onClick={() => setCat(c)}
                     style={{
                       fontFamily: MONO, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em',
-                      padding: '8px 15px', borderRadius: 100,
+                      padding: '8px 15px', borderRadius: 'var(--radius-button)',
                       border: `1px solid ${on ? AMBER : 'rgba(255,255,255,.18)'}`,
                       background: on ? AMBER : 'transparent',
                       color: on ? 'var(--color-primary-fg)' : 'rgba(255,255,255,.8)',

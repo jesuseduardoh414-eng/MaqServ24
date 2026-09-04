@@ -48,11 +48,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!admin) redirect('/login');
   const { id } = await params;
 
-  const o = await adminFetch<OrderDetailRow>(`/admin/orders/${id}`);
+  // Orden y lista de temas en paralelo: son independientes. Antes eran 4 fetch
+  // EN SERIE (admin → orden → temas → tema) ≈ 4 RTT a Render por pintar un pedido.
+  const [o, themes] = await Promise.all([
+    adminFetch<OrderDetailRow>(`/admin/orders/${id}`),
+    adminFetch<ThemeRow[]>('/admin/themes').catch(() => [] as ThemeRow[]),
+  ]);
   if (!o) notFound();
 
   // Las sucursales salen de Diseño → Contacto: son las mismas que ve el cliente.
-  const themes = await adminFetch<ThemeRow[]>('/admin/themes').catch(() => [] as ThemeRow[]);
   const active = (themes ?? []).find((t) => t.active) ?? (themes ?? [])[0] ?? null;
   const detail = active ? await adminFetch<ThemeDetail>(`/admin/themes/${active.id}`) : null;
   const tokens = detail?.tokens ? themeTokensSchema.parse(detail.tokens) : defaultTheme.tokens;

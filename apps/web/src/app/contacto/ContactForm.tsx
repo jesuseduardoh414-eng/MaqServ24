@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 const labelStyle: React.CSSProperties = { display: 'block', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)' };
@@ -14,7 +14,7 @@ function field(err: boolean): React.CSSProperties {
     width: '100%', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--color-text)',
     background: err ? 'color-mix(in srgb, var(--color-error) 8%, var(--color-surface))' : 'var(--color-surface)',
     border: `1px solid ${err ? 'var(--color-error)' : 'var(--color-border)'}`,
-    borderRadius: 6, padding: '14px 16px', outline: 'none', marginTop: 8,
+    borderRadius: 6, padding: '14px 16px', marginTop: 8,
   };
 }
 
@@ -71,7 +71,7 @@ export function ContactForm({ needs }: { needs: string[] }) {
         <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 22px' }}><Icon name="check" size={32} /></div>
         <h3 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>¡Mensaje enviado!</h3>
         <p style={{ margin: '0 auto 24px', fontSize: 16, lineHeight: 1.6, color: 'var(--color-text-muted)', maxWidth: '40ch' }}>Gracias por escribirnos. Un asesor te contactará muy pronto.</p>
-        <button type="button" onClick={reset} style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '13px 26px', borderRadius: 100, cursor: 'pointer' }}>Enviar otro mensaje</button>
+        <button type="button" onClick={reset} style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '13px 26px', borderRadius: 'var(--radius-button)', cursor: 'pointer' }}>Enviar otro mensaje</button>
       </div>
     );
   }
@@ -80,24 +80,24 @@ export function ContactForm({ needs }: { needs: string[] }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 26 }} className="ct-row">
         <div>
-          <label style={labelStyle}>Nombre*</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" style={field(nameErr)} />
+          <label htmlFor="ct-name" style={labelStyle}>Nombre*</label>
+          <input id="ct-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" style={field(nameErr)} />
           {nameErr ? <div style={errStyle}>Ingresa tu nombre.</div> : null}
         </div>
         <div>
-          <label style={labelStyle}>Empresa</label>
-          <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Opcional" style={field(false)} />
+          <label htmlFor="ct-company" style={labelStyle}>Empresa</label>
+          <input id="ct-company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Opcional" style={field(false)} />
         </div>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 26 }} className="ct-row">
         <div>
-          <label style={labelStyle}>Correo*</label>
-          <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" style={field(emailErr)} />
+          <label htmlFor="ct-email" style={labelStyle}>Correo*</label>
+          <input id="ct-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" style={field(emailErr)} />
           {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
         </div>
         <div>
-          <label style={labelStyle}>Teléfono</label>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10 dígitos" style={field(false)} />
+          <label htmlFor="ct-phone" style={labelStyle}>Teléfono</label>
+          <input id="ct-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10 dígitos" style={field(false)} />
         </div>
       </div>
 
@@ -108,7 +108,7 @@ export function ContactForm({ needs }: { needs: string[] }) {
             {needs.map((n) => {
               const on = n === need;
               return (
-                <button key={n} type="button" onClick={() => setNeed(n)} style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.03em', padding: '9px 16px', borderRadius: 100, border: `1px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'var(--color-surface)', color: on ? 'var(--color-bg)' : 'var(--color-text-muted)', transition: 'all .15s ease' }}>{n}</button>
+                <button key={n} type="button" onClick={() => setNeed(n)} style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.03em', padding: '9px 16px', borderRadius: 'var(--radius-button)', border: `1px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'var(--color-surface)', color: on ? 'var(--color-bg)' : 'var(--color-text-muted)', transition: 'all .15s ease' }}>{n}</button>
               );
             })}
           </div>
@@ -116,15 +116,15 @@ export function ContactForm({ needs }: { needs: string[] }) {
       ) : null}
 
       <div>
-        <label style={labelStyle}>Mensaje*</label>
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe tu proyecto: tipo de equipo, fechas y ubicación." rows={5} style={{ ...field(messageErr), resize: 'vertical', lineHeight: 1.5, minHeight: 120, fontFamily: 'var(--font-sans)' }} />
+        <label htmlFor="ct-message" style={labelStyle}>Mensaje*</label>
+        <textarea id="ct-message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe tu proyecto: tipo de equipo, fechas y ubicación." rows={5} style={{ ...field(messageErr), resize: 'vertical', lineHeight: 1.5, minHeight: 120, fontFamily: 'var(--font-sans)' }} />
         {messageErr ? <div style={errStyle}>Cuéntanos brevemente qué necesitas.</div> : null}
       </div>
 
-      {serverErr ? <div style={{ ...errStyle, marginTop: 0 }}>{serverErr}</div> : null}
+      {serverErr ? <div role="alert" style={{ ...errStyle, marginTop: 0 }}>{serverErr}</div> : null}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-        <button type="button" onClick={submit} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '16px 34px', borderRadius: 100, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Enviando…' : <>Enviar mensaje<Icon name="arrowRight" size={16} /></>}</button>
+        <button type="button" onClick={submit} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '16px 34px', borderRadius: 'var(--radius-button)', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Enviando…' : <>Enviar mensaje<Icon name="arrowRight" size={16} /></>}</button>
         <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.06em' }}>RESPUESTA EN &lt; 24 H HÁBILES</span>
       </div>
     </div>

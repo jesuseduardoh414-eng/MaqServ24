@@ -70,19 +70,20 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
 
   const quoteMode = theme.tokens.quoteMode;
   const discount = p.oldPrice && p.price && p.oldPrice > p.price ? Math.round((1 - p.price / p.oldPrice) * 100) : 0;
-  // Prioridad del badge: descuento > destacado ("Nuevo") > renta.
+  // Prioridad del badge: descuento > destacado > renta. Textos del TEMA
+  // (requisito duro: todo copy editable en Panel → Diseño).
   const badge = discount
     ? { text: `-${discount}%`, bg: 'var(--color-primary)', fg: 'var(--color-primary-fg)' }
     : p.featured
-      ? { text: 'Destacado', bg: 'var(--color-accent)', fg: '#fff' }
+      ? { text: t(theme, 'product.badge.featured'), bg: 'var(--color-accent)', fg: '#fff' }
       : p.isRental
-        ? { text: 'Renta', bg: 'var(--color-secondary)', fg: '#fff' }
+        ? { text: t(theme, 'product.badge.rental'), bg: 'var(--color-secondary)', fg: '#fff' }
         : null;
   const canAdd = !quoteMode && p.inStock && !p.isRental && p.price !== null;
   // El modo (renta/venta) y la DISPONIBILIDAD ya no van juntos en una cadena:
   // el manual pide que el estado se lea de un vistazo y con su propio color
   // (21 / ESTADOS DE DISPONIBILIDAD).
-  const modo = p.isRental ? 'Renta' : 'Venta';
+  const modo = p.isRental ? t(theme, 'product.mode.rental') : t(theme, 'product.mode.sale');
   const disp = estadoDeProducto(p);
   // Cotizar SIEMPRE es posible desde la card: lleva al cotizador con este equipo cargado.
   const quoteHref = `/cotizar?producto=${p.slug}`;
@@ -113,14 +114,16 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
         {p.image ? (
           <Image src={p.image} alt={p.name} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 33vw, 25vw" className="zoom" style={{ objectFit: 'contain', padding: 16 }} />
         ) : (
-          <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--color-text-muted)', fontFamily: 'monospace', fontSize: 11 }}>[ sin imagen ]</span>
+          // Mismo lenguaje que el resto del sitio para "sin imagen": rayas
+          // discretas, no texto de desarrollador.
+          <span aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)' }} />
         )}
         {badge ? (
           <span style={{ position: 'absolute', top: 13, left: 13, background: badge.bg, color: badge.fg, fontSize: '11px', fontWeight: 800, padding: '5px 11px', borderRadius: 'var(--radius-sm)' }}>{badge.text}</span>
         ) : null}
       </Link>
 
-      <button type="button" aria-label="Favorito" aria-pressed={faved} onClick={toggleFav}
+      <button type="button" aria-label={faved ? t(theme, 'wishlist.remove') : t(theme, 'wishlist.add')} aria-pressed={faved} onClick={toggleFav}
         style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-surface) 88%, transparent)', border: '1px solid var(--color-border)', color: faved ? 'var(--color-error)' : 'var(--color-text-muted)', fontSize: '15px', cursor: 'pointer', boxShadow: 'var(--shadow-sm)', display: 'grid', placeItems: 'center' }}>
         {/* El botón ya dice "Favorito" en su aria-label: el icono va decorativo. */}
         <Icon name="heart" size={15} fill={faved} />
@@ -155,17 +158,17 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
           </div>
           <div className="prod-card-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
             {quoteOnly ? (
-              <Link href={quoteHref} style={addBtn}>Cotizar</Link>
+              <Link href={quoteHref} style={addBtn}>{t(theme, 'product.card.quote')}</Link>
             ) : (
               <>
                 {canAdd ? (
                   <button type="button" onClick={add} style={addBtn}>
-                    {added ? <><Icon name="check" size={14} />Agregado</> : <><span style={{ fontSize: '14px', marginTop: -1 }}>+</span>Agregar</>}
+                    {added ? <><Icon name="check" size={14} />{t(theme, 'product.card.added')}</> : <><span style={{ fontSize: '14px', marginTop: -1 }}>+</span>{t(theme, 'product.card.add')}</>}
                   </button>
                 ) : (
-                  <Link href={`/productos/${p.slug}`} style={addBtn}>Ver</Link>
+                  <Link href={`/productos/${p.slug}`} style={addBtn}>{t(theme, 'product.card.view')}</Link>
                 )}
-                <Link href={quoteHref} style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>Cotizar<Icon name="arrowRight" size={11.5} /></Link>
+                <Link href={quoteHref} style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'product.card.quote')}<Icon name="arrowRight" size={11.5} /></Link>
               </>
             )}
           </div>

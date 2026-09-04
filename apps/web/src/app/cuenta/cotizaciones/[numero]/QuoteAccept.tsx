@@ -96,7 +96,7 @@ export function QuoteAccept({
               disabled={enviando}
               style={{
                 background: 'var(--color-primary)', color: 'var(--color-primary-fg)',
-                border: 'none', borderRadius: 100, padding: '13px 26px',
+                border: 'none', borderRadius: 'var(--radius-button)', padding: '13px 26px',
                 fontWeight: 700, fontSize: 15, cursor: enviando ? 'wait' : 'pointer',
                 fontFamily: 'inherit', opacity: enviando ? 0.6 : 1,
               }}
@@ -108,7 +108,7 @@ export function QuoteAccept({
               onClick={() => setConfirmando(false)}
               style={{
                 background: 'transparent', color: 'var(--color-text)',
-                border: '1px solid var(--color-border)', borderRadius: 100,
+                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)',
                 padding: '13px 22px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit',
               }}
             >
@@ -122,7 +122,7 @@ export function QuoteAccept({
           onClick={() => setConfirmando(true)}
           style={{
             width: '100%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)',
-            border: 'none', borderRadius: 100, padding: '16px 28px',
+            border: 'none', borderRadius: 'var(--radius-button)', padding: '16px 28px',
             fontWeight: 700, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit',
           }}
         >

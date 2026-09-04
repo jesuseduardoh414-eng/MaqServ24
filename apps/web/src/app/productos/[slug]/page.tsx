@@ -20,8 +20,12 @@ async function fetchBySlug(slug: string): Promise<ProductDetail | null> {
   if (!id) return null;
   try {
     return await getProduct(id);
-  } catch {
-    return null;
+  } catch (err) {
+    // Solo un 404 REAL de la API (el producto no existe) se traduce a
+    // notFound(). Una API caída/dormida se relanza al error boundary: antes
+    // convertía fichas reales en 404 INDEXABLES y Google las descatalogaba.
+    if (err instanceof Error && /→ 404/.test(err.message)) return null;
+    throw err;
   }
 }
 
@@ -44,11 +48,16 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   const [theme, product] = await Promise.all([getTheme(), fetchBySlug(slug)]);
   if (!product) notFound();
 
+  // Tope por Promise.race (un fetch con `next.revalidate` no admite `signal`):
+  // sin él, una conexión colgada con Render dormido retenía el render entero.
+  const sinComments = { items: [], average: 0, count: 0 } as ProductCommentsSummary;
   const [settings, comments, relatedRes] = await Promise.all([
     getSiteSettings().catch(() => ({ email: null, phone: null, logo: null })),
-    fetch(`${API_URL}/catalog/products/${product.id}/comments`, { next: { revalidate: 60 } })
-      .then((r) => r.json())
-      .catch(() => ({ items: [], average: 0, count: 0 })) as Promise<ProductCommentsSummary>,
+    Promise.race([
+      fetch(`${API_URL}/catalog/products/${product.id}/comments`, { next: { revalidate: 60 } })
+        .then((r) => r.json()) as Promise<ProductCommentsSummary>,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('comments timeout')), 6_000)),
+    ]).catch(() => sinComments),
     (product.categorySlug ? getProducts({ category: product.categorySlug }) : getProducts({ featured: true })).catch(() => null),
   ]);
 

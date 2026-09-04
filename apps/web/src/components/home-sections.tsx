@@ -140,7 +140,10 @@ export async function Hero({ theme }: { theme: Theme }) {
               <Image src={hero.image} alt="" fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', transform: 'scale(1.45)', transformOrigin: 'center' }} />
             </span>
           ) : (
-            <span style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 1, fontFamily: 'monospace', fontSize: '12px', color: 'rgba(0,0,0,.55)', background: 'rgba(255,255,255,.35)', padding: '8px 14px', borderRadius: 'var(--radius-sm)' }}>PNG transparente</span>
+            // Sin imagen configurada: el círculo de acento queda solo como
+            // visual. El chip "PNG transparente" era una nota para el admin
+            // que veía el usuario final.
+            null
           )}
           {h.showStats ? (
             <>
@@ -422,7 +425,10 @@ export async function OfferSection({ theme }: { theme: Theme }) {
               {t(theme, 'home.offer.badge')}
             </span>
             <h2 style={{ ...H2, fontSize: 'clamp(1.8rem, 3.6vw, 2.3rem)', lineHeight: 1.08, color: titleColor, margin: '0 0 14px' }}>{t(theme, 'home.offer.title')}</h2>
-            <p style={{ color: 'rgba(255,255,255,.7)', fontSize: '15.5px', maxWidth: 440, margin: '0 0 26px', lineHeight: 1.55, fontWeight: 300 }}>{t(theme, 'home.offer.subtitle')}</p>
+            {/* El subtítulo sigue al color del título (configurable) al 72%:
+                con el blanco fijo, un admin que eligiera fondo claro dejaba
+                este texto invisible mientras el título sí se adaptaba. */}
+            <p style={{ color: `color-mix(in srgb, ${titleColor} 72%, transparent)`, fontSize: '15.5px', maxWidth: 440, margin: '0 0 26px', lineHeight: 1.55, fontWeight: 300 }}>{t(theme, 'home.offer.subtitle')}</p>
             <Link href={ctaLink} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: accent, color: 'var(--color-primary-fg)', fontWeight: 700, fontSize: '15px', padding: '15px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: `0 16px 32px -16px color-mix(in srgb, ${accent} 95%, transparent)` }}>
               {t(theme, 'home.offer.cta')} <Icon name="arrowRight" size={17} />
             </Link>

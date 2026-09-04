@@ -14,8 +14,13 @@ type StoreResponse = { vendor: VendorPublic; products: Paginated<ProductCardDto>
 
 async function fetchStore(id: string, page: number): Promise<StoreResponse | null> {
   if (!/^\d+$/.test(id)) return null;
-  const res = await fetch(`${API_URL}/vendors/${id}?page=${page}`, { next: { revalidate: 60 } });
-  if (!res.ok) return null;
+  // Tope por Promise.race (fetch con revalidate no admite signal): una conexión
+  // colgada con Render dormido retenía el render de la tienda.
+  const res = await Promise.race([
+    fetch(`${API_URL}/vendors/${id}?page=${page}`, { next: { revalidate: 60 } }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('tienda timeout')), 6_000)),
+  ]).catch(() => null);
+  if (!res || !res.ok) return null;
   return (await res.json()) as StoreResponse;
 }
 

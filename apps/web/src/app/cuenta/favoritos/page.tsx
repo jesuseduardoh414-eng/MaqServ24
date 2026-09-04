@@ -23,7 +23,7 @@ export default async function WishlistPage() {
     getTheme(),
     fetch(`${API_URL}/wishlist`, {
       headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
+      cache: 'no-store', signal: AbortSignal.timeout(15_000),
     }),
   ]);
   if (res.status === 401) redirect('/login');

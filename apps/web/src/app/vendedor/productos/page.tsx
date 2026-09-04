@@ -24,7 +24,7 @@ export default async function VendorProductsPage() {
   const [theme, categories, res] = await Promise.all([
     getTheme(),
     getCategories(),
-    fetch(`${API_URL}/vendor/products`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
+    fetch(`${API_URL}/vendor/products`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(15_000) }),
   ]);
   if (res.status === 401) redirect('/login');
   if (res.status === 403) redirect('/vendedor');

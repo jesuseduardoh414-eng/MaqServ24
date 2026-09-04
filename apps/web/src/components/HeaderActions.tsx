@@ -6,14 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/CartProvider';
 import { NotificationsBell } from '@/components/NotificationsBell';
 import { Icon } from '@/components/Icon';
-
-/** Accesos del menú de usuario (área de cuenta). */
-const ACCOUNT_LINKS = [
-  { href: '/cuenta', label: 'Mi perfil' },
-  { href: '/cuenta/pedidos', label: 'Mis compras' },
-  { href: '/cuenta/cotizaciones', label: 'Cotizaciones' },
-  { href: '/cuenta/favoritos', label: 'Favoritos' },
-];
+import { ACCOUNT_LINKS } from '@/lib/account-links';
 const menuItemStyle: React.CSSProperties = {
   display: 'block', padding: '9px 12px', borderRadius: 'var(--radius-md)',
   color: 'var(--color-text)', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600,
@@ -121,7 +114,7 @@ export function HeaderActions({
             aria-expanded={menuOpen}
             aria-haspopup="menu"
             title={`${labels.greeting}, ${user.name}`}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 100, padding: '4px 12px 4px 4px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', padding: '4px 12px 4px 4px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
           >
             <span style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '13px', flexShrink: 0 }}>
               {(user.name.trim()[0] ?? 'U').toUpperCase()}
@@ -195,13 +188,15 @@ export function HeaderActions({
             style={{ maxWidth: 1240, margin: '0 auto', padding: '16px clamp(16px, 4vw, 26px)', display: 'flex', alignItems: 'center', gap: 12 }}
             onSubmit={() => setSearchOpen(false)}
           >
-            <span style={{ fontSize: '20px', color: 'var(--grey)' }}>⌕</span>
+            {/* Icono SVG propio: el glifo ⌕ no existe en muchas fuentes (misma
+                trampa que ⛟/▤ en el hero, ya corregida allá). */}
+            <span style={{ color: 'var(--grey)', display: 'inline-flex' }} aria-hidden><Icon name="search" size={19} /></span>
             <input
               ref={searchInput}
               name="q"
               placeholder={labels.searchPlaceholder}
               aria-label={labels.searchPlaceholder}
-              style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '16px', color: 'var(--color-text)', outline: 'none' }}
+              style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '16px', color: 'var(--color-text)' }}
             />
             <button
               type="button"

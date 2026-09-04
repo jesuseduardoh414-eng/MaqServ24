@@ -1,7 +1,7 @@
 import type { Theme } from '@maqserv/config';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 export interface LegalSection { h: string; body: string }
@@ -13,7 +13,6 @@ export function LegalPage({ theme, eyebrow, title, updated, intro, sections }: {
   return (
     <>
       <SiteHeader theme={theme} />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <main style={{ maxWidth: 800, margin: '0 auto', padding: '56px 24px 72px', background: 'var(--color-bg)' }}>
         <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 30, marginBottom: 36 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>

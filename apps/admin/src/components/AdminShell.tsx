@@ -149,10 +149,9 @@ export function AdminShell({
 
           <div className="adm-topbar-spacer" />
 
-          <button className="adm-iconbtn" title="Notificaciones" aria-label="Notificaciones" type="button">
-            <i className="ph ph-bell" aria-hidden />
-            <span className="adm-notif-dot" />
-          </button>
+          {/* La campana se quitó: era decorativa (sin handler) y su punto de
+              "avisos nuevos" estaba SIEMPRE encendido — indicaba avisos que no
+              existían. Vuelve cuando haya notificaciones de admin reales. */}
           <div className="adm-topbar-divider" />
           <span className="adm-avatar" aria-hidden>{initial}</span>
         </header>

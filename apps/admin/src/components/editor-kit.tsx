@@ -41,7 +41,7 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
         })}
         <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 9, border: '2px dashed rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
           <i className="ph ph-eyedropper" style={{ fontSize: 13, color: D.muted2 }} />
-          <input type="color" value={value ?? 'var(--color-primary)'} onChange={(e) => onChange(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+          <input type="color" value={value ?? '#008CFF'} onChange={(e) => onChange(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
         </label>
         <code style={{ fontSize: 12, color: D.text }}>{isTheme ? 'del tema' : value}</code>
       </div>

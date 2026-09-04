@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 const labelStyle: React.CSSProperties = {
@@ -14,7 +14,7 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--color-text)',
   background: 'color-mix(in srgb, var(--color-text) 3%, var(--color-surface))',
-  border: '1px solid var(--color-border)', borderRadius: 10, padding: '13px 15px', outline: 'none',
+  border: '1px solid var(--color-border)', borderRadius: 10, padding: '13px 15px',
 };
 
 export function WithdrawForm({
@@ -87,7 +87,7 @@ export function WithdrawForm({
           <button
             type="submit"
             disabled={loading || noBalance}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 100, cursor: loading ? 'wait' : noBalance ? 'not-allowed' : 'pointer', opacity: loading || noBalance ? 0.5 : 1 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 'var(--radius-button)', cursor: loading ? 'wait' : noBalance ? 'not-allowed' : 'pointer', opacity: loading || noBalance ? 0.5 : 1 }}
           >
             {loading ? '…' : <>{labels.submit}<Icon name="arrowRight" size={16} /></>}
           </button>

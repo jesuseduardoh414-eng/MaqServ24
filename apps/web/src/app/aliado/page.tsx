@@ -35,7 +35,7 @@ export default async function AliadoPage({
     return <SinAcceso theme={theme} motivo="Este enlace está incompleto." />;
   }
 
-  const res = await fetch(`${API_URL}/aliado?t=${encodeURIComponent(t)}`, { cache: 'no-store' });
+  const res = await fetch(`${API_URL}/aliado?t=${encodeURIComponent(t)}`, { cache: 'no-store', signal: AbortSignal.timeout(15_000) });
   if (!res.ok) {
     return (
       <SinAcceso

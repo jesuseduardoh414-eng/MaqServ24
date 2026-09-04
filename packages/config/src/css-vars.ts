@@ -29,7 +29,9 @@ function scaleVars(t: ThemeTokens): string {
   return [
     `--font-sans:'${fontSans}',system-ui,sans-serif`,
     `--font-heading:'${fontHeading}',system-ui,sans-serif`,
-    `--font-display:'${fontDisplay ?? fontHeading}',cursive`,
+    // Fallback sans-serif: el `cursive` era un resto del display de SEGAshop —
+    // si Google Fonts no carga, el wordmark y los títulos caían a una cursiva.
+    `--font-display:'${fontDisplay ?? fontHeading}',system-ui,sans-serif`,
     `--text-sm:${step(-1)}`,
     `--text-base:${baseSizePx}px`,
     `--text-lg:${step(1)}`,

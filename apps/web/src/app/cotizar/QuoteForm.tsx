@@ -11,7 +11,7 @@ import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA } from './Requirement
 import { SitePicker, type ObraCliente } from './SitePicker';
 import { Stepper } from './Stepper';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
 
@@ -41,7 +41,6 @@ const fieldStyle: React.CSSProperties = {
   background: 'var(--color-bg)',
   border: '1px solid var(--color-border)',
   borderRadius: 4,
-  outline: 'none',
 };
 
 /** Etiqueta de las preguntas del servicio. Van visibles, no como placeholder:
@@ -287,7 +286,7 @@ export function QuoteForm({
           <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{labels.numberLabel}</div>
           <div style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>{done.quoteNumber}</div>
         </div>
-        <Link href="/cuenta/cotizaciones" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 22, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '13px 26px', borderRadius: 100 }}>Ver mis cotizaciones<Icon name="arrowRight" size={15} /></Link>
+        <Link href="/cuenta/cotizaciones" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 22, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '13px 26px', borderRadius: 'var(--radius-button)' }}>Ver mis cotizaciones<Icon name="arrowRight" size={15} /></Link>
       </div>
     );
   }
@@ -544,7 +543,7 @@ export function QuoteForm({
           <p role="alert" style={{ color: 'var(--color-error)', margin: 0, fontSize: 13, textAlign: 'center' }}>{error}</p>
         ) : null}
 
-        <button type="submit" disabled={loading || (items.length === 0 && !servicio)} style={{ width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: loading ? 'default' : 'pointer', opacity: loading || (items.length === 0 && !servicio) ? 0.5 : 1 }}>
+        <button type="submit" disabled={loading || (items.length === 0 && !servicio)} style={{ width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', cursor: loading ? 'default' : 'pointer', opacity: loading || (items.length === 0 && !servicio) ? 0.5 : 1 }}>
           {loading ? 'Enviando…' : labels.submit}
         </button>
         <p style={{ margin: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6, textTransform: 'uppercase' }}>
@@ -559,7 +558,7 @@ export function QuoteForm({
             <button
               type="button"
               onClick={() => setPaso((p) => Math.max(0, p - 1))}
-              style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 100, padding: '15px 24px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', padding: '15px 24px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Icon name="arrowLeft" size={15} />Regresar
             </button>
@@ -567,7 +566,7 @@ export function QuoteForm({
           <button
             type="button"
             onClick={siguiente}
-            style={{ flex: 1, minWidth: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 100, cursor: 'pointer' }}
+            style={{ flex: 1, minWidth: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', cursor: 'pointer' }}
           >
             Continuar<Icon name="arrowRight" size={16} />
           </button>

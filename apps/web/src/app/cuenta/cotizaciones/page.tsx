@@ -12,7 +12,7 @@ import { formatPrice } from '@/lib/format';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 const rowStyle: React.CSSProperties = {
@@ -43,7 +43,7 @@ export default async function MyQuotesPage() {
     getTheme(),
     fetch(`${API_URL}/quotes/mine`, {
       headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
+      cache: 'no-store', signal: AbortSignal.timeout(15_000),
     }),
   ]);
   if (res.status === 401) redirect('/login');
@@ -69,7 +69,6 @@ export default async function MyQuotesPage() {
     <>
       <SiteHeader theme={theme} />
       <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
         <style>{`
           @media (max-width: 760px){
             .qt-wrap{ padding-left:22px !important; padding-right:22px !important; }
@@ -90,7 +89,7 @@ export default async function MyQuotesPage() {
               <div style={{ fontSize: 52, marginBottom: 18 }}>📄</div>
               <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 28, fontWeight: 700 }}>{t(theme, 'account.quotes.empty')}</h2>
               <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted)' }}>Pide una cotización sin costo y te respondemos con precios y disponibilidad.</p>
-              <Link href="/cotizar" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 100 }}>Solicitar cotización</Link>
+              <Link href="/cotizar" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 'var(--radius-button)' }}>Solicitar cotización</Link>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 14 }}>
@@ -105,7 +104,7 @@ export default async function MyQuotesPage() {
                         <div style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>{q.quoteNumber}</div>
                         <div style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 6, letterSpacing: '0.04em' }}>{fmtDate(q.createdAt)}</div>
                       </div>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 100, padding: '4px 10px', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--radius-button)', padding: '4px 10px', whiteSpace: 'nowrap' }}>
                         <span style={{ width: 5, height: 5, borderRadius: 999, background: c.fg }} />
                         {st.text}
                       </span>
@@ -155,7 +154,7 @@ export default async function MyQuotesPage() {
               })}
 
               <div style={{ textAlign: 'center', marginTop: 14 }}>
-                <Link href="/cotizar" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '14px 28px', borderRadius: 100, display: 'inline-block' }}>Solicitar otra cotización</Link>
+                <Link href="/cotizar" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '14px 28px', borderRadius: 'var(--radius-button)', display: 'inline-block' }}>Solicitar otra cotización</Link>
               </div>
             </div>
           )}

@@ -28,8 +28,8 @@ export default async function VendorWithdrawsPage() {
 
   const [theme, meRes, listRes] = await Promise.all([
     getTheme(),
-    fetch(`${API_URL}/vendor/me`, { headers, cache: 'no-store' }),
-    fetch(`${API_URL}/vendor/withdraws`, { headers, cache: 'no-store' }),
+    fetch(`${API_URL}/vendor/me`, { headers, cache: 'no-store', signal: AbortSignal.timeout(15_000) }),
+    fetch(`${API_URL}/vendor/withdraws`, { headers, cache: 'no-store', signal: AbortSignal.timeout(15_000) }),
   ]);
   if (meRes.status === 401) redirect('/login');
   if (listRes.status === 403) redirect('/vendedor');

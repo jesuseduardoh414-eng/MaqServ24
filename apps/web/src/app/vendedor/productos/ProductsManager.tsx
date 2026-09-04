@@ -7,7 +7,7 @@ import type { Category, VendorProductRow } from '@maqserv/types';
 import { formatPrice } from '@/lib/format';
 import { Icon } from '@/components/Icon';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 const card: React.CSSProperties = {
@@ -21,7 +21,7 @@ const labelStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   width: '100%', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--color-text)',
   background: 'color-mix(in srgb, var(--color-text) 3%, var(--color-surface))',
-  border: '1px solid var(--color-border)', borderRadius: 10, padding: '13px 15px', outline: 'none',
+  border: '1px solid var(--color-border)', borderRadius: 10, padding: '13px 15px',
 };
 
 export function ProductsManager({
@@ -174,7 +174,7 @@ export function ProductsManager({
           ) : null}
 
           <div>
-            <button type="submit" disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 100, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}>
+            <button type="submit" disabled={loading} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 'var(--radius-button)', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}>
               {loading ? '…' : <>{labels.create}<Icon name="arrowRight" size={16} /></>}
             </button>
           </div>
@@ -203,7 +203,7 @@ export function ProductsManager({
                   type="button"
                   onClick={() => deactivate(p.id, p.name)}
                   disabled={busyId === p.id}
-                  style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 100, padding: '9px 16px', cursor: busyId === p.id ? 'wait' : 'pointer', opacity: busyId === p.id ? 0.5 : 1 }}
+                  style={{ fontFamily: MONO, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: 'transparent', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', padding: '9px 16px', cursor: busyId === p.id ? 'wait' : 'pointer', opacity: busyId === p.id ? 0.5 : 1 }}
                 >
                   {labels.deactivate}
                 </button>

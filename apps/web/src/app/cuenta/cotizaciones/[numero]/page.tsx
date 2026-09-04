@@ -44,7 +44,7 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
     getTheme(),
     fetch(`${API_URL}/quotes/${encodeURIComponent(numero)}`, {
       headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
+      cache: 'no-store', signal: AbortSignal.timeout(15_000),
     }),
   ]);
   if (res.status === 401) redirect('/login');

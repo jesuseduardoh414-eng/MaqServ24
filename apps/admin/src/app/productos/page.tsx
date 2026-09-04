@@ -13,7 +13,11 @@ export default async function AdminProducts() {
   // Traemos todo el catálogo en UNA consulta (pageSize alto) para no encadenar N
   // peticiones. El gestor pagina en cliente. Fallback: si la API ignora pageSize
   // (build anterior) devuelve varias páginas y las completamos en bucle.
-  const first = await adminFetch<Paged>('/admin/catalog/products?page=1&pageSize=500');
+  // Catálogo y categorías en PARALELO: eran independientes y viajaban en serie.
+  const [first, catsRaw] = await Promise.all([
+    adminFetch<Paged>('/admin/catalog/products?page=1&pageSize=500'),
+    adminFetch<Array<{ id: number; name: string; slug: string }>>('/admin/catalog/categories'),
+  ]);
   let items = first?.items ?? [];
   const pages = first?.pages ?? 1;
   for (let p = 2; p <= pages; p++) {
@@ -23,7 +27,7 @@ export default async function AdminProducts() {
   // dedupe defensivo por id (por si la paginación se solapa)
   const seen = new Set<number>();
   items = items.filter((x) => (seen.has(x.id) ? false : (seen.add(x.id), true)));
-  const cats = (await adminFetch<Array<{ id: number; name: string; slug: string }>>('/admin/catalog/categories')) ?? [];
+  const cats = catsRaw ?? [];
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email}>

@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { ProductCard as ProductCardDto, ProductComment, ProductDetail, RentalPeriod } from '@maqserv/types';
-import { UNIDADES, esUnidadDeTiempo, precioEnUnidad, type Theme } from '@maqserv/config';
+import { UNIDADES, esUnidadDeTiempo, precioPeriodoCarrito, type Theme } from '@maqserv/config';
+import { t as tCopy } from '@/lib/theme';
 import { useCart } from '@/components/CartProvider';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductQuestions } from '@/components/ProductQuestions';
@@ -14,7 +16,7 @@ import { ProviderTrust } from '@/components/ProviderBadge';
 import { Icon, Stars } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 // Mismo panel que la tarjeta del catálogo (ver ProductCard): grafito, no blanco.
 const PANEL =
@@ -28,30 +30,29 @@ function fmtReviewDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-MX', { month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase();
 }
 
-const TABS: Array<[string, string]> = [['desc', 'Descripción'], ['specs', 'Ficha técnica'], ['reviews', 'Opiniones'], ['qa', 'Preguntas']];
+// Etiquetas de las pestañas: del TEMA (requisito duro). La clave interna (desc,
+// specs…) no cambia; solo el texto visible.
+const TAB_KEYS: Array<[string, string]> = [
+  ['desc', 'product.tab.description'],
+  ['specs', 'product.tab.specs'],
+  ['reviews', 'product.tab.reviews'],
+  ['qa', 'product.tab.questions'],
+];
 
 /**
  * PRECIO POR PERIODO.
  *
- * El selector Dia/Semana/Mes derivaba del precio mensual (mes/4 y mes/20).
- * Esa regla es real en renta de equipo y se conserva, pero SOLO sirve entre
- * unidades de tiempo: un viaje de pipa no es una fraccion de un mes y una
- * tonelada de triturado tampoco. Antes el selector salia igual para todo, asi
- * que a un volteo cotizado por viaje le ofrecia un "precio mensual" que nadie
- * cobra. Ahora sale unicamente cuando hay algo que convertir.
+ * El precio mostrado sale de `precioPeriodoCarrito` (@maqserv/config): la MISMA
+ * función con la que `orders.service` cobra. Antes cada lado tenía su fórmula
+ * (aquí se convertía desde `price_unit`, el server asumía mensual) y un equipo
+ * capturado por hora se mostraba bien pero se cobraba ÷20 — hasta en $0. Si la
+ * regla de conversión cambia, se cambia ALLÁ, en un solo lugar.
  */
-function periodPrice(base: number, desde: string, hacia: string): number {
-  const p = precioEnUnidad(base, aUnidad(desde), aUnidad(hacia));
-  // Se redondea a centenas como antes: un "$487.50 / dia" en un boton no
-  // ayuda a decidir, y la tarifa real la fija la cotizacion.
-  return p === null ? base : Math.round(p / 100) * 100;
-}
 /**
  * OJO: las claves son las del CARRITO ('dia' | 'sem' | 'mes'), no las de
- * `UNIDADES`, que usa 'semana'. La API valida con z.enum(['dia','sem','mes']) y
- * `orders.service` cae a 'mes' ante cualquier otra cosa: mandar 'semana'
- * cobraria como mensual una renta semanal sin marcar error en ningun lado.
- * `aUnidad` hace la unica traduccion que hace falta.
+ * `UNIDADES`, que usa 'semana'. La API ya acepta cualquier unidad conocida
+ * ('viaje', 'jornada', 'hora'…) y convierte desde `price_unit` con la misma
+ * fuente única; `aUnidad`/`aPeriodo` hacen la única traduccion que difiere.
  */
 const PERIODS: Array<[string, string]> = [['dia', 'Día'], ['sem', 'Semana'], ['mes', 'Mes']];
 const aUnidad = (clave: string): string => (clave === 'sem' ? 'semana' : clave);
@@ -93,7 +94,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
   const isR = product.isRental;
   const effPrice = product.price !== null
-    ? (isR && porTiempo ? periodPrice(product.price, unidadBase!, period) : product.price)
+    ? (isR && porTiempo ? precioPeriodoCarrito(product.price, unidadBase!, period) : product.price)
     : null;
   // La etiqueta sale de la unidad real: MES, VIAJE, TONELADA...
   const effUnit = unidadBase ? (UNIDADES[porTiempo ? aUnidad(period) : unidadBase]?.singular ?? unidadBase).toUpperCase() : null;
@@ -137,7 +138,6 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
   return (
     <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         .pd-article :where(h2,h3){ font-family:${DISPLAY}; margin:28px 0 10px; font-size:22px; font-weight:700; letter-spacing:-0.02em; color:var(--color-text); }
         .pd-article p{ margin:0 0 18px; font-size:18px; line-height:1.72; color:color-mix(in srgb, var(--color-text) 78%, transparent); }
@@ -167,8 +167,9 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
           <div>
             <div style={{ position: 'relative', height: 480, borderRadius: 4, overflow: 'hidden', background: mainImg ? PANEL : 'var(--color-surface)', backgroundImage: mainImg ? undefined : stripe, display: 'flex', alignItems: 'flex-end', padding: 14 }}>
               {mainImg ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={mainImg} alt={product.name} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', padding: 28 }} />
+                // next/image: es el LCP de la ficha — antes el <img> crudo
+                // servía el original de Storage sin resize ni webp.
+                <Image src={mainImg} alt={product.name} fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', padding: 28 }} />
               ) : (
                 <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', background: 'var(--color-bg)', padding: '5px 9px', borderRadius: 4, position: 'relative' }}>foto: {product.name}</span>
               )}
@@ -182,9 +183,8 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
             {images.length > 1 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginTop: 12 }}>
                 {images.slice(0, 8).map((src, i) => (
-                  <button key={i} type="button" onClick={() => setActive(i)} style={{ height: 72, cursor: 'pointer', borderRadius: 3, overflow: 'hidden', padding: 0, border: `2px solid ${i === active ? 'var(--color-text)' : 'var(--color-border)'}`, background: PANEL }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 6 }} />
+                  <button key={i} type="button" onClick={() => setActive(i)} style={{ position: 'relative', height: 72, cursor: 'pointer', borderRadius: 3, overflow: 'hidden', padding: 0, border: `2px solid ${i === active ? 'var(--color-text)' : 'var(--color-border)'}`, background: PANEL }}>
+                    <Image src={src} alt="" fill sizes="120px" style={{ objectFit: 'contain', padding: 6 }} />
                   </button>
                 ))}
               </div>
@@ -222,7 +222,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     return (
                       <button key={key} type="button" onClick={() => setPeriod(key)} style={{ border: `1px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'var(--color-bg)', color: on ? 'var(--color-bg)' : 'var(--color-text)', borderRadius: 4, padding: '12px 10px', cursor: 'pointer', textAlign: 'center' }}>
                         <div style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15 }}>{label}</div>
-                        <div style={{ fontFamily: MONO, fontSize: 11, marginTop: 3, color: on ? 'color-mix(in srgb, var(--color-bg) 65%, transparent)' : 'var(--color-text-muted)' }}>{formatPrice(periodPrice(product.price as number, unidadBase!, key))}</div>
+                        <div style={{ fontFamily: MONO, fontSize: 11, marginTop: 3, color: on ? 'color-mix(in srgb, var(--color-bg) 65%, transparent)' : 'var(--color-text-muted)' }}>{formatPrice(precioPeriodoCarrito(product.price as number, unidadBase!, key))}</div>
                       </button>
                     );
                   })}
@@ -258,16 +258,16 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
             {canBuy ? (
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 100, overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', overflow: 'hidden' }}>
                     <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} style={{ background: 'transparent', border: 'none', width: 44, height: 48, fontSize: 22, cursor: 'pointer', color: 'var(--color-text)' }}>−</button>
                     <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, width: 36, textAlign: 'center' }}>{qty}</span>
                     <button type="button" onClick={() => setQty((q) => q + 1)} style={{ background: 'transparent', border: 'none', width: 44, height: 48, fontSize: 22, cursor: 'pointer', color: 'var(--color-text)' }}>+</button>
                   </div>
-                  <button type="button" onClick={addToCart} style={{ flex: 1, minWidth: 200, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '16px 28px', borderRadius: 100, cursor: 'pointer' }}>{added ? '✓ Añadido' : 'Añadir al carrito'}</button>
+                  <button type="button" onClick={addToCart} style={{ flex: 1, minWidth: 200, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '16px 28px', borderRadius: 'var(--radius-button)', cursor: 'pointer' }}>{added ? '✓ Añadido' : 'Añadir al carrito'}</button>
                 </div>
                 <div style={{ display: 'flex', gap: 14, marginBottom: 14 }}>
-                  <button type="button" onClick={buyNow} style={{ flex: 1, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '16px 28px', borderRadius: 100, cursor: 'pointer' }}>Comprar ahora</button>
-                  <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 100, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
+                  <button type="button" onClick={buyNow} style={{ flex: 1, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '16px 28px', borderRadius: 'var(--radius-button)', cursor: 'pointer' }}>Comprar ahora</button>
+                  <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-button)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
                 </div>
                 {/* COTIZAR SIEMPRE, tambien en los equipos que se pueden comprar.
                     Antes aqui habia un 'Solicitar informacion' que abria el correo:
@@ -276,7 +276,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     segun el servicio, y ademas la plataforma se centra en cotizar. */}
                 <Link
                   href={`/cotizar?producto=${product.slug}`}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-text)', padding: '14px 20px', borderRadius: 100, textDecoration: 'none', boxSizing: 'border-box' }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-text)', padding: '14px 20px', borderRadius: 'var(--radius-button)', textDecoration: 'none', boxSizing: 'border-box' }}
                 >
                   Cotizar este equipo
                   <Icon name="arrowRight" size={15} />
@@ -284,8 +284,8 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
               </>
             ) : (
               <div style={{ display: 'flex', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
-                <Link href={`/cotizar?producto=${product.slug}`} style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 100 }}>Solicitar cotización<Icon name="arrowRight" size={16} /></Link>
-                <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 100, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
+                <Link href={`/cotizar?producto=${product.slug}`} style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 'var(--radius-button)' }}>Solicitar cotización<Icon name="arrowRight" size={16} /></Link>
+                <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-button)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
               </div>
             )}
 
@@ -320,7 +320,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
         {/* tabs */}
         <div style={{ marginTop: 80 }}>
           <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid var(--color-text)', flexWrap: 'wrap' }}>
-            {TABS.map(([key, label]) => (
+            {TAB_KEYS.map(([key, copyKey]) => [key, tCopy(theme, copyKey)] as const).map(([key, label]) => (
               <button key={key} type="button" onClick={() => setTab(key)} style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 700, cursor: 'pointer', background: 'transparent', border: 'none', padding: '14px 20px', color: tab === key ? 'var(--color-text)' : 'var(--color-text-muted)', borderBottom: `3px solid ${tab === key ? 'var(--color-primary)' : 'transparent'}`, marginBottom: -2, letterSpacing: '-0.01em' }}>{label}{key === 'reviews' && rating.count > 0 ? ` (${rating.count})` : ''}</button>
             ))}
           </div>

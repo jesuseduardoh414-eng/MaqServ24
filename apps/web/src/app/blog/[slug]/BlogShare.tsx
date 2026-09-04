@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 
 const iconStyle: React.CSSProperties = {
   width: 38, height: 38, border: '1px solid var(--color-border)', borderRadius: '50%',

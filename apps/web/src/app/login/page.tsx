@@ -4,6 +4,7 @@ import { getTheme, t } from '@/lib/theme';
 import { getSessionUser } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { AuthCard } from '@/components/AuthCard';
+import { authLabels } from '@/lib/auth-labels';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
@@ -19,7 +20,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <>
       <SiteHeader theme={theme} />
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '3rem 1.5rem 4rem' }}>
-        <AuthCard initialView="login" redirectTo={next} />
+        <AuthCard initialView="login" redirectTo={next} labels={authLabels(theme)} />
       </main>
       <SiteFooter theme={theme} />
     </>

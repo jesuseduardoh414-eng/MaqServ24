@@ -7,7 +7,7 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,7 +20,7 @@ type Search = { orden?: string; email?: string };
 const inputStyle: React.CSSProperties = {
   width: '100%', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--color-text)',
   background: 'color-mix(in srgb, var(--color-text) 3%, var(--color-surface))',
-  border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px', outline: 'none',
+  border: '1px solid var(--color-border)', borderRadius: 10, padding: '14px 16px',
 };
 const labelStyle: React.CSSProperties = { display: 'block', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)', marginBottom: 8 };
 
@@ -32,7 +32,7 @@ const day = (iso: string) =>
 function Badge({ text, tone }: { text: string; tone: 'ok' | 'warn' | 'bad' | 'info' }) {
   const c = toneColors(tone);
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', padding: '6px 12px', borderRadius: 100, background: c.bg, border: `1px solid ${c.border}`, color: c.fg }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', padding: '6px 12px', borderRadius: 'var(--radius-button)', background: c.bg, border: `1px solid ${c.border}`, color: c.fg }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: c.fg }} />
       {text}
     </span>
@@ -49,7 +49,7 @@ export default async function TrackPage({ searchParams }: { searchParams: Promis
   if (sp.orden && sp.email) {
     const res = await fetch(
       `${API_URL}/track?number=${encodeURIComponent(sp.orden)}&email=${encodeURIComponent(sp.email)}`,
-      { cache: 'no-store' },
+      { cache: 'no-store', signal: AbortSignal.timeout(15_000) },
     );
     if (res.ok) result = (await res.json()) as TrackingResult;
     else notFound = true;
@@ -58,7 +58,6 @@ export default async function TrackPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <SiteHeader theme={theme} />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '56px 24px 72px', background: 'var(--color-bg)' }}>
         {/* Hero */}
         <div style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 32, marginBottom: 40 }}>
@@ -81,7 +80,7 @@ export default async function TrackPage({ searchParams }: { searchParams: Promis
             <input name="email" type="email" required defaultValue={sp.email ?? ''} placeholder="tu@correo.com" style={inputStyle} />
           </div>
           <div>
-            <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 100, cursor: 'pointer' }}>Rastrear<Icon name="arrowRight" size={16} /></button>
+            <button type="submit" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '15px 34px', borderRadius: 'var(--radius-button)', cursor: 'pointer' }}>Rastrear<Icon name="arrowRight" size={16} /></button>
           </div>
         </form>
 

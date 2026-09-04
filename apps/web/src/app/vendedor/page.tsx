@@ -25,7 +25,7 @@ export default async function VendorPanelPage() {
 
   const [theme, meRes] = await Promise.all([
     getTheme(),
-    fetch(`${API_URL}/vendor/me`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }),
+    fetch(`${API_URL}/vendor/me`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store', signal: AbortSignal.timeout(15_000) }),
   ]);
   if (meRes.status === 401) redirect('/login');
   const me = (await meRes.json()) as VendorMe;

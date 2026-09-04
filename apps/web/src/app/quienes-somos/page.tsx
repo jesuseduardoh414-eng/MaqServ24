@@ -11,7 +11,9 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(16px, 4vw, 26px)' };
 
 // Eyebrow dorado (oscurece el primario para leerse sobre fondo claro, sin salir del token).
-const GOLD = 'color-mix(in srgb, var(--color-primary) 82%, #000)';
+// Acento ACLARADO: la página vive sobre la banda oscura y el mix con #000
+// (pensado para fondos claros) daba ~3.9:1 en 13px — reprobaba AA.
+const GOLD = 'color-mix(in srgb, var(--color-primary) 65%, #fff)';
 const INK = 'var(--band)'; // fondo de las bandas oscuras (negro en modo oscuro)
 const CHIP = 'var(--color-secondary)'; // gunmetal: SOLO piezas pequeñas sobre fondo claro
 

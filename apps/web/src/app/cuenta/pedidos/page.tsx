@@ -13,7 +13,7 @@ import { MyReviews } from './MyReviews';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 function Badge({ st }: { st: StatusLabel }) {
   const c = toneColors(st.tone);
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 100, padding: '4px 10px', whiteSpace: 'nowrap' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--radius-button)', padding: '4px 10px', whiteSpace: 'nowrap' }}>
       <span style={{ width: 5, height: 5, borderRadius: 999, background: c.fg }} />
       {st.text}
     </span>
@@ -45,7 +45,7 @@ export default async function MyOrdersPage() {
     getTheme(),
     fetch(`${API_URL}/orders`, {
       headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
+      cache: 'no-store', signal: AbortSignal.timeout(15_000),
     }),
   ]);
   if (ordersRes.status === 401) redirect('/login');
@@ -55,7 +55,6 @@ export default async function MyOrdersPage() {
     <>
       <SiteHeader theme={theme} />
       <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
         <style>{`
           @media (max-width: 760px){
             .ord-wrap{ padding-left:22px !important; padding-right:22px !important; }
@@ -79,7 +78,7 @@ export default async function MyOrdersPage() {
               <div style={{ fontSize: 52, marginBottom: 18 }}>📦</div>
               <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 28, fontWeight: 700 }}>{t(theme, 'account.orders.empty')}</h2>
               <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted)' }}>Cuando rentes o compres equipo, tus pedidos aparecerán aquí.</p>
-              <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 100 }}>Ver productos</Link>
+              <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 'var(--radius-button)' }}>Ver productos</Link>
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 14 }}>

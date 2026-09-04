@@ -8,13 +8,15 @@ import { Icon } from '@/components/Icon';
  * Módulo SIN 'use client' a propósito: todas las páginas que lo usan son de
  * servidor. Aquí no hay estado ni handlers, solo JSX y estilos.
  */
-export const MONO = "'Inter', system-ui, sans-serif";
+export const MONO = 'var(--font-sans)';
 export const DISPLAY = 'var(--font-display)';
 
-/** Etiquetas de dato: Inter en mayúsculas con letter-spacing (13 / TIPOGRAFÍA). */
-export const MonoFont = () => (
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
-);
+/**
+ * Antes inyectaba el <link> de Inter por página; la tipografía ya llega del
+ * TEMA vía el layout (var(--font-sans)), así que no carga nada. Se conserva
+ * como no-op para no tocar a sus consumidores.
+ */
+export const MonoFont = () => null;
 
 export const cardStyle: React.CSSProperties = {
   background: 'var(--color-surface)',
@@ -34,7 +36,7 @@ export const eyebrowStyle: React.CSSProperties = {
 export function Badge({ text, tone }: { text: string; tone: Tone }) {
   const c = toneColors(tone);
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 100, padding: '5px 11px', whiteSpace: 'nowrap' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: MONO, fontSize: 11.5, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--radius-button)', padding: '5px 11px', whiteSpace: 'nowrap' }}>
       <span style={{ width: 5, height: 5, borderRadius: 999, background: c.fg }} />
       {text}
     </span>

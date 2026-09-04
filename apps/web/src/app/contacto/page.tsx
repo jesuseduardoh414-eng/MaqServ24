@@ -5,7 +5,7 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 import { ContactForm } from './ContactForm';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -55,7 +55,6 @@ export default async function ContactPage() {
   return (
     <>
       <SiteHeader theme={theme} />
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       <style>{`
         @media (max-width: 900px){
           .ct-hero, .ct-main, .ct-branches { grid-template-columns: 1fr !important; }
@@ -123,7 +122,7 @@ export default async function ContactPage() {
                     <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.18em', color: 'var(--color-primary)', marginBottom: 12, textTransform: 'uppercase' }}>{c.urgent.eyebrow}</div>
                     <p style={{ margin: '0 0 20px', fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em' }}>{c.urgent.title}</p>
                     {c.phone ? (
-                      <a href={telHref(c.phone)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: '13px 24px', borderRadius: 100, textDecoration: 'none' }}>{c.urgent.ctaLabel}<Icon name="arrowRight" size={15} /></a>
+                      <a href={telHref(c.phone)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: '13px 24px', borderRadius: 'var(--radius-button)', textDecoration: 'none' }}>{c.urgent.ctaLabel}<Icon name="arrowRight" size={15} /></a>
                     ) : null}
                   </div>
                 </div>
@@ -151,7 +150,7 @@ export default async function ContactPage() {
                     <div style={{ padding: '26px 24px 30px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                         <h3 style={{ fontFamily: DISPLAY, margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>{b.city}</h3>
-                        {b.isNew ? <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.1em', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', padding: '3px 8px', borderRadius: 100, fontWeight: 700 }}>NUEVA</span> : null}
+                        {b.isNew ? <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.1em', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', padding: '3px 8px', borderRadius: 'var(--radius-button)', fontWeight: 700 }}>NUEVA</span> : null}
                       </div>
                       <p style={{ margin: '0 0 14px', fontSize: 14, lineHeight: 1.55, color: 'var(--color-text-muted)' }}>{b.address}</p>
                       {b.phone ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text)' }}>{b.phone}</div> : null}

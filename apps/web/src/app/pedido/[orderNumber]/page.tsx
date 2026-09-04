@@ -14,7 +14,7 @@ import { formatPrice } from '@/lib/format';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 const STEPS: Array<[string, string]> = [['1', 'Carrito'], ['2', 'Datos'], ['3', 'Pago']];
 const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
@@ -27,7 +27,7 @@ async function fetchOrder(orderNumber: string): Promise<OrderDetail | null | 'un
   if (!token) return 'unauthorized';
   const res = await fetch(`${API_URL}/orders/${orderNumber}`, {
     headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
+    cache: 'no-store', signal: AbortSignal.timeout(15_000),
   });
   if (res.status === 401) return 'unauthorized';
   if (!res.ok) return null;
@@ -99,7 +99,6 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
     <>
       <SiteHeader theme={theme} />
       <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
         <style>{`
           @media (max-width: 900px){
             .or-grid{ grid-template-columns:1fr !important; gap:32px !important; }
@@ -141,7 +140,7 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
                 <h2 style={legendStyle}>Estado del pedido</h2>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
                   <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Pedido</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: stc.fg, background: stc.bg, border: `1px solid ${stc.border}`, borderRadius: 100, padding: '5px 12px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: stc.fg, background: stc.bg, border: `1px solid ${stc.border}`, borderRadius: 'var(--radius-button)', padding: '5px 12px' }}>
                     <span style={{ width: 6, height: 6, borderRadius: 999, background: stc.fg }} />
                     {st.text}
                   </span>
@@ -270,7 +269,7 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
                   <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(order.total)}</span>
                 </div>
 
-                <Link href="/cuenta/pedidos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', boxSizing: 'border-box', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: 15, borderRadius: 100 }}>
+                <Link href="/cuenta/pedidos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', boxSizing: 'border-box', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: 15, borderRadius: 'var(--radius-button)' }}>
                   {t(theme, 'account.orders.title')}<Icon name="arrowRight" size={15} />
                 </Link>
                 <Link href="/productos" style={{ display: 'block', textAlign: 'center', margin: '12px 0 20px', fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textDecoration: 'none', textTransform: 'uppercase' }}>

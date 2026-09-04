@@ -79,7 +79,6 @@ export function FooterNewsletter({
             padding: '15px 17px',
             fontFamily: 'var(--font-sans)',
             fontSize: '14.5px',
-            outline: 'none',
           }}
         />
         <button

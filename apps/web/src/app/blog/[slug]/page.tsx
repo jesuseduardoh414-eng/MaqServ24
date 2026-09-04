@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { parseProductSlug } from '@maqserv/config';
 import type { BlogCard, BlogDetail } from '@maqserv/types';
@@ -11,7 +12,7 @@ import { BlogShare } from './BlogShare';
 
 type Params = { slug: string };
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 async function fetchBySlug(slug: string): Promise<BlogDetail | null> {
@@ -19,8 +20,10 @@ async function fetchBySlug(slug: string): Promise<BlogDetail | null> {
   if (!id) return null;
   try {
     return await getBlog(id);
-  } catch {
-    return null;
+  } catch (err) {
+    // 404 real → notFound(); API caída → error boundary (no un 404 indexable).
+    if (err instanceof Error && /→ 404/.test(err.message)) return null;
+    throw err;
   }
 }
 
@@ -140,9 +143,10 @@ export default async function BlogPage({ params }: { params: Promise<Params> }) 
             </div>
 
             {blog.image ? (
-              <div style={{ borderRadius: 6, overflow: 'hidden', background: 'var(--color-surface)', marginBottom: 36 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={blog.image} alt={blog.title} style={{ width: '100%', maxHeight: 460, objectFit: 'cover', display: 'block' }} />
+              // next/image con `fill`: es el LCP del artículo — el <img> crudo
+              // servía el original de Storage sin resize ni webp.
+              <div style={{ position: 'relative', height: 'min(460px, 52vw)', borderRadius: 6, overflow: 'hidden', background: 'var(--color-surface)', marginBottom: 36 }}>
+                <Image src={blog.image} alt={blog.title} fill priority sizes="(max-width: 940px) 100vw, 780px" style={{ objectFit: 'cover' }} />
               </div>
             ) : null}
 

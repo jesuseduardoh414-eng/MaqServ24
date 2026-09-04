@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { type AuthUser, missingProfileFields, type RequiredProfileField } from '@maqserv/types';
 import { Icon } from '@/components/Icon';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 const cardStyle: React.CSSProperties = {
@@ -35,7 +35,6 @@ const fieldStyle: React.CSSProperties = {
   background: 'var(--color-bg)',
   border: '1px solid var(--color-border)',
   borderRadius: 4,
-  outline: 'none',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -51,7 +50,7 @@ const labelStyle: React.CSSProperties = {
 const btnPrimary: React.CSSProperties = {
   fontFamily: DISPLAY, fontWeight: 700, fontSize: 15,
   background: 'var(--color-primary)', color: 'var(--color-primary-fg)',
-  border: 'none', padding: '13px 26px', borderRadius: 100, cursor: 'pointer',
+  border: 'none', padding: '13px 26px', borderRadius: 'var(--radius-button)', cursor: 'pointer',
 };
 
 /** Nombre legible de cada dato que el checkout exige. */

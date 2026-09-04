@@ -94,7 +94,7 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
       <span style={{ paddingLeft: 14, color: 'var(--color-text-muted)', fontSize: 20, flexShrink: 0 }}>⌕</span>
       <input
         type="search" name="q" defaultValue={sp.q ?? ''} placeholder={searchPh}
-        style={{ flex: 1, minWidth: 0, height: 52, border: 'none', background: 'transparent', color: 'var(--color-text)', padding: '0 14px', fontSize: '16px', outline: 'none', fontFamily: 'inherit' }}
+        style={{ flex: 1, minWidth: 0, height: 52, border: 'none', background: 'transparent', color: 'var(--color-text)', padding: '0 14px', fontSize: '16px', fontFamily: 'inherit' }}
       />
       <button type="submit" style={{ flexShrink: 0, height: 52, padding: '0 28px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontWeight: 800, fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>Buscar</button>
     </form>

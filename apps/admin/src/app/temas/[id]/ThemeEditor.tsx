@@ -184,7 +184,7 @@ export function ThemeEditor({
 
   const copyKeys = useMemo(() => Object.keys(copys['es'] ?? {}).sort(), [copys]);
 
-  async function call(path: string, body?: unknown) {
+  async function call(path: string, body?: unknown): Promise<Record<string, unknown> | null> {
     setBusy(true);
     setMsg(null);
     const res = await fetch(`/api/admin/themes/${themeId}/${path}`, {
@@ -192,13 +192,13 @@ export function ThemeEditor({
       headers: { 'Content-Type': 'application/json' },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    const data = await res.json().catch(() => null);
+    const data = (await res.json().catch(() => null)) as Record<string, unknown> | null;
     setBusy(false);
     if (!res.ok) {
       setMsg({ ok: false, text: typeof data?.message === 'string' ? data.message : 'Error' });
-      return false;
+      return null;
     }
-    return true;
+    return data ?? {};
   }
 
   const saveDraft = async () => {
@@ -207,7 +207,14 @@ export function ThemeEditor({
   };
   const publish = async () => {
     if (!(await call('draft', { tokens, copys }))) return;
-    if (await call('publish')) setMsg({ ok: true, text: 'Publicado — el sitio ya sirve este tema' });
+    const r = await call('publish');
+    if (r) {
+      // La API reporta si la revalidación instantánea del sitio funcionó; si
+      // no, se dice AQUÍ — antes el panel presumía "publicado" con el sitio
+      // viejo y nadie se enteraba (incidente REVALIDATE_SECRET).
+      if (r.revalidated) setMsg({ ok: true, text: 'Publicado — el sitio ya sirve este tema' });
+      else setMsg({ ok: true, text: `Publicado, pero sin refresco instantáneo: ${typeof r.revalidateError === 'string' ? r.revalidateError : 'el sitio se actualizará en ~1 min.'}` });
+    }
     router.refresh();
   };
   const discard = async () => {

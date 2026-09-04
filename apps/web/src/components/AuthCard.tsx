@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/Icon';
 
-const MONO = "'Inter', system-ui, sans-serif";
+const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
 type View = 'login' | 'register' | 'forgot' | 'success';
@@ -24,18 +24,45 @@ const STRENGTH_COLOR = ['var(--color-error)', 'var(--color-warning)', 'var(--col
 
 const labelStyle: React.CSSProperties = { display: 'block', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)' };
 const errStyle: React.CSSProperties = { fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 6, letterSpacing: '0.04em' };
-const primaryBtn: React.CSSProperties = { width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 15, borderRadius: 100, cursor: 'pointer' };
+const primaryBtn: React.CSSProperties = { width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 15, borderRadius: 'var(--radius-button)', cursor: 'pointer' };
 
 function field(err: boolean, extra?: React.CSSProperties): React.CSSProperties {
   return {
     width: '100%', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--color-text)',
     background: err ? 'color-mix(in srgb, var(--color-error) 8%, var(--color-surface))' : 'color-mix(in srgb, var(--color-text) 3%, var(--color-surface))',
     border: `1px solid ${err ? 'var(--color-error)' : 'var(--color-border)'}`,
-    borderRadius: 10, padding: '14px 16px', outline: 'none', marginTop: 8, ...extra,
+    borderRadius: 10, padding: '14px 16px', marginTop: 8, ...extra,
   };
 }
 
-export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'login' | 'register'; redirectTo?: string }) {
+/**
+ * Textos visibles de la card, resueltos SERVER-SIDE desde el tema (requisito
+ * duro: todo copy editable en Panel → Diseño). Los defaults replican el texto
+ * original para que un consumidor sin tema (p. ej. AuthShell) no cambie.
+ */
+export interface AuthLabels {
+  tabLogin: string; tabRegister: string;
+  loginEyebrow: string; loginHeading: string; loginSubmit: string;
+  registerEyebrow: string; registerHeading: string; registerSubmit: string;
+  fieldName: string; fieldEmail: string; fieldPassword: string;
+  remember: string; forgotLink: string;
+  forgotEyebrow: string; forgotTitle: string; forgotHint: string; forgotSubmit: string; forgotBack: string;
+  doneTitle: string; doneBody: string;
+}
+const DEFAULT_LABELS: AuthLabels = {
+  tabLogin: 'Iniciar sesión', tabRegister: 'Crear cuenta',
+  loginEyebrow: 'Bienvenido de nuevo', loginHeading: 'Entra a tu cuenta', loginSubmit: 'Entrar',
+  registerEyebrow: 'Es gratis', registerHeading: 'Crea tu cuenta', registerSubmit: 'Registrarme',
+  fieldName: 'Nombre completo', fieldEmail: 'Correo', fieldPassword: 'Contraseña',
+  remember: 'Mantener sesión iniciada', forgotLink: '¿Olvidaste?',
+  forgotEyebrow: 'Recuperar acceso', forgotTitle: '¿Olvidaste tu contraseña?',
+  forgotHint: 'Escribe tu correo y te enviaremos un enlace para restablecerla.',
+  forgotSubmit: 'Enviar enlace', forgotBack: 'Volver a iniciar sesión',
+  doneTitle: 'Revisa tu correo', doneBody: 'Si el correo existe, recibirás un enlace para restablecer tu contraseña.',
+};
+
+export function AuthCard({ initialView, redirectTo = '/', labels }: { initialView: 'login' | 'register'; redirectTo?: string; labels?: Partial<AuthLabels> }) {
+  const L: AuthLabels = { ...DEFAULT_LABELS, ...labels };
   const router = useRouter();
   const [view, setView] = useState<View>(initialView);
   const [successType, setSuccessType] = useState<'forgot'>('forgot');
@@ -95,54 +122,55 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
   const showTabs = view === 'login' || view === 'register';
   const showSocial = view === 'login' || view === 'register';
 
-  const tabStyle = (on: boolean): React.CSSProperties => ({ flex: 1, cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: 11, borderRadius: 100, border: 'none', background: on ? 'var(--color-text)' : 'transparent', color: on ? 'var(--color-bg)' : 'var(--color-text-muted)', transition: 'all .18s ease' });
+  const tabStyle = (on: boolean): React.CSSProperties => ({ flex: 1, cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: 11, borderRadius: 'var(--radius-button)', border: 'none', background: on ? 'var(--color-text)' : 'transparent', color: on ? 'var(--color-bg)' : 'var(--color-text-muted)', transition: 'all .18s ease' });
   const checkbox = (on: boolean): React.CSSProperties => ({ width: 22, height: 22, flexShrink: 0, borderRadius: 6, cursor: 'pointer', border: on ? 'none' : '2px solid var(--color-border)', background: on ? 'var(--color-text)' : 'var(--color-surface)', color: 'var(--color-bg)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 });
   const pwToggle: React.CSSProperties = { position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)' };
   const socialBtn: React.CSSProperties = { flex: 1, fontFamily: MONO, fontWeight: 700, fontSize: 13, background: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)', padding: 13, borderRadius: 10, cursor: 'pointer', letterSpacing: '0.04em' };
 
   return (
     <div style={{ position: 'relative', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 40, boxShadow: '0 30px 60px -40px rgba(17,17,17,0.35)' }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" />
       {/* Marcas de esquina */}
       {[['12px', 'auto', 'auto', '12px'], ['12px', '12px', 'auto', 'auto'], ['auto', 'auto', '12px', '12px'], ['auto', '12px', '12px', 'auto']].map((pos, i) => (
         <span key={i} style={{ position: 'absolute', top: pos[0], right: pos[1], bottom: pos[2], left: pos[3], width: 14, height: 14, borderTop: i < 2 ? '2px solid var(--color-text)' : undefined, borderBottom: i >= 2 ? '2px solid var(--color-text)' : undefined, borderLeft: i % 2 === 0 ? '2px solid var(--color-text)' : undefined, borderRight: i % 2 === 1 ? '2px solid var(--color-text)' : undefined }} />
       ))}
 
       {showTabs ? (
-        <div style={{ display: 'flex', gap: 4, background: 'color-mix(in srgb, var(--color-text) 5%, var(--color-surface))', borderRadius: 100, padding: 4, marginBottom: 32 }}>
-          <button type="button" onClick={() => go('login')} style={tabStyle(view === 'login')}>Iniciar sesión</button>
-          <button type="button" onClick={() => go('register')} style={tabStyle(view === 'register')}>Crear cuenta</button>
+        <div style={{ display: 'flex', gap: 4, background: 'color-mix(in srgb, var(--color-text) 5%, var(--color-surface))', borderRadius: 'var(--radius-button)', padding: 4, marginBottom: 32 }}>
+          <button type="button" onClick={() => go('login')} style={tabStyle(view === 'login')}>{L.tabLogin}</button>
+          <button type="button" onClick={() => go('register')} style={tabStyle(view === 'register')}>{L.tabRegister}</button>
         </div>
       ) : null}
 
       {/* LOGIN */}
       {view === 'login' ? (
         <div>
-          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-primary)', marginBottom: 10 }}>BIENVENIDO DE NUEVO</div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 28px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>Entra a tu cuenta</h2>
+          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 10 }}>{L.loginEyebrow}</div>
+          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 28px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.loginHeading}</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label style={labelStyle}>Correo</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
+              {/* htmlFor/id: sin la asociación, el nombre accesible vivía solo
+                  en el placeholder — que desaparece al escribir. */}
+              <label htmlFor="login-email" style={labelStyle}>{L.fieldEmail}</label>
+              <input id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
               {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
             </div>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label style={labelStyle}>Contraseña</label>
-                <button type="button" onClick={() => go('forgot')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: 'var(--color-primary)', letterSpacing: '0.04em' }}>¿OLVIDASTE?</button>
+                <label htmlFor="login-password" style={labelStyle}>{L.fieldPassword}</label>
+                <button type="button" onClick={() => go('forgot')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 11, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '0.04em' }}>{L.forgotLink}</button>
               </div>
               <div style={{ position: 'relative' }}>
-                <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password" style={field(passErr, { paddingRight: 70 })} />
-                <button type="button" onClick={() => setShowPw((v) => !v)} style={pwToggle}>{showPw ? 'OCULTAR' : 'VER'}</button>
+                <input id="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password" style={field(passErr, { paddingRight: 70 })} />
+                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}>{showPw ? 'OCULTAR' : 'VER'}</button>
               </div>
               {passErr ? <div style={errStyle}>Ingresa tu contraseña.</div> : null}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-              <button type="button" onClick={() => setRemember((v) => !v)} style={checkbox(remember)}>{remember ? <Icon name="check" size={13} /> : null}</button>
-              <span style={{ fontSize: 14, color: 'var(--color-text-muted)' }}>Mantener sesión iniciada</span>
-            </label>
-            {serverErr ? <div style={errStyle}>{serverErr}</div> : null}
-            <button type="button" onClick={submitLogin} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Entrando…' : 'Entrar'}</button>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, userSelect: 'none' }}>
+              <button type="button" role="checkbox" aria-checked={remember} aria-label={L.remember} onClick={() => setRemember((v) => !v)} style={checkbox(remember)}>{remember ? <Icon name="check" size={13} /> : null}</button>
+              <span onClick={() => setRemember((v) => !v)} style={{ fontSize: 14, color: 'var(--color-text-muted)', cursor: 'pointer' }}>{L.remember}</span>
+            </span>
+            {serverErr ? <div role="alert" style={errStyle}>{serverErr}</div> : null}
+            <button type="button" onClick={submitLogin} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Entrando…' : L.loginSubmit}</button>
           </div>
         </div>
       ) : null}
@@ -150,24 +178,24 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
       {/* REGISTER */}
       {view === 'register' ? (
         <div>
-          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-primary)', marginBottom: 10 }}>ES GRATIS</div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 28px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>Crea tu cuenta</h2>
+          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 10 }}>{L.registerEyebrow}</div>
+          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 28px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.registerHeading}</h2>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label style={labelStyle}>Nombre completo</label>
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" style={field(nameErr)} />
+              <label htmlFor="reg-name" style={labelStyle}>{L.fieldName}</label>
+              <input id="reg-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" style={field(nameErr)} />
               {nameErr ? <div style={errStyle}>Ingresa tu nombre.</div> : null}
             </div>
             <div>
-              <label style={labelStyle}>Correo</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
+              <label htmlFor="reg-email" style={labelStyle}>{L.fieldEmail}</label>
+              <input id="reg-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
               {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
             </div>
             <div>
-              <label style={labelStyle}>Contraseña</label>
+              <label htmlFor="reg-password" style={labelStyle}>{L.fieldPassword}</label>
               <div style={{ position: 'relative' }}>
-                <input value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 8 caracteres" autoComplete="new-password" style={field(passErr, { paddingRight: 70 })} />
-                <button type="button" onClick={() => setShowPw((v) => !v)} style={pwToggle}>{showPw ? 'OCULTAR' : 'VER'}</button>
+                <input id="reg-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 8 caracteres" autoComplete="new-password" style={field(passErr, { paddingRight: 70 })} />
+                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}>{showPw ? 'OCULTAR' : 'VER'}</button>
               </div>
               {password.length > 0 ? (
                 <div style={{ marginTop: 10 }}>
@@ -181,13 +209,13 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
               ) : null}
               {passErr ? <div style={errStyle}>La contraseña debe tener al menos 8 caracteres.</div> : null}
             </div>
-            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-              <button type="button" onClick={() => setTerms((v) => !v)} style={checkbox(terms)}>{terms ? <Icon name="check" size={13} /> : null}</button>
-              <span style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>Acepto los <Link href="/terminos" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Términos</Link> y el <Link href="/privacidad" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Aviso de privacidad</Link>.</span>
-            </label>
+            <span style={{ display: 'flex', alignItems: 'flex-start', gap: 10, userSelect: 'none' }}>
+              <button type="button" role="checkbox" aria-checked={terms} aria-label="Acepto los términos y el aviso de privacidad" onClick={() => setTerms((v) => !v)} style={checkbox(terms)}>{terms ? <Icon name="check" size={13} /> : null}</button>
+              <span onClick={() => setTerms((v) => !v)} style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.5, cursor: 'pointer' }}>Acepto los <Link href="/terminos" style={{ color: 'var(--color-primary)', fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>Términos</Link> y el <Link href="/privacidad" style={{ color: 'var(--color-primary)', fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>Aviso de privacidad</Link>.</span>
+            </span>
             {termsErr ? <div style={errStyle}>Debes aceptar los términos.</div> : null}
-            {serverErr ? <div style={errStyle}>{serverErr}</div> : null}
-            <button type="button" onClick={submitRegister} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Creando…' : 'Registrarme'}</button>
+            {serverErr ? <div role="alert" style={errStyle}>{serverErr}</div> : null}
+            <button type="button" onClick={submitRegister} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Creando…' : L.registerSubmit}</button>
           </div>
         </div>
       ) : null}
@@ -195,17 +223,17 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
       {/* FORGOT */}
       {view === 'forgot' ? (
         <div>
-          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-primary)', marginBottom: 10 }}>RECUPERAR ACCESO</div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 10px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>¿Olvidaste tu contraseña?</h2>
-          <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>Escribe tu correo y te enviaremos un enlace para restablecerla.</p>
+          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 10 }}>{L.forgotEyebrow}</div>
+          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 10px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.forgotTitle}</h2>
+          <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>{L.forgotHint}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div>
-              <label style={labelStyle}>Correo</label>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
+              <label htmlFor="forgot-email" style={labelStyle}>{L.fieldEmail}</label>
+              <input id="forgot-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
               {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
             </div>
-            <button type="button" onClick={submitForgot} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Enviando…' : 'Enviar enlace'}</button>
-            <button type="button" onClick={() => go('login')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: 'var(--color-text)', padding: 4 }}><Icon name="arrowLeft" size={14} />Volver a iniciar sesión</button>
+            <button type="button" onClick={submitForgot} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Enviando…' : L.forgotSubmit}</button>
+            <button type="button" onClick={() => go('login')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: 'var(--color-text)', padding: 4 }}><Icon name="arrowLeft" size={14} />{L.forgotBack}</button>
           </div>
         </div>
       ) : null}
@@ -214,9 +242,9 @@ export function AuthCard({ initialView, redirectTo = '/' }: { initialView: 'logi
       {view === 'success' ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
           <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, margin: '0 auto 22px' }}><Icon name="check" size={34} /></div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>Revisa tu correo</h2>
-          <p style={{ margin: '0 0 28px', fontSize: 15, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>Si el correo existe, recibirás un enlace para restablecer tu contraseña.</p>
-          <button type="button" onClick={() => go('login')} style={primaryBtn}>Volver a iniciar sesión</button>
+          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.doneTitle}</h2>
+          <p style={{ margin: '0 0 28px', fontSize: 15, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{L.doneBody}</p>
+          <button type="button" onClick={() => go('login')} style={primaryBtn}>{L.forgotBack}</button>
         </div>
       ) : null}
 

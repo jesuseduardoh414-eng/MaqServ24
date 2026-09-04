@@ -7,14 +7,7 @@ import { createPortal } from 'react-dom';
 import type { NavItem } from '@/components/MainNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Icon } from '@/components/Icon';
-
-/** Accesos del área de cuenta (mismos que el menú de usuario del header). */
-const ACCOUNT_LINKS = [
-  { href: '/cuenta', label: 'Mi perfil' },
-  { href: '/cuenta/pedidos', label: 'Mis compras' },
-  { href: '/cuenta/cotizaciones', label: 'Cotizaciones' },
-  { href: '/cuenta/favoritos', label: 'Favoritos' },
-];
+import { ACCOUNT_LINKS } from '@/lib/account-links';
 
 /**
  * Navegación de móvil/tablet: botón hamburguesa + panel lateral.
