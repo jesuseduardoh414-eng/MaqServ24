@@ -1,4 +1,10 @@
-import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import type { AuthResponse, AuthUser } from '@maqserv/types';
 import { adminCreateUser, adminDeleteUser, adminSetMetadata, passwordGrant, refreshGrant, sendPasswordReset } from '../common/supabase-auth';
@@ -72,14 +78,34 @@ export class AuthService {
     }
 
     const session = await passwordGrant(input.email, input.password);
+    this.siNoResponde(session);
     const token = session.access_token;
     if (!token) throw new UnauthorizedException('No se pudo iniciar sesión tras el registro');
     // `u!`: el catch de arriba re-lanza, así que llegar aquí implica que se asignó.
     return { token, refresh_token: session.refresh_token, user: this.toAuthUser(u!) };
   }
 
+  /**
+   * Supabase caído NO es una credencial equivocada.
+   *
+   * Los tres puntos de abajo traducían cualquier fallo a "correo o contraseña
+   * incorrectos" / "sesión expirada". Cuando el servicio de acceso no contesta,
+   * eso manda al cliente a restablecer una contraseña que está perfectamente
+   * bien, y a soporte a buscar un problema que no existe. Un 503 dice la verdad
+   * y además le indica al navegador que reintentar tiene sentido.
+   */
+  private siNoResponde(session: { unavailable?: boolean; error?: string }): void {
+    if (session.unavailable) {
+      this.logger.error(`Supabase Auth no disponible: ${session.error ?? 'sin detalle'}`);
+      throw new ServiceUnavailableException(
+        'El servicio de acceso no está respondiendo. Vuelve a intentarlo en un momento.',
+      );
+    }
+  }
+
   async login(input: { email: string; password: string }): Promise<AuthResponse> {
     const session = await passwordGrant(input.email, input.password);
+    this.siNoResponde(session);
     const token = session.access_token;
     if (!token) throw new UnauthorizedException('Correo o contraseña incorrectos');
     const appUserId = session.user?.app_metadata?.app_user_id;
@@ -94,6 +120,7 @@ export class AuthService {
   /** Renueva el access token (1h) con el refresh token de Supabase. */
   async refresh(refresh_token: string): Promise<{ token: string; refresh_token?: string }> {
     const session = await refreshGrant(refresh_token);
+    this.siNoResponde(session);
     const token = session.access_token;
     if (!token) throw new UnauthorizedException('Sesión expirada');
     return { token, refresh_token: session.refresh_token };
