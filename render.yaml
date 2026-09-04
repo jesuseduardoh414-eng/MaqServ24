@@ -59,8 +59,37 @@ services:
       # --- Pagos ---
       - key: MP_ACCESS_TOKEN      # access token de MercadoPago
         sync: false
+      - key: MP_WEBHOOK_SECRET    # secreto del webhook de MP (valida x-signature); opcional
+        sync: false
       # --- Revalidación on-demand del sitio Next (mismo valor que en la web) ---
       - key: REVALIDATE_SECRET
+        sync: false
+      # --- Rate limit por visitante: firma de x-client-ip (MISMO valor en web y admin de Vercel).
+      # Sin él, el límite cuenta por header falsificable (la API avisa con warn pero acepta). ---
+      - key: PROXY_SECRET
+        sync: false
+      # --- Portal de aliados: firma de enlaces. OBLIGATORIO si se usa el módulo de aliados;
+      # sin él, portal aliado / matching / recordatorios lanzan 500. ---
+      - key: PROVIDER_LINK_SECRET
+        sync: false
+      # --- Tareas programadas (/tareas/recordatorios y /tareas/ordenes-vencidas).
+      # Sin secreto las rutas no existen. Lo usa el cron externo (cabecera x-tasks-secret). ---
+      - key: TASKS_SECRET
+        sync: false
+      # --- Correo saliente (recordatorios). Sin esto, modo simulado (no envía nada). ---
+      - key: MAIL_ENABLED         # "true" para envío real
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: MAIL_FROM_NAME
         sync: false
       # --- Opcionales (déjalas sin valor si no las usas) ---
       - key: PERFEX_URL
