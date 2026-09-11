@@ -62,7 +62,22 @@ export async function getAdmin(): Promise<{ id: number; name: string; email: str
   }
   if (!res.ok) return null; // 401/403 real: la sesión no sirve
   try {
-    return (await res.json()) as { id: number; name: string; email: string; role: string; rol: RolAdmin; rolNombre: string; modulos: ModuloAdmin[] };
+    const a = (await res.json()) as { id: number; name: string; email: string; role: string; rol?: RolAdmin; rolNombre?: string; modulos?: ModuloAdmin[] };
+    /**
+     * Si la API todavía no manda `rol`, se asume Dirección.
+     *
+     * No es un permiso regalado: es el orden de despliegue. El panel sale a
+     * Vercel en cuanto se hace push y la API de Render se despliega A MANO, así
+     * que hay una ventana en la que esta app nueva habla con la API vieja. Sin
+     * esta red, `puedeVer(undefined, …)` daría false para todo y `exigirModulo`
+     * mandaría a Inicio desde CADA pantalla: el panel entero inservible hasta
+     * que alguien se acordara de desplegar la API.
+     *
+     * Y no abre nada: si la API es vieja, no hay permisos que respetar del lado
+     * del servidor; si es nueva, siempre manda el rol y esto nunca se usa.
+     */
+    const rol = a.rol ?? ('direccion' as RolAdmin);
+    return { ...a, rol, rolNombre: a.rolNombre ?? '', modulos: a.modulos ?? [] };
   } catch {
     throw new Error('La API respondió algo que no es JSON (¿despertando?)');
   }
