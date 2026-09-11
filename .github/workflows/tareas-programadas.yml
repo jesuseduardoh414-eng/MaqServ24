@@ -1,0 +1,79 @@
+# Disparador de las TAREAS PROGRAMADAS de la API.
+#
+# La API vive en Render con un plan que no trae programador de tareas, así que
+# el disparo viene de fuera. `apps/api/src/notifications/tasks.controller.ts` ya
+# lo anticipaba: "un cron gratuito (cron-job.org, GitHub Actions, Vercel Cron)
+# que llama esta ruta una vez al día". Esto es ese cron.
+#
+# PARA QUE FUNCIONE HACEN FALTA DOS COSAS, y el secreto debe ser EL MISMO:
+#   1. En Render → servmaq-api → Environment: `TASKS_SECRET` (mínimo 16 chars).
+#      Sin él la API responde 403 "Las tareas programadas no están habilitadas"
+#      y NINGUNA tarea corre — así estuvo hasta el 2026-09-11.
+#   2. En GitHub → Settings → Secrets and variables → Actions → New repository
+#      secret: `TASKS_SECRET`, el mismo valor.
+#   (Opcional: variable `API_URL` si la API cambia de dirección.)
+#
+# OJO: GitHub apaga los workflows programados de un repo sin actividad durante
+# 60 días. Si dejas de commitear, revisa que la pestaña Actions siga corriendo.
+
+name: Tareas programadas
+
+on:
+  schedule:
+    # 14:00 UTC = 08:00 en Ciudad de México. GitHub puede retrasarlo unos
+    # minutos si hay cola; para estas tareas (diarias) da igual.
+    - cron: '0 14 * * *'
+  workflow_dispatch: # botón "Run workflow" para probarlo sin esperar al día
+
+jobs:
+  tareas:
+    runs-on: ubuntu-latest
+    env:
+      API_URL: ${{ vars.API_URL || 'https://servmaq-api.onrender.com' }}
+      TASKS_SECRET: ${{ secrets.TASKS_SECRET }}
+    steps:
+      - name: Comprobar que el secreto está puesto
+        run: |
+          if [ -z "$TASKS_SECRET" ]; then
+            echo "::error::Falta el secreto TASKS_SECRET del repositorio. Sin él las tareas no corren (ver la cabecera de este archivo)."
+            exit 1
+          fi
+
+      - name: Despertar la API
+        # El plan free de Render duerme a los ~15 min sin tráfico y el arranque
+        # en frío tarda hasta un minuto (medido: 63 s). Si no se despierta
+        # primero, la tarea de verdad se come ese minuto y puede expirar.
+        run: |
+          codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 180 "$API_URL/health" || echo 000)
+          echo "health: $codigo"
+
+      - name: Cancelar órdenes impagas vencidas
+        # Devuelve el stock de lo que nadie pagó (MercadoPago 24 h, transferencia
+        # 72 h). El secreto va por cabecera y no por la URL: un query string
+        # queda escrito en los logs de acceso y en los proxies.
+        run: |
+          respuesta=$(curl -s -w '\n%{http_code}' --max-time 180 -X POST \
+            "$API_URL/tareas/ordenes-vencidas" \
+            -H "x-tasks-secret: $TASKS_SECRET")
+          codigo=$(echo "$respuesta" | tail -n1)
+          cuerpo=$(echo "$respuesta" | sed '$d')
+          echo "HTTP $codigo — $cuerpo"
+          if [ "$codigo" != "200" ] && [ "$codigo" != "201" ]; then
+            echo "::error::La tarea de órdenes vencidas respondió $codigo. Un 403 significa que el TASKS_SECRET de Render y el de GitHub no coinciden (o falta el de Render)."
+            exit 1
+          fi
+
+      - name: Recordatorios a los aliados
+        # Documentos por vencer y solicitudes sin respuesta. Si no hay SMTP
+        # configurado la tarea lo reporta en su respuesta en vez de callarse.
+        run: |
+          respuesta=$(curl -s -w '\n%{http_code}' --max-time 180 -X POST \
+            "$API_URL/tareas/recordatorios" \
+            -H "x-tasks-secret: $TASKS_SECRET")
+          codigo=$(echo "$respuesta" | tail -n1)
+          cuerpo=$(echo "$respuesta" | sed '$d')
+          echo "HTTP $codigo — $cuerpo"
+          if [ "$codigo" != "200" ] && [ "$codigo" != "201" ]; then
+            echo "::error::La tarea de recordatorios respondió $codigo."
+            exit 1
+          fi

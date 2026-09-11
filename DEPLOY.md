@@ -127,6 +127,32 @@ Guarda → Render redepliega solo.
 
 ---
 
+## 5) Tareas programadas (el cron)
+
+Dos tareas tienen que correr **una vez al día** y la API no trae programador propio:
+
+| Ruta | Qué hace |
+|---|---|
+| `POST /tareas/ordenes-vencidas` | Cancela los pedidos impagos (MercadoPago 24 h, transferencia 72 h) y **devuelve el stock** |
+| `POST /tareas/recordatorios` | Avisa al aliado de documentos por vencer y solicitudes sin responder |
+
+El disparo lo hace [`.github/workflows/tareas-programadas.yml`](.github/workflows/tareas-programadas.yml)
+a las 08:00 de Ciudad de México. **Para encenderlo hace falta el MISMO secreto en dos sitios:**
+
+1. **Render** → `servmaq-api` → Environment → `TASKS_SECRET` (mínimo 16 caracteres).
+2. **GitHub** → Settings → Secrets and variables → Actions → `TASKS_SECRET`, mismo valor.
+
+> **Sin el de Render las rutas NO existen** — responden
+> `403 {"message":"Las tareas programadas no están habilitadas."}`. Así estuvo desde
+> que se programaron: las tareas nunca corrieron y quedaron pedidos de julio apartando
+> equipo sin pagar. Un 403 con `"Secreto inválido"` significa otra cosa: los dos
+> valores no coinciden.
+>
+> Para comprobar sin esperar al día siguiente: pestaña **Actions** → *Tareas
+> programadas* → **Run workflow**.
+
+---
+
 ## Notas y gotchas
 
 - **Imágenes:** ya salen de Supabase Storage y están permitidas en `next.config.ts`
