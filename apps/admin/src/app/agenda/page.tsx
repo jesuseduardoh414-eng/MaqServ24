@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { AgendaView, type Agenda } from './AgendaView';
 
@@ -17,6 +17,7 @@ export default async function AdminAgenda({
 }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'agenda');
   const sp = await searchParams;
 
   const qs = new URLSearchParams();
@@ -26,7 +27,7 @@ export default async function AdminAgenda({
   const agenda = await adminFetch<Agenda>(`/admin/agenda${qs.size ? `?${qs}` : ''}`);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <AgendaView agenda={agenda} filtros={{ desde: sp.desde ?? '', semanas: sp.semanas ?? '2' }} />
     </AdminShell>
   );

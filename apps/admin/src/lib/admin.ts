@@ -1,4 +1,6 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { puedeVer, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 import { ADMIN_COOKIE, API_URL } from './cookies';
 
 // Estas constantes viven en ./cookies (sin next/headers) para que el middleware
@@ -44,7 +46,7 @@ export async function adminFetch<T>(path: string): Promise<T | null> {
  * dormido). Antes ambos devolvían null y una API caída expulsaba al admin al
  * login con la sesión válida — parecía problema de credenciales y era el 504.
  */
-export async function getAdmin(): Promise<{ id: number; name: string; email: string; role: string } | null> {
+export async function getAdmin(): Promise<{ id: number; name: string; email: string; role: string; rol: RolAdmin; rolNombre: string; modulos: ModuloAdmin[] } | null> {
   const jar = await cookies();
   const token = jar.get(ADMIN_COOKIE)?.value;
   if (!token) return null;
@@ -60,8 +62,23 @@ export async function getAdmin(): Promise<{ id: number; name: string; email: str
   }
   if (!res.ok) return null; // 401/403 real: la sesión no sirve
   try {
-    return (await res.json()) as { id: number; name: string; email: string; role: string };
+    return (await res.json()) as { id: number; name: string; email: string; role: string; rol: RolAdmin; rolNombre: string; modulos: ModuloAdmin[] };
   } catch {
     throw new Error('La API respondió algo que no es JSON (¿despertando?)');
   }
+}
+
+/**
+ * Corta la página si el rol no tiene ese módulo.
+ *
+ * El menú ya esconde lo que no toca, pero una dirección se puede teclear, y
+ * antes de esto el resultado era peor que un "no puedes": la pantalla cargaba
+ * vacía —la API devuelve 403 y `adminFetch` lo convierte en null— y parecía que
+ * la sección estaba sin datos. Mejor devolver a Inicio, que todos tienen.
+ *
+ * Sigue sin ser la seguridad: la seguridad es el `@Modulo` de la API. Esto es
+ * que la mentira no se vea como un módulo vacío.
+ */
+export function exigirModulo(admin: { rol: RolAdmin }, modulo: ModuloAdmin): void {
+  if (!puedeVer(admin.rol, modulo)) redirect('/');
 }

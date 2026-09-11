@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { defaultTheme, themeTokensSchema } from '@maqserv/config';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ContactEditor } from './ContactEditor';
 
@@ -11,6 +11,7 @@ interface ThemeDetail { id: number; copys: Record<string, Record<string, string>
 export default async function ContactDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
 
   const themes = await adminFetch<ThemeRow[]>('/admin/themes').catch(() => [] as ThemeRow[]);
   const active = (themes ?? []).find((t) => t.active) ?? (themes ?? [])[0] ?? null;
@@ -23,7 +24,7 @@ export default async function ContactDesignPage() {
   const contact = { ...tokens.contact, address: tokens.contact.address || (settings?.street ?? '') };
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <ContactEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

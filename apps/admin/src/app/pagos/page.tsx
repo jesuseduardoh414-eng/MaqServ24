@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { defaultTheme, themeTokensSchema } from '@maqserv/config';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { PaymentsManager, type Gateway } from './PaymentsManager';
 
@@ -11,6 +11,7 @@ interface ThemeDetail { id: number; copys: Record<string, Record<string, string>
 export default async function PaymentsPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'configuracion');
 
   const [themes, gateways] = await Promise.all([
     adminFetch<ThemeRow[]>('/admin/themes').catch(() => [] as ThemeRow[]),
@@ -21,7 +22,7 @@ export default async function PaymentsPage() {
   const tokens = detail?.tokens ? themeTokensSchema.parse(detail.tokens) : defaultTheme.tokens;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <PaymentsManager
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

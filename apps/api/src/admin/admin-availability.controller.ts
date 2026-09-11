@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { disponibilidadDe, DIAS_FRESCURA } from '../catalog/availability';
 
 /**
@@ -43,6 +43,7 @@ const ubicacionSchema = z.object({ location: z.string().max(160).nullable() });
 const fecha = (v: string | null | undefined): Date | null =>
   v && v.trim() ? new Date(`${v}T00:00:00Z`) : null;
 
+@Modulo('disponibilidad')
 @Controller('admin/availability')
 @UseGuards(AdminGuard)
 export class AdminAvailabilityController {

@@ -7,7 +7,7 @@ import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/
 import { prisma } from '@maqserv/db';
 import { toFulfillment } from '@maqserv/types';
 import { etiquetaMetodoPago } from '../orders/orders.service';
-import { AdminGuard, type AdminRequest } from './admin-auth';
+import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
 import { correoCotizacionRespondida } from '../notifications/email-templates';
@@ -35,6 +35,8 @@ export class AdminOpsController {
    * caen los dos en 'pending', así que mezclaba "el cliente no ha pagado" con
    * "tengo que preparar esto" — dos cosas que se atienden distinto.
    */
+  // El tablero es la portada del panel: lo ve cualquier rol, con lo suyo.
+  @Modulo('inicio')
   @Get('dashboard')
   async dashboard() {
     /**
@@ -112,6 +114,7 @@ export class AdminOpsController {
    * Lista de órdenes. El eje principal es `fulfillment` (módulo de envíos); el `status`
    * legacy solo viaja para las órdenes viejas que aún no tienen envío.
    */
+  @Modulo('ordenes')
   @Get('orders')
   async orders(
     @Query('page') page?: string,
@@ -178,6 +181,7 @@ export class AdminOpsController {
    * (AdminFulfillmentController): tener dos caminos para moverlo desincronizaría el
    * historial y el `status` legacy.
    */
+  @Modulo('ordenes')
   @Patch('orders/:id')
   async updateOrder(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const schema = z.object({ paymentStatus: z.string().max(50) });
@@ -212,6 +216,7 @@ export class AdminOpsController {
 
   // ---- Cotizaciones ----
 
+  @Modulo('cotizaciones')
   @Get('quotes')
   async quotes(@Query('page') page?: string, @Query('status') status?: string) {
     const p = Math.max(1, Number(page ?? 1) || 1);
@@ -269,6 +274,7 @@ export class AdminOpsController {
    * Solo se sella la PRIMERA vez: registrar la tercera llamada no puede
    * reescribir cuándo fue la primera.
    */
+  @Modulo('cotizaciones')
   @Patch('quotes/:id/contacto')
   async marcarContacto(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const p = z
@@ -295,6 +301,7 @@ export class AdminOpsController {
   }
 
   /** Responder cotización: ajustar montos/condiciones y marcar completed. */
+  @Modulo('cotizaciones')
   @Patch('quotes/:id')
   async updateQuote(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const schema = z.object({

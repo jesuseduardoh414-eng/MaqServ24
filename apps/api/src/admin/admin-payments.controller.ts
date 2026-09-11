@@ -1,7 +1,8 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
+import { registrarAccion } from './audit';
 
 const gatewaySchema = z.object({
   title: z.string().min(2).max(190).optional(),
@@ -16,6 +17,7 @@ const gatewaySchema = z.object({
  * SEGURIDAD: el `secret` (p. ej. access token de MercadoPago) NUNCA se devuelve;
  * solo se informa si existe (`hasSecret`).
  */
+@Modulo('configuracion')
 @Controller('admin/payments')
 @UseGuards(AdminGuard)
 export class AdminPaymentsController {
@@ -46,7 +48,7 @@ export class AdminPaymentsController {
   }
 
   @Patch('gateways/:id')
-  async updateGateway(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+  async updateGateway(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const parsed = gatewaySchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
     const exists = await prisma.payment_gateways.findUnique({ where: { id } });
@@ -62,6 +64,17 @@ export class AdminPaymentsController {
         ...(d.secret !== undefined ? { secret: d.secret.trim() ? d.secret.trim() : null } : {}),
       },
     });
+    /**
+     * Se anota QUÉ cambió, nunca el valor: la credencial no puede acabar en una
+     * tabla que se lee desde el panel. Con saber que alguien tocó la llave de
+     * cobro, y cuándo, alcanza para explicar por qué dejó de cobrarse.
+     */
+    const cambios = [
+      d.status !== undefined ? (d.status === 1 ? 'activado' : 'desactivado') : null,
+      d.secret !== undefined ? (d.secret.trim() ? 'credencial cargada' : 'credencial borrada') : null,
+      d.title !== undefined || d.text !== undefined ? 'textos' : null,
+    ].filter(Boolean);
+    await registrarAccion(req, 'configuracion', 'método de pago', exists.code ?? `pago ${id}`, cambios.join(', ') || null);
     return { ok: true };
   }
 }

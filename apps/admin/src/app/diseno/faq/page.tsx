@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { defaultTheme, themeTokensSchema } from '@maqserv/config';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { FaqEditor } from './FaqEditor';
 
@@ -12,6 +12,7 @@ interface AdminQuestion { question: string; answered: boolean; featured: boolean
 export default async function FaqDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
 
   const [themes, questions] = await Promise.all([
     adminFetch<ThemeRow[]>('/admin/themes'),
@@ -25,7 +26,7 @@ export default async function FaqDesignPage() {
   const featured = (questions ?? []).filter((q) => q.featured && q.answered && q.status === 1);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <FaqEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

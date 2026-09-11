@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
 import { SubscribersSearch } from './SubscribersSearch';
@@ -37,6 +37,7 @@ export default async function AdminSubscribers({
 }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'comunidad');
   const sp = await searchParams;
   const q = sp.q ?? '';
 
@@ -60,7 +61,7 @@ export default async function AdminSubscribers({
   };
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`

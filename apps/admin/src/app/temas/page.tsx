@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { Table, Td } from '@/components/Table';
 import { ActionButton } from '@/components/actions';
@@ -18,10 +18,11 @@ interface ThemeRow {
 export default async function AdminThemes() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
   const themes = (await adminFetch<ThemeRow[]>('/admin/themes')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: '1.2rem' }}>Temas</h1>
       <div style={{ display: 'grid', gap: '1.2rem' }}>
         <ThemeDuplicate themes={themes.map((t) => ({ id: t.id, name: t.name }))} />

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { FULFILLMENT, VENDOR_STATES, type Fulfillment, type VendorState } from '@maqserv/types';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
 import { PAY_STATUS, labelOf, stateColor } from '../../ordenes/order-status';
@@ -44,6 +44,7 @@ const QUOTE_LABEL: Record<string, { label: string; color: string }> = {
 export default async function CustomerDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'comunidad');
   const { id } = await params;
 
   const c = await adminFetch<CustomerDetail>(`/admin/users/${id}`);
@@ -55,7 +56,7 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const address = [p.address, p.city, p.zip ? `CP ${p.zip}` : null, p.residency].filter(Boolean).join(', ');
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`

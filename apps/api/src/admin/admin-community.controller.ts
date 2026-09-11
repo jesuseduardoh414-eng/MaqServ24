@@ -4,10 +4,11 @@ import {
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { NotificationsService } from '../notifications/notifications.service';
 
 /** Comunidad: reseñas del sitio, comentarios y preguntas de producto. */
+@Modulo('comunidad')
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminCommunityController {

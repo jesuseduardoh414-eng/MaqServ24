@@ -3,58 +3,66 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 
 /**
- * Navegación del admin agrupada por secciones funcionales.
- * (Hoy solo existe el rol superadmin: todos ven todo. Cuando haya roles,
- * bastará con filtrar estos grupos/ítems según permisos.)
+ * Navegación del admin agrupada por secciones funcionales, filtrada por el rol
+ * de quien mira (documento institucional, sección 24).
+ *
+ * El menú NO es la seguridad: la API cierra cada ruta por su cuenta con el
+ * mismo `@Modulo` (ver `admin-auth.ts`). Esto es lo otro que pide el requisito
+ * —"lo que un rol no puede hacer, no aparece en su menú"— y es lo que evita el
+ * paseo por pantallas que terminan en un error rojo.
+ *
+ * Los dos leen la MISMA tabla de `@maqserv/config`: si un día divergen, el menú
+ * escondería algo que la API sigue sirviendo.
  */
 type BadgeKey = 'orders' | 'quotes' | 'withdraws' | 'messages';
-type Item = { href: string; label: string; icon: string; badge?: BadgeKey };
+type Item = { modulo: ModuloAdmin; href: string; label: string; icon: string; badge?: BadgeKey };
 
 const GROUPS: Array<{ title: string; items: Item[] }> = [
   {
     title: 'Panel',
     items: [
-      { href: '/', label: 'Inicio', icon: 'ph-house' },
+      { modulo: 'inicio', href: '/', label: 'Inicio', icon: 'ph-house' },
       // Inicio dice que hay que atender; esto dice si lo que se hizo sirvio.
-      { href: '/indicadores', label: 'Indicadores', icon: 'ph-chart-line-up' },
+      { modulo: 'indicadores', href: '/indicadores', label: 'Indicadores', icon: 'ph-chart-line-up' },
     ],
   },
   {
     title: 'Catálogo',
     items: [
-      { href: '/productos', label: 'Productos', icon: 'ph-package' },
-      { href: '/categorias', label: 'Categorías', icon: 'ph-squares-four' },
-      { href: '/disponibilidad', label: 'Disponibilidad', icon: 'ph-calendar-check' },
+      { modulo: 'catalogo', href: '/productos', label: 'Productos', icon: 'ph-package' },
+      { modulo: 'catalogo', href: '/categorias', label: 'Categorías', icon: 'ph-squares-four' },
+      { modulo: 'disponibilidad', href: '/disponibilidad', label: 'Disponibilidad', icon: 'ph-calendar-check' },
     ],
   },
   {
     title: 'Ventas',
     items: [
-      { href: '/ordenes', label: 'Órdenes', icon: 'ph-receipt', badge: 'orders' },
-      { href: '/cotizaciones', label: 'Cotizaciones', icon: 'ph-file-text', badge: 'quotes' },
+      { modulo: 'ordenes', href: '/ordenes', label: 'Órdenes', icon: 'ph-receipt', badge: 'orders' },
+      { modulo: 'cotizaciones', href: '/cotizaciones', label: 'Cotizaciones', icon: 'ph-file-text', badge: 'quotes' },
       // Lo que pasa DESPUÉS de que el cliente acepta. Va junto a cotizaciones
       // porque es su continuación, no un módulo aparte.
-      { href: '/servicios', label: 'Servicios', icon: 'ph-truck' },
+      { modulo: 'servicios', href: '/servicios', label: 'Servicios', icon: 'ph-truck' },
       // Servicios dice que esta pasando; la agenda dice que VIENE.
-      { href: '/agenda', label: 'Agenda', icon: 'ph-calendar-blank' },
+      { modulo: 'agenda', href: '/agenda', label: 'Agenda', icon: 'ph-calendar-blank' },
       // La empresa que contrata y sus frentes abiertos. Va aparte de Cuentas
       // porque casi todas las solicitudes las hace alguien sin registrarse.
-      { href: '/clientes', label: 'Clientes y obras', icon: 'ph-buildings' },
+      { modulo: 'clientes', href: '/clientes', label: 'Clientes y obras', icon: 'ph-buildings' },
     ],
   },
   {
     // La red de aliados es el activo del modelo (documento institucional, 15),
     // no un submenu del marketplace: va en su propio grupo y antes que este.
     title: 'Red de aliados',
-    items: [{ href: '/proveedores', label: 'Proveedores', icon: 'ph-handshake' }],
+    items: [{ modulo: 'proveedores', href: '/proveedores', label: 'Proveedores', icon: 'ph-handshake' }],
   },
   {
     title: 'Marketplace',
     items: [
-      { href: '/vendedores', label: 'Vendedores', icon: 'ph-storefront' },
-      { href: '/retiros', label: 'Retiros', icon: 'ph-hand-coins', badge: 'withdraws' },
+      { modulo: 'marketplace', href: '/vendedores', label: 'Vendedores', icon: 'ph-storefront' },
+      { modulo: 'marketplace', href: '/retiros', label: 'Retiros', icon: 'ph-hand-coins', badge: 'withdraws' },
     ],
   },
   {
@@ -63,43 +71,43 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
     // que opina y quien pidio que le escribieran.
     title: 'Comunidad',
     items: [
-      { href: '/usuarios', label: 'Cuentas', icon: 'ph-users' },
-      { href: '/resenas', label: 'Reseñas', icon: 'ph-star' },
-      { href: '/preguntas', label: 'Preguntas', icon: 'ph-chats-circle' },
+      { modulo: 'comunidad', href: '/usuarios', label: 'Cuentas', icon: 'ph-users' },
+      { modulo: 'comunidad', href: '/resenas', label: 'Reseñas', icon: 'ph-star' },
+      { modulo: 'comunidad', href: '/preguntas', label: 'Preguntas', icon: 'ph-chats-circle' },
       // Quien escribió por el formulario de Contacto y espera respuesta. Lleva
       // contador porque un mensaje sin contestar es un cliente perdiéndose.
-      { href: '/mensajes', label: 'Mensajes', icon: 'ph-chat-centered-text', badge: 'messages' },
-      { href: '/suscriptores', label: 'Suscriptores', icon: 'ph-envelope-simple' },
+      { modulo: 'comunidad', href: '/mensajes', label: 'Mensajes', icon: 'ph-chat-centered-text', badge: 'messages' },
+      { modulo: 'comunidad', href: '/suscriptores', label: 'Suscriptores', icon: 'ph-envelope-simple' },
     ],
   },
   {
     title: 'Diseño del sitio',
     items: [
-      { href: '/diseno/marca', label: 'Identidad de marca', icon: 'ph-palette' },
-      { href: '/diseno/hero', label: 'Sección 1 · Hero', icon: 'ph-layout' },
-      { href: '/diseno/categorias', label: 'Sección 2 · Categorías', icon: 'ph-squares-four' },
-      { href: '/diseno/productos', label: 'Sección 3 · Productos', icon: 'ph-package' },
-      { href: '/diseno/quienes-somos', label: 'Sección 4 · Quiénes somos', icon: 'ph-shield-check' },
-      { href: '/diseno/sectores', label: 'Sección 5 · Sectores', icon: 'ph-buildings' },
-      { href: '/diseno/oferta', label: 'Sección 6 · Oferta', icon: 'ph-tag' },
-      { href: '/diseno/resenas', label: 'Sección 7 · Reseñas', icon: 'ph-star' },
-      { href: '/diseno/faq', label: 'Sección 8 · Preguntas frecuentes', icon: 'ph-question' },
-      { href: '/diseno/servicios', label: 'Servicios', icon: 'ph-wrench' },
-      { href: '/diseno/marcas', label: 'Marcas', icon: 'ph-certificate' },
-      { href: '/blog', label: 'Blog', icon: 'ph-article' },
-      { href: '/diseno/contacto', label: 'Contacto', icon: 'ph-address-book' },
-      { href: '/diseno/footer', label: 'Footer', icon: 'ph-rows' },
-      { href: '/diseno/legal', label: 'Legal (términos/privacidad)', icon: 'ph-scroll' },
-      { href: '/temas', label: 'Temas y colores', icon: 'ph-swatches' },
+      { modulo: 'diseno', href: '/diseno/marca', label: 'Identidad de marca', icon: 'ph-palette' },
+      { modulo: 'diseno', href: '/diseno/hero', label: 'Sección 1 · Hero', icon: 'ph-layout' },
+      { modulo: 'diseno', href: '/diseno/categorias', label: 'Sección 2 · Categorías', icon: 'ph-squares-four' },
+      { modulo: 'diseno', href: '/diseno/productos', label: 'Sección 3 · Productos', icon: 'ph-package' },
+      { modulo: 'diseno', href: '/diseno/quienes-somos', label: 'Sección 4 · Quiénes somos', icon: 'ph-shield-check' },
+      { modulo: 'diseno', href: '/diseno/sectores', label: 'Sección 5 · Sectores', icon: 'ph-buildings' },
+      { modulo: 'diseno', href: '/diseno/oferta', label: 'Sección 6 · Oferta', icon: 'ph-tag' },
+      { modulo: 'diseno', href: '/diseno/resenas', label: 'Sección 7 · Reseñas', icon: 'ph-star' },
+      { modulo: 'diseno', href: '/diseno/faq', label: 'Sección 8 · Preguntas frecuentes', icon: 'ph-question' },
+      { modulo: 'diseno', href: '/diseno/servicios', label: 'Servicios', icon: 'ph-wrench' },
+      { modulo: 'diseno', href: '/diseno/marcas', label: 'Marcas', icon: 'ph-certificate' },
+      { modulo: 'diseno', href: '/blog', label: 'Blog', icon: 'ph-article' },
+      { modulo: 'diseno', href: '/diseno/contacto', label: 'Contacto', icon: 'ph-address-book' },
+      { modulo: 'diseno', href: '/diseno/footer', label: 'Footer', icon: 'ph-rows' },
+      { modulo: 'diseno', href: '/diseno/legal', label: 'Legal (términos/privacidad)', icon: 'ph-scroll' },
+      { modulo: 'diseno', href: '/temas', label: 'Temas y colores', icon: 'ph-swatches' },
     ],
   },
   {
     title: 'Configuración',
     items: [
-      { href: '/correo', label: 'Correo', icon: 'ph-envelope-simple-open' },
-      { href: '/pagos', label: 'Pagos', icon: 'ph-credit-card' },
-      { href: '/traslado', label: 'Traslado', icon: 'ph-truck' },
-      { href: '/admins', label: 'Administradores', icon: 'ph-user-gear' },
+      { modulo: 'configuracion', href: '/correo', label: 'Correo', icon: 'ph-envelope-simple-open' },
+      { modulo: 'configuracion', href: '/pagos', label: 'Pagos', icon: 'ph-credit-card' },
+      { modulo: 'configuracion', href: '/traslado', label: 'Traslado', icon: 'ph-truck' },
+      { modulo: 'admins', href: '/admins', label: 'Administradores', icon: 'ph-user-gear' },
     ],
   },
 ];
@@ -111,7 +119,7 @@ function isActive(pathname: string, href: string): boolean {
 
 type Badges = Record<BadgeKey, number>;
 
-export function SidebarNav({ collapsed, query }: { collapsed: boolean; query: string }) {
+export function SidebarNav({ collapsed, query, rol }: { collapsed: boolean; query: string; rol: RolAdmin }) {
   const pathname = usePathname() || '/';
   const [badges, setBadges] = useState<Badges>({ orders: 0, quotes: 0, withdraws: 0, messages: 0 });
 
@@ -137,9 +145,14 @@ export function SidebarNav({ collapsed, query }: { collapsed: boolean; query: st
 
   const q = query.trim().toLowerCase();
   const showLabels = !collapsed;
+  // El permiso se aplica ANTES que la búsqueda: escribir "pagos" no puede
+  // sacar del cajón una pantalla que este rol no tiene.
+  const mios = modulosDe(rol);
   const groups = GROUPS.map((g) => ({
     ...g,
-    items: q ? g.items.filter((it) => it.label.toLowerCase().includes(q)) : g.items,
+    items: g.items
+      .filter((it) => mios.includes(it.modulo))
+      .filter((it) => (q ? it.label.toLowerCase().includes(q) : true)),
   })).filter((g) => g.items.length > 0);
 
   return (

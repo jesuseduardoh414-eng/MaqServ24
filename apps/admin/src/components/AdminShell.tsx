@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SidebarNav } from './SidebarNav';
 import { useBranding } from './branding';
+import type { RolAdmin } from '@maqserv/config';
 
 const COLLAPSE_KEY = 'maqserv_admin_sidebar_collapsed';
 
@@ -14,10 +15,13 @@ const COLLAPSE_KEY = 'maqserv_admin_sidebar_collapsed';
 export function AdminShell({
   adminName,
   adminEmail,
+  adminRol,
   children,
 }: {
   adminName: string;
   adminEmail?: string;
+  /** Decide qué secciones se dibujan. Ver SidebarNav. */
+  adminRol: RolAdmin;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -110,7 +114,7 @@ export function AdminShell({
           )}
         </div>
 
-        <SidebarNav collapsed={collapsed} query={query} />
+        <SidebarNav collapsed={collapsed} query={query} rol={adminRol} />
 
         <div className="adm-profile-wrap">
           <button className="adm-profile" onClick={logout} title="Cerrar sesión" type="button">

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { AnalyticsBoard, type Tablero } from './AnalyticsBoard';
 
@@ -19,6 +19,7 @@ export default async function AdminIndicadores({
 }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'indicadores');
   const sp = await searchParams;
 
   const qs = new URLSearchParams();
@@ -32,7 +33,7 @@ export default async function AdminIndicadores({
   ]);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <AnalyticsBoard
         tablero={tablero}
         categorias={(categorias ?? []).map((c) => ({ slug: c.slug, name: c.name }))}

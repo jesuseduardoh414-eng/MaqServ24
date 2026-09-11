@@ -5,7 +5,7 @@ import {
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { toShipMethod, type ShipMethod } from '@maqserv/types';
-import { AdminGuard, type AdminRequest } from './admin-auth';
+import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { etiquetaMetodoPago } from '../orders/orders.service';
 import { FulfillmentService, toShipping } from '../orders/fulfillment.service';
 import { hasRentalItems, parseCart } from '../orders/cart.util';
@@ -20,6 +20,7 @@ import { hasRentalItems, parseCart } from '../orders/cart.util';
  * `FulfillmentService.setState()`, que sincroniza el `status` legacy, sella fechas,
  * registra el evento y avisa al cliente.
  */
+@Modulo('ordenes')
 @Controller('admin/orders')
 @UseGuards(AdminGuard)
 export class AdminFulfillmentController {

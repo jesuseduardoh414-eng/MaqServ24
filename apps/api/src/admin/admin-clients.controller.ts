@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { esEstado, PASOS } from '../quotes/service-flow';
 import { FreightService } from '../freight/freight.service';
 
@@ -45,6 +45,7 @@ const obraSchema = z.object({
 
 const vacio = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
 
+@Modulo('clientes')
 @Controller('admin/clients')
 @UseGuards(AdminGuard)
 export class AdminClientsController {

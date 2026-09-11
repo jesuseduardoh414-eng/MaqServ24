@@ -1,11 +1,12 @@
 import {
   BadRequestException, Body, Controller, Get, Logger, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, UseGuards,
+  ParseIntPipe, Patch, Post, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { Prisma, prisma } from '@maqserv/db';
 import { copysSchema, slugify, themeTokensSchema } from '@maqserv/config';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
+import { registrarAccion } from './audit';
 
 const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';
 
@@ -15,6 +16,7 @@ const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';
  * tokens/copys, sella publishedAt, limpia borrador e invalida el cache
  * ISR del sitio) → o DESCARTAR. Ver spec design-configurable-editor.
  */
+@Modulo('diseno')
 @Controller('admin/themes')
 @UseGuards(AdminGuard)
 export class AdminThemesController {
@@ -75,7 +77,7 @@ export class AdminThemesController {
 
   /** Publica el borrador y dispara la revalidación ISR del sitio. */
   @Post(':id/publish')
-  async publish(@Param('id', ParseIntPipe) id: number) {
+  async publish(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
     const t = await prisma.theme.findUnique({ where: { id } });
     if (!t) throw new NotFoundException();
     if (t.draftTokens === null && t.draftCopys === null) {
@@ -123,6 +125,7 @@ export class AdminThemesController {
         this.logger.warn(revalidateError);
       }
     }
+    await registrarAccion(req, 'diseno', 'publicar diseño', t.name ?? ('tema ' + id), revalidateError);
     return { ok: true, publishedAt: new Date().toISOString(), revalidated, revalidateError };
   }
 
@@ -137,7 +140,7 @@ export class AdminThemesController {
 
   /** Activa este tema (solo puede haber uno activo). */
   @Post(':id/activate')
-  async activate(@Param('id', ParseIntPipe) id: number) {
+  async activate(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
     const t = await prisma.theme.findUnique({ where: { id } });
     if (!t) throw new NotFoundException();
     await prisma.$transaction([

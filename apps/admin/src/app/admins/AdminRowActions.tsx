@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ROLES_ADMIN, type RolAdmin } from '@maqserv/config';
 import { D } from '@/components/design-tokens';
+
+const ROLES = Object.values(ROLES_ADMIN);
 
 const ghost: React.CSSProperties = {
   fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: 'transparent',
@@ -19,12 +22,14 @@ export function AdminRowActions({
   status,
   isMe,
   canLogin,
+  rol,
 }: {
   adminId: number;
   name: string;
   status: number;
   isMe: boolean;
   canLogin: boolean;
+  rol: RolAdmin;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -71,6 +76,26 @@ export function AdminRowActions({
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
       <style>{`.ar-ghost:hover:not(:disabled){ background: rgba(255,255,255,0.06); color:#f5f5f4; }`}</style>
+
+      {/*
+        El rol se cambia aquí mismo, sin abrir nada: es el dato que más se
+        corrige (alguien entra a un equipo, alguien cambia de área) y esconderlo
+        tras un botón hacía que nadie lo ajustara.
+        En la propia cuenta no se ofrece — la API también lo rechaza.
+      */}
+      {!isMe ? (
+        <select
+          aria-label={`Rol de ${name}`}
+          value={rol}
+          disabled={busy}
+          onChange={(e) => void send({ rol: e.target.value })}
+          style={{ ...ghost, padding: '6px 8px', cursor: busy ? 'wait' : 'pointer', maxWidth: 168 }}
+        >
+          {ROLES.map((r) => (
+            <option key={r.clave} value={r.clave}>{r.nombre}</option>
+          ))}
+        </select>
+      ) : null}
 
       {/* Sin cuenta de acceso no hay contraseña que cambiar. */}
       {canLogin ? (

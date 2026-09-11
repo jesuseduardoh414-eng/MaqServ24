@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ProductsManager, type ProductRow } from './ProductsManager';
 
@@ -9,6 +9,7 @@ interface Paged { total: number; page: number; pages: number; items: ProductRow[
 export default async function AdminProducts() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'catalogo');
 
   // Traemos todo el catálogo en UNA consulta (pageSize alto) para no encadenar N
   // peticiones. El gestor pagina en cliente. Fallback: si la API ignora pageSize
@@ -30,7 +31,7 @@ export default async function AdminProducts() {
   const cats = catsRaw ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <ProductsManager initial={items} // El slug decide que unidades de precio se ofrecen (viaje, tonelada, mes...).
         categories={cats.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))} />
     </AdminShell>

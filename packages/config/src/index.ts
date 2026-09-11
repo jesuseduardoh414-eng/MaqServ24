@@ -37,3 +37,14 @@ export {
   type AtributoProducto,
   type Desajuste,
 } from './product-attributes';
+export {
+  MODULOS_ADMIN,
+  ROLES_ADMIN,
+  ROL_POR_DEFECTO,
+  rolDeAdmin,
+  puedeVer,
+  modulosDe,
+  type ModuloAdmin,
+  type RolAdmin,
+  type DefinicionRol,
+} from './admin-roles';

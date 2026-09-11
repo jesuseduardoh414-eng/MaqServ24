@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 // Paleta y estados en módulos SIN 'use client': esta página es de servidor y no
 // puede llamar funciones que exporte un módulo de cliente.
@@ -50,6 +50,7 @@ export default async function AdminVendors({
 }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'marketplace');
   const sp = await searchParams;
   const state = sp.state ?? '';
 
@@ -58,7 +59,7 @@ export default async function AdminVendors({
   const counts = data?.counts ?? {};
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`

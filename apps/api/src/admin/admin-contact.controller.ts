@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { PerfexService } from '../integrations/integrations.module';
 
 /**
@@ -17,6 +17,7 @@ const PAGE_SIZE = 20;
 const ESTADOS = ['nuevo', 'atendido', 'archivado'] as const;
 type Estado = (typeof ESTADOS)[number];
 
+@Modulo('comunidad')
 @Controller('admin/contact-messages')
 @UseGuards(AdminGuard)
 export class AdminContactController {

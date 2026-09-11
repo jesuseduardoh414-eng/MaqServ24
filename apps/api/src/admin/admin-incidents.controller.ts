@@ -5,7 +5,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { AdminGuard, type AdminRequest } from './admin-auth';
+import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { supabaseStorage } from '../common/supabase-multer';
 import { imageUrl } from '../catalog/images';
 import { CATALOGO, RESPONSABLES, SEVERIDADES, TIPOS } from '../quotes/incidents';
@@ -60,6 +60,7 @@ const aRutaBucket = (v: string): string => {
   return i >= 0 ? v.slice(i + 1) : v;
 };
 
+@Modulo('servicios')
 @Controller('admin/incidencias')
 @UseGuards(AdminGuard)
 export class AdminIncidentsController {

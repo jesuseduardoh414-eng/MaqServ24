@@ -2,7 +2,7 @@ import { Controller, Get, NotFoundException, Param, ParseIntPipe, Query, UseGuar
 import { prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
 import { toFulfillment, toVendorState } from '@maqserv/types';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { parseCart } from '../orders/cart.util';
 
 /**
@@ -31,6 +31,7 @@ async function buyerIds(): Promise<number[]> {
   return rows.map((r) => r.user_id);
 }
 
+@Modulo('comunidad')
 @Controller('admin/users')
 @UseGuards(AdminGuard)
 export class AdminCustomersController {

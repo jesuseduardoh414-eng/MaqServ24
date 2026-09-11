@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { QuotesManager, type QuoteItem } from './QuotesManager';
 
@@ -25,6 +25,7 @@ const DAY = 86_400_000;
 export default async function AdminQuotes() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'cotizaciones');
   const data = await adminFetch<{ items: QuoteRow[] }>('/admin/quotes');
 
   // La antigüedad se calcula en el SERVIDOR: si se hiciera en el cliente,
@@ -42,7 +43,7 @@ export default async function AdminQuotes() {
   });
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <QuotesManager items={items} />
     </AdminShell>
   );

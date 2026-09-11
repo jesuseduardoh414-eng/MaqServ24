@@ -1710,3 +1710,20 @@ enum orders_status {
   completed
   declined
 }
+
+/// Bitácora de acciones sensibles del panel (sección 30 · Riesgos y controles).
+/// Se escribe desde `apps/api/src/admin/audit.ts`; nunca se borra desde la app.
+model admin_audit {
+  id          Int      @id @default(autoincrement())
+  admin_id    Int
+  admin_email String   @db.VarChar(190)
+  admin_rol   String   @db.VarChar(40)
+  modulo      String   @db.VarChar(30)
+  accion      String   @db.VarChar(60)
+  objetivo    String?  @db.VarChar(190)
+  detalle     String?
+  created_at  DateTime @default(now()) @db.Timestamp(6)
+
+  @@index([created_at(sort: Desc)], map: "admin_audit_fecha_idx")
+  @@index([admin_id, created_at(sort: Desc)], map: "admin_audit_admin_idx")
+}

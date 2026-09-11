@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ReviewsBoard } from './ReviewsBoard';
 
@@ -17,6 +17,7 @@ interface CommentRow {
 export default async function AdminReviews() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'comunidad');
   const rows = await adminFetch<CommentRow[]>('/admin/comments');
   const reviews = (rows ?? []).map((c) => ({
     id: c.id, author: c.author, product: c.product, rating: c.rating,
@@ -24,7 +25,7 @@ export default async function AdminReviews() {
   }));
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <ReviewsBoard initial={reviews} />
     </AdminShell>
   );

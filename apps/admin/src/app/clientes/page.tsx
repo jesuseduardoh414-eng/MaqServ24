@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ClientsManager, type ClienteRow } from './ClientsManager';
 
@@ -14,10 +14,11 @@ import { ClientsManager, type ClienteRow } from './ClientsManager';
 export default async function AdminClientes() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'clientes');
   const clientes = (await adminFetch<ClienteRow[]>('/admin/clients')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <ClientsManager initial={clientes} />
     </AdminShell>
   );

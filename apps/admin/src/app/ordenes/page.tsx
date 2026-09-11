@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SHIP_METHODS, fulfillmentStep, shipTracker, toFulfillment, toShipMethod, type OrderShipping } from '@maqserv/types';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 // La paleta y los mapas de estado se importan de módulos SIN 'use client':
 // esta página es un componente de servidor y no puede llamar código de cliente.
@@ -70,6 +70,7 @@ export default async function AdminOrders({
 }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'ordenes');
   const sp = await searchParams;
   const state = sp.state ?? '';
   const search = sp.search ?? '';
@@ -96,7 +97,7 @@ export default async function AdminOrders({
   };
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`

@@ -1,6 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { DIAS_FRESCURA } from '../catalog/availability';
 import {
   dias, horas, indicador, mediana, noMedible, periodoAnterior, porcentaje,
@@ -15,6 +15,7 @@ import {
  * su motivo: rellenarlos con una aproximación silenciosa sería peor que
  * dejarlos en blanco, porque nadie volvería a preguntarse por ellos.
  */
+@Modulo('indicadores')
 @Controller('admin/analytics')
 @UseGuards(AdminGuard)
 export class AdminAnalyticsController {

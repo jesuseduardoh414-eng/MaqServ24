@@ -1,11 +1,12 @@
 import {
   BadRequestException, Body, Controller, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Query, UseGuards,
+  ParseIntPipe, Patch, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { WITHDRAW_STATES, type WithdrawState } from '@maqserv/types';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
+import { registrarAccion } from './audit';
 import { NotificationsService } from '../notifications/notifications.service';
 
 /**
@@ -21,6 +22,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 const STATES = Object.keys(WITHDRAW_STATES) as WithdrawState[];
 const PAGE_SIZE = 20;
 
+@Modulo('marketplace')
 @Controller('admin/withdraws')
 @UseGuards(AdminGuard)
 export class AdminWithdrawsController {
@@ -80,7 +82,7 @@ export class AdminWithdrawsController {
 
   /** `completed` = pagado; `rejected` = reembolsa el saldo descontado al solicitar. */
   @Patch(':id')
-  async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+  async update(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const schema = z.object({
       status: z.enum(['completed', 'rejected']),
       note: z.string().trim().max(500).optional(),
@@ -127,6 +129,14 @@ export class AdminWithdrawsController {
       link: '/vendedor/retiros',
     });
 
+    // Dinero que sale: de las acciones del panel, la que más merece nombre y fecha.
+    await registrarAccion(
+      req,
+      'marketplace',
+      status === 'completed' ? 'pagar retiro' : 'rechazar retiro',
+      `retiro ${id} · ${money}`,
+      note ?? null,
+    );
     return { ok: true };
   }
 }

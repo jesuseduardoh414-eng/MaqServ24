@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { BrandingEditor } from './BrandingEditor';
 
@@ -7,10 +7,11 @@ import { BrandingEditor } from './BrandingEditor';
 export default async function BrandingPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
   const branding = (await adminFetch<Record<string, string | null>>('/admin/cms/branding')) ?? {};
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <BrandingEditor initial={branding} />
     </AdminShell>
   );

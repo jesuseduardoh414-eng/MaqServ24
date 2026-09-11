@@ -9,7 +9,7 @@ import { mkdirSync } from 'fs';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { productSlug, themeTokensSchema } from '@maqserv/config';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { imageUrl, normLegacyText } from '../catalog/images';
 
 const photoStorage = supabaseStorage();
@@ -62,6 +62,7 @@ const settingsSchema = z.object({
 });
 
 /** CMS del sitio: blog, FAQ, hero, servicios, why-choose-us y ajustes. */
+@Modulo('diseno')
 @Controller('admin/cms')
 @UseGuards(AdminGuard)
 export class AdminCmsController {

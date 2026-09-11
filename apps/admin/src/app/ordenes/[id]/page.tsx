@@ -5,7 +5,7 @@ import {
   SHIP_METHODS, fulfillmentFlow, fulfillmentStep, toShipMethod,
   type OrderEvent, type OrderItem, type OrderShipping, type OrderTotals,
 } from '@maqserv/types';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
 import { PAY_STATUS, labelOf, stateColor } from '../order-status';
@@ -46,6 +46,7 @@ const day = (iso: string | null) =>
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'ordenes');
   const { id } = await params;
 
   // Orden y lista de temas en paralelo: son independientes. Antes eran 4 fetch
@@ -70,7 +71,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canceled = shipping?.state === 'cancelado';
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`

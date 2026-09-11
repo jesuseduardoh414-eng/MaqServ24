@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { checkoutFreightSchema } from '@maqserv/config';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { FreightService } from '../freight/freight.service';
 
 const testInput = z.object({
@@ -11,6 +11,7 @@ const testInput = z.object({
 });
 
 /** Probador del cotizador de traslado (Panel → Traslado). */
+@Modulo('configuracion')
 @Controller('admin/freight')
 @UseGuards(AdminGuard)
 export class AdminFreightController {

@@ -14,7 +14,7 @@ import {
 import { prisma } from '@maqserv/db';
 import { slugify } from '@maqserv/config';
 import { z } from 'zod';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
@@ -68,6 +68,7 @@ const documentSchema = z.object({
 const fecha = (v: string | null | undefined): Date | null =>
   v && v.trim() ? new Date(`${v}T00:00:00Z`) : null;
 
+@Modulo('proveedores')
 @Controller('admin/providers')
 @UseGuards(AdminGuard)
 export class AdminProvidersController {

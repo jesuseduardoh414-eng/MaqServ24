@@ -1,6 +1,6 @@
 import { Controller, Delete, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { PerfexService } from '../integrations/integrations.module';
 
 /**
@@ -16,6 +16,7 @@ import { PerfexService } from '../integrations/integrations.module';
  */
 const PAGE_SIZE = 30;
 
+@Modulo('comunidad')
 @Controller('admin/subscribers')
 @UseGuards(AdminGuard)
 export class AdminSubscribersController {

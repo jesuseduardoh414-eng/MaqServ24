@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { MailPanel, type EstadoCorreo, type RegistroCorreo } from './MailPanel';
 
@@ -15,6 +15,7 @@ import { MailPanel, type EstadoCorreo, type RegistroCorreo } from './MailPanel';
 export default async function AdminCorreo() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'configuracion');
 
   const [estado, registro] = await Promise.all([
     adminFetch<EstadoCorreo>('/admin/mail/status'),
@@ -22,7 +23,7 @@ export default async function AdminCorreo() {
   ]);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <MailPanel estado={estado} registro={registro?.items ?? []} total={registro?.total ?? 0} />
     </AdminShell>
   );

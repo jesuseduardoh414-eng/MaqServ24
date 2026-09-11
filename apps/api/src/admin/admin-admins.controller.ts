@@ -5,8 +5,10 @@ import {
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@maqserv/db';
-import { AdminGuard, forgetAdmin, type AdminRequest } from './admin-auth';
+import { rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
+import { AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
 import { adminCreateUser, adminSetPassword } from '../common/supabase-auth';
+import { registrarAccion } from './audit';
 
 /**
  * Quién puede entrar al panel.
@@ -24,6 +26,9 @@ import { adminCreateUser, adminSetPassword } from '../common/supabase-auth';
  * **no podía entrar jamás** (401). Era deuda de la migración a Supabase — el módulo
  * se escribió antes y nunca se re-cableó.
  */
+const ROLES_VALIDOS = Object.keys(ROLES_ADMIN) as [RolAdmin, ...RolAdmin[]];
+
+@Modulo('admins')
 @Controller('admin/admins')
 @UseGuards(AdminGuard)
 export class AdminAdminsController {
@@ -35,6 +40,8 @@ export class AdminAdminsController {
       name: a.name,
       email: a.email,
       role: a.role,
+      rol: rolDeAdmin(a.role),
+      rolNombre: ROLES_ADMIN[rolDeAdmin(a.role)].nombre,
       status: a.status,
       /** Sin `auth_id` no existe en Supabase ⇒ no puede entrar por más activo que se vea. */
       canLogin: a.auth_id !== null,
@@ -43,13 +50,41 @@ export class AdminAdminsController {
     }));
   }
 
+  /**
+   * La bitácora, en la misma pantalla que reparte los permisos.
+   *
+   * Registrar sin enseñar no es un control: es un archivo que nadie abre. Va
+   * aquí y no en su propio menú porque se consulta cuando ya pasó algo raro, y
+   * lo primero que se mira entonces es quién tenía acceso.
+   */
+  @Get('bitacora')
+  async bitacora() {
+    const filas = await prisma.admin_audit.findMany({
+      orderBy: { id: 'desc' },
+      take: 60,
+    });
+    return filas.map((f) => ({
+      id: f.id,
+      quien: f.admin_email,
+      rol: f.admin_rol,
+      modulo: f.modulo,
+      accion: f.accion,
+      objetivo: f.objetivo,
+      detalle: f.detalle,
+      cuando: f.created_at.toISOString(),
+    }));
+  }
+
   @Post()
-  async create(@Body() body: unknown) {
+  async create(@Req() req: AdminRequest, @Body() body: unknown) {
     const schema = z.object({
       name: z.string().min(2).max(100),
       email: z.string().email().max(190),
       password: z.string().min(8).max(100),
       phone: z.string().max(50).optional(),
+      // Sin rol explícito cae en el de MENOS alcance, no en el de más: una
+      // cuenta con permisos de sobra no se nota hasta que alguien borra algo.
+      rol: z.enum(ROLES_VALIDOS).default(ROL_POR_DEFECTO),
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
@@ -66,7 +101,7 @@ export class AdminAdminsController {
         phone: parsed.data.phone ?? '',
         // Se conserva por compatibilidad con el sistema viejo; el login NO lo usa.
         password: await bcrypt.hash(parsed.data.password, 10),
-        role: 'Administrator',
+        role: parsed.data.rol,
         status: 1,
         created_at: new Date(),
         updated_at: new Date(),
@@ -93,6 +128,7 @@ export class AdminAdminsController {
       );
     }
 
+    await registrarAccion(req, 'admins', 'alta de administrador', email, ROLES_ADMIN[parsed.data.rol].nombre);
     return { id: a.id };
   }
 
@@ -102,6 +138,7 @@ export class AdminAdminsController {
       name: z.string().min(2).max(100).optional(),
       password: z.string().min(8).max(100).optional(),
       status: z.coerce.number().int().min(0).max(1).optional(),
+      rol: z.enum(ROLES_VALIDOS).optional(),
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
@@ -111,6 +148,15 @@ export class AdminAdminsController {
     // Nadie se desactiva a sí mismo (evita quedarse sin acceso).
     if (parsed.data.status === 0 && id === req.adminId) {
       throw new BadRequestException('No puedes desactivar tu propia cuenta');
+    }
+    /**
+     * Ni se cambia su propio rol. Es la misma salvaguarda que la de arriba: la
+     * única pantalla que reparte permisos es ésta, y sólo Dirección la ve, así
+     * que un director que se pone "Comercial" se deja fuera para siempre — y a
+     * nadie le queda la pantalla para devolvérselo.
+     */
+    if (parsed.data.rol !== undefined && id === req.adminId) {
+      throw new BadRequestException('No puedes cambiar tu propio rol: pídeselo a otra cuenta de Dirección');
     }
 
     // La contraseña vive en Supabase: reescribir solo el hash legacy no cambiaba nada.
@@ -126,12 +172,24 @@ export class AdminAdminsController {
         // Se mantiene el hash legacy en sincronía por si algo viejo aún lo lee.
         ...(parsed.data.password !== undefined ? { password: await bcrypt.hash(parsed.data.password, 10) } : {}),
         ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
+        ...(parsed.data.rol !== undefined ? { role: parsed.data.rol } : {}),
         updated_at: new Date(),
       },
     });
     // El guard cachea "sigue activa" unos segundos: sin esto, un admin recién
-    // desactivado seguiría entrando hasta que la caché venciera sola.
-    if (parsed.data.status !== undefined) forgetAdmin(id);
+    // desactivado seguiría entrando hasta que la caché venciera sola. El rol
+    // sale de esa MISMA caché, así que un cambio de permisos también la invalida.
+    if (parsed.data.status !== undefined || parsed.data.rol !== undefined) forgetAdmin(id);
+
+    if (parsed.data.rol !== undefined) {
+      await registrarAccion(req, 'admins', 'cambio de rol', `${a.email} → ${ROLES_ADMIN[parsed.data.rol].nombre}`);
+    }
+    if (parsed.data.status !== undefined) {
+      await registrarAccion(req, 'admins', parsed.data.status === 1 ? 'activar cuenta' : 'desactivar cuenta', a.email);
+    }
+    if (parsed.data.password !== undefined) {
+      await registrarAccion(req, 'admins', 'cambio de contraseña', a.email);
+    }
     return { ok: true };
   }
 }

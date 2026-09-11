@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { defaultTheme, themeTokensSchema } from '@maqserv/config';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { SectorsEditor } from './SectorsEditor';
 
@@ -12,6 +12,7 @@ interface SectorRow { id: number; title: string; status: number; image: string |
 export default async function SectorsDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
 
   const [themes, sectors] = await Promise.all([
     adminFetch<ThemeRow[]>('/admin/themes'),
@@ -22,7 +23,7 @@ export default async function SectorsDesignPage() {
   const tokens = detail?.tokens ? themeTokensSchema.parse(detail.tokens) : defaultTheme.tokens;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <SectorsEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

@@ -4,7 +4,7 @@ import {
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
 import { unidadesDe, unidadPorDefectoDe, formatearCantidad } from '@maqserv/config';
-import { AdminGuard, type AdminRequest } from './admin-auth';
+import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { ServiceService } from '../quotes/service.service';
 import { ESTADOS, PASOS, esEstado, estadoInicial, siguientes, avance } from '../quotes/service-flow';
 
@@ -37,6 +37,7 @@ const responderSchema = z.object({
   reason: z.string().max(500).optional().nullable(),
 });
 
+@Modulo('servicios')
 @Controller('admin/services')
 @UseGuards(AdminGuard)
 export class AdminServicesController {

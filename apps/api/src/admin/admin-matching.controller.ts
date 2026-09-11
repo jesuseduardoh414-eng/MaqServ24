@@ -1,6 +1,6 @@
 import { Controller, Get, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { MatchingService } from '../quotes/matching.service';
 import { evaluarOferta, siguientesCandidatos, accionSugerida, type OfertaViva } from '../quotes/fallback';
 import { historialDe } from '../catalog/provider-history';
@@ -12,6 +12,7 @@ import { historialDe } from '../catalog/provider-history';
  * El armado de candidatos está en `MatchingService` porque el tablero de
  * servicios necesita exactamente los mismos para proponer un alterno.
  */
+@Modulo('cotizaciones')
 @Controller('admin/quotes')
 @UseGuards(AdminGuard)
 export class AdminMatchingController {

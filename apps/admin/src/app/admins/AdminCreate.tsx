@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ROLES_ADMIN, modulosDe, type RolAdmin } from '@maqserv/config';
 import { D } from '@/components/design-tokens';
+
+const ROLES = Object.values(ROLES_ADMIN);
 
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: 10.5, letterSpacing: '1px', fontWeight: 700,
@@ -20,6 +23,8 @@ export function AdminCreate() {
   const [ok, setOk] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  // Controlado para poder explicar, debajo, qué implica el rol elegido.
+  const [rol, setRol] = useState<RolAdmin>('operaciones');
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -37,6 +42,7 @@ export function AdminCreate() {
           name: String(data.get('name') ?? ''),
           email,
           password: String(data.get('password') ?? ''),
+          rol,
         }),
       });
       const body = await res.json().catch(() => null);
@@ -74,7 +80,7 @@ export function AdminCreate() {
       <style>{`.ad-btn:hover:not(:disabled){ filter: brightness(1.1); } .ad-ghost:hover{ background: rgba(255,255,255,0.06); }`}</style>
       <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Nuevo administrador</h2>
       <p style={{ margin: '0 0 18px', fontSize: 12.5, color: '#7A7A7F' }}>
-        Tendrá acceso total al panel. Dile la contraseña por un canal seguro: no se la mandamos por correo.
+        Elige el rol con cuidado: decide qué secciones verá. Dile la contraseña por un canal seguro: no se la mandamos por correo.
       </p>
 
       {/*
@@ -96,7 +102,30 @@ export function AdminCreate() {
             <label style={labelStyle} htmlFor="ad-pass">Contraseña (mín. 8)</label>
             <input id="ad-pass" name="password" type="password" required minLength={8} autoComplete="new-password" style={inputStyle} />
           </div>
+          <div>
+            <label style={labelStyle} htmlFor="ad-rol">Rol</label>
+            <select id="ad-rol" name="rol" value={rol} onChange={(e) => setRol(e.target.value as RolAdmin)} style={inputStyle}>
+              {ROLES.map((r) => (
+                <option key={r.clave} value={r.clave}>{r.nombre}</option>
+              ))}
+            </select>
+          </div>
         </div>
+
+        {/* Qué implica el rol elegido, en la misma pantalla donde se elige. */}
+        <div style={{ background: D.inputBg, border: `1px solid ${D.inputBorder}`, borderRadius: 10, padding: '12px 14px' }}>
+          <div style={{ fontSize: 12.5, color: '#B4B4B9', lineHeight: 1.5 }}>{ROLES_ADMIN[rol].descripcion}</div>
+          <div style={{ marginTop: 9, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {modulosDe(rol).map((m) => (
+              <span key={m} style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.4px', color: '#8A8A8F', background: 'rgba(255,255,255,0.045)', border: `1px solid ${D.inputBorder}`, borderRadius: 20, padding: '3px 9px' }}>{m}</span>
+            ))}
+          </div>
+        </div>
+
+        <p style={{ margin: 0, fontSize: 11.5, color: '#5C5C61', lineHeight: 1.55 }}>
+          Dirección General es el único rol que administra cuentas y permisos. Si dudas, elige el más
+          estrecho: ampliar un rol después toma un clic; enterarse de que sobraba, no.
+        </p>
 
         {error ? (
           <p role="alert" style={{ margin: 0, background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.3)', color: '#f55', padding: '11px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600 }}>

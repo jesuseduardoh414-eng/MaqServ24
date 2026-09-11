@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { VENDOR_STATES, WITHDRAW_STATES, toWithdrawState } from '@maqserv/types';
-import { SITE_URL, adminFetch, getAdmin } from '@/lib/admin';
+import { SITE_URL, adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
 import { vendorStatus } from '../vendor-status';
@@ -57,6 +57,7 @@ function withdrawLabel(raw: string): { label: string; color: string } {
 export default async function VendorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'marketplace');
   const { id } = await params;
 
   const v = await adminFetch<VendorDetail>(`/admin/vendors/${id}`);
@@ -66,7 +67,7 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   const a = v.application;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { defaultTheme, themeTokensSchema } from '@maqserv/config';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ReviewsEditor } from './ReviewsEditor';
 
@@ -12,6 +12,7 @@ interface SiteReview { id: number; author: string; rating: number; review: strin
 export default async function ReviewsDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
 
   const [themes, reviews] = await Promise.all([
     adminFetch<ThemeRow[]>('/admin/themes'),
@@ -24,7 +25,7 @@ export default async function ReviewsDesignPage() {
   const approved = (reviews ?? []).filter((r) => r.status === 1);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <ReviewsEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

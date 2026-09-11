@@ -25,7 +25,7 @@ function leerAtributos(v: string | undefined): object | null {
     return null;
   }
 }
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { imageUrl } from '../catalog/images';
 
 const photoStorage = supabaseStorage();
@@ -62,6 +62,7 @@ const categorySchema = z.object({
 });
 
 /** Gestión de catálogo (productos + categorías) — solo administradores. */
+@Modulo('catalogo')
 @Controller('admin/catalog')
 @UseGuards(AdminGuard)
 export class AdminCatalogController {

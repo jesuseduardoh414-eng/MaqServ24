@@ -5,7 +5,7 @@ import {
 import { prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
 import { VENDOR_STATE, type VendorState } from '@maqserv/types';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { imageUrl } from '../catalog/images';
 
 /**
@@ -34,6 +34,7 @@ const RANK: Record<number, number> = { 1: 0, 2: 1, 0: 2 };
 const toState = (raw: string | undefined): VendorState | null =>
   raw && Object.prototype.hasOwnProperty.call(WHERE, raw) ? (raw as VendorState) : null;
 
+@Modulo('marketplace')
 @Controller('admin/vendors')
 @UseGuards(AdminGuard)
 export class AdminVendorsController {

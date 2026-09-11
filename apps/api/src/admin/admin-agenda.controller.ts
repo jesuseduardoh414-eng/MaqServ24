@@ -1,6 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { PASOS, esEstado } from '../quotes/service-flow';
 import { choques, densidad, semanaDe, type Compromiso } from './agenda';
 
@@ -14,6 +14,7 @@ import { choques, densidad, semanaDe, type Compromiso } from './agenda';
  * Junta las dos cosas que ocupan una unidad y que hasta hoy vivían separadas:
  * los bloqueos de disponibilidad y los servicios comprometidos.
  */
+@Modulo('agenda')
 @Controller('admin/agenda')
 @UseGuards(AdminGuard)
 export class AdminAgendaController {

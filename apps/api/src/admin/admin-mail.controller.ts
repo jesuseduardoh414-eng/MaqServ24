@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { AdminGuard } from './admin-auth';
+import { AdminGuard, Modulo } from './admin-auth';
 import { MailerService } from '../notifications/mailer.service';
 import { RemindersService } from '../notifications/reminders.service';
 import { correoDePrueba } from '../notifications/email-templates';
@@ -14,6 +14,7 @@ import { correoDePrueba } from '../notifications/email-templates';
  * requisito: un correo que no sale y no avisa es peor que no tener correos,
  * porque la operación cree que informó y nadie informó.
  */
+@Modulo('configuracion')
 @Controller('admin/mail')
 @UseGuards(AdminGuard)
 export class AdminMailController {

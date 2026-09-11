@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { defaultTheme, themeTokensSchema } from '@maqserv/config';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
 import { ServicesEditor, type ServiceItem } from './ServicesEditor';
@@ -19,6 +19,7 @@ interface ThemeDetail { id: number; tokens: unknown }
 export default async function ServicesDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
 
   const [themes, items] = await Promise.all([
     adminFetch<ThemeRow[]>('/admin/themes'),
@@ -34,7 +35,7 @@ export default async function ServicesDesignPage() {
   const hidden = section ? !section.enabled : false;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <style>{`.sv-link:hover{ color:var(--color-primary); text-decoration: underline; }`}</style>
 

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { defaultTheme, themeTokensSchema } from '@maqserv/config';
-import { adminFetch, getAdmin } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { HeroEditor } from './HeroEditor';
 
@@ -20,6 +20,7 @@ interface ThemeDetail { id: number; copys: Record<string, Record<string, string>
 export default async function HeroDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
+  exigirModulo(admin, 'diseno');
 
   const [hero, themes] = await Promise.all([
     adminFetch<HeroDto>('/admin/cms/hero'),
@@ -32,7 +33,7 @@ export default async function HeroDesignPage() {
   const tokens = detail?.tokens ? themeTokensSchema.parse(detail.tokens) : defaultTheme.tokens;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
       <HeroEditor
         hero={hero}
         themeId={active?.id ?? null}
