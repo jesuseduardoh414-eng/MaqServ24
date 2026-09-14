@@ -20,3 +20,6 @@ uploads/
 
 # Respaldos del tema antes de aplicar un rebranding (artefacto local, no versionable)
 packages/db/respaldos-tema/
+
+# Paquetes listos para subir a cPanel (se regeneran con scripts/empaquetar-cpanel.cjs)
+dist-cpanel/

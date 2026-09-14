@@ -1,0 +1,73 @@
+# Compila las 3 apps EN LINUX y deja los paquetes listos para subir a cPanel.
+#
+# ¿Por qué existe si ya hay un script local? Por dos razones:
+#
+#   1. En Windows, `next build --standalone` sobre pnpm muere con EPERM: necesita
+#      crear symlinks y Windows no lo permite sin el Modo de desarrollador. Aquí
+#      no hay ese problema.
+#   2. El servidor de cPanel es Linux. Compilar en el mismo sistema operativo de
+#      destino evita sorpresas de rutas y de mayúsculas en nombres de archivo.
+#
+# CÓMO SE USA: pestaña Actions → "Empaquetar para cPanel" → Run workflow. Cuando
+# termine, baja los artefactos (web/admin/api .tar.gz) del resumen de la corrida.
+#
+# OJO CON LAS VARIABLES: Next incrusta en el build TODO lo que empiece por
+# `NEXT_PUBLIC_`, así que tienen que estar aquí (como variables del repo) y no
+# solo en cPanel. Las demás (API_URL, secretos…) se leen en tiempo de ejecución
+# y van en el panel de cPanel.
+#   GitHub → Settings → Secrets and variables → Actions → pestaña "Variables":
+#     NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, SITE_URL, API_URL
+
+name: Empaquetar para cPanel
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: 'Qué empaquetar (web admin api)'
+        default: 'web admin api'
+
+jobs:
+  empaquetar:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_STANDALONE: '1'
+      API_URL: ${{ vars.API_URL }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # El build no toca la base; Prisma solo necesita que la variable exista
+      # para generar el cliente.
+      DATABASE_URL: 'postgresql://build:build@localhost:5432/build'
+      DIRECT_URL: 'postgresql://build:build@localhost:5432/build'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Empaquetar
+        run: node scripts/empaquetar-cpanel.cjs ${{ inputs.apps }}
+
+      # tar (y no zip) porque conserva permisos y enlaces tal cual. cPanel sabe
+      # extraer .tar.gz desde el Administrador de archivos.
+      - name: Comprimir
+        run: |
+          cd dist-cpanel
+          for app in *; do
+            [ -d "$app" ] || continue
+            tar -czf "$app.tar.gz" -C "$app" .
+            echo "$app: $(du -h "$app.tar.gz" | cut -f1)"
+          done
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cpanel
+          path: dist-cpanel/*.tar.gz
+          retention-days: 7

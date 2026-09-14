@@ -3,7 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "env": ["API_URL", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SITE_URL", "REVALIDATE_SECRET"],
+      "env": ["BUILD_STANDALONE", "API_URL", "NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SITE_URL", "REVALIDATE_SECRET"],
       "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
     },
     "dev": {

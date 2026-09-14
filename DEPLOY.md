@@ -23,6 +23,9 @@
 >   bajo demanda responde 503 y una página puede quedarse servida desde caché
 >   durante horas aunque la BD ya tenga otra cosa (medido: `Age: 12027`).
 
+> **¿Vas a cPanel en vez de Vercel+Render?** Ese camino está en
+> [`DEPLOY-CPANEL.md`](DEPLOY-CPANEL.md). Este archivo describe el montaje actual.
+
 Arquitectura de despliegue:
 
 | App              | Qué es              | Dónde se despliega | Root Directory |
