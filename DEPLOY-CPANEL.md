@@ -213,8 +213,7 @@ Los tres viven en esta misma cuenta de cPanel.
    C:/xampp/mysql/bin/mysqldump.exe -u root --default-character-set=utf8mb4 --single-transaction --routines=false --triggers=false --no-tablespaces maqserv24 > maqserv24.sql
    ```
 
-   Pesa ~20 MB. Si phpMyAdmin se queja del tamaño, comprímelo (`maqserv24.sql.zip`);
-   también acepta zip.
+   Pesa menos de 1 MB: son 1145 filas en total. Entra por phpMyAdmin sin problema.
 5. cPanel → **phpMyAdmin** → selecciona la base nueva a la izquierda → pestaña
    **Import** → elige el archivo → *Import*. Tarda un minuto.
 6. Comprueba: en phpMyAdmin, la base debe tener **91 tablas** y `users` **75 filas**.
