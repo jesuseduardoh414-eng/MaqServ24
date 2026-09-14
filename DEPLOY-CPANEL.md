@@ -231,6 +231,12 @@ por app:
 El puerto lo inyecta Passenger en `PORT`; las tres apps ya lo leen. No configures
 puertos a mano.
 
+**Application mode = Production** ya pone `NODE_ENV=production` por su cuenta
+(lo dice el propio campo), así que no hace falta añadirla a mano en la fase 7.
+
+Node: elige **22.23.2** en las tres. El servidor ofrece 20.20.2, 22.23.2 y 24.20.0;
+las demás están por debajo del mínimo del repo (`engines: node >=20`).
+
 ---
 
 ## Fase 7 — Variables de entorno

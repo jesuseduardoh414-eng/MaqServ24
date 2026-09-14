@@ -47,7 +47,10 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # 22 = la misma que corre en cPanel (Node.js Selector). No es
+          # obligatorio que coincidan —los binarios nativos son N-API, estable
+          # entre versiones— pero quita una variable de la ecuación.
+          node-version: 22
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
