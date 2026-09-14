@@ -37,9 +37,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       # El build no toca la base; Prisma solo necesita que la variable exista
-      # para generar el cliente.
-      DATABASE_URL: 'postgresql://build:build@localhost:5432/build'
-      DIRECT_URL: 'postgresql://build:build@localhost:5432/build'
+      # para generar el cliente (y que sea mysql://, como el esquema).
+      DATABASE_URL: 'mysql://build:build@localhost:3306/build'
     steps:
       - uses: actions/checkout@v4
 

@@ -23,3 +23,6 @@ packages/db/respaldos-tema/
 
 # Paquetes listos para subir a cPanel (se regeneran con scripts/empaquetar-cpanel.cjs)
 dist-cpanel/
+
+# Archivos del bucket de Supabase bajados con migrate/44 (se suben a MEDIA_DIR en cPanel)
+media/

@@ -14,7 +14,7 @@ interface AdminRow {
   rol: RolAdmin;
   rolNombre: string;
   status: number;
-  /** Sin cuenta en Supabase no puede entrar, por más "Activo" que se vea. */
+  /** Sin contraseña guardada no puede entrar, por más "Activo" que se vea. */
   canLogin: boolean;
   isMe: boolean;
   createdAt: string | null;

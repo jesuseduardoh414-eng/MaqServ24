@@ -2,7 +2,7 @@
 
 /**
  * Error boundary del panel. La causa más común aquí es la API de Render
- * dormida o Supabase pausado — se dice claro, en vez de la pantalla genérica
+ * dormida o la base sin responder — se dice claro, en vez de la pantalla genérica
  * de Next o (peor) un rebote al login que parece problema de credenciales.
  */
 export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {

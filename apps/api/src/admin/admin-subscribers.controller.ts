@@ -26,8 +26,8 @@ export class AdminSubscribersController {
   async list(@Query('page') page?: string, @Query('search') search?: string) {
     const p = Math.max(1, Number(page ?? 1) || 1);
     const term = search?.trim();
-    // `mode: 'insensitive'`: en Postgres `contains` distingue mayúsculas.
-    const where = term ? { email: { contains: term, mode: 'insensitive' as const } } : {};
+    // Sin `mode`: en MySQL la colación utf8mb4_unicode_ci ya ignora mayúsculas y acentos (en Postgres hacía falta `mode: 'insensitive'`, que MySQL no admite).
+    const where = term ? { email: { contains: term } } : {};
 
     const [total, rows, all] = await Promise.all([
       prisma.subscribers.count({ where }),

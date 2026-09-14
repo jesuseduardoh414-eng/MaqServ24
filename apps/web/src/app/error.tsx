@@ -2,7 +2,7 @@
 
 /**
  * Error boundary global del sitio público. Sin este archivo, cualquier
- * excepción de un server component (API caída, Supabase pausado) mostraba la
+ * excepción de un server component (API caída, base de datos sin responder) mostraba la
  * pantalla genérica de Next en inglés, sin marca y sin botón de reintento.
  */
 export default function Error({ reset }: { error: Error & { digest?: string }; reset: () => void }) {

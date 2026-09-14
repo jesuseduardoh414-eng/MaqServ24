@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { verifySupabaseToken } from '../common/supabase-auth';
+import { verifyAccessToken } from '../common/app-auth';
 import { z } from 'zod';
 import { QuotesService } from './quotes.service';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
@@ -52,7 +52,7 @@ export class QuotesController {
     const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
     if (token) {
       try {
-        const claims = await verifySupabaseToken(token);
+        const claims = await verifyAccessToken(token);
         userId = claims.app_metadata?.app_user_id ?? null;
       } catch {
         userId = null; // token inválido → sigue como invitado

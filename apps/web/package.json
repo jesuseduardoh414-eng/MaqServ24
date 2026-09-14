@@ -12,7 +12,6 @@
     "@maqserv/config": "workspace:*",
     "@maqserv/types": "workspace:*",
     "@maqserv/ui": "workspace:*",
-    "@supabase/supabase-js": "^2.110.2",
     "next": "^15.3.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

@@ -1,3 +1,4 @@
+import { lista } from '../common/json-list';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { formatearCantidad, unidadPorDefectoDe } from '@maqserv/config';
@@ -323,7 +324,7 @@ export class ServiceService {
           direccion: obra?.address ?? datos.address,
           contactoObra: obra?.contact_name ?? null,
           telefonoObra: obra?.contact_phone ?? null,
-          requisitos: obra?.requirements ?? [],
+          requisitos: lista(obra?.requirements),
         });
         await this.mailer.enviar({
           kind: 'provider_assigned',

@@ -1,25 +1,18 @@
+import { mediaBaseUrl, sanitizeKey } from '../common/media';
+
 /**
- * Resolución de fotos: todo vive ahora en Supabase Storage (bucket público `media`).
- * - filename legacy (ej. "1772826218retoexcava.png") → media/<name>
- * - "uploads/xxx" (subidas nuevas)                    → media/uploads/xxx
- * - URL absoluta                                      → tal cual
- * La base es configurable con IMAGE_BASE_URL (packages/db/.env).
+ * Resolución de fotos. Los archivos viven en disco (MEDIA_DIR) y se sirven
+ * desde IMAGE_BASE_URL (en cPanel, https://media.maqserv24.com por Apache; en
+ * local, la propia API en /media/). Las rutas guardadas en la BD no cambiaron
+ * con la salida de Supabase Storage:
+ * - filename legacy (ej. "1772826218retoexcava.png") → <base>/<name>
+ * - "uploads/xxx" (subidas)                          → <base>/uploads/xxx
+ * - URL absoluta                                     → tal cual
  */
-const DEFAULT_STORAGE =
-  'https://kxewnuotuolwloccusqx.supabase.co/storage/v1/object/public/media';
-
-// DEBE coincidir con sanitizeKey del uploader y de common/supabase.ts
-const sanitizeKey = (k: string): string =>
-  k
-    .split('/')
-    .map((seg) => seg.replace(/[^A-Za-z0-9_.\-!*'() &$@=;:+,?]/g, '_'))
-    .join('/');
-
 export function imageUrl(photo: string | null | undefined): string | null {
   if (!photo) return null;
   if (photo.startsWith('http')) return photo;
-  const base = process.env.IMAGE_BASE_URL ?? DEFAULT_STORAGE;
-  return `${base}/${sanitizeKey(photo)}`;
+  return `${mediaBaseUrl()}/${sanitizeKey(photo)}`;
 }
 
 /**

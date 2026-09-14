@@ -5,7 +5,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { supabaseStorage } from '../common/supabase-multer';
+import { mediaStorage } from '../common/media-multer';
 import { imageUrl } from '../catalog/images';
 import {
   estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, DOC_LABEL, TIPOS_DOC, type TipoDoc,
@@ -62,7 +62,7 @@ const documentoSchema = z.object({
 });
 
 /** Foto del papel: en campo se le toma foto a la póliza, no se escanea. */
-const docStorage = supabaseStorage();
+const docStorage = mediaStorage();
 
 /** `'2027-03-01'` → Date; vacío → null (un input date sin llenar manda ''). */
 const fecha = (v: string | null | undefined): Date | null =>

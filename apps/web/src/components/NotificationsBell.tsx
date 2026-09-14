@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { fetchRealtimeToken, supabaseBrowser } from '@/lib/supabase-browser';
 
 const MONO = 'var(--font-sans)';
 
@@ -41,9 +40,8 @@ function timeAgo(iso: string | null): string {
 }
 
 /**
- * Campana de avisos del cliente. Se actualiza EN VIVO por Supabase Realtime:
- * la tabla `notifications` ya tenía RLS por usuario (`notif_own_select`) y está
- * en la publicación, así que solo llegan los INSERT del dueño.
+ * Campana de avisos del cliente. Consulta `/notifications` (solo los del usuario
+ * de la sesión: la API filtra por el JWT) y se refresca sola cada 30 s.
  */
 export function NotificationsBell({ userId }: { userId: number }) {
   const [items, setItems] = useState<Notification[]>([]);
@@ -65,25 +63,16 @@ export function NotificationsBell({ userId }: { userId: number }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Suscripción en vivo a los avisos propios.
+  // Se refresca sola: cada 30 s mientras la pestaña esté visible, y al volver a
+  // ella. (Antes era Supabase Realtime; sin él, sondear es suficiente para una
+  // campana de avisos: un aviso que llega medio minuto tarde sigue siendo un aviso.)
   useEffect(() => {
-    let active = true;
-    const sb = supabaseBrowser();
-    let channel: ReturnType<typeof sb.channel> | null = null;
-    (async () => {
-      const token = await fetchRealtimeToken();
-      if (!token || !active) return;
-      sb.realtime.setAuth(token);
-      channel = sb
-        .channel(`notif-${userId}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` },
-          () => { if (active) load(); },
-        )
-        .subscribe();
-    })();
-    return () => { active = false; if (channel) sb.removeChannel(channel); };
+    const cadaTanto = window.setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, 30_000);
+    const alVolver = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { window.clearInterval(cadaTanto); document.removeEventListener('visibilitychange', alVolver); };
   }, [userId, load]);
 
   useEffect(() => {

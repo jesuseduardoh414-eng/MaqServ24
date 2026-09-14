@@ -25,10 +25,13 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@maqserv/ui'],
   images: {
     remotePatterns: [
-      // Assets migrados a Supabase Storage (bucket público `media`).
+      // Legacy: fotos que aún apunten al bucket de Supabase (hasta que se re-suban a disco).
       { protocol: 'https', hostname: 'kxewnuotuolwloccusqx.supabase.co', pathname: '/storage/v1/object/public/media/**' },
       { protocol: 'https', hostname: 'scava.website' },
-      { protocol: 'http', hostname: 'localhost', port: '4000' },
+      // Archivos en disco: en cPanel los sirve Apache desde media.*; en local, la API en /media/.
+      { protocol: 'https', hostname: 'media.maqserv24.com' },
+      { protocol: 'https', hostname: 'api.maqserv24.com', pathname: '/media/**' },
+      { protocol: 'http', hostname: 'localhost', port: '4000', pathname: '/media/**' },
     ],
   },
 };

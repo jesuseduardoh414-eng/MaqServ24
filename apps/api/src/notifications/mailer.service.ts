@@ -42,6 +42,7 @@ export type TipoCorreo =
   | 'provider_assigned'   // al aliado: quedó tuya
   | 'provider_access'     // al aliado: tu enlace para entrar
   | 'availability_reminder' // al aliado: confirma que sigue libre
+  | 'password_reset'      // al cliente: enlace para restablecer su contraseña
   | 'prueba';
 
 export interface CorreoParaEnviar {

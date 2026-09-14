@@ -1,3 +1,4 @@
+import { lista } from '../common/json-list';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { estadoDocumentos, estaVerificado, mesesEnRed } from '../catalog/provider-trust';
@@ -47,7 +48,7 @@ export class MatchingService {
      * solicitud: es una condicion del lugar, no de este pedido, y por eso se
      * hereda a todo lo que salga de ahi.
      */
-    const exigeLaObra = q.client_sites?.requirements ?? [];
+    const exigeLaObra = lista(q.client_sites?.requirements ?? []);
 
     /**
      * Donde esta la obra, si ya se geocodifico. Con esto la cobertura pasa de
@@ -73,7 +74,7 @@ export class MatchingService {
       include: { provider_documents: { select: { kind: true, expires_at: true } } },
     });
     const enCategoria = categoria
-      ? aliados.filter((a) => a.categories.includes(categoria))
+      ? aliados.filter((a) => lista(a.categories).includes(categoria))
       : aliados;
 
     const idsAliados = enCategoria.map((a) => a.id);
@@ -170,11 +171,11 @@ export class MatchingService {
         slug: a.slug,
         level: a.level,
         verified: estaVerificado(a.level, docs),
-        coverage: a.coverage,
+        coverage: lista(a.coverage),
         lat: a.lat != null ? Number(a.lat) : null,
         lng: a.lng != null ? Number(a.lng) : null,
         coverageRadiusKm: a.coverage_radius_km,
-        categories: a.categories,
+        categories: lista(a.categories),
         responseMinutes: a.response_minutes,
         // El medido le gana al declarado: uno es lo que prometió, el otro lo
         // que cumple.

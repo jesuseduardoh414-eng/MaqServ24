@@ -17,9 +17,9 @@ dominio que está en **GoDaddy**.
 | `admin` | Panel (Next.js) | `admin.maqserv24.com` | `server.js` | `~/nodeapps/admin` |
 | `api` | API (NestJS) | `api.maqserv24.com` | `dist/main.js` | `~/nodeapps/api` |
 
-La base de datos y los archivos **siguen en Supabase**. cPanel no hospeda datos
-aquí: su MySQL no se usa. Por eso las tres apps son *stateless* y se pueden
-borrar y volver a subir sin perder nada.
+La base de datos es el **MySQL de esta misma cuenta** y los archivos subidos van
+en `/home/maqserv24/media` (ver fase 4½). Las tres apps siguen siendo *stateless*:
+se pueden borrar y volver a subir sin perder nada, porque nada vive dentro de ellas.
 
 ---
 
@@ -86,6 +86,7 @@ En cPanel → **Domains** → **Create A Domain**, dos veces:
 |---|---|
 | `admin.maqserv24.com` | `/home/maqserv24/admin.maqserv24.com` |
 | `api.maqserv24.com` | `/home/maqserv24/api.maqserv24.com` |
+| `media.maqserv24.com` | `/home/maqserv24/media` — fotos y archivos, los sirve Apache (fase 4½) |
 
 **Desmarca "Share document root"** para que cada uno tenga la suya. El
 dominio principal ya existe con raíz `/home/maqserv24/public_html`.
@@ -111,6 +112,7 @@ las apps **una por una** y dejar la tienda actual funcionando hasta el final.
    |---|---|---|---|
    | A | `api` | `IP-DEL-SERVIDOR` | 600 |
    | A | `admin` | `IP-DEL-SERVIDOR` | 600 |
+   | A | `media` | `IP-DEL-SERVIDOR` | 600 |
    | A | `@` | `IP-DEL-SERVIDOR` | 600 |
    | A | `www` | `IP-DEL-SERVIDOR` | 600 |
 
@@ -149,11 +151,9 @@ Compila en Linux, que es lo mismo que corre el servidor. **Evita de un golpe los
 dos problemas que tiene compilar en Windows** (symlinks y el binario de `sharp`).
 
 1. GitHub → **Settings** → *Secrets and variables* → **Actions** → pestaña
-   **Variables**. Agrega, porque Next **incrusta en el build** todo lo que empieza
-   por `NEXT_PUBLIC_` (ponerlas solo en cPanel no sirve):
+   **Variables**. Agrega estas dos (Next las incrusta en el build; ponerlas solo
+   en cPanel no sirve para ellas):
 
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SITE_URL` → `https://maqserv24.com`
    - `API_URL` → `https://api.maqserv24.com`
 
@@ -189,6 +189,64 @@ resuelve cuatro cosas que, sin él, rompen el despliegue en silencio:
    copiarlos el sitio carga sin CSS ni imágenes.
 4. **`sharp` de Linux** → compilando en Windows solo se instala el binario de
    Windows, y `next/image` fallaría en el servidor. Lo descarga.
+
+---
+
+## Fase 4½ — Base de datos y carpeta de archivos en cPanel
+
+Desde 2026-09-14 la plataforma **ya no usa Supabase para nada**: la base es
+MySQL, la autenticación la firma la propia API y los archivos viven en disco.
+Los tres viven en esta misma cuenta de cPanel.
+
+### La base de datos
+
+1. cPanel → **MySQL Databases** → *Create New Database*: `maqserv24_db`
+   (cPanel antepone el usuario; queda `maqserv24_maqserv24_db` o similar — apunta
+   el nombre EXACTO que te muestre).
+2. Más abajo, *MySQL Users* → *Add New User*: `maqserv24_app` + contraseña
+   generada. **Guárdala**: va en `DATABASE_URL`.
+3. *Add User To Database* → usuario `maqserv24_app` a la base → **ALL PRIVILEGES**.
+4. Genera el volcado desde tu MariaDB local (ya migrada y verificada con
+   `migrate/41`–`43`):
+
+   ```bash
+   C:/xampp/mysql/bin/mysqldump.exe -u root --default-character-set=utf8mb4 --single-transaction --routines=false --triggers=false --no-tablespaces maqserv24 > maqserv24.sql
+   ```
+
+   Pesa ~20 MB. Si phpMyAdmin se queja del tamaño, comprímelo (`maqserv24.sql.zip`);
+   también acepta zip.
+5. cPanel → **phpMyAdmin** → selecciona la base nueva a la izquierda → pestaña
+   **Import** → elige el archivo → *Import*. Tarda un minuto.
+6. Comprueba: en phpMyAdmin, la base debe tener **91 tablas** y `users` **75 filas**.
+
+> Si prefieres no pasar por phpMyAdmin: cPanel → **Remote MySQL** → agrega tu IP
+> pública, y corre `migrate/41`–`43` con `MYSQL_URL` apuntando al servidor. Es lo
+> mismo, sin archivo de por medio.
+
+### La carpeta de archivos (fotos, evidencias, documentos)
+
+Van en `/home/maqserv24/media`, **fuera** de las apps: cada despliegue borra
+`nodeapps/api` y las fotos no deben irse con él. Apache la sirve directo, sin
+pasar por Node.
+
+1. cPanel → **Domains** → **Create A Domain**: `media.maqserv24.com`, *Share document
+   root* desmarcado, raíz `/home/maqserv24/media`.
+2. GoDaddy → registro **A** `media` → la IP del servidor (igual que `api` y `admin`).
+3. Sube el contenido de la carpeta `media/` de tu PC (la deja `migrate/44-descargar-media.mjs`:
+   233 archivos, 343 MB) a `/home/maqserv24/media` por FTP (FileZilla) o por
+   File Manager con un zip y *Extract*. Deben quedar `uploads/`, `gallery/`,
+   `sectores/` y los archivos sueltos **directamente** dentro de `media/`.
+4. Crea un `.htaccess` en `/home/maqserv24/media` para que no liste carpetas y
+   cachee las imágenes:
+
+   ```apache
+   Options -Indexes
+   <IfModule mod_headers.c>
+     Header set Cache-Control "public, max-age=604800"
+   </IfModule>
+   ```
+
+5. Prueba: `https://media.maqserv24.com/uploads/<un archivo que exista>` debe abrir.
 
 ---
 
@@ -248,13 +306,10 @@ reales están en tu `packages/db/.env` y en los `.env.example` de cada app.
 
 | Variable | Valor |
 |---|---|
-| `NODE_ENV` | `production` |
-| `DATABASE_URL` | pooler **:5432** (modo sesión — ver `apps/api/.env.example`, vale 4x en velocidad) |
-| `DIRECT_URL` | pooler :5432 sin parámetros |
-| `SUPABASE_URL` | `https://<ref>.supabase.co` |
-| `SUPABASE_ANON_KEY` | anon key |
-| `SUPABASE_SERVICE_KEY` | service_role (**secreto**) |
-| `IMAGE_BASE_URL` | `https://<ref>.supabase.co/storage/v1/object/public/media` |
+| `DATABASE_URL` | `mysql://maqserv24_app:CONTRASEÑA@localhost:3306/maqserv24_db?connection_limit=10` — con los nombres EXACTOS que te dio cPanel |
+| `AUTH_SECRET` | cadena aleatoria de **32+ caracteres**. Firma las sesiones; cambiarla cierra todas |
+| `MEDIA_DIR` | `/home/maqserv24/media` |
+| `IMAGE_BASE_URL` | `https://media.maqserv24.com` |
 | `SITE_URL` | `https://maqserv24.com` |
 | `API_PUBLIC_URL` | `https://api.maqserv24.com` |
 | `CORS_ORIGINS` | `https://maqserv24.com,https://admin.maqserv24.com` |
@@ -263,6 +318,8 @@ reales están en tu `packages/db/.env` y en los `.env.example` de cada app.
 | `PROXY_SECRET` | cadena aleatoria larga (**misma que en `web` y `admin`**) |
 | `PROVIDER_LINK_SECRET` | cadena aleatoria larga |
 | `TASKS_SECRET` | cadena aleatoria, **mínimo 16 caracteres** |
+
+Ya no existen `SUPABASE_*` ni `DIRECT_URL`: si las ves en Render, no las copies.
 
 **`web`**: `NODE_ENV=production`, `API_URL=https://api.maqserv24.com`,
 `SITE_URL=https://maqserv24.com`, `REVALIDATE_SECRET`, `PROXY_SECRET`.
@@ -406,7 +463,8 @@ Y a mano, que es donde salen los fallos de verdad:
   `.next/static`; si fallan solo las imágenes, es `sharp`).
 - Un producto abre y se agrega al carrito.
 - Entras al panel con tu cuenta.
-- Una imagen del catálogo carga (eso prueba Supabase Storage).
+- Una imagen del catálogo carga (eso prueba `media.maqserv24.com` e `IMAGE_BASE_URL`).
+- Entras con una cuenta de cliente que YA existía: las contraseñas se conservaron.
 
 Si una app no levanta: cPanel → Setup Node.js App → el log de errores de esa
 aplicación. Casi siempre es una variable de entorno que falta.

@@ -58,9 +58,9 @@ export class AdminClientsController {
       where: term
         ? {
             OR: [
-              { name: { contains: term, mode: 'insensitive' } },
-              { email: { contains: term, mode: 'insensitive' } },
-              { rfc: { contains: term, mode: 'insensitive' } },
+              { name: { contains: term } },
+              { email: { contains: term } },
+              { rfc: { contains: term } },
             ],
           }
         : undefined,

@@ -340,3 +340,17 @@ export function correoDePrueba(destino: string): { subject: string; html: string
     ),
   };
 }
+
+/** "Olvidé mi contraseña": el enlace de un solo uso. */
+export function correoRestablecerContrasena(d: { nombre: string; url: string; minutos: number }): { subject: string; html: string } {
+  return {
+    subject: 'Restablece tu contraseña · MAQSER24',
+    html: marco(
+      `${titulo(`Hola, ${esc(d.nombre)}`)}
+      <p style="margin:0;">Recibimos una solicitud para restablecer la contraseña de tu cuenta. Si fuiste tú, entra aquí y elige una nueva:</p>
+      ${boton('Elegir nueva contraseña', d.url)}
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">El enlace sirve una sola vez y caduca en ${d.minutos} minutos. Si no pediste esto, ignora este correo: tu contraseña sigue igual.</p>`,
+      'Si el botón no abre, copia esta dirección en tu navegador: ' + esc(d.url),
+    ),
+  };
+}

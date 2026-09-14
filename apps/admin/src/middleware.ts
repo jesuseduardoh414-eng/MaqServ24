@@ -33,10 +33,10 @@ function jwtExp(token: string): number | null {
 }
 
 /**
- * Renovación transparente del token admin de Supabase. La cookie dura 7 días pero
+ * Renovación transparente del token admin (JWT propio de la API). La cookie dura 7 días pero
  * el JWT expira en minutos; sin esto el panel "cierra la sesión sola". Corre antes
  * de los Server Components (getAdmin/adminFetch) para que lean el token fresco.
- * Reutiliza /auth/refresh: al renovar, Supabase preserva role=admin y app_admin_id.
+ * Reutiliza /auth/refresh: el refresh token sabe que es de admin y la API preserva role=admin y app_admin_id.
  */
 export async function middleware(req: NextRequest) {
   // El logout borra las cookies en su propio handler; no renovar aquí.

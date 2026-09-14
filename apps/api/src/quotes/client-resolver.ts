@@ -93,11 +93,11 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
     // Buscar el cliente. Por empresa cuando la hay; si no, por correo.
     let cliente = claveEmpresa
       ? await prisma.clients.findFirst({
-          where: { name: { equals: empresa, mode: 'insensitive' } },
+          where: { name: { equals: empresa } },
           select: { id: true, user_id: true },
         })
       : await prisma.clients.findFirst({
-          where: { email: { equals: correo, mode: 'insensitive' } },
+          where: { email: { equals: correo } },
           select: { id: true, user_id: true },
         });
 
@@ -110,7 +110,7 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
     if (!cliente && claveEmpresa) {
       const primeras = empresa.split(/\s+/).slice(0, 2).join(' ');
       const cercanos = await prisma.clients.findMany({
-        where: { name: { startsWith: primeras, mode: 'insensitive' } },
+        where: { name: { startsWith: primeras } },
         select: { id: true, name: true, user_id: true },
         take: 25,
       });

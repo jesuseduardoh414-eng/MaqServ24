@@ -49,15 +49,15 @@ export class AdminCustomersController {
         : seg === 'vendedores' ? { ...VENDORS_WHERE }
           : {};
 
-    // `mode: 'insensitive'` OBLIGATORIO: en Postgres `contains` distingue mayúsculas.
+    // Sin `mode`: la colación utf8mb4_unicode_ci de MySQL ya ignora mayúsculas y acentos (Postgres necesitaba `mode: 'insensitive'`, que MySQL no admite).
     // Sin esto, buscar "prueba" no encontraba a "Cliente Prueba" y "PRUEBA" no
     // encontraba nada — el buscador mentía en silencio.
     const term = search?.trim();
     if (term) {
       where.OR = [
-        { name: { contains: term, mode: 'insensitive' } },
-        { email: { contains: term, mode: 'insensitive' } },
-        { phone: { contains: term, mode: 'insensitive' } },
+        { name: { contains: term } },
+        { email: { contains: term } },
+        { phone: { contains: term } },
       ];
     }
 

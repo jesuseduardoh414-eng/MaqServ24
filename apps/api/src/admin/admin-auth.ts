@@ -7,12 +7,12 @@ import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { rolDeAdmin, puedeVer, modulosDe, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
-import { passwordGrant, verifySupabaseToken } from '../common/supabase-auth';
+import { passwordGrant, verifyAccessToken } from '../common/app-auth';
 
 /**
- * Auth de ADMINISTRADORES vía Supabase Auth. Los admins se importaron a auth.users
- * con app_metadata.role='admin' y app_metadata.app_admin_id. Un token de cliente
- * (role='customer') jamás pasa el AdminGuard.
+ * Auth de ADMINISTRADORES con JWT propio (ver common/app-auth.ts). El token
+ * lleva app_metadata.role='admin' y app_metadata.app_admin_id; un token de
+ * cliente (role='customer') jamás pasa el AdminGuard.
  */
 
 export interface AdminRequest {
@@ -98,7 +98,7 @@ export class AdminGuard implements CanActivate {
     if (!token) throw new UnauthorizedException('Falta el token');
     let id: number;
     try {
-      const claims = await verifySupabaseToken(token);
+      const claims = await verifyAccessToken(token);
       if (claims.app_metadata?.role !== 'admin') throw new Error('no admin');
       const claimed = claims.app_metadata?.app_admin_id;
       if (typeof claimed !== 'number') throw new Error('sin app_admin_id');
@@ -155,12 +155,11 @@ export class AdminAuthController {
   async login(@Body() body: unknown) {
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
-    const session = await passwordGrant(parsed.data.email, parsed.data.password);
-    if (!session.access_token) throw new UnauthorizedException('Correo o contraseña incorrectos');
-    if (session.user?.app_metadata?.role !== 'admin') {
-      throw new UnauthorizedException('Esta cuenta no es de administrador');
-    }
-    const a = await prisma.admins.findFirst({ where: { email: parsed.data.email, status: 1 } });
+    // `passwordGrant('admin', …)` solo mira `admins`: un cliente con el mismo
+    // correo nunca entra aquí, y una cuenta desactivada tampoco (status != 1).
+    const session = await passwordGrant('admin', parsed.data.email, parsed.data.password);
+    if (!session) throw new UnauthorizedException('Correo o contraseña incorrectos');
+    const a = await prisma.admins.findFirst({ where: { id: session.id, status: 1 } });
     if (!a) throw new UnauthorizedException('Correo o contraseña incorrectos');
     return {
       token: session.access_token,

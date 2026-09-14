@@ -35,9 +35,9 @@ export class AdminAnalyticsController {
     const filtroZona = zona?.trim()
       ? {
           OR: [
-            { client_sites: { municipality: { contains: zona.trim(), mode: 'insensitive' as const } } },
-            { address: { contains: zona.trim(), mode: 'insensitive' as const } },
-            { region: { contains: zona.trim(), mode: 'insensitive' as const } },
+            { client_sites: { municipality: { contains: zona.trim() } } },
+            { address: { contains: zona.trim() } },
+            { region: { contains: zona.trim() } },
           ],
         }
       : {};

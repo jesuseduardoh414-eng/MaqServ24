@@ -3,6 +3,7 @@ import { Prisma, prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
+import { lista } from '../common/json-list';
 import { estadoDocumentos, estaVerificado, mesesEnRed } from './provider-trust';
 import { disponibilidadDe } from './availability';
 
@@ -13,10 +14,8 @@ import { disponibilidadDe } from './availability';
  * `translate` es nativa de Postgres, así que no hace falta instalar unaccent/pg_trgm.
  * Ambas cadenas DEBEN tener el mismo número de caracteres.
  */
-const NORM_FROM = 'áàäâãéèëêíìïîóòöôõúùüûñçb';
-const NORM_TO = 'aaaaaeeeeiiiiooooouuuuncv';
 
-/** Mismo criterio que NORM_FROM/NORM_TO, pero en JS para el término que teclea el cliente. */
+/** Normaliza el término que teclea el cliente: minúsculas, sin acentos, b→v (igual que el SQL de searchIds). */
 function normalizeTerm(s: string): string {
   return s
     .toLowerCase()
@@ -118,7 +117,7 @@ export class ProductsService {
             level: p.level as ProviderBadge['level'],
             verified: estaVerificado(p.level, docs),
             docsStatus: docs,
-            coverage: p.coverage,
+            coverage: lista(p.coverage),
             responseMinutes: p.response_minutes,
             monthsInNetwork: mesesEnRed(p.joined_at),
           },
@@ -169,8 +168,11 @@ export class ProductsService {
   private async searchIds(term: string): Promise<number[]> {
     const tokens = term.trim().split(/\s+/).map(normalizeTerm).filter((t) => t.length > 0).slice(0, 6);
     if (tokens.length === 0) return [];
+    // MySQL no tiene translate(). La colación utf8mb4_unicode_ci ya iguala
+    // mayúsculas y acentos (á=a, ñ=n) en el LIKE; lo único que hay que igualar a
+    // mano es b/v, que normalizeTerm() también colapsa a "v" en el término.
     const conds = tokens.map(
-      (tk) => Prisma.sql`translate(lower(name), ${NORM_FROM}, ${NORM_TO}) LIKE ${`%${tk}%`}`,
+      (tk) => Prisma.sql`REPLACE(LOWER(name), 'b', 'v') LIKE ${`%${tk}%`}`,
     );
     const rows = await prisma.$queryRaw<Array<{ id: number }>>(
       Prisma.sql`SELECT id FROM products WHERE status = 1 AND ${Prisma.join(conds, ' AND ')} LIMIT 500`,

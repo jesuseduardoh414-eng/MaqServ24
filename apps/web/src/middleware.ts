@@ -20,7 +20,7 @@ function jwtExp(token: string): number | null {
 }
 
 /**
- * Renovación transparente del access token de Supabase. Sin esto la cookie dura
+ * Renovación transparente del access token (JWT propio de la API). Sin esto la cookie dura
  * 7 días pero el JWT de adentro expira en minutos y la sesión "se cierra sola".
  * Corre ANTES de los Server Components y route handlers, así todos leen el token
  * fresco en la misma petición.

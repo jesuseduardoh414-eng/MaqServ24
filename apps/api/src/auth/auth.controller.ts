@@ -60,6 +60,16 @@ export class AuthController {
     return this.auth.forgotPassword(parsed.data.email, parsed.data.redirectTo);
   }
 
+  // Segundo paso de "olvidé mi contraseña": el token viene del enlace del correo.
+  // Mismo límite que el login: es una puerta de entrada y el token se puede probar a ciegas.
+  @Throttle(AUTH_LIMIT)
+  @Post('reset-password')
+  resetPassword(@Body() body: unknown) {
+    const parsed = z.object({ token: z.string().min(32).max(200), password: z.string().min(8).max(100) }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('La contraseña debe tener al menos 8 caracteres');
+    return this.auth.resetPassword(parsed.data.token, parsed.data.password);
+  }
+
   @Post('refresh')
   refresh(@Body() body: unknown) {
     const token = (body as { refresh_token?: string })?.refresh_token;

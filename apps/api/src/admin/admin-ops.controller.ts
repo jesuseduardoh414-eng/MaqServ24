@@ -124,15 +124,15 @@ export class AdminOpsController {
     const p = Math.max(1, Number(page ?? 1) || 1);
     const where: Record<string, unknown> = {};
     if (state) where.fulfillment = state;
-    // `mode: 'insensitive'` obligatorio: en Postgres `contains` distingue mayúsculas.
+    // Sin `mode`: la colación utf8mb4_unicode_ci de MySQL ya ignora mayúsculas y acentos (Postgres necesitaba `mode: 'insensitive'`, que MySQL no admite).
     const term = search?.trim();
     if (term) {
       where.OR = [
-        { order_number: { contains: term, mode: 'insensitive' } },
-        { customer_name: { contains: term, mode: 'insensitive' } },
-        { customer_email: { contains: term, mode: 'insensitive' } },
+        { order_number: { contains: term } },
+        { customer_name: { contains: term } },
+        { customer_email: { contains: term } },
         // El folio de la paquetería: el cliente llama citando la guía, no el pedido.
-        { tracking: { contains: term, mode: 'insensitive' } },
+        { tracking: { contains: term } },
       ];
     }
     const [total, rows, byState] = await Promise.all([

@@ -3,7 +3,7 @@
  * next/headers) para poder importarse desde el middleware, que corre en Edge.
  */
 export const SESSION_COOKIE = 'servmaq_session';
-/** Refresh token de Supabase; el middleware lo usa para renovar el access token. */
+/** Refresh token (30 días, firmado por la API); el middleware lo usa para renovar el access token. */
 export const REFRESH_COOKIE = 'servmaq_refresh';
 /**
  * Enlace firmado del aliado. NO es una sesion: el aliado no tiene cuenta, su

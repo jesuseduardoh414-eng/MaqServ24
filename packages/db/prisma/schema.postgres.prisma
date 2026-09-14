@@ -10,62 +10,63 @@ generator client {
 }
 
 datasource db {
-  provider  = "mysql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model about_sections {
   id         BigInt    @id @default(autoincrement())
-  type       String @db.Text
-  title      String? @db.Text
-  content    String @db.Text
-  image      String? @db.Text
+  type       String
+  title      String?
+  content    String
+  image      String?
   order      Int       @default(0)
-  created_at DateTime? @db.DateTime(0)
-  updated_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }
 
 model admin_user_conversations {
   id         Int       @id @default(autoincrement())
-  subject    String @db.Text
+  subject    String
   user_id    Int
-  message    String @db.Text
-  created_at DateTime? @db.DateTime(0)
-  updated_at DateTime? @db.DateTime(0)
+  message    String
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }
 
 model admin_user_messages {
   id              Int       @id @default(autoincrement())
   conversation_id Int
-  message         String @db.Text
+  message         String
   user_id         Int?
-  created_at      DateTime? @db.DateTime(0)
-  updated_at      DateTime? @db.DateTime(0)
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
 }
 
 model admins {
   id             Int       @id @default(autoincrement())
-  name           String @db.Text
-  email          String    @unique(map: "admins_email_unique") @db.VarChar(191)
-  phone          String @db.Text
-  role           String    @default("Administrator") @db.Text
-  photo          String? @db.Text
-  password       String @db.Text
+  name           String
+  email          String    @unique(map: "admins_email_unique")
+  phone          String
+  role           String    @default("Administrator")
+  photo          String?
+  password       String
   status         Int       @default(1) @db.SmallInt
   remember_token String?   @db.VarChar(100)
-  created_at     DateTime? @db.DateTime(0)
-  updated_at     DateTime? @db.DateTime(0)
-  auth_id        String?   @unique @db.Char(36)
+  created_at     DateTime? @db.Timestamp(0)
+  updated_at     DateTime? @db.Timestamp(0)
+  auth_id        String?   @unique @db.Uuid
 }
 
 model advertises {
   id     Int     @id @default(autoincrement())
-  type   String @db.Text
-  photo  String? @db.Text
-  alt    String? @db.Text
-  url    String? @db.Text
-  script String? @db.Text
-  size   String @db.Text
+  type   String
+  photo  String?
+  alt    String?
+  url    String?
+  script String?
+  size   String
   clicks Int     @default(0)
   status Int     @default(0) @db.SmallInt
 }
@@ -80,49 +81,49 @@ model baners_derechos {
 
 model banners {
   id       Int     @id @default(autoincrement())
-  top1     String? @db.Text
-  top2     String? @db.Text
-  top3     String? @db.Text
-  top4     String? @db.Text
-  bottom1  String? @db.Text
-  bottom2  String? @db.Text
-  top1l    String? @db.Text
-  top2l    String? @db.Text
-  top3l    String? @db.Text
-  top4l    String? @db.Text
-  bottom1l String? @db.Text
-  bottom2l String? @db.Text
+  top1     String?
+  top2     String?
+  top3     String?
+  top4     String?
+  bottom1  String?
+  bottom2  String?
+  top1l    String?
+  top2l    String?
+  top3l    String?
+  top4l    String?
+  bottom1l String?
+  bottom2l String?
   top5     String? @db.VarChar(250)
   top5l    String? @db.VarChar(250)
 }
 
 model benefits {
   id          BigInt    @id @default(autoincrement())
-  title       String @db.Text
-  description String? @db.Text
-  created_at  DateTime? @db.DateTime(0)
-  updated_at  DateTime? @db.DateTime(0)
+  title       String
+  description String?
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
 }
 
 model blogs {
   id               Int       @id @default(autoincrement())
-  title            String @db.Text
-  details          String @db.Text
-  photo            String? @db.Text
-  source           String @db.Text
+  title            String
+  details          String
+  photo            String?
+  source           String
   views            Int       @default(0)
   status           Int       @default(1) @db.SmallInt
-  created_at       DateTime? @db.DateTime(0)
-  updated_at       DateTime? @db.DateTime(0)
-  meta_tag         String? @db.Text
-  meta_description String? @db.Text
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
+  meta_tag         String?
+  meta_description String?
   category         String?   @default("General") @db.VarChar(50)
 }
 
 model brands {
   id    Int     @id @default(autoincrement())
-  photo String @db.Text
-  url   String? @db.Text
+  photo String
+  url   String?
 }
 
 model categorias_populares {
@@ -148,9 +149,9 @@ model categorias_populares {
 model categories {
   id       Int     @id @default(autoincrement())
   cat_name String  @db.VarChar(100)
-  cat_slug String  @unique(map: "bloodgroups_slug_unique") @db.VarChar(191)
+  cat_slug String  @unique(map: "bloodgroups_slug_unique")
   status   Int     @default(1) @db.SmallInt
-  photo    String? @db.Text
+  photo    String?
 
   @@index([id], map: "id")
 }
@@ -158,8 +159,8 @@ model categories {
 model childcategories {
   id             Int    @id @default(autoincrement())
   subcategory_id Int
-  child_name     String @db.Text
-  child_slug     String @db.Text
+  child_name     String
+  child_slug     String
   status         Int    @default(1) @db.SmallInt
 }
 
@@ -167,9 +168,9 @@ model comments {
   id         Int      @id @default(autoincrement())
   user_id    Int
   product_id Int
-  text       String @db.Text
-  created_at DateTime @default(now()) @db.DateTime(0)
-  updated_at DateTime @default(now()) @db.DateTime(0)
+  text       String
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @default(now()) @db.Timestamp(0)
   rating     Int?     @default(5)
   order_id   Int?
   status     Int      @default(1)
@@ -182,12 +183,12 @@ model comments {
 
 model conversations {
   id            Int       @id @default(autoincrement())
-  subject       String @db.Text
+  subject       String
   sent_user     Int
   recieved_user Int
-  message       String @db.Text
-  created_at    DateTime? @db.DateTime(0)
-  updated_at    DateTime? @db.DateTime(0)
+  message       String
+  created_at    DateTime? @db.Timestamp(0)
+  updated_at    DateTime? @db.Timestamp(0)
 }
 
 model counters {
@@ -201,10 +202,10 @@ model counters {
 
 model coupons {
   id         Int      @id @default(autoincrement())
-  code       String @db.Text
+  code       String
   type       Int      @db.SmallInt
   price      Float
-  times      String? @db.Text
+  times      String?
   used       Int      @default(0)
   status     Int      @default(1) @db.SmallInt
   start_date DateTime @db.Date
@@ -230,22 +231,22 @@ model direcciones {
 model distribusions {
   id     Int     @id @default(autoincrement())
   Nombre String? @db.VarChar(250)
-  photo  String @db.Text
-  url    String? @db.Text
+  photo  String
+  url    String?
 }
 
 model email_templates {
   id            Int     @id @default(autoincrement())
   email_type    String? @db.VarChar(255)
-  email_subject String? @db.Text
-  email_body    String? @db.Text
+  email_subject String?
+  email_body    String?
   status        Int     @default(1)
 }
 
 model faqs {
   id     Int    @id @default(autoincrement())
-  title  String @db.Text
-  text   String @db.Text
+  title  String
+  text   String
   status Int    @default(1)
 }
 
@@ -254,12 +255,12 @@ model product_questions {
   id          Int       @id @default(autoincrement())
   product_id  Int
   user_id     Int
-  question    String @db.Text
-  answer      String? @db.Text
+  question    String
+  answer      String?
   status      Int       @default(1)
-  created_at  DateTime  @default(now()) @db.DateTime(0)
-  answered_at DateTime? @db.DateTime(0)
-  updated_at  DateTime  @default(now()) @db.DateTime(0)
+  created_at  DateTime  @default(now()) @db.Timestamp(0)
+  answered_at DateTime? @db.Timestamp(0)
+  updated_at  DateTime  @default(now()) @db.Timestamp(0)
   featured    Int       @default(0)
 
   @@index([product_id, status], map: "product_questions_product_status_idx")
@@ -275,44 +276,44 @@ model favorite_sellers {
 model galleries {
   id         BigInt    @id @default(autoincrement())
   product_id Int?
-  photo      String @db.Text
-  created_at DateTime? @db.DateTime(0)
-  updated_at DateTime? @db.DateTime(0)
+  photo      String
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }
 
 model generalsettings {
   id                    Int      @id @default(autoincrement())
-  logo                  String? @db.Text
-  favicon               String @db.Text
-  title                 String @db.Text
-  site                  String? @db.Text
-  bgimg                 String? @db.Text
-  cimg                  String @db.Text
-  about                 String @db.Text
-  street                String? @db.Text
-  phone                 String? @db.Text
-  fax                   String? @db.Text
-  email                 String? @db.Text
-  footer                String @db.Text
-  bg_title              String? @db.Text
-  bg_link               String? @db.Text
-  bg_text               String? @db.Text
+  logo                  String?
+  favicon               String
+  title                 String
+  site                  String?
+  bgimg                 String?
+  cimg                  String
+  about                 String
+  street                String?
+  phone                 String?
+  fax                   String?
+  email                 String?
+  footer                String
+  bg_title              String?
+  bg_link               String?
+  bg_text               String?
   np                    Int      @default(0)
   fp                    Int      @default(0)
-  pb                    String? @db.Text
-  sk                    String? @db.Text
-  ss                    String? @db.Text
+  pb                    String?
+  sk                    String?
+  ss                    String?
   pcheck                Int      @default(1) @db.SmallInt
   scheck                Int      @default(1) @db.SmallInt
   mcheck                Int      @default(1) @db.SmallInt
   bcheck                Int      @default(1) @db.SmallInt
   ccheck                Int      @default(1) @db.SmallInt
-  mmi                   String @db.Text
-  bi                    String @db.Text
+  mmi                   String
+  bi                    String
   ship                  Int
-  vid                   String @db.Text
-  vidimg                String @db.Text
-  tags                  String? @db.Text
+  vid                   String
+  vidimg                String
+  tags                  String?
   sign                  Boolean  @default(false)
   slider                Int      @default(1) @db.SmallInt
   category              Int      @default(1) @db.SmallInt
@@ -325,31 +326,31 @@ model generalsettings {
   bs                    Int      @default(1) @db.SmallInt
   ts                    Int      @default(1) @db.SmallInt
   bl                    Int      @default(1) @db.SmallInt
-  colors                String? @db.Text
-  bimg                  String @db.Text
-  loader                String @db.Text
-  count_title           String? @db.Text
-  count_heading         String? @db.Text
-  count_date            String? @db.Text
-  count_link            String? @db.Text
-  count_image           String? @db.Text
+  colors                String?
+  bimg                  String
+  loader                String
+  count_title           String?
+  count_heading         String?
+  count_date            String?
+  count_link            String?
+  count_image           String?
   service_section       Int      @default(0) @db.SmallInt
-  order_title           String? @db.Text
-  order_text            String? @db.Text
-  cart_success          String? @db.Text
-  cart_error            String? @db.Text
-  wish_success          String? @db.Text
-  wish_error            String? @db.Text
-  wish_remove           String? @db.Text
-  compare_success       String? @db.Text
-  compare_error         String? @db.Text
-  compare_remove        String? @db.Text
-  invalid               String? @db.Text
-  color_change          String? @db.Text
-  size_change           String? @db.Text
-  coupon_found          String? @db.Text
-  no_coupon             String? @db.Text
-  coupon_already        String? @db.Text
+  order_title           String?
+  order_text            String?
+  cart_success          String?
+  cart_error            String?
+  wish_success          String?
+  wish_error            String?
+  wish_remove           String?
+  compare_success       String?
+  compare_error         String?
+  compare_remove        String?
+  invalid               String?
+  color_change          String?
+  size_change           String?
+  coupon_found          String?
+  no_coupon             String?
+  coupon_already        String?
   withdraw_charge       Int?     @default(0)
   withdraw_fee          Int      @default(0)
   fixed_commission      Int?     @default(0)
@@ -358,10 +359,10 @@ model generalsettings {
   ship_info             Int      @default(0) @db.SmallInt
   multiple_ship         Int      @default(0)
   is_talkto             Boolean  @default(true)
-  talkto                String? @db.Text
-  subscribe_title       String? @db.Text
-  subscribe_text        String? @db.Text
-  subscribe_image       String? @db.Text
+  talkto                String?
+  subscribe_title       String?
+  subscribe_text        String?
+  subscribe_image       String?
   is_subscribe          Boolean  @default(true)
   is_language           Boolean  @default(true)
   reg_vendor            Boolean  @default(true)
@@ -378,43 +379,43 @@ model generalsettings {
   from_name             String?  @db.VarChar(255)
   is_smtp               Boolean  @default(false)
   is_comment            Boolean  @default(false)
-  footer_background     String? @db.Text
+  footer_background     String?
   is_loader             Boolean  @default(true)
   whatsapp              String?  @db.VarChar(200)
-  status_shipping       String? @db.Text
-  cp                    String @db.Text
-  descu                 String @db.Text
+  status_shipping       String?
+  cp                    String
+  descu                 String
   cotizaciones          Int      @default(0)
-  theme_settings        String? @db.MediumText
-  active_theme          String   @default("default") @db.Text
-  why_choose_us_photo   String? @db.Text
+  theme_settings        String?
+  active_theme          String   @default("default")
+  why_choose_us_photo   String?
   is_why_choose_us      Int?     @default(1) @db.SmallInt
   is_inf_sitio          Int?     @default(1) @db.SmallInt
   is_machinery_gallery  Boolean  @default(true)
   is_machinery_benefits Boolean  @default(true)
   is_strategic_sectors  Int      @default(1) @db.SmallInt
-  quote_conditions      String? @db.Text
+  quote_conditions      String?
 }
 
 model hero_sections {
   id         Int       @id @default(autoincrement())
-  badge      String? @db.Text
-  title      String? @db.Text
-  subtitle   String? @db.Text
-  feature1   String? @db.Text
-  feature2   String? @db.Text
-  image      String? @db.Text
-  created_at DateTime? @db.DateTime(0)
-  updated_at DateTime? @db.DateTime(0)
+  badge      String?
+  title      String?
+  subtitle   String?
+  feature1   String?
+  feature2   String?
+  image      String?
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }
 
 model home_question_images {
   id               BigInt         @id @default(autoincrement())
   home_question_id BigInt
-  photo            String @db.Text
+  photo            String
   order            Int            @default(0)
-  created_at       DateTime?      @db.DateTime(0)
-  updated_at       DateTime?      @db.DateTime(0)
+  created_at       DateTime?      @db.Timestamp(0)
+  updated_at       DateTime?      @db.Timestamp(0)
   home_questions   home_questions @relation(fields: [home_question_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "home_question_images_home_question_id_foreign")
 
   @@index([home_question_id])
@@ -422,35 +423,35 @@ model home_question_images {
 
 model home_questions {
   id                   BigInt                 @id @default(autoincrement())
-  title                String? @db.Text
-  subtitle             String? @db.Text
-  content              String? @db.Text
-  list_items           String? @db.Text
-  footer               String? @db.Text
-  photo                String? @db.Text
+  title                String?
+  subtitle             String?
+  content              String?
+  list_items           String?
+  footer               String?
+  photo                String?
   status               Boolean                @default(true)
-  created_at           DateTime?              @db.DateTime(0)
-  updated_at           DateTime?              @db.DateTime(0)
+  created_at           DateTime?              @db.Timestamp(0)
+  updated_at           DateTime?              @db.Timestamp(0)
   home_question_images home_question_images[]
 }
 
 model images {
   id    Int    @id @default(autoincrement())
-  photo String @db.Text
-  url   String @db.Text
+  photo String
+  url   String
 }
 
 model inf_sitio {
   id          Int       @id @default(autoincrement())
-  frase       String? @db.Text
-  titulo      String? @db.Text
-  descripcion String? @db.Text
-  imagenes    String? @db.Text
-  created_at  DateTime? @db.DateTime(0)
-  updated_at  DateTime? @db.DateTime(0)
-  mision      String? @db.Text
-  vision      String? @db.Text
-  objetivos   String? @db.Text
+  frase       String?
+  titulo      String?
+  descripcion String?
+  imagenes    String?
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
+  mision      String?
+  vision      String?
+  objetivos   String?
 }
 
 model languages {
@@ -458,260 +459,260 @@ model languages {
   rtl                 Boolean @default(false)
   is_default          Boolean @default(false)
   language            String  @db.VarChar(50)
-  home                String? @db.Text
-  fh                  String? @db.Text
-  fht                 String? @db.Text
-  h                   String? @db.Text
-  vt                  String? @db.Text
-  gt                  String? @db.Text
-  vdn                 String? @db.Text
-  about               String? @db.Text
-  blog                String? @db.Text
-  blogs               String? @db.Text
-  faq                 String? @db.Text
-  faqs                String? @db.Text
-  maq                 String? @db.Text
-  contact             String? @db.Text
-  con                 String? @db.Text
-  cop                 String? @db.Text
-  coe                 String? @db.Text
-  cor                 String? @db.Text
-  signin              String? @db.Text
-  sie                 String? @db.Text
-  spe                 String? @db.Text
-  signup              String? @db.Text
-  suf                 String? @db.Text
-  suph                String? @db.Text
-  sue                 String? @db.Text
-  sup                 String? @db.Text
-  sucp                String? @db.Text
-  dashboard           String? @db.Text
-  edit                String? @db.Text
-  reset               String? @db.Text
-  logout              String? @db.Text
-  cp                  String? @db.Text
-  np                  String? @db.Text
-  rnp                 String? @db.Text
-  chnp                String? @db.Text
-  bgs                 String? @db.Text
-  rds                 String? @db.Text
-  hcs                 String? @db.Text
-  lns                 String? @db.Text
-  lm                  String? @db.Text
-  vd                  String? @db.Text
-  ston                String? @db.Text
-  s                   String? @db.Text
-  fl                  String? @db.Text
-  sm                  String? @db.Text
-  fpw                 String? @db.Text
-  fpt                 String? @db.Text
-  fpe                 String? @db.Text
-  fpb                 String? @db.Text
-  cn                  String? @db.Text
-  al                  String? @db.Text
-  bg                  String? @db.Text
-  dni                 String? @db.Text
-  search              String? @db.Text
-  ec                  String? @db.Text
-  sbg                 String? @db.Text
-  ss                  String? @db.Text
-  bs                  String? @db.Text
-  dopd                String? @db.Text
-  doo                 String? @db.Text
-  dol                 String? @db.Text
-  doa                 String? @db.Text
-  doe                 String? @db.Text
-  dor                 String? @db.Text
-  dopr                String? @db.Text
-  doc                 String? @db.Text
-  doci                String? @db.Text
-  dosp                String? @db.Text
-  don                 String? @db.Text
-  doem                String? @db.Text
-  dom                 String? @db.Text
-  fname               String? @db.Text
-  cup                 String? @db.Text
-  pp                  String? @db.Text
-  app                 String? @db.Text
-  size                String? @db.Text
-  md                  String? @db.Text
-  amf                 String? @db.Text
-  doct                String? @db.Text
-  doad                String? @db.Text
-  doph                String? @db.Text
-  dofx                String? @db.Text
-  dofpl               String? @db.Text
-  dotpl               String? @db.Text
-  dogpl               String? @db.Text
-  dolpl               String? @db.Text
-  doeml               String? @db.Text
-  doupl               String? @db.Text
-  supl                String? @db.Text
-  success             String? @db.Text
-  dttl                String? @db.Text
-  ddesc               String? @db.Text
-  ppr                 String? @db.Text
-  fpr                 String? @db.Text
-  cremove             String? @db.Text
-  cimage              String? @db.Text
-  cproduct            String? @db.Text
-  cedit               String? @db.Text
-  cquantity           String? @db.Text
-  cupice              String? @db.Text
-  cst                 String? @db.Text
-  ccs                 String? @db.Text
-  cpc                 String? @db.Text
-  odetails            String? @db.Text
-  bdetails            String? @db.Text
-  ship                String? @db.Text
-  onow                String? @db.Text
-  ships               String? @db.Text
-  shipss              String? @db.Text
-  pickup              String? @db.Text
-  pickups             String? @db.Text
-  onotes              String? @db.Text
-  tid                 String? @db.Text
-  pickupss            String? @db.Text
-  blogss              String? @db.Text
-  blogsss             String? @db.Text
-  contacts            String? @db.Text
-  ctry                String? @db.Text
-  sctry               String? @db.Text
-  cpn                 String? @db.Text
-  ecpn                String? @db.Text
-  acpn                String? @db.Text
-  ds                  String? @db.Text
-  ft                  String? @db.Text
-  review_title        String? @db.Text
-  video_title         String? @db.Text
-  enter_code          String? @db.Text
-  support             String? @db.Text
-  product_detail      String? @db.Text
-  hot_sale            String? @db.Text
-  latest_special      String? @db.Text
-  big_sale            String? @db.Text
-  featured_product    String? @db.Text
-  new_arrival         String? @db.Text
-  shop_now            String? @db.Text
-  week                String? @db.Text
-  day                 String? @db.Text
-  hour                String? @db.Text
-  minute              String? @db.Text
-  second              String? @db.Text
-  view_website        String? @db.Text
-  wish_list           String? @db.Text
-  favorite_product    String? @db.Text
-  order_processing    String? @db.Text
-  order_completed     String? @db.Text
-  view_all            String? @db.Text
-  all_categories      String? @db.Text
-  wishlists           String? @db.Text
-  wish_head           String? @db.Text
-  others              String? @db.Text
-  colors              String? @db.Text
-  shop_name           String? @db.Text
-  vendor_description  String? @db.Text
-  linked_accounts     String? @db.Text
-  signinup            String? @db.Text
-  vendor_registration String? @db.Text
-  vshop_name          String? @db.Text
-  owner_name          String? @db.Text
-  shop_number         String? @db.Text
-  shop_address        String? @db.Text
-  reg_number          String? @db.Text
-  message             String? @db.Text
-  optional            String? @db.Text
-  sale                String? @db.Text
-  welcome             String? @db.Text
-  user_dashboard      String? @db.Text
-  conv                String? @db.Text
-  new_conv            String? @db.Text
-  no_conv             String? @db.Text
-  affilate_bonus      String? @db.Text
-  current_balance     String? @db.Text
-  item_sold           String? @db.Text
-  total_earning       String? @db.Text
-  clear               String? @db.Text
-  customer            String? @db.Text
-  favorite_seller     String? @db.Text
-  messages            String? @db.Text
-  purchased_item      String? @db.Text
-  affilate_settings   String? @db.Text
-  affilate_withdraw   String? @db.Text
-  affilate_code       String? @db.Text
-  vendor_products     String? @db.Text
-  vendor_orders       String? @db.Text
-  withdraw            String? @db.Text
-  settings            String? @db.Text
-  sliders             String? @db.Text
-  shop_description    String? @db.Text
-  shipping_cost       String? @db.Text
-  social_link         String? @db.Text
-  vendor_apply        String? @db.Text
-  availability        String? @db.Text
-  wishlist_add        String? @db.Text
-  quick_view          String? @db.Text
-  compare             String? @db.Text
-  product_condition   String? @db.Text
-  shipping_time       String? @db.Text
-  watch_video         String? @db.Text
-  add_seller          String? @db.Text
-  contact_seller      String? @db.Text
-  phone_number        String? @db.Text
-  send_message        String? @db.Text
-  send_to             String? @db.Text
-  new_message         String? @db.Text
-  vendor_subject      String? @db.Text
-  vendor_message      String? @db.Text
-  vendor_send         String? @db.Text
-  platform            String? @db.Text
-  region              String? @db.Text
-  licence_type        String? @db.Text
-  comment_login       String? @db.Text
-  comment_review      String? @db.Text
-  product_favorite    String? @db.Text
-  facebook_login      String? @db.Text
-  google_login        String? @db.Text
-  digital_login       String? @db.Text
-  tax                 String? @db.Text
-  comment             String? @db.Text
-  comments            String? @db.Text
-  write_comment       String? @db.Text
-  write_reply         String? @db.Text
-  edit_button         String? @db.Text
-  reply_button        String? @db.Text
-  remove              String? @db.Text
-  update_comment      String? @db.Text
-  edit_comment        String? @db.Text
-  edit_reply          String? @db.Text
-  compare_title       String? @db.Text
-  compare_rating      String? @db.Text
-  compare_vendor      String? @db.Text
-  compare_description String? @db.Text
-  compare_available   String? @db.Text
-  compare_cart        String? @db.Text
-  no_compare          String? @db.Text
-  to_review           String? @db.Text
-  product_review      String? @db.Text
-  view_replies        String? @db.Text
-  cancel_edit         String? @db.Text
-  see_more            String? @db.Text
-  see_less            String? @db.Text
+  home                String?
+  fh                  String?
+  fht                 String?
+  h                   String?
+  vt                  String?
+  gt                  String?
+  vdn                 String?
+  about               String?
+  blog                String?
+  blogs               String?
+  faq                 String?
+  faqs                String?
+  maq                 String?
+  contact             String?
+  con                 String?
+  cop                 String?
+  coe                 String?
+  cor                 String?
+  signin              String?
+  sie                 String?
+  spe                 String?
+  signup              String?
+  suf                 String?
+  suph                String?
+  sue                 String?
+  sup                 String?
+  sucp                String?
+  dashboard           String?
+  edit                String?
+  reset               String?
+  logout              String?
+  cp                  String?
+  np                  String?
+  rnp                 String?
+  chnp                String?
+  bgs                 String?
+  rds                 String?
+  hcs                 String?
+  lns                 String?
+  lm                  String?
+  vd                  String?
+  ston                String?
+  s                   String?
+  fl                  String?
+  sm                  String?
+  fpw                 String?
+  fpt                 String?
+  fpe                 String?
+  fpb                 String?
+  cn                  String?
+  al                  String?
+  bg                  String?
+  dni                 String?
+  search              String?
+  ec                  String?
+  sbg                 String?
+  ss                  String?
+  bs                  String?
+  dopd                String?
+  doo                 String?
+  dol                 String?
+  doa                 String?
+  doe                 String?
+  dor                 String?
+  dopr                String?
+  doc                 String?
+  doci                String?
+  dosp                String?
+  don                 String?
+  doem                String?
+  dom                 String?
+  fname               String?
+  cup                 String?
+  pp                  String?
+  app                 String?
+  size                String?
+  md                  String?
+  amf                 String?
+  doct                String?
+  doad                String?
+  doph                String?
+  dofx                String?
+  dofpl               String?
+  dotpl               String?
+  dogpl               String?
+  dolpl               String?
+  doeml               String?
+  doupl               String?
+  supl                String?
+  success             String?
+  dttl                String?
+  ddesc               String?
+  ppr                 String?
+  fpr                 String?
+  cremove             String?
+  cimage              String?
+  cproduct            String?
+  cedit               String?
+  cquantity           String?
+  cupice              String?
+  cst                 String?
+  ccs                 String?
+  cpc                 String?
+  odetails            String?
+  bdetails            String?
+  ship                String?
+  onow                String?
+  ships               String?
+  shipss              String?
+  pickup              String?
+  pickups             String?
+  onotes              String?
+  tid                 String?
+  pickupss            String?
+  blogss              String?
+  blogsss             String?
+  contacts            String?
+  ctry                String?
+  sctry               String?
+  cpn                 String?
+  ecpn                String?
+  acpn                String?
+  ds                  String?
+  ft                  String?
+  review_title        String?
+  video_title         String?
+  enter_code          String?
+  support             String?
+  product_detail      String?
+  hot_sale            String?
+  latest_special      String?
+  big_sale            String?
+  featured_product    String?
+  new_arrival         String?
+  shop_now            String?
+  week                String?
+  day                 String?
+  hour                String?
+  minute              String?
+  second              String?
+  view_website        String?
+  wish_list           String?
+  favorite_product    String?
+  order_processing    String?
+  order_completed     String?
+  view_all            String?
+  all_categories      String?
+  wishlists           String?
+  wish_head           String?
+  others              String?
+  colors              String?
+  shop_name           String?
+  vendor_description  String?
+  linked_accounts     String?
+  signinup            String?
+  vendor_registration String?
+  vshop_name          String?
+  owner_name          String?
+  shop_number         String?
+  shop_address        String?
+  reg_number          String?
+  message             String?
+  optional            String?
+  sale                String?
+  welcome             String?
+  user_dashboard      String?
+  conv                String?
+  new_conv            String?
+  no_conv             String?
+  affilate_bonus      String?
+  current_balance     String?
+  item_sold           String?
+  total_earning       String?
+  clear               String?
+  customer            String?
+  favorite_seller     String?
+  messages            String?
+  purchased_item      String?
+  affilate_settings   String?
+  affilate_withdraw   String?
+  affilate_code       String?
+  vendor_products     String?
+  vendor_orders       String?
+  withdraw            String?
+  settings            String?
+  sliders             String?
+  shop_description    String?
+  shipping_cost       String?
+  social_link         String?
+  vendor_apply        String?
+  availability        String?
+  wishlist_add        String?
+  quick_view          String?
+  compare             String?
+  product_condition   String?
+  shipping_time       String?
+  watch_video         String?
+  add_seller          String?
+  contact_seller      String?
+  phone_number        String?
+  send_message        String?
+  send_to             String?
+  new_message         String?
+  vendor_subject      String?
+  vendor_message      String?
+  vendor_send         String?
+  platform            String?
+  region              String?
+  licence_type        String?
+  comment_login       String?
+  comment_review      String?
+  product_favorite    String?
+  facebook_login      String?
+  google_login        String?
+  digital_login       String?
+  tax                 String?
+  comment             String?
+  comments            String?
+  write_comment       String?
+  write_reply         String?
+  edit_button         String?
+  reply_button        String?
+  remove              String?
+  update_comment      String?
+  edit_comment        String?
+  edit_reply          String?
+  compare_title       String?
+  compare_rating      String?
+  compare_vendor      String?
+  compare_description String?
+  compare_available   String?
+  compare_cart        String?
+  no_compare          String?
+  to_review           String?
+  product_review      String?
+  view_replies        String?
+  cancel_edit         String?
+  see_more            String?
+  see_less            String?
 }
 
 model messages {
   id              Int       @id @default(autoincrement())
   conversation_id Int
-  message         String @db.Text
+  message         String
   sent_user       Int?
   recieved_user   Int?
-  created_at      DateTime? @db.DateTime(0)
-  updated_at      DateTime? @db.DateTime(0)
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
 }
 
 model migrations {
   id        Int    @id @default(autoincrement())
-  migration String @db.Text
+  migration String
   batch     Int
 }
 
@@ -719,7 +720,7 @@ model mirrormx_customer_chat_data {
   id    BigInt  @id @default(autoincrement())
   type  String  @db.VarChar(255)
   key   String  @db.VarChar(255)
-  value String? @db.Text
+  value String?
 
   @@index([key], map: "key")
   @@index([type], map: "type")
@@ -729,12 +730,12 @@ model mirrormx_customer_chat_message {
   id             BigInt   @id @default(autoincrement())
   from_id        BigInt
   to_id          BigInt
-  body           String @db.Text
-  datetime       DateTime @default(now()) @db.DateTime(0)
+  body           String
+  datetime       DateTime @default(now()) @db.Timestamp(0)
   talk_id        BigInt
   is_new         String   @default("y") @db.Char(1)
-  from_user_info String @db.Text
-  to_user_info   String @db.Text
+  from_user_info String
+  to_user_info   String
 }
 
 model mirrormx_customer_chat_user {
@@ -743,9 +744,9 @@ model mirrormx_customer_chat_user {
   mail          String   @db.Char(64)
   password      String   @db.Char(255)
   image         String?  @db.Char(255)
-  info          String? @db.Text
+  info          String?
   roles         String?  @db.Char(128)
-  last_activity DateTime @default(now()) @db.DateTime(0)
+  last_activity DateTime @default(now()) @db.Timestamp(0)
 }
 
 /// Avisos al cliente. Las 244 filas legacy (2021) traen user_id NULL y solo apuntaban
@@ -759,9 +760,9 @@ model notifications {
   product_id      Int?
   conversation_id Int?
   is_read         Boolean   @default(false)
-  created_at      DateTime? @db.DateTime(0)
-  updated_at      DateTime? @db.DateTime(0)
-  body            String? @db.Text
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+  body            String?
   /// Ruta interna del sitio a la que lleva el aviso (p. ej. /pedido/ABC123)
   link            String?   @db.VarChar(200)
   title           String?   @db.VarChar(160)
@@ -774,40 +775,40 @@ model notifications {
 model orders {
   id               Int            @id @default(autoincrement())
   user_id          Int
-  cart             Bytes @db.LongBlob
+  cart             Bytes
   method           String?        @db.VarChar(255)
   shipping         String?        @db.VarChar(255)
   pickup_location  String?        @db.VarChar(255)
-  totalQty         String @db.Text
+  totalQty         String
   /// double precision, no real: un float de 32 bits pierde los centavos arriba
   /// de ~$83,886 y los totales de maquinaria pesada lo cruzan con facilidad.
-  pay_amount       Float          @db.Double
+  pay_amount       Float          @db.DoublePrecision
   txnid            String?        @db.VarChar(255)
   charge_id        String?        @db.VarChar(255)
   order_number     String         @unique(map: "orders_order_number_key") @db.VarChar(255)
   payment_status   String         @db.VarChar(255)
   customer_email   String?        @db.VarChar(255)
   customer_name    String?        @db.VarChar(255)
-  customer_country String? @db.Text
+  customer_country String?
   customer_phone   String?        @db.VarChar(255)
   customer_address String?        @db.VarChar(255)
   customer_city    String?        @db.VarChar(255)
   customer_zip     String?        @db.VarChar(255)
   shipping_name    String?        @db.VarChar(255)
-  shipping_country String? @db.Text
+  shipping_country String?
   shipping_email   String?        @db.VarChar(255)
   shipping_phone   String?        @db.VarChar(255)
   shipping_address String?        @db.VarChar(255)
   shipping_city    String?        @db.VarChar(255)
   shipping_zip     String?        @db.VarChar(255)
-  order_note       String? @db.Text
-  coupon_code      String? @db.Text
-  coupon_discount  String? @db.Text
+  order_note       String?
+  coupon_code      String?
+  coupon_discount  String?
   status           orders_status  @default(pending)
-  created_at       DateTime?      @db.DateTime(0)
-  updated_at       DateTime?      @db.DateTime(0)
-  affilate_user    String? @db.Text
-  affilate_charge  String? @db.Text
+  created_at       DateTime?      @db.Timestamp(0)
+  updated_at       DateTime?      @db.Timestamp(0)
+  affilate_user    String?
+  affilate_charge  String?
   currency_sign    String?        @db.VarChar(10)
   currency_value   Float?
   shipping_cost    Float?
@@ -815,14 +816,14 @@ model orders {
   dp               Boolean?       @default(false)
   branch           String?        @db.VarChar(120)
   carrier          String?        @db.VarChar(60)
-  delivered_at     DateTime?      @db.DateTime(0)
+  delivered_at     DateTime?      @db.Timestamp(0)
   fulfillment      String?        @db.VarChar(20)
-  returned_at      DateTime?      @db.DateTime(0)
-  scheduled_at     DateTime?      @db.DateTime(0)
+  returned_at      DateTime?      @db.Timestamp(0)
+  scheduled_at     DateTime?      @db.Timestamp(0)
   ship_method      String?        @db.VarChar(20)
-  ship_notes       String? @db.Text
+  ship_notes       String?
   ship_unit        String?        @db.VarChar(80)
-  shipped_at       DateTime?      @db.DateTime(0)
+  shipped_at       DateTime?      @db.Timestamp(0)
   tracking         String?        @db.VarChar(80)
   stock_released   Boolean        @default(false)
   /// Clave que manda el cliente en el checkout: si el mismo intento llega dos
@@ -847,8 +848,8 @@ model order_events {
   admin_id   Int?
   from_state String?  @db.VarChar(20)
   to_state   String   @db.VarChar(20)
-  note       String? @db.Text
-  created_at DateTime @default(now()) @db.DateTime(0)
+  note       String?
+  created_at DateTime @default(now()) @db.Timestamp(0)
   order      orders   @relation(fields: [order_id], references: [id], onDelete: Cascade)
 
   @@index([order_id, id])
@@ -857,39 +858,39 @@ model order_events {
 
 model pages {
   id               Int     @id @default(autoincrement())
-  title            String @db.Text
-  slug             String @db.Text
-  text             String @db.MediumText
+  title            String
+  slug             String
+  text             String
   pos              Int     @default(0) @db.SmallInt
-  meta_tag         String? @db.Text
-  meta_description String? @db.Text
+  meta_tag         String?
+  meta_description String?
 }
 
 model pagesettings {
   id              Int     @id @default(autoincrement())
-  contact_success String @db.Text
-  contact_email   String @db.Text
-  contact_title   String? @db.Text
-  contact_text    String? @db.Text
-  about           String @db.MediumText
-  faq             String @db.MediumText
+  contact_success String
+  contact_email   String
+  contact_title   String?
+  contact_text    String?
+  about           String
+  faq             String
   c_status        Int     @default(1) @db.SmallInt
   a_status        Int     @default(1) @db.SmallInt
   f_status        Int     @default(1) @db.SmallInt
-  bn              String @db.Text
-  bnimg           String @db.Text
+  bn              String
+  bnimg           String
   is_currency     Boolean @default(true)
 }
 
 model payment_gateways {
   id     Int     @id @default(autoincrement())
-  title  String @db.Text
-  text   String @db.Text
+  title  String
+  text   String
   status Int     @default(1) @db.SmallInt
   /// * Identificador del método: 'transferencia' | 'mercadopago'.
   code   String? @db.VarChar(30)
   /// * Credencial del proveedor (p. ej. MP access token). NUNCA se expone al público.
-  secret String? @db.Text
+  secret String?
 }
 
 model payments {
@@ -902,19 +903,19 @@ model payments {
   featured       String   @db.VarChar(255)
   method         String?  @db.VarChar(255)
   charge_id      String?  @db.VarChar(255)
-  process_time   DateTime @db.DateTime(0)
+  process_time   DateTime @db.Timestamp(0)
 }
 
 model pickups {
   id       Int    @id @default(autoincrement())
-  location String @db.Text
+  location String
 }
 
 model portfolios {
   id     Int     @id @default(autoincrement())
-  client String @db.Text
-  photo  String? @db.Text
-  review String @db.Text
+  client String
+  photo  String?
+  review String
 }
 
 model product_clicks {
@@ -932,120 +933,121 @@ model products {
   subcategory_id            Int?
   childcategory_id          Int?
   user_id                   Int       @default(0)
-  name                      String @db.Text
-  product_theme             String    @default("default") @db.Text
-  photo                     String? @db.Text
-  size                      String? @db.Text
-  color                     String? @db.Text
+  name                      String
+  product_theme             String    @default("default")
+  photo                     String?
+  size                      String?
+  color                     String?
   /// double precision, no real: float de 32 bits pierde centavos en precios altos.
-  cprice                    Float     @db.Double
-  pprice                    Float?    @db.Double
-  description               String @db.Text
+  cprice                    Float     @db.DoublePrecision
+  pprice                    Float?    @db.DoublePrecision
+  description               String
   stock                     Int?
-  policy                    String? @db.Text
+  policy                    String?
   status                    Int       @default(1) @db.SmallInt
   views                     Int       @default(0)
-  tags                      String? @db.Text
-  created_at                DateTime? @db.DateTime(0)
-  updated_at                DateTime? @db.DateTime(0)
+  tags                      String?
+  created_at                DateTime? @db.Timestamp(0)
+  updated_at                DateTime? @db.Timestamp(0)
   featured                  Int       @default(0) @db.SmallInt
   best                      Int       @default(0) @db.SmallInt
   top                       Int       @default(0) @db.SmallInt
   hot                       Int       @default(0) @db.SmallInt
   latest                    Int       @default(0) @db.SmallInt
   big                       Int       @default(0) @db.SmallInt
-  features                  String? @db.Text
-  colors                    String? @db.Text
+  features                  String?
+  colors                    String?
   product_condition         Boolean   @default(false)
-  ship                      String? @db.Text
+  ship                      String?
   is_meta                   Boolean   @default(false)
-  meta_tag                  String? @db.Text
-  meta_description          String? @db.Text
-  youtube                   String? @db.Text
+  meta_tag                  String?
+  meta_description          String?
+  youtube                   String?
   type                      Boolean   @default(false)
-  file                      String? @db.Text
-  license                   String? @db.Text
-  license_qty               String? @db.Text
-  link                      String? @db.Text
+  file                      String?
+  license                   String?
+  license_qty               String?
+  link                      String?
   platform                  String?   @db.VarChar(255)
   region                    String?   @db.VarChar(255)
   licence_type              String?   @db.VarChar(255)
-  measure                   String? @db.Text
+  measure                   String?
   before_category           Int?
-  Corto                     String? @db.Text
-  Clave                     String? @db.Text
-  Alterno                   String? @db.Text
-  PBase                     Float?    @db.Float
-  Marca                     String? @db.Text
-  lote                      String? @db.Text
+  Corto                     String?
+  Clave                     String?
+  Alterno                   String?
+  PBase                     Float?    @db.Real
+  Marca                     String?
+  lote                      String?
   caducidad                 DateTime? @db.Date
-  ficha_tecnica             String? @db.Text
+  ficha_tecnica             String?
   rental_freight            Decimal?  @db.Decimal(10, 2)
   is_rental                 Boolean   @default(false)
-  certificacion_dc3         String? @db.Text
-  specs                     String? @db.Text
+  certificacion_dc3         String?
+  specs                     String?
   provider_id               Int?
-  location                  String? @db.Text
-  availability_confirmed_at DateTime? @db.DateTime(6)
+  location                  String?
+  availability_confirmed_at DateTime? @db.Timestamp(6)
   price_unit                String?   @db.VarChar(20)
   attributes                Json?
 
   @@index([provider_id], map: "products_provider_idx")
   @@index([status, category_id], map: "products_status_category_idx")
+  @@index([attributes], type: Gin)
 }
 
 model quote_emails {
   id          BigInt    @id @default(autoincrement())
   quote_id    Int
-  to          String @db.Text
-  subject     String @db.Text
-  message     String @db.Text
-  attachments String? @db.Text
-  created_at  DateTime? @db.DateTime(0)
-  updated_at  DateTime? @db.DateTime(0)
+  to          String
+  subject     String
+  message     String
+  attachments String?
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
 }
 
 model quotes {
   id                  BigInt                @id @default(autoincrement())
   user_id             BigInt?
-  name                String @db.Text
-  email               String @db.Text
-  phone               String @db.Text
-  region              String? @db.Text
-  company_name        String? @db.Text
-  industry            String? @db.Text
-  product_interested  String? @db.Text
-  acquisition_option  String? @db.Text
-  comments            String? @db.Text
-  address             String? @db.Text
-  cart_data           String @db.Text
+  name                String
+  email               String
+  phone               String
+  region              String?
+  company_name        String?
+  industry            String?
+  product_interested  String?
+  acquisition_option  String?
+  comments            String?
+  address             String?
+  cart_data           String
   subtotal            Decimal               @db.Decimal(10, 2)
   freight_cost        Decimal               @default(0.00) @db.Decimal(10, 2)
-  freight_distance    String? @db.Text
+  freight_distance    String?
   tax                 Decimal               @default(0.00) @db.Decimal(10, 2)
   total               Decimal               @db.Decimal(10, 2)
-  status              String                @default("pending") @db.Text
-  conditions          String? @db.Text
-  quote_number        String                @unique(map: "quotes_quote_number_unique") @db.VarChar(191)
-  created_at          DateTime?             @db.DateTime(0)
-  updated_at          DateTime?             @db.DateTime(0)
+  status              String                @default("pending")
+  conditions          String?
+  quote_number        String                @unique(map: "quotes_quote_number_unique")
+  created_at          DateTime?             @db.Timestamp(0)
+  updated_at          DateTime?             @db.Timestamp(0)
   requirements        Json?
-  service_category    String? @db.Text
+  service_category    String?
   valid_until         DateTime?             @db.Date
-  included            String? @db.Text
-  excluded            String? @db.Text
-  responded_by        String? @db.Text
-  responded_at        DateTime?             @db.DateTime(6)
-  accepted_at         DateTime?             @db.DateTime(6)
+  included            String?
+  excluded            String?
+  responded_by        String?
+  responded_at        DateTime?             @db.Timestamp(6)
+  accepted_at         DateTime?             @db.Timestamp(6)
   service_state       String?               @db.VarChar(20)
   service_unit        String?               @db.VarChar(20)
   service_quantity    Decimal?              @db.Decimal(12, 2)
-  service_notes       String? @db.Text
-  service_started_at  DateTime?             @db.DateTime(6)
-  service_closed_at   DateTime?             @db.DateTime(6)
+  service_notes       String?
+  service_started_at  DateTime?             @db.Timestamp(6)
+  service_closed_at   DateTime?             @db.Timestamp(6)
   client_id           Int?
   site_id             Int?
-  first_contact_at    DateTime?             @db.DateTime(6)
+  first_contact_at    DateTime?             @db.Timestamp(6)
   first_contact_by    String?               @db.VarChar(190)
   first_contact_via   String?               @db.VarChar(20)
   clients             clients?              @relation(fields: [client_id], references: [id], onUpdate: NoAction)
@@ -1063,11 +1065,11 @@ model rastreos {
   id            Int       @id @default(autoincrement())
   order_id      Int
   num_tracking  String    @db.VarChar(1000)
-  nota          String? @db.Text
+  nota          String?
   fecha_entrega DateTime  @db.Date
   status        Int       @default(0)
-  created_at    DateTime? @db.DateTime(0)
-  updated_at    DateTime? @db.DateTime(0)
+  created_at    DateTime? @db.Timestamp(0)
+  updated_at    DateTime? @db.Timestamp(0)
 }
 
 model rental_period_options {
@@ -1076,8 +1078,8 @@ model rental_period_options {
   days       Int
   order      Int       @default(0)
   is_active  Boolean   @default(true)
-  created_at DateTime? @db.DateTime(0)
-  updated_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }
 
 model rental_periods {
@@ -1090,8 +1092,8 @@ model rental_periods {
   price_per_day Decimal   @db.Decimal(18, 8)
   total_price   Decimal   @db.Decimal(18, 8)
   freight       Decimal   @default(0.00000000) @db.Decimal(18, 8)
-  created_at    DateTime? @db.DateTime(0)
-  updated_at    DateTime? @db.DateTime(0)
+  created_at    DateTime? @db.Timestamp(0)
+  updated_at    DateTime? @db.Timestamp(0)
 
   @@index([order_id], map: "rental_periods_order_id_index")
   @@index([product_id], map: "rental_periods_product_id_index")
@@ -1101,18 +1103,18 @@ model replies {
   id         Int      @id @default(autoincrement())
   user_id    Int
   comment_id Int
-  text       String @db.Text
-  created_at DateTime @default(now()) @db.DateTime(0)
-  updated_at DateTime @default(now()) @db.DateTime(0)
+  text       String
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @default(now()) @db.Timestamp(0)
 }
 
 model reviews {
   id          Int      @id @default(autoincrement())
   user_id     Int
   product_id  Int
-  review      String @db.Text
+  review      String
   rating      Int      @db.SmallInt
-  review_date DateTime @db.DateTime(0)
+  review_date DateTime @db.Timestamp(0)
 }
 
 model rfqcorreos {
@@ -1126,7 +1128,7 @@ model rfqs {
   id          Int     @id @default(autoincrement())
   nombre      String? @db.VarChar(250)
   email       String? @db.VarChar(250)
-  descripcion String? @db.Text
+  descripcion String?
   imagen      String? @db.VarChar(250)
   status      String? @db.VarChar(250)
   modelo      String? @db.VarChar(250)
@@ -1138,47 +1140,47 @@ model rfqs {
 
 model seotools {
   id               Int     @id @default(autoincrement())
-  google_analytics String? @db.Text
-  meta_keys        String? @db.Text
+  google_analytics String?
+  meta_keys        String?
 }
 
 model services {
   id    Int    @id @default(autoincrement())
-  title String @db.Text
-  text  String @db.Text
-  photo String @db.Text
+  title String
+  text  String
+  photo String
 }
 
 model site_reviews {
   id         BigInt    @id @default(autoincrement())
   user_id    Int
-  review     String @db.Text
+  review     String
   rating     Int
   status     Int       @default(0) @db.SmallInt
-  created_at DateTime? @db.DateTime(0)
-  updated_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }
 
 model sites {
   id       Int    @id @default(autoincrement())
-  name     String @db.Text
-  domain   String @db.Text
+  name     String @db.VarChar(5000)
+  domain   String @db.VarChar(6000)
   status   String @db.VarChar(1000)
-  img      String @db.Text
-  price    String @db.Text
-  color    String @db.Text
-  size     String @db.Text
-  title    String @db.Text
-  sku      String @db.Text
-  add_cart String @db.Text
-  moneda   String @db.Text
+  img      String @db.VarChar(5000)
+  price    String @db.VarChar(5000)
+  color    String @db.VarChar(5000)
+  size     String @db.VarChar(5000)
+  title    String @db.VarChar(5000)
+  sku      String @db.VarChar(5000)
+  add_cart String @db.VarChar(5000)
+  moneda   String @db.VarChar(5000)
 }
 
 model sliders {
   id          Int     @id @default(autoincrement())
-  title       String @db.Text
-  description String @db.Text
-  photo       String @db.Text
+  title       String
+  description String
+  photo       String
   position    String? @db.VarChar(100)
   title_size  String  @db.VarChar(100)
   title_color String  @db.VarChar(100)
@@ -1191,95 +1193,95 @@ model sliders {
 model social_providers {
   id          Int       @id @default(autoincrement())
   user_id     Int
-  provider_id String @db.Text
-  provider    String @db.Text
-  created_at  DateTime? @db.DateTime(0)
-  updated_at  DateTime? @db.DateTime(0)
+  provider_id String
+  provider    String
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
 }
 
 model sociallinks {
   id             Int     @id @default(autoincrement())
-  facebook       String @db.Text
-  gplus          String @db.Text
-  twitter        String @db.Text
-  linkedin       String @db.Text
+  facebook       String
+  gplus          String
+  twitter        String
+  linkedin       String
   f_status       Int     @default(1) @db.SmallInt
   g_status       Int     @default(1) @db.SmallInt
   t_status       Int     @default(1) @db.SmallInt
   l_status       Int     @default(1) @db.SmallInt
   fcheck         Int?    @db.SmallInt
   gcheck         Int?    @db.SmallInt
-  fclient_id     String? @db.Text
-  fclient_secret String? @db.Text
-  fredirect      String? @db.Text
-  gclient_id     String? @db.Text
-  gclient_secret String? @db.Text
-  gredirect      String? @db.Text
+  fclient_id     String?
+  fclient_secret String?
+  fredirect      String?
+  gclient_id     String?
+  gclient_secret String?
+  gredirect      String?
 }
 
 model strategic_sector_contents {
   id                          BigInt    @id @default(autoincrement())
-  trayectoria_header_title    String? @db.Text
-  trayectoria_header_subtitle String? @db.Text
-  historia_header_title       String? @db.Text
-  historia_header_subtitle    String? @db.Text
-  servicios_header_title      String? @db.Text
-  servicios_header_subtitle   String? @db.Text
-  proceso_header_title        String? @db.Text
-  proceso_header_subtitle     String? @db.Text
-  hitos                       String? @db.Text
-  created_at                  DateTime? @db.DateTime(0)
-  updated_at                  DateTime? @db.DateTime(0)
-  esencia_header_title        String? @db.Text
-  esencia_header_subtitle     String? @db.Text
-  excelencia_header_title     String? @db.Text
-  excelencia_header_subtitle  String? @db.Text
-  trayectoria_badge           String? @db.Text
-  esencia_badge               String? @db.Text
-  excelencia_badge            String? @db.Text
-  servicios_badge             String? @db.Text
-  proceso_badge               String? @db.Text
+  trayectoria_header_title    String?
+  trayectoria_header_subtitle String?
+  historia_header_title       String?
+  historia_header_subtitle    String?
+  servicios_header_title      String?
+  servicios_header_subtitle   String?
+  proceso_header_title        String?
+  proceso_header_subtitle     String?
+  hitos                       String?
+  created_at                  DateTime? @db.Timestamp(0)
+  updated_at                  DateTime? @db.Timestamp(0)
+  esencia_header_title        String?
+  esencia_header_subtitle     String?
+  excelencia_header_title     String?
+  excelencia_header_subtitle  String?
+  trayectoria_badge           String?
+  esencia_badge               String?
+  excelencia_badge            String?
+  servicios_badge             String?
+  proceso_badge               String?
 }
 
 model strategic_sectors {
   id              BigInt    @id @default(autoincrement())
-  title           String @db.Text
-  slug            String? @db.Text
-  description     String? @db.Text
-  trayectoria     String? @db.Text
-  esencia         String? @db.Text
-  servicios       String? @db.Text
-  excelencia      String? @db.Text
-  proceso         String? @db.Text
-  image           String? @db.Text
-  bg_color        String    @default("deep-blue") @db.Text
+  title           String
+  slug            String?
+  description     String?
+  trayectoria     String?
+  esencia         String?
+  servicios       String?
+  excelencia      String?
+  proceso         String?
+  image           String?
+  bg_color        String    @default("deep-blue")
   status          Int       @default(1) @db.SmallInt
-  created_at      DateTime? @db.DateTime(0)
-  updated_at      DateTime? @db.DateTime(0)
-  trayectoria_img String? @db.Text
-  esencia_img     String? @db.Text
-  servicios_img   String? @db.Text
-  excelencia_img  String? @db.Text
-  proceso_img     String? @db.Text
-  servicios_lista String? @db.Text
-  proceso_cards   String? @db.Text
-  hitos           String? @db.Text
+  created_at      DateTime? @db.Timestamp(0)
+  updated_at      DateTime? @db.Timestamp(0)
+  trayectoria_img String?
+  esencia_img     String?
+  servicios_img   String?
+  excelencia_img  String?
+  proceso_img     String?
+  servicios_lista String?
+  proceso_cards   String?
+  hitos           String?
 }
 
 model sub_replies {
   id         Int       @id @default(autoincrement())
   user_id    Int
   reply_id   Int
-  text       String @db.Text
-  created_at DateTime? @db.DateTime(0)
-  updated_at DateTime? @db.DateTime(0)
+  text       String
+  created_at DateTime? @db.Timestamp(0)
+  updated_at DateTime? @db.Timestamp(0)
 }
 
 model subcategories {
   id          Int    @id @default(autoincrement())
   category_id Int
-  sub_name    String @db.Text
-  sub_slug    String @db.Text
+  sub_name    String
+  sub_slug    String
   status      Int    @default(1) @db.SmallInt
 }
 
@@ -1287,20 +1289,20 @@ model subcategories {
 /// puede saber cuándo se suscribió alguien ni medir si la lista crece.
 model subscribers {
   id         Int       @id @default(autoincrement())
-  email      String    @unique(map: "subscribers_email_unique") @db.VarChar(191)
+  email      String    @unique(map: "subscribers_email_unique")
   /// Columna NUEVA (aditiva). null = viene del sistema viejo, que no la guardaba.
-  created_at DateTime? @db.DateTime(0)
+  created_at DateTime? @db.Timestamp(0)
 }
 
 model subscriptions {
   id               Int     @id @default(autoincrement())
-  title            String @db.Text
+  title            String
   currency         String  @db.VarChar(50)
   currency_code    String  @db.VarChar(50)
   price            Float   @default(0)
   days             Int
   allowed_products Int     @default(0)
-  details          String? @db.Text
+  details          String?
 }
 
 model theme_palettes {
@@ -1308,10 +1310,10 @@ model theme_palettes {
   user_id      BigInt?
   name         String    @db.VarChar(100)
   theme_name   String    @db.VarChar(50)
-  palette_data String @db.Text
+  palette_data String
   is_default   Boolean   @default(false)
-  created_at   DateTime? @db.DateTime(0)
-  updated_at   DateTime? @db.DateTime(0)
+  created_at   DateTime? @db.Timestamp(0)
+  updated_at   DateTime? @db.Timestamp(0)
 
   @@index([theme_name, user_id], map: "theme_palettes_theme_name_user_id_index")
 }
@@ -1322,63 +1324,63 @@ model user_notifications {
   conversation_id  Int       @default(0)
   conversation1_id Int       @default(0)
   is_read          Boolean   @default(false)
-  created_at       DateTime? @db.DateTime(0)
-  updated_at       DateTime? @db.DateTime(0)
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
 }
 
 model user_subscriptions {
   id               Int       @id @default(autoincrement())
   user_id          Int
   subscription_id  Int
-  title            String @db.Text
+  title            String
   currency         String    @db.VarChar(50)
   currency_code    String    @db.VarChar(50)
   price            Float     @default(0)
   days             Int
   allowed_products Int       @default(0)
-  details          String? @db.Text
+  details          String?
   method           String    @default("Free") @db.VarChar(50)
   txnid            String?   @db.VarChar(255)
   charge_id        String?   @db.VarChar(255)
-  created_at       DateTime? @db.DateTime(0)
-  updated_at       DateTime? @db.DateTime(0)
+  created_at       DateTime? @db.Timestamp(0)
+  updated_at       DateTime? @db.Timestamp(0)
   status           Int       @default(0)
 }
 
 model users {
   id                 Int       @id @default(autoincrement())
-  name               String @db.Text
-  photo              String? @db.Text
-  zip                String? @db.Text
-  residency          String? @db.Text
-  city               String? @db.Text
-  address            String? @db.Text
-  phone              String? @db.Text
-  fax                String? @db.Text
-  email              String    @unique(map: "donors_email_unique") @db.VarChar(191)
-  password           String? @db.Text
-  created_at         DateTime? @db.DateTime(0)
-  updated_at         DateTime? @db.DateTime(0)
+  name               String
+  photo              String?
+  zip                String?
+  residency          String?
+  city               String?
+  address            String?
+  phone              String?
+  fax                String?
+  email              String    @unique(map: "donors_email_unique")
+  password           String?
+  created_at         DateTime? @db.Timestamp(0)
+  updated_at         DateTime? @db.Timestamp(0)
   is_provider        Int       @default(0) @db.SmallInt
-  shop_name          String? @db.Text
-  owner_name         String? @db.Text
-  shop_number        String? @db.Text
-  shop_address       String? @db.Text
-  reg_number         String? @db.Text
-  shop_message       String? @db.Text
+  shop_name          String?
+  owner_name         String?
+  shop_number        String?
+  shop_address       String?
+  reg_number         String?
+  shop_message       String?
   is_vendor          Int       @default(0) @db.SmallInt
-  shop_details       String? @db.Text
-  f_url              String? @db.Text
-  g_url              String? @db.Text
-  t_url              String? @db.Text
-  l_url              String? @db.Text
+  shop_details       String?
+  f_url              String?
+  g_url              String?
+  t_url              String?
+  l_url              String?
   f_check            Int?      @default(0) @db.SmallInt
   g_check            Int?      @default(0) @db.SmallInt
   t_check            Int?      @default(0) @db.SmallInt
   l_check            Int?      @default(0) @db.SmallInt
   shipping_cost      Int       @default(0)
   current_balance    Int       @default(0)
-  affilate_code      String? @db.Text
+  affilate_code      String?
   affilate_income    Float?    @default(0)
   date               DateTime? @db.Date
   mail_sent          Boolean   @default(false)
@@ -1399,10 +1401,10 @@ model users {
   Nempleados         String?   @db.VarChar(250)
   stympus            String?   @db.VarChar(250)
   txtuseremp         String?   @db.VarChar(250)
-  email_verified_at  DateTime? @db.DateTime(0)
-  reset_token        String? @db.Text
-  reset_token_expiry DateTime? @db.DateTime(0)
-  auth_id            String?   @unique @db.Char(36)
+  email_verified_at  DateTime? @db.Timestamp(0)
+  reset_token        String?
+  reset_token_expiry DateTime? @db.Timestamp(0)
+  auth_id            String?   @unique @db.Uuid
 }
 
 model vendor_orders {
@@ -1411,26 +1413,26 @@ model vendor_orders {
   order_id     Int
   qty          Int
   price        Int
-  order_number String @db.Text
+  order_number String
   status       vendor_orders_status @default(pending)
 }
 
 model vendor_sliders {
   id      Int    @id @default(autoincrement())
   user_id Int
-  photo   String @db.Text
+  photo   String
 }
 
 model why_choose_us {
   id          BigInt    @id @default(autoincrement())
-  icon        String? @db.Text
-  photo       String? @db.Text
+  icon        String?
+  photo       String?
   title       String    @db.VarChar(100)
-  description String @db.Text
+  description String
   order       Int       @default(0)
   status      Boolean   @default(true)
-  created_at  DateTime? @db.DateTime(0)
-  updated_at  DateTime? @db.DateTime(0)
+  created_at  DateTime? @db.Timestamp(0)
+  updated_at  DateTime? @db.Timestamp(0)
   placement   String?   @default("both") @db.VarChar(20)
 }
 
@@ -1450,26 +1452,26 @@ model withdraws {
   iban       String?          @db.VarChar(255)
   country    String?          @db.VarChar(255)
   acc_name   String?          @db.VarChar(255)
-  address    String? @db.Text
+  address    String?
   swift      String?          @db.VarChar(255)
-  reference  String? @db.Text
-  amount     Float?           @db.Float
-  fee        Float?           @default(0) @db.Float
-  created_at DateTime?        @db.DateTime(0)
-  updated_at DateTime?        @db.DateTime(0)
+  reference  String?
+  amount     Float?           @db.Real
+  fee        Float?           @default(0) @db.Real
+  created_at DateTime?        @db.Timestamp(0)
+  updated_at DateTime?        @db.Timestamp(0)
   status     withdraws_status @default(pending)
   type       String           @db.VarChar(10)
   /// Columna NUEVA: por qué se rechazó (o nota al pagar). Rechazar el dinero de
   /// alguien sin decirle por qué no es aceptable; el vendedor la ve en /vendedor/retiros.
-  admin_note String? @db.Text
+  admin_note String?
 }
 
 /// Tabla NUEVA del sistema de diseño configurable (no viene del Laravel viejo).
 /// Tokens/copys publicados + borrador del editor visual. Ver @maqserv/config.
 model Theme {
   id          Int       @id @default(autoincrement())
-  slug        String    @unique @db.VarChar(191)
-  name        String @db.Text
+  slug        String    @unique
+  name        String
   active      Boolean   @default(false)
   tokens      Json
   copys       Json
@@ -1486,12 +1488,12 @@ model Theme {
 model provider_documents {
   id          Int       @id @default(autoincrement())
   provider_id Int
-  kind        String @db.Text
-  name        String? @db.Text
-  file        String? @db.Text
+  kind        String
+  name        String?
+  file        String?
   issued_at   DateTime? @db.Date
   expires_at  DateTime? @db.Date
-  created_at  DateTime  @default(now()) @db.DateTime(6)
+  created_at  DateTime  @default(now()) @db.Timestamp(6)
   providers   providers @relation(fields: [provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([expires_at], map: "provider_documents_expires_idx")
@@ -1501,31 +1503,31 @@ model provider_documents {
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
 model providers {
   id                  Int                   @id @default(autoincrement())
-  name                String @db.Text
-  slug                String                @unique @db.VarChar(191)
-  level               String                @default("registrado") @db.VarChar(191)
-  contact_name        String? @db.Text
-  phone               String? @db.Text
-  email               String? @db.Text
-  city                String? @db.Text
-  state               String? @db.Text
-  coverage            Json     @default("[]")
-  categories          Json     @default("[]")
+  name                String
+  slug                String                @unique
+  level               String                @default("registrado")
+  contact_name        String?
+  phone               String?
+  email               String?
+  city                String?
+  state               String?
+  coverage            String[]              @default([])
+  categories          String[]              @default([])
   response_minutes    Int?
-  notes               String? @db.Text
+  notes               String?
   status              Int                   @default(1) @db.SmallInt
   user_id             Int?
-  joined_at           DateTime              @default(now()) @db.DateTime(6)
-  created_at          DateTime              @default(now()) @db.DateTime(6)
-  updated_at          DateTime              @default(now()) @db.DateTime(6)
+  joined_at           DateTime              @default(now()) @db.Timestamp(6)
+  created_at          DateTime              @default(now()) @db.Timestamp(6)
+  updated_at          DateTime              @default(now()) @db.Timestamp(6)
   access_version      Int                   @default(1)
-  last_access_at      DateTime?             @db.DateTime(6)
-  access_sent_at      DateTime?             @db.DateTime(6)
-  reminder_sent_at    DateTime?             @db.DateTime(6)
+  last_access_at      DateTime?             @db.Timestamp(6)
+  access_sent_at      DateTime?             @db.Timestamp(6)
+  reminder_sent_at    DateTime?             @db.Timestamp(6)
   lat                 Decimal?              @db.Decimal(10, 7)
   lng                 Decimal?              @db.Decimal(10, 7)
   coverage_radius_km  Int?
-  address             String? @db.Text
+  address             String?
   provider_documents  provider_documents[]
   service_assignments service_assignments[]
   service_incidents   service_incidents[]
@@ -1538,11 +1540,11 @@ model providers {
 model availability_blocks {
   id         Int       @id @default(autoincrement())
   product_id Int
-  state      String @db.Text
+  state      String
   starts_on  DateTime  @db.Date
   ends_on    DateTime? @db.Date
-  note       String? @db.Text
-  created_at DateTime  @default(now()) @db.DateTime(6)
+  note       String?
+  created_at DateTime  @default(now()) @db.Timestamp(6)
 
   @@index([product_id, starts_on, ends_on], map: "availability_blocks_product_idx")
 }
@@ -1553,14 +1555,14 @@ model service_assignments {
   quote_id     BigInt
   provider_id  Int
   state        String    @default("propuesto") @db.VarChar(20)
-  scope        String? @db.Text
-  reason       String? @db.Text
-  offered_at   DateTime  @default(now()) @db.DateTime(6)
-  responded_at DateTime? @db.DateTime(6)
+  scope        String?
+  reason       String?
+  offered_at   DateTime  @default(now()) @db.Timestamp(6)
+  responded_at DateTime? @db.Timestamp(6)
   created_by   Int?
-  created_at   DateTime  @default(now()) @db.DateTime(6)
-  committed_at DateTime? @db.DateTime(6)
-  arrived_at   DateTime? @db.DateTime(6)
+  created_at   DateTime  @default(now()) @db.Timestamp(6)
+  committed_at DateTime? @db.Timestamp(6)
+  arrived_at   DateTime? @db.Timestamp(6)
   providers    providers @relation(fields: [provider_id], references: [id], onUpdate: NoAction)
   quotes       quotes    @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -1576,8 +1578,8 @@ model service_events {
   admin_id   Int?
   from_state String?  @db.VarChar(20)
   to_state   String   @db.VarChar(20)
-  note       String? @db.Text
-  created_at DateTime @default(now()) @db.DateTime(6)
+  note       String?
+  created_at DateTime @default(now()) @db.Timestamp(6)
   quotes     quotes   @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([quote_id, id], map: "service_events_quote_idx")
@@ -1588,18 +1590,18 @@ model client_sites {
   id            Int      @id @default(autoincrement())
   client_id     Int
   name          String   @db.VarChar(190)
-  address       String? @db.Text
+  address       String?
   municipality  String?  @db.VarChar(120)
   state         String?  @db.VarChar(120)
   lat           Decimal? @db.Decimal(10, 7)
   lng           Decimal? @db.Decimal(10, 7)
   contact_name  String?  @db.VarChar(190)
   contact_phone String?  @db.VarChar(40)
-  requirements  Json     @default("[]")
-  notes         String? @db.Text
+  requirements  String[] @default([])
+  notes         String?
   status        Int      @default(1) @db.SmallInt
-  created_at    DateTime @default(now()) @db.DateTime(6)
-  updated_at    DateTime @default(now()) @db.DateTime(6)
+  created_at    DateTime @default(now()) @db.Timestamp(6)
+  updated_at    DateTime @default(now()) @db.Timestamp(6)
   clients       clients  @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   quotes        quotes[]
 
@@ -1617,10 +1619,10 @@ model clients {
   phone        String?        @db.VarChar(40)
   rfc          String?        @db.VarChar(20)
   industry     String?        @db.VarChar(120)
-  notes        String? @db.Text
+  notes        String?
   status       Int            @default(1) @db.SmallInt
-  created_at   DateTime       @default(now()) @db.DateTime(6)
-  updated_at   DateTime       @default(now()) @db.DateTime(6)
+  created_at   DateTime       @default(now()) @db.Timestamp(6)
+  updated_at   DateTime       @default(now()) @db.Timestamp(6)
   client_sites client_sites[]
   quotes       quotes[]
 
@@ -1633,13 +1635,13 @@ model email_log {
   kind        String   @db.VarChar(40)
   to_email    String   @db.VarChar(190)
   to_name     String?  @db.VarChar(190)
-  subject     String @db.Text
+  subject     String
   state       String   @db.VarChar(20)
-  detail      String? @db.Text
+  detail      String?
   quote_id    BigInt?
   order_id    Int?
   provider_id Int?
-  created_at  DateTime @default(now()) @db.DateTime(6)
+  created_at  DateTime @default(now()) @db.Timestamp(6)
 
   @@index([created_at(sort: Desc)], map: "email_log_created_idx")
   @@index([quote_id], map: "email_log_quote_idx")
@@ -1654,15 +1656,15 @@ model service_incidents {
   kind        String     @db.VarChar(20)
   severity    String     @default("media") @db.VarChar(10)
   responsible String     @default("nadie") @db.VarChar(20)
-  description String @db.Text
-  evidence    Json     @default("[]")
+  description String
+  evidence    String[]   @default([])
   state       String     @default("abierta") @db.VarChar(10)
-  resolution  String? @db.Text
+  resolution  String?
   opened_by   Int?
   closed_by   Int?
-  opened_at   DateTime   @default(now()) @db.DateTime(6)
-  closed_at   DateTime?  @db.DateTime(6)
-  created_at  DateTime   @default(now()) @db.DateTime(6)
+  opened_at   DateTime   @default(now()) @db.Timestamp(6)
+  closed_at   DateTime?  @db.Timestamp(6)
+  created_at  DateTime   @default(now()) @db.Timestamp(6)
   providers   providers? @relation(fields: [provider_id], references: [id], onUpdate: NoAction)
   quotes      quotes     @relation(fields: [quote_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -1679,12 +1681,12 @@ model contact_messages {
   phone      String?   @db.VarChar(40)
   company    String?   @db.VarChar(190)
   need       String?   @db.VarChar(120)
-  message    String @db.Text
+  message    String
   state      String    @default("nuevo") @db.VarChar(20)
   handled_by String?   @db.VarChar(190)
-  handled_at DateTime? @db.DateTime(6)
+  handled_at DateTime? @db.Timestamp(6)
   crm_pushed Boolean   @default(false)
-  created_at DateTime  @default(now()) @db.DateTime(6)
+  created_at DateTime  @default(now()) @db.Timestamp(6)
 
   @@index([created_at(sort: Desc)], map: "contact_messages_created_idx")
   @@index([email])
@@ -1726,8 +1728,8 @@ model admin_audit {
   modulo      String   @db.VarChar(30)
   accion      String   @db.VarChar(60)
   objetivo    String?  @db.VarChar(190)
-  detalle     String? @db.Text
-  created_at  DateTime @default(now()) @db.DateTime(6)
+  detalle     String?
+  created_at  DateTime @default(now()) @db.Timestamp(6)
 
   @@index([created_at(sort: Desc)], map: "admin_audit_fecha_idx")
   @@index([admin_id, created_at(sort: Desc)], map: "admin_audit_admin_idx")

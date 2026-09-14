@@ -58,6 +58,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
     }
   }
 
+  // Segundo paso del restablecimiento: token del correo + contraseña nueva.
+  if (action === 'reset') {
+    const body = await req.json().catch(() => null);
+    try {
+      const apiRes = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
+        body: JSON.stringify({ token: body?.token, password: body?.password }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = await apiRes.json().catch(() => null);
+      return NextResponse.json(data ?? { message: 'Sin respuesta del servidor' }, { status: apiRes.status });
+    } catch {
+      return NextResponse.json({ message: 'El servidor no respondió; inténtalo de nuevo.' }, { status: 504 });
+    }
+  }
+
   if (action !== 'login' && action !== 'register') {
     return NextResponse.json({ message: 'Acción inválida' }, { status: 404 });
   }
@@ -95,7 +112,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
 
   const res = NextResponse.json({ user: data.user });
   // Con "recordar": cookie de 7 días. Sin recordar: cookie de sesión (expira al cerrar
-  // el navegador). El access token de Supabase se renueva por el middleware.
+  // el navegador). El access token (1 h) lo renueva el middleware con el refresh.
   const opts = {
     httpOnly: true,
     sameSite: 'lax' as const,

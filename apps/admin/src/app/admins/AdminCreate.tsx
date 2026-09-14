@@ -16,7 +16,7 @@ const inputStyle: React.CSSProperties = {
   padding: '10px 12px', color: D.text, fontSize: 13.5, fontFamily: 'inherit', outline: 'none',
 };
 
-/** Alta de administrador: crea la fila y su cuenta de acceso en Supabase. */
+/** Alta de administrador: crea la fila con su contraseña (hash bcrypt); con eso ya puede entrar. */
 export function AdminCreate() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);

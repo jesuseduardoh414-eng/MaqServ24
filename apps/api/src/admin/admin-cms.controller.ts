@@ -3,7 +3,7 @@ import {
   ParseIntPipe, Patch, Post, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ICON_TYPES, supabaseStorage } from '../common/supabase-multer';
+import { ICON_TYPES, mediaStorage } from '../common/media-multer';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
@@ -12,9 +12,9 @@ import { productSlug, themeTokensSchema } from '@maqserv/config';
 import { AdminGuard, Modulo } from './admin-auth';
 import { imageUrl, normLegacyText } from '../catalog/images';
 
-const photoStorage = supabaseStorage();
+const photoStorage = mediaStorage();
 /** Marca (favicon/isotipo): es el único sitio donde SVG e ICO tienen sentido. */
-const iconStorage = supabaseStorage(ICON_TYPES);
+const iconStorage = mediaStorage(ICON_TYPES);
 const IMAGE_TYPES = /^image\/(png|jpe?g|webp|avif)$/;
 const photoOk = (f?: Express.Multer.File) => {
   if (f && !IMAGE_TYPES.test(f.mimetype)) throw new BadRequestException('Imagen inválida');

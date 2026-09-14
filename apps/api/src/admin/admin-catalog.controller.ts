@@ -3,7 +3,7 @@ import {
   ParseIntPipe, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { supabaseStorage } from '../common/supabase-multer';
+import { mediaStorage } from '../common/media-multer';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
@@ -28,7 +28,7 @@ function leerAtributos(v: string | undefined): object | null {
 import { AdminGuard, Modulo } from './admin-auth';
 import { imageUrl } from '../catalog/images';
 
-const photoStorage = supabaseStorage();
+const photoStorage = mediaStorage();
 const IMAGE_TYPES = /^image\/(png|jpe?g|webp|avif)$/;
 
 const productSchema = z.object({

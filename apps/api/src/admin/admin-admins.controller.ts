@@ -3,28 +3,23 @@ import {
   ParseIntPipe, Patch, Post, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import bcrypt from 'bcryptjs';
 import { prisma } from '@maqserv/db';
 import { rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
 import { AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
-import { adminCreateUser, adminSetPassword } from '../common/supabase-auth';
+import { hashPassword } from '../common/app-auth';
 import { registrarAccion } from './audit';
 
 /**
  * Quién puede entrar al panel.
  *
- * ⚠️ LO QUE HAY QUE ENTENDER ANTES DE TOCAR ESTO: el login de admin **NO valida
- * `admins.password`**. Va por `passwordGrant` de Supabase Auth (ver `admin-auth.ts`);
- * la columna `password` es un hash heredado del Laravel viejo que ya nadie lee.
+ * El login de admin valida `admins.password` con bcrypt (ver `admin-auth.ts` y
+ * `common/app-auth.ts`): la fila en `admins` es la cuenta completa — id, nombre,
+ * rol, `status` y el hash. Ya no hay un segundo registro en otro servicio.
  *
- * Una cuenta de administrador vive en DOS lados y necesita los dos:
- *   1. la fila en `admins` (id, nombre, rol, `status`),
- *   2. el usuario en `auth.users` con `app_metadata.role = 'admin'` y `app_admin_id`,
- *      enlazado por `admins.auth_id`.
- *
- * Antes esto solo hacía (1): la creación respondía 201 y el administrador nuevo
- * **no podía entrar jamás** (401). Era deuda de la migración a Supabase — el módulo
- * se escribió antes y nunca se re-cableó.
+ * Historia, por si alguien ve `auth_id` y se pregunta: entre 2026-07 y 2026-09 el
+ * acceso vivía en Supabase Auth y esta columna enlazaba con `auth.users`. Al volver
+ * a MySQL se importaron esos hashes a `password` (migrate/43-importar-hashes.mjs) y
+ * `auth_id` quedó solo como rastro.
  */
 const ROLES_VALIDOS = Object.keys(ROLES_ADMIN) as [RolAdmin, ...RolAdmin[]];
 
@@ -43,8 +38,8 @@ export class AdminAdminsController {
       rol: rolDeAdmin(a.role),
       rolNombre: ROLES_ADMIN[rolDeAdmin(a.role)].nombre,
       status: a.status,
-      /** Sin `auth_id` no existe en Supabase ⇒ no puede entrar por más activo que se vea. */
-      canLogin: a.auth_id !== null,
+      /** Sin hash de contraseña no hay forma de entrar por más activo que se vea. */
+      canLogin: !!a.password,
       isMe: a.id === req.adminId,
       createdAt: a.created_at ? a.created_at.toISOString() : null,
     }));
@@ -99,34 +94,14 @@ export class AdminAdminsController {
         name: parsed.data.name,
         email,
         phone: parsed.data.phone ?? '',
-        // Se conserva por compatibilidad con el sistema viejo; el login NO lo usa.
-        password: await bcrypt.hash(parsed.data.password, 10),
+        // Este hash ES la contraseña: el login lo verifica con bcrypt (common/app-auth.ts).
+        password: await hashPassword(parsed.data.password),
         role: parsed.data.rol,
         status: 1,
         created_at: new Date(),
         updated_at: new Date(),
       },
     });
-
-    // La cuenta que SÍ da acceso. `app_admin_id` es lo que el AdminGuard lee del JWT.
-    try {
-      const user = await adminCreateUser(email, parsed.data.password, {
-        role: 'admin',
-        provider_role: 'admin',
-        app_admin_id: a.id,
-      });
-      await prisma.admins.update({ where: { id: a.id }, data: { auth_id: user.id } });
-    } catch (e) {
-      // Sin usuario de Supabase la fila es inservible: se deshace en vez de dejar
-      // un administrador fantasma que aparenta estar activo y no puede entrar.
-      await prisma.admins.delete({ where: { id: a.id } });
-      const msg = e instanceof Error ? e.message : 'Error desconocido';
-      throw new BadRequestException(
-        /already|exists|registered/i.test(msg)
-          ? 'Ese correo ya está registrado en el sistema (quizá como cliente). Usa otro.'
-          : `No se pudo crear la cuenta de acceso: ${msg}`,
-      );
-    }
 
     await registrarAccion(req, 'admins', 'alta de administrador', email, ROLES_ADMIN[parsed.data.rol].nombre);
     return { id: a.id };
@@ -159,18 +134,13 @@ export class AdminAdminsController {
       throw new BadRequestException('No puedes cambiar tu propio rol: pídeselo a otra cuenta de Dirección');
     }
 
-    // La contraseña vive en Supabase: reescribir solo el hash legacy no cambiaba nada.
-    if (parsed.data.password) {
-      if (!a.auth_id) throw new BadRequestException('Esta cuenta no tiene acceso configurado; no se le puede cambiar la contraseña.');
-      await adminSetPassword(a.auth_id, parsed.data.password);
-    }
-
     await prisma.admins.update({
       where: { id },
       data: {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
-        // Se mantiene el hash legacy en sincronía por si algo viejo aún lo lee.
-        ...(parsed.data.password !== undefined ? { password: await bcrypt.hash(parsed.data.password, 10) } : {}),
+        // Cambiar el hash cambia la contraseña real Y tumba los refresh tokens
+        // emitidos antes (llevan una huella del hash; ver common/app-auth.ts).
+        ...(parsed.data.password !== undefined ? { password: await hashPassword(parsed.data.password) } : {}),
         ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
         ...(parsed.data.rol !== undefined ? { role: parsed.data.rol } : {}),
         updated_at: new Date(),

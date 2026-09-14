@@ -17,7 +17,7 @@ export class AdminCommunityController {
   // ---- Usuarios ----
 
   // Clientes: ver `admin-customers.controller.ts`. Vivían aquí, pero no son
-  // "comunidad" y la búsqueda distinguía mayúsculas (faltaba `mode: 'insensitive'`).
+  // "comunidad" y la búsqueda distinguía mayúsculas (faltaba el filtro sin mayúsculas; en MySQL la colación utf8mb4_unicode_ci ya lo hace).
 
   // ---- Reseñas del sitio (status 0 = pendiente de aprobación) ----
 

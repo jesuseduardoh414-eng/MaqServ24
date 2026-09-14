@@ -6,7 +6,8 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
-import { supabaseStorage } from '../common/supabase-multer';
+import { mediaStorage } from '../common/media-multer';
+import { lista } from '../common/json-list';
 import { imageUrl } from '../catalog/images';
 import { CATALOGO, RESPONSABLES, SEVERIDADES, TIPOS } from '../quotes/incidents';
 
@@ -44,7 +45,7 @@ const cerrarSchema = z.object({
  * disfrazada de imagen. Si algún día hacen falta documentos, se amplía ahí y no
  * aquí.
  */
-const evidenceStorage = supabaseStorage();
+const evidenceStorage = mediaStorage();
 const MAX_EVIDENCIAS = 6;
 
 /**
@@ -107,7 +108,7 @@ export class AdminIncidentsController {
       description: r.description,
       // Se guardan como ruta del bucket (`uploads/…`) y se sirven resueltas: si
       // el almacenamiento cambia de sitio, las incidencias viejas siguen viéndose.
-      evidence: r.evidence.map((e) => imageUrl(e)).filter((u): u is string => !!u),
+      evidence: lista(r.evidence).map((e) => imageUrl(e)).filter((u): u is string => !!u),
       state: r.state,
       resolution: r.resolution,
       openedAt: r.opened_at,
@@ -149,7 +150,7 @@ export class AdminIncidentsController {
     if (!inc) throw new NotFoundException('Incidencia no encontrada');
 
     const nuevas = files.map((f) => `uploads/${f.filename}`);
-    const total = [...inc.evidence.map(aRutaBucket), ...nuevas].slice(0, 12);
+    const total = [...lista(inc.evidence).map(aRutaBucket), ...nuevas].slice(0, 12);
     await prisma.service_incidents.update({ where: { id }, data: { evidence: total } });
 
     return { ok: true, evidence: total.map((e) => imageUrl(e)) };

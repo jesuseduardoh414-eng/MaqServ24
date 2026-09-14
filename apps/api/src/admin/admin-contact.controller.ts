@@ -29,8 +29,8 @@ export class AdminContactController {
     const term = search?.trim();
     const estado = ESTADOS.includes(state as Estado) ? (state as Estado) : null;
 
-    // `mode: 'insensitive'`: en Postgres `contains` distingue mayúsculas.
-    const ci = (v: string) => ({ contains: v, mode: 'insensitive' as const });
+    // Sin `mode`: en MySQL la colación utf8mb4_unicode_ci ya ignora mayúsculas y acentos (en Postgres hacía falta `mode: 'insensitive'`, que MySQL no admite).
+    const ci = (v: string) => ({ contains: v });
     const where = {
       ...(estado ? { state: estado } : {}),
       ...(term ? { OR: [{ name: ci(term) }, { email: ci(term) }, { company: ci(term) }, { message: ci(term) }] } : {}),

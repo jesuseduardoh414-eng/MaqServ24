@@ -13,7 +13,7 @@ const ghost: React.CSSProperties = {
 };
 
 /**
- * Acciones sobre un administrador. La contraseña se cambia contra **Supabase**, que
+ * Acciones sobre un administrador. La contraseña se cambia en `admins.password` (bcrypt), que
  * es donde vive de verdad: reescribir el hash de `admins.password` no cambiaba nada.
  */
 export function AdminRowActions({

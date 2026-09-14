@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
-import { join } from 'path';
+import { mediaDir } from './common/media';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -15,7 +15,7 @@ async function bootstrap() {
   // cadena dejaría que cualquiera se inventara su IP con un X-Forwarded-For.
   app.set('trust proxy', 1);
 
-  // Cabeceras de seguridad. La API devuelve JSON y además sirve `/uploads/`: lo que
+  // Cabeceras de seguridad. La API devuelve JSON y además sirve `/media/`: lo que
   // más pesa aquí es `nosniff` (que el navegador no adivine el tipo de un archivo
   // subido y lo ejecute como HTML). CSP va apagado: no servimos páginas.
   app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
@@ -38,9 +38,10 @@ async function bootstrap() {
   }
   app.enableCors({ origin: corsOrigins.length > 0 ? corsOrigins : [/^http:\/\/localhost:\d+$/] });
 
-  // Legacy: subidas antiguas servidas desde disco. Hoy todo vive en Supabase Storage,
-  // así que en prod esta carpeta suele estar vacía (inofensivo).
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  // Archivos subidos (MEDIA_DIR). En cPanel los sirve Apache desde el subdominio
+  // media.* y esta ruta no se usa; en local y como respaldo, la API los sirve aquí.
+  // `maxAge`: son inmutables (el nombre lleva timestamp), que el navegador los guarde.
+  app.useStaticAssets(mediaDir(), { prefix: '/media/', maxAge: '7d', index: false });
   const port = Number(process.env.PORT ?? 4000);
   await app.listen(port, '0.0.0.0');
   console.log(`API escuchando en el puerto ${port}`);
