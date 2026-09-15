@@ -14,9 +14,11 @@
  *
  * Las tres trampas que este script resuelve (todas comprobadas, no teoricas):
  *
- *  1. SYMLINKS. `pnpm deploy` arma node_modules con enlaces simbolicos a rutas
- *     de TU PC. Al comprimir y descomprimir en cPanel llegan rotos. Por eso se
- *     fuerza `--config.node-linker=hoisted`: carpetas reales.
+ *  1. SYMLINKS. Tanto `pnpm deploy` como `next build --standalone` arman
+ *     node_modules con enlaces simbolicos a rutas ABSOLUTAS de la maquina que
+ *     compila. En cPanel esas rutas no existen y el paquete llega roto. Por eso
+ *     se instala y se despliega con `node-linker=hoisted` (carpetas reales) y
+ *     `comprobarPaquete()` revienta si sobrevive alguno.
  *  2. MOTOR DE PRISMA. `pnpm deploy` reinstala @prisma/client desde cero y no
  *     corre `prisma generate`, asi que el paquete sale sin motor de consulta.
  *     Aqui se copia el cliente ya generado, que incluye los binarios de Linux
@@ -105,9 +107,13 @@ function empaquetarNext(app) {
 
   const destino = path.join(salida, app);
   fs.rmSync(destino, { recursive: true, force: true });
-  // `dereference`: convierte los symlinks que pnpm/Next dejan en archivos reales.
-  // Un symlink dentro del ZIP llega roto a cPanel (trampa 1). Duplica algunos
-  // paquetes y pesa mas, pero es la diferencia entre arrancar y no arrancar.
+  // `dereference` esta puesto porque deberia aplanar los symlinks de pnpm... y
+  // NO lo hace: sobre el artefacto real del 2026-09-14 sobrevivieron 121, con
+  // rutas absolutas del runner de GitHub, y la tienda arranco con "Cannot find
+  // module 'next'". Se deja porque no estorba, pero lo que de verdad protege es
+  // instalar con `node-linker=hoisted` (ver el workflow) para que no haya
+  // symlinks que aplanar, mas `comprobarPaquete()` al final, que revienta si
+  // queda alguno.
   fs.cpSync(standalone, destino, { recursive: true, dereference: true });
 
   const rel = carpetaDelServer(destino, app);
@@ -138,7 +144,7 @@ function empaquetarNext(app) {
   }
 
   asegurarSharpLinux(destino);
-  avisarSymlinks(destino, app);
+  comprobarPaquete(destino, app, rel, 'next');
   console.log(`  OK  dist-cpanel/${app}   (arranque: server.js)`);
 }
 
@@ -236,30 +242,54 @@ function empaquetarApi() {
     fs.rmSync(path.join(destino, sobra), { recursive: true, force: true });
   }
 
-  avisarSymlinks(destino, 'api');
+  comprobarPaquete(destino, 'api', '', '@prisma/client');
   console.log('  OK  dist-cpanel/api   (arranque: dist/main.js)');
 }
 
-/** Un symlink sobreviviente llega roto a cPanel: mejor enterarse aqui. */
-function avisarSymlinks(destino, app) {
-  let encontrado = null;
+/**
+ * Un paquete roto NO se entrega. Antes esto solo avisaba, el aviso se perdio
+ * entre la salida del build, y el .tar.gz llego a cPanel con 121 symlinks que
+ * apuntaban a /home/runner/... (rutas del runner de GitHub). La tienda y el
+ * panel respondian 503 con "Cannot find module 'next'" y el rastro tardo horas
+ * en encontrarse. Ahora revienta aqui, que es donde se puede arreglar.
+ *
+ * Dos comprobaciones:
+ *  1. CERO symlinks. Cualquiera que sobreviva llega roto al servidor.
+ *  2. El modulo clave RESUELVE de verdad, con las mismas reglas que usara Node
+ *     en produccion (require.resolve desde la carpeta del server.js). Tenerlo
+ *     "en algun lugar del tar" no basta: tiene que estar donde se busca.
+ */
+function comprobarPaquete(destino, app, desde, modulo) {
+  const malos = [];
   const recorrer = (dir, prof) => {
-    if (prof > 6 || encontrado) return;
+    if (prof > 8 || malos.length >= 3) return;
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (encontrado) return;
       const p = path.join(dir, e.name);
       if (e.isSymbolicLink()) {
-        encontrado = p;
-        return;
-      }
-      if (e.isDirectory()) recorrer(p, prof + 1);
+        malos.push(`${path.relative(destino, p)} -> ${fs.readlinkSync(p)}`);
+        if (malos.length >= 3) return;
+      } else if (e.isDirectory()) recorrer(p, prof + 1);
     }
   };
   recorrer(destino, 0);
-  if (encontrado) {
-    console.warn(`  AVISO ${app}: hay symlinks (${path.relative(salida, encontrado)}).`);
-    console.warn('        Al comprimir y subir llegaran rotos.');
+  if (malos.length > 0) {
+    throw new Error(
+      `${app}: el paquete tiene symlinks y llegarian rotos al servidor:\n  ` +
+        malos.join('\n  ') +
+        '\nCausa habitual: el `pnpm install` del build no uso node-linker=hoisted.',
+    );
   }
+
+  const base = path.join(destino, desde);
+  try {
+    require.resolve(`${modulo}/package.json`, { paths: [base] });
+  } catch {
+    throw new Error(
+      `${app}: desde ${desde || '.'} no se puede resolver "${modulo}".\n` +
+        'El servidor fallaria con "Cannot find module" nada mas arrancar.',
+    );
+  }
+  console.log(`  OK  sin symlinks y "${modulo}" resuelve desde ${desde || '.'}`);
 }
 
 function comprimir(app) {

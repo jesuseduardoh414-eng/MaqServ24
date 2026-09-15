@@ -52,7 +52,18 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      # `node-linker=hoisted` = node_modules de carpetas REALES, como npm.
+      #
+      # Sin esto, `next build --standalone` sobre el pnpm normal emite symlinks
+      # con rutas ABSOLUTAS del runner (`/home/runner/work/.../standalone/...`).
+      # Esas rutas no existen en cPanel, así que el paquete llega con ~121
+      # enlaces rotos y la tienda responde 503 con "Cannot find module 'next'".
+      # Pasó el 2026-09-14 y costó medio día encontrarlo, porque el .tar.gz
+      # parecía completo: `next` SÍ venía dentro, pero no donde Node lo busca.
+      #
+      # Y no, `fs.cpSync(..., { dereference: true })` no los aplana (comprobado
+      # sobre el artefacto real). La defensa buena es que no existan.
+      - run: pnpm install --frozen-lockfile --config.node-linker=hoisted
 
       - name: Empaquetar
         run: node scripts/empaquetar-cpanel.cjs ${{ inputs.apps }}
