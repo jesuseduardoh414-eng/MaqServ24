@@ -279,27 +279,36 @@ function empaquetarApi() {
  * en encontrarse. Ahora revienta aqui, que es donde se puede arreglar.
  *
  * Dos comprobaciones:
- *  1. CERO symlinks. Cualquiera que sobreviva llega roto al servidor.
+ *  1. Ningun symlink que SALGA del paquete. Lo que rompe no es que exista un
+ *     enlace, sino que apunte a una ruta que en cPanel no existe. Los relativos
+ *     de `node_modules/.bin` (`../nanoid/bin/nanoid.cjs`) viajan bien dentro del
+ *     tar y encima no se usan en runtime; exigir CERO enlaces tumbaba el build
+ *     por ellos. Un enlace ABSOLUTO se rechaza aunque hoy apunte dentro: deja de
+ *     valer en cuanto el paquete cambia de maquina, que es justo lo que pasa.
  *  2. El modulo clave RESUELVE de verdad, con las mismas reglas que usara Node
  *     en produccion (require.resolve desde la carpeta del server.js). Tenerlo
  *     "en algun lugar del tar" no basta: tiene que estar donde se busca.
  */
 function comprobarPaquete(destino, app, desde, modulo) {
+  const raizPaquete = path.resolve(destino);
   const malos = [];
   const recorrer = (dir, prof) => {
-    if (prof > 8 || malos.length >= 3) return;
+    if (prof > 8 || malos.length >= 5) return;
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isSymbolicLink()) {
-        malos.push(`${path.relative(destino, p)} -> ${fs.readlinkSync(p)}`);
-        if (malos.length >= 3) return;
+        const apunta = fs.readlinkSync(p);
+        const resuelto = path.resolve(path.dirname(p), apunta);
+        const escapa = path.isAbsolute(apunta) || !resuelto.startsWith(raizPaquete + path.sep);
+        if (escapa) malos.push(`${path.relative(destino, p)} -> ${apunta}`);
+        if (malos.length >= 5) return;
       } else if (e.isDirectory()) recorrer(p, prof + 1);
     }
   };
   recorrer(destino, 0);
   if (malos.length > 0) {
     throw new Error(
-      `${app}: el paquete tiene symlinks y llegarian rotos al servidor:\n  ` +
+      `${app}: el paquete tiene enlaces que apuntan FUERA de el y llegarian rotos:\n  ` +
         malos.join('\n  ') +
         '\nCausa habitual: el `pnpm install` del build no uso node-linker=hoisted.',
     );
