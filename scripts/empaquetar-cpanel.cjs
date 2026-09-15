@@ -244,7 +244,16 @@ function empaquetarApi() {
   const motores = fs
     .readdirSync(generado)
     .filter((f) => f.startsWith('libquery_engine-') && f.endsWith('.so.node'));
-  const REQUERIDOS = ['rhel-openssl-1.1.x', 'rhel-openssl-3.0.x'];
+  // Los cinco que declara schema.prisma. Se exigen POR NOMBRE porque "hay al
+  // menos un motor de Linux" pasaba en verde con el paquete roto: traia los de
+  // RHEL y el servidor pedia debian-openssl-1.0.x.
+  const REQUERIDOS = [
+    'debian-openssl-1.0.x',
+    'debian-openssl-1.1.x',
+    'debian-openssl-3.0.x',
+    'rhel-openssl-1.1.x',
+    'rhel-openssl-3.0.x',
+  ];
   const faltan = REQUERIDOS.filter((t) => !motores.includes(`libquery_engine-${t}.so.node`));
   if (faltan.length > 0) {
     throw new Error(

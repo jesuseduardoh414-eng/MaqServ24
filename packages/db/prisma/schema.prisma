@@ -4,21 +4,24 @@ generator client {
   // desarrollo (Windows); los de Linux hacen falta porque el build se hace
   // fuera y se SUBE ya construido (caso cPanel).
   //
-  // El motor NO se elige por distribución sino por la versión de OpenSSL que
-  // tenga instalada, y ahí es fácil equivocarse:
-  //   rhel-openssl-1.1.x   → RHEL/CloudLinux/AlmaLinux **8** (OpenSSL 1.1.1)
-  //   rhel-openssl-3.0.x   → RHEL/CloudLinux/AlmaLinux **9** (OpenSSL 3.0)
-  //   debian-openssl-3.0.x → Debian/Ubuntu 22.04+
+  // NO DEDUZCAS EL TARGET A PARTIR DE LA DISTRIBUCIÓN. El servidor de cPanel es
+  // CloudLinux 8.10, así que se puso `rhel-openssl-1.1.x` por puro razonamiento
+  // (CloudLinux 8 ≈ RHEL 8 ≈ OpenSSL 1.1.1)... y Prisma pedía
+  // **`debian-openssl-1.0.x`**. Su detección no siempre coincide con lo que uno
+  // esperaría, y la que manda es la suya.
   //
-  // Faltaba el de OpenSSL 1.1 y el servidor es CloudLinux 8.10, así que Prisma
-  // no encontraba motor compatible. El sintoma engaña: la API arranca bien
-  // —el motor se carga en la PRIMERA consulta, no al iniciar— y luego TODO
-  // endpoint da 500 y /health dice "db: unreachable", que parece un problema de
-  // red o de credenciales. Se fueron horas mirando la contraseña.
+  // La forma correcta de averiguarlo es leer el error, que trae el nombre exacto:
+  //   "could not locate the Query Engine for runtime \"<target>\""
+  // Está en el `stderr.log` de la app, y también en el campo `motivo` de /health.
   //
-  // Se dejan los tres: pesan unos MB y quitan de encima toda esta clase de fallo
-  // si el servidor cambia de versión.
-  binaryTargets = ["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+  // El síntoma engaña dos veces: la API arranca perfectamente —el motor se carga
+  // en la PRIMERA consulta, no al iniciar— y luego TODO endpoint da 500 mientras
+  // /health dice "db: unreachable", que suena a red o a credenciales. Se fueron
+  // horas revisando contraseñas que estaban bien.
+  //
+  // Van los cinco a propósito: pesan ~20 MB cada uno pero cierran la clase entera
+  // de fallo, incluido el día que el hosting cambie de versión sin avisar.
+  binaryTargets = ["native", "debian-openssl-1.0.x", "debian-openssl-1.1.x", "debian-openssl-3.0.x", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
