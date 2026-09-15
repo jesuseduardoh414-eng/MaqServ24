@@ -72,15 +72,33 @@ function comprobarSymlinks() {
   }
 }
 
-/** Ruta del cliente Prisma ya generado dentro del store de pnpm. */
+/**
+ * Ruta del cliente Prisma ya generado. Cambia de sitio segun como se instalo, y
+ * hay que mirar en los dos lados:
+ *
+ *  - `node-linker=hoisted` (lo que usa el workflow desde que los symlinks
+ *    rompian el paquete): node_modules/.prisma/client, plano como npm.
+ *  - pnpm por defecto (lo normal en local): enterrado en el store virtual,
+ *    node_modules/.pnpm/@prisma+client@…/node_modules/.prisma/client.
+ *
+ * Miraba solo el segundo, asi que el primer build con instalacion aplanada
+ * murio con "No encontre el cliente Prisma generado" — con el cliente generado
+ * y a tres carpetas de distancia.
+ */
 function clientePrismaGenerado() {
+  const candidatos = [path.join(raiz, 'node_modules', '.prisma', 'client')];
   const pnpmDir = path.join(raiz, 'node_modules', '.pnpm');
-  if (!fs.existsSync(pnpmDir)) return null;
-  for (const dir of fs.readdirSync(pnpmDir)) {
-    if (!dir.startsWith('@prisma+client@')) continue;
-    const c = path.join(pnpmDir, dir, 'node_modules', '.prisma', 'client');
+  if (fs.existsSync(pnpmDir)) {
+    for (const dir of fs.readdirSync(pnpmDir)) {
+      if (dir.startsWith('@prisma+client@')) {
+        candidatos.push(path.join(pnpmDir, dir, 'node_modules', '.prisma', 'client'));
+      }
+    }
+  }
+  for (const c of candidatos) {
     if (fs.existsSync(path.join(c, 'schema.prisma'))) return c;
   }
+  console.error('Buscado en:\n  ' + candidatos.map((c) => path.relative(raiz, c)).join('\n  '));
   return null;
 }
 
