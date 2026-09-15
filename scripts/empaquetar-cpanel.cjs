@@ -219,13 +219,20 @@ function empaquetarApi() {
       'No encontre el cliente Prisma generado. Corre antes:\n  pnpm --filter @maqserv/db generate',
     );
   }
+  // Se exige el de OpenSSL 1.1 por nombre y no "al menos uno": el paquete salia
+  // con motores de Linux (los de OpenSSL 3.0) y aun asi fallaba toda consulta en
+  // CloudLinux 8, que usa OpenSSL 1.1. Contar no basta; tiene que estar EL que
+  // el servidor sabe cargar.
   const motores = fs
     .readdirSync(generado)
     .filter((f) => f.startsWith('libquery_engine-') && f.endsWith('.so.node'));
-  if (motores.length === 0) {
+  const REQUERIDOS = ['rhel-openssl-1.1.x', 'rhel-openssl-3.0.x'];
+  const faltan = REQUERIDOS.filter((t) => !motores.includes(`libquery_engine-${t}.so.node`));
+  if (faltan.length > 0) {
     throw new Error(
-      'El cliente Prisma no trae motores de Linux. Revisa `binaryTargets` en\n' +
-        'packages/db/prisma/schema.prisma y repite `pnpm --filter @maqserv/db generate`.',
+      `Al cliente Prisma le faltan motores de Linux: ${faltan.join(', ')}.\n` +
+        'Revisa `binaryTargets` en packages/db/prisma/schema.prisma y repite\n' +
+        '`pnpm --filter @maqserv/db generate`.',
     );
   }
   const destPrisma = path.join(destino, 'node_modules', '.prisma', 'client');

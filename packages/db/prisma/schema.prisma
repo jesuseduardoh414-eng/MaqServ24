@@ -1,12 +1,24 @@
 generator client {
   provider = "prisma-client-js"
   // Motores de consulta que se empaquetan con el cliente. `native` es para
-  // desarrollo (Windows); los otros dos son para Linux y hacen falta cuando el
-  // build se hace en local y se SUBE ya construido (caso cPanel):
-  //   rhel-openssl-3.0.x   → CloudLinux / AlmaLinux 8-9 (lo típico bajo cPanel)
-  //   debian-openssl-3.0.x → cPanel sobre Ubuntu 22.04, y también Render
-  // Sin esto, un cliente generado en Windows NO arranca en el servidor.
-  binaryTargets = ["native", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
+  // desarrollo (Windows); los de Linux hacen falta porque el build se hace
+  // fuera y se SUBE ya construido (caso cPanel).
+  //
+  // El motor NO se elige por distribución sino por la versión de OpenSSL que
+  // tenga instalada, y ahí es fácil equivocarse:
+  //   rhel-openssl-1.1.x   → RHEL/CloudLinux/AlmaLinux **8** (OpenSSL 1.1.1)
+  //   rhel-openssl-3.0.x   → RHEL/CloudLinux/AlmaLinux **9** (OpenSSL 3.0)
+  //   debian-openssl-3.0.x → Debian/Ubuntu 22.04+
+  //
+  // Faltaba el de OpenSSL 1.1 y el servidor es CloudLinux 8.10, así que Prisma
+  // no encontraba motor compatible. El sintoma engaña: la API arranca bien
+  // —el motor se carga en la PRIMERA consulta, no al iniciar— y luego TODO
+  // endpoint da 500 y /health dice "db: unreachable", que parece un problema de
+  // red o de credenciales. Se fueron horas mirando la contraseña.
+  //
+  // Se dejan los tres: pesan unos MB y quitan de encima toda esta clase de fallo
+  // si el servidor cambia de versión.
+  binaryTargets = ["native", "rhel-openssl-1.1.x", "rhel-openssl-3.0.x", "debian-openssl-3.0.x"]
 }
 
 datasource db {
