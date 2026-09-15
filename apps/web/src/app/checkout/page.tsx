@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import type { PaymentMethod } from '@maqserv/types';
 import { defaultTheme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
+import { pedirOr } from '@/lib/api';
 import { getSessionUser } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { CheckoutForm } from './CheckoutForm';
@@ -18,9 +19,12 @@ export default async function CheckoutPage() {
   const [theme, user] = await Promise.all([getTheme(), getSessionUser()]);
   if (!user) redirect('/login');
 
-  const methods = (await fetch(`${API_URL}/payments/methods`, { cache: 'no-store', signal: AbortSignal.timeout(15_000) })
-    .then((r) => r.json())
-    .catch(() => [])) as PaymentMethod[];
+  const methods = await pedirOr<PaymentMethod[]>(
+    `${API_URL}/payments/methods`,
+    { cache: 'no-store', signal: AbortSignal.timeout(15_000) },
+    [],
+    Array.isArray,
+  );
 
   return (
     <>

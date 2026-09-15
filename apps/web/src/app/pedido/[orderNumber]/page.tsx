@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import type { OrderDetail } from '@maqserv/types';
 import { SHIP_METHODS, fulfillmentStep, shipTracker, toShipMethod } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
+import { pedirOr } from '@/lib/api';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
@@ -290,9 +291,12 @@ async function InstructionsBlock({ theme, method }: { theme: Awaited<ReturnType<
   // Con y sin tilde a proposito: los pedidos guardan el metodo como TEXTO, y en
   // la base conviven "Deposito bancario" (heredado) y "Depósito bancario".
   if (!/dep[oó]sito|transferencia/i.test(method)) return null;
-  const methods = (await fetch(`${API_URL}/payments/methods`, { next: { revalidate: 60 } })
-    .then((r) => r.json())
-    .catch(() => [])) as Array<{ id: string; instructions: string | null }>;
+  const methods = await pedirOr<Array<{ id: string; instructions: string | null }>>(
+    `${API_URL}/payments/methods`,
+    { next: { revalidate: 60 } },
+    [],
+    Array.isArray,
+  );
   const instructions = methods.find((m) => m.id === 'transferencia')?.instructions;
   if (!instructions) return null;
   return (

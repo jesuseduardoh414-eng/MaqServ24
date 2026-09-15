@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { parseProductSlug, productSlug } from '@maqserv/config';
 import type { ProductCommentsSummary, ProductDetail } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
-import { getProduct, getProducts, getSiteSettings } from '@/lib/api';
+import { getProduct, getProducts, getSiteSettings, pedirOr } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { ProductDetailView } from './ProductDetailView';
 
@@ -54,8 +54,12 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   const [settings, comments, relatedRes] = await Promise.all([
     getSiteSettings().catch(() => ({ email: null, phone: null, logo: null })),
     Promise.race([
-      fetch(`${API_URL}/catalog/products/${product.id}/comments`, { next: { revalidate: 60 } })
-        .then((r) => r.json()) as Promise<ProductCommentsSummary>,
+      pedirOr<ProductCommentsSummary>(
+        `${API_URL}/catalog/products/${product.id}/comments`,
+        { next: { revalidate: 60 } },
+        sinComments,
+        (v) => Array.isArray((v as ProductCommentsSummary | null)?.items),
+      ),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('comments timeout')), 6_000)),
     ]).catch(() => sinComments),
     (product.categorySlug ? getProducts({ category: product.categorySlug }) : getProducts({ featured: true })).catch(() => null),

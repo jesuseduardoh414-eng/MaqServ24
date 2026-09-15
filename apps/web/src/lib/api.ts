@@ -134,6 +134,44 @@ async function getOr<T>(path: string, fallback: T): Promise<T> {
   }
 }
 
+/**
+ * Lo mismo que `getOr`, para las llamadas sueltas que NO pasan por los helpers
+ * de este módulo porque necesitan sus propias opciones de fetch (`no-store`, un
+ * `signal` propio) o sirven a una sola pantalla.
+ *
+ * Existe por un fallo concreto y caro. El patrón que había repetido en cuatro
+ * páginas era:
+ *
+ *     fetch(url).then((r) => r.json()).catch(() => [])
+ *
+ * y **`fetch` no lanza en un 500**: el `.catch` nunca corría, `r.json()` parseaba
+ * el cuerpo del error (`{message, statusCode}`) y la página acababa haciendo
+ * `.map()` sobre un objeto. El 2026-09-15, con la API arriba pero sin base de
+ * datos, eso tumbó el build entero con `TypeError: b.map is not a function` al
+ * prerenderizar `/vendedores` — y el mensaje no decía ni la URL ni el status.
+ *
+ * Por eso comprueba DOS cosas y no una: que la respuesta sea `ok`, y que lo
+ * recibido tenga la forma esperada. Un 200 con otra cosa rompe igual que un 500,
+ * y aquí el objetivo es que la página se degrade, nunca que reviente.
+ */
+export async function pedirOr<T>(
+  url: string,
+  init: RequestInit,
+  fallback: T,
+  esValido: (v: unknown) => boolean,
+): Promise<T> {
+  try {
+    const res = await fetch(url, init);
+    if (!res.ok) throw new Error(`${res.status}`);
+    const data: unknown = await res.json();
+    if (!esValido(data)) throw new Error('la respuesta no tiene la forma esperada');
+    return data as T;
+  } catch (err) {
+    console.warn(`[api] ${url} no respondió bien; se usa el valor de respaldo:`, err);
+    return fallback;
+  }
+}
+
 export function getProducts(opts: {
   page?: number;
   search?: string;

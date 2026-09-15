@@ -3,6 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { VendorPublic } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
+import { pedirOr } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 
@@ -16,9 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function VendorsPage() {
   const [theme, vendors] = await Promise.all([
     getTheme(),
-    fetch(`${API_URL}/vendors`, { next: { revalidate: 60 } })
-      .then((r) => r.json())
-      .catch(() => []) as Promise<VendorPublic[]>,
+    pedirOr<VendorPublic[]>(`${API_URL}/vendors`, { next: { revalidate: 60 } }, [], Array.isArray),
   ]);
 
   return (

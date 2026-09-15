@@ -484,9 +484,16 @@ function ModalAsignar({
 
   useEffect(() => {
     let vivo = true;
+    // `r.ok` explícito: un 500 NO hace que fetch lance, así que sin esto el
+    // `.catch` no corre y lo que entra a setDatos es el cuerpo del error
+    // (`{message, statusCode}`). Renderizar eso revienta al hacer `.map` sobre
+    // `matches`, que no existe.
     fetch(`/api/admin/quotes/${servicio.id}/matches`)
-      .then((r) => r.json())
-      .then((d) => { if (vivo) setDatos(d); })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`La API respondió ${r.status}.`))))
+      .then((d) => {
+        if (!vivo) return;
+        setDatos(Array.isArray(d?.matches) ? d : { motivo: 'La API respondió algo inesperado.', matches: [] });
+      })
       .catch(() => { if (vivo) setDatos({ motivo: 'No se pudo consultar la red.', matches: [] }); })
       .finally(() => { if (vivo) setCargando(false); });
     // `vivo` evita escribir en un componente ya cerrado: el modal se puede
