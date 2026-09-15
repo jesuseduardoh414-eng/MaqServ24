@@ -38,7 +38,18 @@ export class HealthController {
        * `?` hay que escribirla percent-encoded, o la URL se parte y esto falla
        * como si las credenciales estuvieran mal.
        */
-      const motivo = (err as Error)?.message?.split('\n')[0]?.slice(0, 200) ?? 'sin detalle';
+      /**
+       * Se APLASTAN los saltos de línea en vez de quedarse con la primera.
+       * Prisma formatea sus errores empezando POR un salto, asi que
+       * `.split('\n')[0]` devolvia cadena vacia — este campo salio en blanco
+       * justo el dia que se necesitaba, y hubo que ir al stderr.log igual.
+       * El codigo (P1000 credenciales, P1001 no responde, P1003 base inexistente)
+       * va delante porque es lo unico que hace falta leer.
+       */
+      const e = err as { message?: string; code?: string; errorCode?: string };
+      const texto = (e?.message ?? String(err)).replace(/\s+/g, ' ').trim();
+      const codigo = e?.code ?? e?.errorCode;
+      const motivo = `${codigo ? `${codigo}: ` : ''}${texto}`.slice(0, 300) || 'sin detalle';
       return {
         status: 'degraded',
         db: 'unreachable',
