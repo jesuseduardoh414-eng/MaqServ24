@@ -52,6 +52,10 @@ export const COTIZADOR_CSS = `
 .cz-step-t{ display:block; margin-top:4px; font-size:12.5px; color:var(--cz-muted); }
 .cz-step[data-estado="activo"] .cz-step-t{ color:var(--cz-text); font-weight:700; }
 
+/* Ayuda del paso: a todo el ancho y ANTES de la rejilla, para que la tarjeta
+   del paso y el resumen empiecen a la misma altura. */
+.cz-ayuda{ margin:0 0 14px; }
+
 /* ---- Rejilla principal ---- */
 .cz-grid{ display:grid; grid-template-columns:minmax(0,1fr) 336px; gap:22px; align-items:start; }
 @media (max-width:1000px){ .cz-grid{ grid-template-columns:minmax(0,1fr); } }

@@ -240,10 +240,13 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
         })}
       </ol>
 
+      {/* La ayuda del paso va FUERA de la rejilla, a todo el ancho. Dentro de
+          la columna izquierda empujaba esa columna hacia abajo y las dos
+          tarjetas —la del paso y el resumen— arrancaban a alturas distintas. */}
+      <p className="cz-sub cz-ayuda">{pasos[paso]?.ayuda}</p>
+
       <div className="cz-grid">
         <div>
-          <p className="cz-sub" style={{ marginTop: 0, marginBottom: 14 }}>{pasos[paso]?.ayuda}</p>
-
           {clave === 'obra' ? (
             <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} />
           ) : null}

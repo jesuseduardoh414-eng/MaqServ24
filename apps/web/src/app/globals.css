@@ -237,7 +237,13 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
 }
 .hdr-burger:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 
-@media (max-width: 1023px) {
+/* El corte subió de 1023 a 1199 px al entrar "Cotizador" en el menú.
+   Con 7 entradas, el nav horizontal necesita ~480 px y por debajo de 1200 no
+   los hay: entre el logo y las acciones (buscar, favoritos, carrito, sesión)
+   quedan ~360. Antes eso se resolvía solo, partiéndose en dos renglones; ahora
+   que va en una sola línea, forzarlo desbordaría el header. Por debajo de este
+   ancho manda el cajón lateral, que lista todo sin apreturas. */
+@media (max-width: 1199px) {
   .hdr-nav, .hdr-theme, .hdr-auth, .hdr-fav { display: none !important; }
   .hdr-actions { margin-left: auto; }
   .hdr-burger { display: inline-flex; }
@@ -438,4 +444,17 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
 .hdr-drop-item:hover,
 .hdr-drop-item:focus-visible {
   background: color-mix(in srgb, var(--color-primary) 11%, transparent);
+}
+
+/* El menú de escritorio nunca se parte en dos renglones.
+   Al entrar "Cotizador" (con submenú) el nav pasó a 7 entradas y "Contacto" se
+   caía abajo, estirando el header de 70 a 110px. El apretado fino lo hace el
+   `clamp()` inline de MainNav; aquí van las dos reglas que no caben en un
+   estilo inline: que ningún elemento se encoja y que, en el tramo estrecho de
+   escritorio, sea el LOGO el que ceda altura antes que el menú ceda letra. */
+.hdr-nav > * { flex-shrink: 0; }
+/* Justo encima del corte el margen es de milímetros: ahí el LOGO cede altura
+   antes que el menú ceda legibilidad. */
+@media (min-width: 1200px) and (max-width: 1360px) {
+  .hdr-logo-img { height: 38px; }
 }

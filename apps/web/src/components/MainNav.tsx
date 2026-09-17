@@ -22,8 +22,22 @@ export function MainNav({ items }: { items: NavItem[] }) {
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    // `hdr-nav`: debajo de 1024px la oculta el CSS y manda el drawer (MobileNav).
-    <nav className="hdr-nav" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, fontSize: '14.5px', fontWeight: 600, flex: 1, flexWrap: 'wrap' }}>
+    // `hdr-nav`: por debajo del corte del header (1200px) la oculta el CSS y
+    // manda el cajón lateral (MobileNav).
+    //
+    // UNA SOLA LÍNEA, siempre. Con `flexWrap: 'wrap'` y separación fija, al
+    // entrar "Cotizador" al menú "Contacto" se caía a un segundo renglón y el
+    // header pasaba de 70 a 110 px de alto. El espaciado y el tamaño de letra
+    // ceden con `clamp()` —que sí funciona en estilos inline, al revés que las
+    // media queries— antes que el menú se parta.
+    <nav
+      className="hdr-nav"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: 'clamp(9px, 1.5vw, 20px)', fontSize: 'clamp(12.5px, 1.02vw, 14.5px)',
+        fontWeight: 600, flex: 1, minWidth: 0, flexWrap: 'nowrap',
+      }}
+    >
       {items.map((item) =>
         item.children?.length ? (
           <NavDesplegable key={item.href} item={item} activo={isActive(item.href)} />
@@ -36,6 +50,7 @@ export function MainNav({ items }: { items: NavItem[] }) {
               color: 'var(--color-text)',
               textDecoration: 'none',
               paddingBottom: 3,
+              whiteSpace: 'nowrap',
               borderBottom: isActive(item.href) ? '2px solid var(--color-primary)' : '2px solid transparent',
             }}
           >
@@ -104,7 +119,7 @@ function NavDesplegable({ item, activo }: { item: NavItem; activo: boolean }) {
         aria-haspopup="true"
         aria-current={activo ? 'page' : undefined}
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
+          display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap',
           color: 'var(--color-text)', textDecoration: 'none', paddingBottom: 3,
           borderBottom: activo ? '2px solid var(--color-primary)' : '2px solid transparent',
         }}
@@ -126,8 +141,8 @@ function NavDesplegable({ item, activo }: { item: NavItem; activo: boolean }) {
             borderRadius: 'var(--radius-md)', boxShadow: '0 22px 48px -20px rgba(0,0,0,.55)',
           }}
         >
-          {/* Puente invisible hasta el botón: sin él, el hueco de 12px cierra el
-              menú justo cuando el puntero baja hacia las opciones. */}
+          {/* Puente invisible hasta el enlace padre: sin él, el hueco de 12 px
+              cierra el menú justo cuando el puntero baja hacia las opciones. */}
           <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, top: -12, height: 12 }} />
           {item.children!.map((c) => (
             <Link

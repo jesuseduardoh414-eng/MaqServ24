@@ -151,8 +151,8 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
             )}
           </Link>
 
-          {/* Navegación (resalta el activo por ruta). Debajo de 1024px la
-              sustituye el drawer de `MobileNav`: aquí ya no cabe. */}
+          {/* Navegación (resalta el activo por ruta). Por debajo de 1200px la
+              sustituye el cajón de `MobileNav`: aquí ya no cabe. */}
           <MainNav items={navItems} />
 
           {/* Acciones */}
