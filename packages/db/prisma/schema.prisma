@@ -1747,3 +1747,67 @@ model admin_audit {
   @@index([created_at(sort: Desc)], map: "admin_audit_fecha_idx")
   @@index([admin_id, created_at(sort: Desc)], map: "admin_audit_admin_idx")
 }
+
+/// Tabulador de un cotizador interno (maquinaria o triturados): tarifas,
+/// fletes, zonas, condiciones y datos de la empresa que firma el documento.
+/// UNA fila por tipo. El JSON lo valida `catalogoCotizadorSchema` de
+/// `@maqserv/config` antes de guardarse — aquí es opaco a propósito: el
+/// tabulador cambia seguido y no puede costar un despliegue cada vez.
+model quoter_catalogs {
+  id         Int      @id @default(autoincrement())
+  /// 'maquinaria' | 'triturados'
+  kind       String   @unique(map: "quoter_catalogs_kind_unique") @db.VarChar(20)
+  version    String   @db.VarChar(40)
+  data       Json
+  /// Correo de quien lo tocó por última vez (el detalle va en admin_audit).
+  updated_by String?  @db.VarChar(190)
+  updated_at DateTime @default(now()) @db.DateTime(0)
+
+  @@map("quoter_catalogs")
+}
+
+/// Cotización emitida por un cotizador interno.
+///
+/// `snapshot` guarda el cálculo YA RESUELTO (renglones, totales, condiciones y
+/// quién firma). Es la diferencia de fondo con el sistema del que viene esto:
+/// allí el documento se recalculaba desde el catálogo vigente cada vez que se
+/// abría, así que subir una tarifa cambiaba en silencio cotizaciones que el
+/// cliente ya tenía en la mano. Aquí el documento dice lo que decía el día que
+/// se emitió, pase lo que pase con el tabulador.
+model quoter_quotes {
+  id           Int      @id @default(autoincrement())
+  kind         String   @db.VarChar(20)
+  folio        String   @unique(map: "quoter_quotes_folio_unique") @db.VarChar(40)
+  /// 'panel' (la armó un administrador) | 'sitio' (la pidió un visitante).
+  origin       String   @default("panel") @db.VarChar(10)
+  /// solicitada (la pidió el sitio y nadie la ha atendido) | borrador |
+  /// enviada | aceptada | cancelada
+  state        String   @default("borrador") @db.VarChar(20)
+  client_name  String   @db.VarChar(190)
+  work         String?  @db.VarChar(190)
+  attention    String?  @db.VarChar(190)
+  municipality String?  @db.VarChar(90)
+  email        String?  @db.VarChar(190)
+  phone        String?  @db.VarChar(40)
+  notes        String?  @db.Text
+  /// modo_unidad (maquinaria) / con_iva (triturados).
+  options      Json
+  /// Lo que el usuario eligió: ids, días, toneladas. Sirve para reabrirla.
+  items        Json
+  /// El cálculo congelado (ver nota del modelo).
+  snapshot     Json
+  subtotal     Decimal  @db.Decimal(12, 2)
+  tax          Decimal  @db.Decimal(12, 2)
+  total        Decimal  @db.Decimal(12, 2)
+  admin_id     Int?
+  admin_name   String?  @db.VarChar(190)
+  /// Cliente con sesión que la pidió desde el sitio, si lo había.
+  user_id      Int?
+  created_at   DateTime @default(now()) @db.DateTime(0)
+  updated_at   DateTime @default(now()) @db.DateTime(0)
+
+  @@index([kind, created_at(sort: Desc)], map: "quoter_quotes_kind_idx")
+  @@index([state, created_at(sort: Desc)], map: "quoter_quotes_state_idx")
+  @@index([origin, created_at(sort: Desc)], map: "quoter_quotes_origin_idx")
+  @@map("quoter_quotes")
+}

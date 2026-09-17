@@ -15,6 +15,7 @@ import type {
   WhyChooseUsItem,
 } from '@maqserv/types';
 
+import type { CatalogoCotizador, CotizadorTipo } from '@maqserv/config';
 import { cache } from 'react';
 import { CONTENT_CACHE } from '@/lib/theme';
 
@@ -251,4 +252,24 @@ export function getReviews(limit = 6): Promise<SiteReview[]> {
 
 export function getFaqs(): Promise<FaqItem[]> {
   return getOr('/content/faqs', []);
+}
+
+/**
+ * Tabulador público de un cotizador interno.
+ *
+ * Devuelve `null` cuando el cotizador está apagado para el sitio (la API
+ * responde 404) o cuando no contesta: la página lo traduce en un mensaje, no en
+ * un error. Con los precios ocultos la API manda el catálogo EN CEROS, así que
+ * aquí nunca hay importes que esconder.
+ *
+ * Sin caché a propósito: apagar el cotizador o cambiar una tarifa desde el panel
+ * tiene que verse al recargar, no en la siguiente revalidación.
+ */
+export async function getQuoterCatalog(tipo: CotizadorTipo): Promise<CatalogoCotizador | null> {
+  return pedirOr<CatalogoCotizador | null>(
+    `${API_URL}/quoter/catalog/${tipo}`,
+    { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) },
+    null,
+    (v) => typeof v === 'object' && v !== null && 'tipo' in (v as Record<string, unknown>),
+  );
 }

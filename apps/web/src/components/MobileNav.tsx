@@ -108,9 +108,23 @@ export function MobileNav({
 
             <nav className="mnav-links">
               {items.map((it) => (
-                <Link key={it.href} href={it.href} className={`mnav-link${isActive(it.href) ? ' is-active' : ''}`} aria-current={isActive(it.href) ? 'page' : undefined}>
-                  {it.label}
-                </Link>
+                // Con submenú (Cotizador) no hay desplegable: en el drawer hay
+                // sitio de sobra y esconder dos opciones tras un clic extra solo
+                // añade trabajo. El padre sigue siendo enlace a su portada.
+                <div key={it.href}>
+                  <Link href={it.href} className={`mnav-link${isActive(it.href) ? ' is-active' : ''}`} aria-current={isActive(it.href) ? 'page' : undefined}>
+                    {it.label}
+                  </Link>
+                  {it.children?.length ? (
+                    <div className="mnav-links is-sub" style={{ paddingLeft: 12 }}>
+                      {it.children.map((c) => (
+                        <Link key={c.href} href={c.href} className={`mnav-link is-sub${isActive(c.href) ? ' is-active' : ''}`}>
+                          {c.label}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               ))}
             </nav>
 

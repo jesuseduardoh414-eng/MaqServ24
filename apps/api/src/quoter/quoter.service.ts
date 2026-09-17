@@ -1,0 +1,306 @@
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Prisma, prisma } from '@maqserv/db';
+import {
+  CATALOGOS_DEFAULT,
+  calcularCotizacion,
+  catalogoCotizadorSchema,
+  tieneImporte,
+  type CalculoCotizacion,
+  type CatalogoCotizador,
+  type CotizadorTipo,
+  type OpcionesCotizador,
+  type PartidaCotizador,
+} from '@maqserv/config';
+
+/**
+ * COTIZADORES INTERNOS · la verdad del precio.
+ *
+ * Todo lo que cuesta dinero pasa por aquí: el navegador manda QUÉ eligió y este
+ * servicio pone CUÁNTO vale, leyendo el tabulador de la base de datos. El
+ * cálculo en sí no vive aquí sino en `@maqserv/config`, para que la pantalla
+ * pueda ejecutar exactamente las mismas líneas mientras el usuario teclea sin
+ * pedir permiso a la red en cada cambio.
+ */
+@Injectable()
+export class QuoterService {
+  private readonly log = new Logger('Quoter');
+
+  /**
+   * Caché corta del tabulador.
+   *
+   * Cada tecla del usuario dispara un recálculo en su pantalla, pero al guardar
+   * y al pedir el documento se recalcula aquí; sin caché, cada una de esas
+   * llamadas cuesta un viaje a MySQL para leer la MISMA fila. 30 s es tiempo de
+   * sobra para que un cambio de tarifa se note, y lo invalida a mano quien la
+   * guarda (ver `guardarCatalogo`).
+   */
+  private cache = new Map<CotizadorTipo, { until: number; cat: CatalogoCotizador }>();
+  private static readonly TTL_MS = 30_000;
+
+  /**
+   * El tabulador vigente.
+   *
+   * La primera vez no hay fila: se siembra con el catálogo de `@maqserv/config`
+   * en vez de fallar. Es deliberado — el cotizador tiene que funcionar el día
+   * que se despliega, sin que nadie se acuerde de correr un seed.
+   *
+   * Si la fila existe pero el JSON ya no cuadra con el esquema (alguien editó
+   * la BD a mano, o el esquema cambió en un despliegue), se cae al catálogo por
+   * defecto y se deja un error en el log. Es lo contrario de lo que haría uno
+   * por reflejo —reventar—, pero reventar aquí deja el panel sin cotizador; con
+   * el defecto, sigue cotizando y la pantalla de Tarifas avisa.
+   */
+  async catalogo(tipo: CotizadorTipo): Promise<CatalogoCotizador> {
+    const hit = this.cache.get(tipo);
+    if (hit && hit.until > Date.now()) return hit.cat;
+
+    const fila = await prisma.quoter_catalogs.findUnique({ where: { kind: tipo } });
+    let cat: CatalogoCotizador;
+
+    if (!fila) {
+      cat = CATALOGOS_DEFAULT[tipo];
+      await prisma.quoter_catalogs
+        .create({ data: { kind: tipo, version: cat.version, data: cat as unknown as Prisma.InputJsonValue } })
+        .catch(() => {
+          // Carrera con otra petición que sembró primero: da igual quién ganó.
+        });
+    } else {
+      const parsed = catalogoCotizadorSchema.safeParse(fila.data);
+      if (parsed.success && parsed.data.tipo === tipo) {
+        cat = parsed.data;
+      } else {
+        this.log.error(
+          `El tabulador de "${tipo}" guardado no pasa validación (${parsed.success ? 'tipo cruzado' : parsed.error.issues[0]?.message}). Se usa el de fábrica.`,
+        );
+        cat = CATALOGOS_DEFAULT[tipo];
+      }
+    }
+
+    this.cache.set(tipo, { until: Date.now() + QuoterService.TTL_MS, cat });
+    return cat;
+  }
+
+  /** Guarda el tabulador completo. Lo valida el controlador antes de llegar. */
+  async guardarCatalogo(tipo: CotizadorTipo, cat: CatalogoCotizador, correo: string): Promise<CatalogoCotizador> {
+    const data = { version: cat.version, data: cat as unknown as Prisma.InputJsonValue, updated_by: correo.slice(0, 190), updated_at: new Date() };
+    await prisma.quoter_catalogs.upsert({
+      where: { kind: tipo },
+      create: { kind: tipo, ...data },
+      update: data,
+    });
+    this.cache.delete(tipo);
+    return cat;
+  }
+
+  /** Vuelve el tabulador a los valores de fábrica de `@maqserv/config`. */
+  async restaurarCatalogo(tipo: CotizadorTipo, correo: string): Promise<CatalogoCotizador> {
+    return this.guardarCatalogo(tipo, CATALOGOS_DEFAULT[tipo], correo);
+  }
+
+  /** Vista previa: calcula sin guardar nada. */
+  async calcular(tipo: CotizadorTipo, partidas: PartidaCotizador[], opciones: Partial<OpcionesCotizador>): Promise<CalculoCotizacion> {
+    const cat = await this.catalogo(tipo);
+    return calcularCotizacion(cat, partidas, opciones);
+  }
+
+  /**
+   * Folio consecutivo del mes: MQ-2609-0001 / TR-2609-0001.
+   *
+   * Se cuenta lo emitido en el mes en curso en vez de llevar un contador
+   * aparte. Dos personas guardando a la vez pueden pedir el mismo número, y por
+   * eso el alta reintenta cuando el índice único lo rechaza (ver `crear`): es
+   * una colisión rarísima y resolverla con un reintento sale más barato que
+   * mantener una tabla de secuencias.
+   */
+  private async siguienteFolio(tipo: CotizadorTipo, intento: number): Promise<string> {
+    const prefijo = tipo === 'maquinaria' ? 'MQ' : 'TR';
+    const ahora = new Date();
+    const aa = String(ahora.getFullYear()).slice(2);
+    const mm = String(ahora.getMonth() + 1).padStart(2, '0');
+    const desde = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+    const n = await prisma.quoter_quotes.count({ where: { kind: tipo, created_at: { gte: desde } } });
+    return `${prefijo}-${aa}${mm}-${String(n + 1 + intento).padStart(4, '0')}`;
+  }
+
+  /**
+   * Emite una cotización.
+   *
+   * Recalcula SIEMPRE desde el tabulador —lo que mandó el navegador no se
+   * cree— y guarda el resultado congelado en `snapshot`: el documento seguirá
+   * diciendo lo mismo dentro de un año aunque las tarifas hayan subido.
+   */
+  async crear(entrada: {
+    tipo: CotizadorTipo;
+    cliente: string;
+    obra?: string | null;
+    atencion?: string | null;
+    municipio?: string | null;
+    correo?: string | null;
+    telefono?: string | null;
+    notas?: string | null;
+    opciones: Partial<OpcionesCotizador>;
+    partidas: PartidaCotizador[];
+  }, contexto: {
+    origen: 'panel' | 'sitio';
+    estado: string;
+    adminId?: number | null;
+    adminNombre?: string | null;
+    userId?: number | null;
+  }) {
+    const cat = await this.catalogo(entrada.tipo);
+    const calc = calcularCotizacion(cat, entrada.partidas, entrada.opciones);
+    if (!tieneImporte(calc)) {
+      throw new BadRequestException('La cotización no tiene partidas con importe. Revisa cantidades y precios.');
+    }
+
+    const snapshot = {
+      calc,
+      version: cat.version,
+      empresa: cat.empresa,
+      firma: cat.firma,
+      saludo: cat.saludo,
+      emitida: new Date().toISOString(),
+    };
+
+    const base = {
+      kind: entrada.tipo,
+      origin: contexto.origen,
+      state: contexto.estado,
+      client_name: (entrada.cliente || 'Sin nombre').slice(0, 190),
+      work: entrada.obra?.slice(0, 190) || null,
+      attention: entrada.atencion?.slice(0, 190) || null,
+      municipality: entrada.municipio?.slice(0, 90) || null,
+      email: entrada.correo?.slice(0, 190) || null,
+      phone: entrada.telefono?.slice(0, 40) || null,
+      notes: entrada.notas || null,
+      options: entrada.opciones as unknown as Prisma.InputJsonValue,
+      items: entrada.partidas as unknown as Prisma.InputJsonValue,
+      snapshot: snapshot as unknown as Prisma.InputJsonValue,
+      subtotal: new Prisma.Decimal(calc.subtotal),
+      tax: new Prisma.Decimal(calc.iva),
+      total: new Prisma.Decimal(calc.total),
+      admin_id: contexto.adminId ?? null,
+      admin_name: contexto.adminNombre?.slice(0, 190) ?? null,
+      user_id: contexto.userId ?? null,
+    };
+
+    // Reintento por colisión de folio (ver `siguienteFolio`). 5 vueltas es más
+    // de lo que hará falta nunca; a la sexta es otro problema y hay que verlo.
+    for (let intento = 0; intento < 5; intento += 1) {
+      try {
+        const folio = await this.siguienteFolio(entrada.tipo, intento);
+        return await prisma.quoter_quotes.create({ data: { ...base, folio } });
+      } catch (e) {
+        const duplicado = e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
+        if (!duplicado) throw e;
+      }
+    }
+    throw new BadRequestException('No se pudo asignar folio. Inténtalo de nuevo.');
+  }
+
+  async listar(filtros: { tipo?: CotizadorTipo; estado?: string; origen?: string; buscar?: string; pagina?: number }) {
+    const porPagina = 25;
+    const pagina = Math.max(1, filtros.pagina ?? 1);
+    const where: Prisma.quoter_quotesWhereInput = {};
+    if (filtros.tipo) where.kind = filtros.tipo;
+    if (filtros.estado) where.state = filtros.estado;
+    if (filtros.origen) where.origin = filtros.origen;
+    const term = filtros.buscar?.trim();
+    if (term) {
+      // Sin `mode`: la colación utf8mb4_unicode_ci de MySQL ya ignora
+      // mayúsculas y acentos.
+      where.OR = [
+        { folio: { contains: term } },
+        { client_name: { contains: term } },
+        { work: { contains: term } },
+        { email: { contains: term } },
+      ];
+    }
+
+    const [items, total] = await Promise.all([
+      prisma.quoter_quotes.findMany({
+        where,
+        orderBy: { id: 'desc' },
+        skip: (pagina - 1) * porPagina,
+        take: porPagina,
+        select: {
+          id: true, kind: true, folio: true, origin: true, state: true,
+          client_name: true, work: true, municipality: true, email: true, phone: true,
+          total: true, admin_name: true, created_at: true,
+        },
+      }),
+      prisma.quoter_quotes.count({ where }),
+    ]);
+
+    return {
+      items: items.map((q) => ({
+        id: q.id,
+        tipo: q.kind,
+        folio: q.folio,
+        origen: q.origin,
+        estado: q.state,
+        cliente: q.client_name,
+        obra: q.work,
+        municipio: q.municipality,
+        correo: q.email,
+        telefono: q.phone,
+        total: Number(q.total),
+        admin: q.admin_name,
+        fecha: q.created_at,
+      })),
+      total,
+      pagina,
+      paginas: Math.max(1, Math.ceil(total / porPagina)),
+    };
+  }
+
+  /** Una cotización completa, con su cálculo congelado listo para imprimir. */
+  async obtener(id: number) {
+    const q = await prisma.quoter_quotes.findUnique({ where: { id } });
+    if (!q) throw new NotFoundException('Cotización no encontrada');
+    return {
+      id: q.id,
+      tipo: q.kind as CotizadorTipo,
+      folio: q.folio,
+      origen: q.origin,
+      estado: q.state,
+      cliente: q.client_name,
+      obra: q.work,
+      atencion: q.attention,
+      municipio: q.municipality,
+      correo: q.email,
+      telefono: q.phone,
+      notas: q.notes,
+      opciones: q.options as unknown as OpcionesCotizador,
+      partidas: q.items as unknown as PartidaCotizador[],
+      documento: q.snapshot as unknown as {
+        calc: CalculoCotizacion;
+        version: string;
+        empresa: CatalogoCotizador['empresa'];
+        firma: CatalogoCotizador['firma'];
+        saludo: string;
+        emitida: string;
+      },
+      total: Number(q.total),
+      admin: q.admin_name,
+      fecha: q.created_at,
+    };
+  }
+
+  private static readonly ESTADOS = ['solicitada', 'borrador', 'enviada', 'aceptada', 'cancelada'];
+
+  async cambiarEstado(id: number, estado: string) {
+    if (!QuoterService.ESTADOS.includes(estado)) throw new BadRequestException('Estado desconocido');
+    const existe = await prisma.quoter_quotes.count({ where: { id } });
+    if (!existe) throw new NotFoundException('Cotización no encontrada');
+    await prisma.quoter_quotes.update({ where: { id }, data: { state: estado, updated_at: new Date() } });
+    return { ok: true, estado };
+  }
+
+  async eliminar(id: number) {
+    const existe = await prisma.quoter_quotes.count({ where: { id } });
+    if (!existe) throw new NotFoundException('Cotización no encontrada');
+    await prisma.quoter_quotes.delete({ where: { id } });
+    return { ok: true };
+  }
+}

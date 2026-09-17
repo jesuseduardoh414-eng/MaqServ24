@@ -28,6 +28,15 @@ const ALLOWLIST = [
    */
   /^aliado(\/|$)/,
   /^quotes\/mis-obras$/,
+  /**
+   * Cotizadores internos en el sitio público (maquinaria y triturados).
+   *
+   * La API decide qué enseña: si el tabulador no es público responde 404, y si
+   * los precios están ocultos manda el catálogo en ceros. Va por el proxy y no
+   * directo para que, cuando el visitante tenga sesión, su solicitud quede
+   * ligada a su cuenta sin que el navegador toque el token.
+   */
+  /^quoter\/(catalog|calculate|request)\/(maquinaria|triturados)$/,
 ];
 
 /** Rutas cuya credencial la manda el navegador, no la cookie de sesión. */

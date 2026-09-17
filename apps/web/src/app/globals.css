@@ -432,3 +432,10 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
 :root[data-theme="dark"] .brand-swap .brand-logo-light { display: none; }
 :root[data-theme="dark"] .brand-swap .brand-logo-dark { display: block; }
 
+
+/* Desplegable del header (Cotizador → maquinaria / triturados). El hover se
+   hace en CSS y no con estado de React: es puro adorno y no merece un render. */
+.hdr-drop-item:hover,
+.hdr-drop-item:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 11%, transparent);
+}

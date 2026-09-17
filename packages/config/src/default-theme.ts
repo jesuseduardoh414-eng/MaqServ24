@@ -746,6 +746,12 @@ export const defaultTheme: Theme = {
       'nav.home': 'Inicio',
       'nav.products': 'Productos',
       'nav.categories': 'Categorías',
+      // Cotizador: entrada con submenú en el header (ver SiteHeader).
+      'nav.quoter': 'Cotizador',
+      'nav.quoter.machinery': 'Maquinaria',
+      'nav.quoter.machinery.hint': 'Renta con operador y diésel, con flete a obra',
+      'nav.quoter.aggregates': 'Triturados',
+      'nav.quoter.aggregates.hint': 'Grava, arena y base por tonelada o por viaje',
       'nav.blog': 'Blog',
       'nav.contact': 'Contacto',
       'nav.wishlist': 'Favoritos',

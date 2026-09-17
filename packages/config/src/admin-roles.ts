@@ -39,6 +39,12 @@ export const MODULOS_ADMIN = [
   'disponibilidad',
   'ordenes',
   'cotizaciones',
+  // El cotizador interno (maquinaria y triturados) va aparte de 'cotizaciones'.
+  // No son lo mismo: 'cotizaciones' es la BANDEJA de lo que pide el cliente;
+  // esto es la HERRAMIENTA con la que se arma el precio, y lleva dentro el
+  // tabulador de tarifas. Quien atiende la bandeja no tiene por qué poder
+  // mover el precio de una excavadora.
+  'cotizador',
   'servicios',
   'agenda',
   'clientes',
@@ -75,7 +81,7 @@ export const ROLES_ADMIN: Record<RolAdmin, DefinicionRol> = {
     nombre: 'Operaciones',
     descripcion: 'Solicitudes, asignaciones, logística, incidencias y cumplimiento.',
     modulos: [
-      'inicio', 'indicadores', 'ordenes', 'cotizaciones', 'servicios',
+      'inicio', 'indicadores', 'ordenes', 'cotizaciones', 'cotizador', 'servicios',
       'agenda', 'clientes', 'disponibilidad', 'proveedores',
     ],
   },
@@ -89,7 +95,7 @@ export const ROLES_ADMIN: Record<RolAdmin, DefinicionRol> = {
     clave: 'comercial',
     nombre: 'Comercial y Atención',
     descripcion: 'Adquisición de clientes, cuentas, obras, seguimiento, conversión y resolución de fricciones.',
-    modulos: ['inicio', 'indicadores', 'cotizaciones', 'clientes', 'comunidad'],
+    modulos: ['inicio', 'indicadores', 'cotizaciones', 'cotizador', 'clientes', 'comunidad'],
   },
   marca: {
     clave: 'marca',

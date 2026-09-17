@@ -238,6 +238,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@maqserv/config':
+        specifier: workspace:*
+        version: link:../config
       react:
         specifier: ^19.0.0
         version: 19.2.7

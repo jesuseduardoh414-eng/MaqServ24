@@ -17,7 +17,7 @@ import { modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
  * Los dos leen la MISMA tabla de `@maqserv/config`: si un día divergen, el menú
  * escondería algo que la API sigue sirviendo.
  */
-type BadgeKey = 'orders' | 'quotes' | 'withdraws' | 'messages';
+type BadgeKey = 'orders' | 'quotes' | 'withdraws' | 'messages' | 'quoterRequests';
 type Item = { modulo: ModuloAdmin; href: string; label: string; icon: string; badge?: BadgeKey };
 
 const GROUPS: Array<{ title: string; items: Item[] }> = [
@@ -50,6 +50,21 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
       // La empresa que contrata y sus frentes abiertos. Va aparte de Cuentas
       // porque casi todas las solicitudes las hace alguien sin registrarse.
       { modulo: 'clientes', href: '/clientes', label: 'Clientes y obras', icon: 'ph-buildings' },
+    ],
+  },
+  {
+    // El cotizador interno: la herramienta con la que se arma el precio. Va en
+    // su propio grupo y no dentro de Ventas porque son DOS cotizadores con
+    // tabuladores distintos, y el cliente pidió expresamente verlos abiertos:
+    // "al seleccionar despliega 2 opciones, maquinaria y triturados".
+    title: 'Cotizador',
+    items: [
+      { modulo: 'cotizador', href: '/cotizador/maquinaria', label: 'Maquinaria', icon: 'ph-tractor' },
+      { modulo: 'cotizador', href: '/cotizador/triturados', label: 'Triturados', icon: 'ph-mountains' },
+      // Lleva contador porque una solicitud del sitio que nadie abre es un
+      // cliente esperando una llamada que no va a llegar.
+      { modulo: 'cotizador', href: '/cotizador/historial', label: 'Historial', icon: 'ph-clock-counter-clockwise', badge: 'quoterRequests' },
+      { modulo: 'cotizador', href: '/cotizador/tarifas', label: 'Tarifas y condiciones', icon: 'ph-sliders-horizontal' },
     ],
   },
   {
@@ -121,7 +136,7 @@ type Badges = Record<BadgeKey, number>;
 
 export function SidebarNav({ collapsed, query, rol }: { collapsed: boolean; query: string; rol: RolAdmin }) {
   const pathname = usePathname() || '/';
-  const [badges, setBadges] = useState<Badges>({ orders: 0, quotes: 0, withdraws: 0, messages: 0 });
+  const [badges, setBadges] = useState<Badges>({ orders: 0, quotes: 0, withdraws: 0, messages: 0, quoterRequests: 0 });
 
   // Contadores en vivo (pendientes) desde el resumen del panel.
   useEffect(() => {
@@ -135,6 +150,7 @@ export function SidebarNav({ collapsed, query, rol }: { collapsed: boolean; quer
           quotes: d.pendingQuotes ?? 0,
           withdraws: d.withdrawsPending ?? 0,
           messages: d.pendingMessages ?? 0,
+          quoterRequests: d.pendingQuoterRequests ?? 0,
         });
       })
       .catch(() => {});
