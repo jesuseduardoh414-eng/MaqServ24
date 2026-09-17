@@ -75,7 +75,7 @@ export function HeaderActions({
   }
 
   const iconBtn: React.CSSProperties = {
-    position: 'relative', width: 38, height: 38, borderRadius: '50%',
+    position: 'relative', width: 34, height: 34, borderRadius: '50%',
     border: 'none', background: 'transparent', color: 'var(--color-text-muted)',
     cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none',
   };
@@ -83,7 +83,7 @@ export function HeaderActions({
   return (
     // En móvil sobreviven aquí solo buscar y carrito; favoritos, avisos y
     // sesión se mueven al drawer (ver `.hdr-fav` / `.hdr-auth` en globals.css).
-    <div className="hdr-actions" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+    <div className="hdr-actions" style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
       <button type="button" className="hdr-icon" title={labels.search} aria-label={labels.search} style={iconBtn} onClick={() => setSearchOpen((v) => !v)}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
       </button>
@@ -103,7 +103,7 @@ export function HeaderActions({
         ) : null}
       </Link>
 
-      <span className="hdr-auth" style={{ width: 1, height: 26, background: 'var(--color-border)', margin: '0 8px' }} />
+      <span className="hdr-auth" style={{ width: 1, height: 24, background: 'var(--color-border)', margin: '0 7px' }} />
 
       {user ? (
         <div ref={menuRef} className="hdr-auth" style={{ position: 'relative' }}>
@@ -156,7 +156,7 @@ export function HeaderActions({
               color: 'var(--color-primary-fg)',
               fontWeight: 700,
               fontSize: '14px',
-              padding: '10px 16px',
+              padding: '9px 14px',
               whiteSpace: 'nowrap',
               borderRadius: 'var(--radius-md)',
               textDecoration: 'none',

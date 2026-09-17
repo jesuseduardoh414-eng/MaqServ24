@@ -54,11 +54,18 @@ const ShSelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       position={position}
+      // Se acota a lo que de verdad cabe en pantalla: sin esto el menú se salía
+      // por abajo y Radix lo volteaba hacia arriba, tapando el formulario.
+      style={{ maxHeight: 'min(320px, var(--radix-select-content-available-height))' }}
+      collisionPadding={12}
       className={cn(
-        'relative z-[120] max-h-72 min-w-[8rem] overflow-hidden rounded-[var(--ui-radius)] p-1',
+        'relative z-[120] min-w-[8rem] overflow-hidden rounded-[var(--ui-radius)] p-1.5',
         'border border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)]',
-        'shadow-[0_22px_48px_-20px_rgba(0,0,0,.55)]',
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'shadow-[0_18px_48px_-12px_rgba(0,0,0,.6)]',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out',
+        'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1',
         // El menú nunca es más estrecho que su disparador: si no, una zona de
         // 60 caracteres abría una lista de 8 y el texto se cortaba.
         position === 'popper' && 'w-[var(--radix-select-trigger-width)] translate-y-1',
@@ -69,7 +76,18 @@ const ShSelectContent = React.forwardRef<
       <SelectPrimitive.ScrollUpButton className="flex h-6 items-center justify-center text-[var(--ui-muted)]">
         <ChevronUp className="size-4" />
       </SelectPrimitive.ScrollUpButton>
-      <SelectPrimitive.Viewport className="p-0">{children}</SelectPrimitive.Viewport>
+      <SelectPrimitive.Viewport
+        className={cn(
+          'p-0',
+          // Barra propia: la nativa de Windows es una franja gris clara de
+          // 17 px que sobre el panel oscuro parece un error de maquetación.
+          '[scrollbar-width:thin] [scrollbar-color:var(--ui-border)_transparent]',
+          '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent',
+          '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--ui-border)]',
+        )}
+      >
+        {children}
+      </SelectPrimitive.Viewport>
       <SelectPrimitive.ScrollDownButton className="flex h-6 items-center justify-center text-[var(--ui-muted)]">
         <ChevronDown className="size-4" />
       </SelectPrimitive.ScrollDownButton>
@@ -85,8 +103,8 @@ const ShSelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--ui-radius)-4px)]',
-      'py-2 pl-3 pr-8 text-sm outline-none',
+      'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--ui-radius)-3px)]',
+      'py-2 pl-3 pr-8 text-sm outline-none transition-colors',
       'focus:bg-[var(--ui-accent-soft)] focus:text-[var(--ui-text)]',
       'data-[state=checked]:text-[var(--ui-accent)] data-[state=checked]:font-semibold',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',

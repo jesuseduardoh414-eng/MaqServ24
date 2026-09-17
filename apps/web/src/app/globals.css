@@ -496,3 +496,12 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
   --ui-radius: var(--radius-md);
   --ui-danger: var(--color-error);
 }
+
+/* Centrado SEGURO del menú.
+   Con `center` a secas, un contenido más ancho que su caja se derrama por los
+   DOS lados —y el izquierdo cae encima del logo, que es como se veía
+   "MAQSER24Inicio"—. `safe center` centra mientras quepa y, en cuanto no cabe,
+   se comporta como `start`: el desbordamiento se va solo hacia la derecha,
+   donde no pisa nada. La primera declaración es el respaldo para navegadores
+   que no conocen la palabra clave. */
+.hdr-nav { justify-content: center; justify-content: safe center; }

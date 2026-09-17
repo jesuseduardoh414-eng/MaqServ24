@@ -9,9 +9,13 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { FooterNewsletter } from '@/components/FooterNewsletter';
 import { Icon } from '@/components/Icon';
 
-// Padding fluido: 26px en escritorio, 16px en móvil (sin media query, el
-// inline style no las admite).
-const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(16px, 4vw, 26px)' };
+// Padding fluido, sin media query (el estilo inline no las admite).
+//
+// Se apretó de 26 a 18 px: el menú creció con "Cotizador" y esos 16 px de más
+// a cada lado eran aire que le hacía falta. El tope de 1240 se queda como está
+// a propósito —lo comparten todas las páginas— porque ensanchar solo el header
+// dejaría el logo desalineado con el contenido de abajo.
+const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(14px, 2vw, 18px)' };
 
 /**
  * Header del diseño SEGAshop:

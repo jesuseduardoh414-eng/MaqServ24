@@ -25,19 +25,30 @@ export function MainNav({ items }: { items: NavItem[] }) {
     // `hdr-nav`: por debajo del corte del header (1200px) la oculta el CSS y
     // manda el cajón lateral (MobileNav).
     //
-    // UNA SOLA LÍNEA, siempre. Con `flexWrap: 'wrap'` y separación fija, al
-    // entrar "Cotizador" al menú "Contacto" se caía a un segundo renglón y el
-    // header pasaba de 70 a 110 px de alto. El espaciado y el tamaño de letra
-    // ceden con `clamp()` —que sí funciona en estilos inline, al revés que las
-    // media queries— antes que el menú se parta.
+    // UNA SOLA LÍNEA, siempre, y sin desbordar.
+    //
+    // Antes el tamaño de letra se escalaba con `clamp(…, 1.02vw, 14.5px)`, y
+    // eso estaba AL REVÉS: el `vw` mira la ventana, pero el contenedor del
+    // header está topado en 1240 px. En una pantalla de 1900 el `vw` mandaba al
+    // máximo (14.5) dentro de la caja más estrecha que va a haber nunca, el nav
+    // se pasaba ~15 px y, al estar centrado, se salía por los DOS lados: por la
+    // derecha contra las acciones y por la izquierda encima del logo, que es lo
+    // que se veía pegado a "MAQSER24".
+    //
+    // Como por debajo de 1200 px manda el cajón lateral, el rango real de este
+    // menú es estrecho y no necesita escalar: medida fija que entra con holgura
+    // en 1240, y la separación sí cede un poco en el tramo justo.
     <nav
       className="hdr-nav"
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        gap: 'clamp(9px, 1.5vw, 20px)', fontSize: 'clamp(12.5px, 1.02vw, 14.5px)',
+        display: 'flex', alignItems: 'center',
+        gap: 'clamp(10px, 1.1vw, 16px)', fontSize: '14px',
         fontWeight: 600, flex: 1, minWidth: 0, flexWrap: 'nowrap',
       }}
     >
+      {/* El centrado vive en globals.css (`safe center`) y no aquí: un estilo
+          inline le gana a la hoja y ese matiz es justo lo que impide que el
+          menú, si algún día vuelve a no caber, se derrame sobre el logo. */}
       {items.map((item) =>
         item.children?.length ? (
           <NavDesplegable key={item.href} item={item} activo={isActive(item.href)} />

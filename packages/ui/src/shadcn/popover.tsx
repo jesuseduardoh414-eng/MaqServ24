@@ -21,8 +21,13 @@ const ShPopoverContent = React.forwardRef<
       className={cn(
         'z-[120] overflow-hidden rounded-[var(--ui-radius)] p-1',
         'border border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)]',
-        'shadow-[0_22px_48px_-20px_rgba(0,0,0,.55)] outline-none',
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        // Sombra más honda que la del cromo: el panel flota sobre el contenido
+        // y sin separarlo se leía como parte del formulario.
+        'shadow-[0_18px_48px_-12px_rgba(0,0,0,.6)] outline-none',
+        'data-[state=open]:animate-in data-[state=closed]:animate-out',
+        'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+        'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
+        'data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1',
         className,
       )}
       {...props}
