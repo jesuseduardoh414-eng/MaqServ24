@@ -1,9 +1,18 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
+import { Minus, Plus, X } from 'lucide-react';
 import { IconoCotizador } from './iconos';
+import { ShInput, ShLabel } from '../shadcn/input';
 
-/** Etiqueta + control. El asterisco solo aparece donde de verdad es obligatorio. */
+/**
+ * Etiqueta + control.
+ *
+ * La etiqueta es la de Radix (`ShLabel`) y va enlazada por `id`, no envolviendo
+ * al campo: envolver rompía el combobox de municipio, porque un clic en la
+ * etiqueta llegaba también al disparador y el desplegable se abría y se cerraba
+ * en el mismo gesto.
+ */
 export function Campo({
   label,
   req,
@@ -17,17 +26,28 @@ export function Campo({
   help?: string;
   error?: string | null;
   ancho?: 'full';
-  children: ReactNode;
+  /** Recibe el `id` que hay que poner en el control. */
+  children: ReactNode | ((id: string) => ReactNode);
 }) {
+  const id = useId();
+  const idAyuda = `${id}-ayuda`;
+  // `htmlFor` solo cuando de verdad hay un control con ese id: apuntar a un id
+  // inexistente es peor que no poner nada, porque el lector de pantalla anuncia
+  // la etiqueta y luego no encuentra a qué pertenece.
+  const enlazada = typeof children === 'function';
   return (
-    <label className={`cz-field${ancho === 'full' ? ' full' : ''}`}>
-      <span className="cz-lbl">
+    <div className={`cz-field${ancho === 'full' ? ' full' : ''}`}>
+      <ShLabel htmlFor={enlazada ? id : undefined}>
         {label}
-        {req ? <span className="req"> *</span> : null}
-      </span>
-      {children}
-      {error ? <span className="cz-err">{error}</span> : help ? <span className="cz-help">{help}</span> : null}
-    </label>
+        {req ? <span className="text-[var(--ui-accent)]"> *</span> : null}
+      </ShLabel>
+      {enlazada ? (children as (id: string) => ReactNode)(id) : (children as ReactNode)}
+      {error ? (
+        <span id={idAyuda} className="cz-err">{error}</span>
+      ) : help ? (
+        <span id={idAyuda} className="cz-help">{help}</span>
+      ) : null}
+    </div>
   );
 }
 
@@ -36,8 +56,7 @@ export function Campo({
  *
  * El campo del medio se deja editar a mano aunque existan los botones: subir a
  * 30 días a golpe de "+" son 30 clics, y el primer usuario que lo intente va a
- * teclear. Se guarda el texto crudo mientras escribe y solo se normaliza al
- * salir del campo — validar en cada tecla borraba el número a medio escribir.
+ * teclear.
  */
 export function Contador({
   valor,
@@ -46,6 +65,7 @@ export function Contador({
   max = Number.MAX_SAFE_INTEGER,
   paso = 1,
   ariaLabel,
+  id,
 }: {
   valor: number;
   onChange: (v: number) => void;
@@ -53,14 +73,16 @@ export function Contador({
   max?: number;
   paso?: number;
   ariaLabel: string;
+  id?: string;
 }) {
   const acotar = (v: number) => Math.min(max, Math.max(min, v));
   return (
     <div className="cz-stp">
-      <button type="button" aria-label={`Restar ${ariaLabel}`} onClick={() => onChange(acotar(valor - paso))}>
-        −
+      <button type="button" aria-label={`Restar ${ariaLabel}`} onClick={() => onChange(acotar(valor - paso))} disabled={valor <= min}>
+        <Minus className="size-4" />
       </button>
       <input
+        id={id}
         type="number"
         inputMode="numeric"
         aria-label={ariaLabel}
@@ -72,8 +94,8 @@ export function Contador({
           onChange(Number.isNaN(v) ? min : acotar(v));
         }}
       />
-      <button type="button" aria-label={`Sumar ${ariaLabel}`} onClick={() => onChange(acotar(valor + paso))}>
-        +
+      <button type="button" aria-label={`Sumar ${ariaLabel}`} onClick={() => onChange(acotar(valor + paso))} disabled={valor >= max}>
+        <Plus className="size-4" />
       </button>
     </div>
   );
@@ -92,16 +114,18 @@ export function NumeroTexto({
   placeholder,
   ariaLabel,
   decimal,
+  id,
 }: {
   valor: string;
   onChange: (v: string) => void;
   placeholder?: string;
   ariaLabel: string;
   decimal?: boolean;
+  id?: string;
 }) {
   return (
-    <input
-      className="cz-input"
+    <ShInput
+      id={id}
       type="number"
       inputMode={decimal ? 'decimal' : 'numeric'}
       step={decimal ? '0.01' : '1'}
@@ -122,29 +146,84 @@ export function Chip({ on, onClick, children }: { on: boolean; onClick: () => vo
   );
 }
 
-/** Tarjeta del catálogo. `n` = cuántas veces se agregó (badge). */
+/**
+ * Tarjeta del catálogo: ALTERNA (elegir / quitar).
+ *
+ * Antes solo sumaba, y el badge iba subiendo sin manera de bajar: para quitar
+ * algo había que avanzar al paso siguiente y buscar su ✕. Tocar de nuevo lo que
+ * ya elegiste es el gesto que todo el mundo intenta primero, y no hacía nada.
+ *
+ * Añadir DOS partidas del mismo equipo sigue teniendo sentido —la misma
+ * excavadora dos semanas y otra tres días son dos renglones—, así que eso
+ * queda en el "+" de la esquina, que es explícito. Para varias unidades con la
+ * misma duración está el contador de "Equipos" del paso siguiente, que es lo
+ * que la gente quiere el 90 % de las veces.
+ */
 export function Tarjeta({
   icono,
   titulo,
   nota,
-  n,
+  n = 0,
+  modo = 'alternar',
   onClick,
+  onAgregarOtra,
 }: {
   icono: string;
   titulo: string;
   nota?: string;
+  /** Cuántas partidas hay de esto. 0 = sin elegir. */
   n?: number;
+  /**
+   * `alternar`: el clic elige y vuelve a quitar (equipos, servicios, materiales).
+   * `agregar`: el clic siempre añade una partida nueva. Es lo correcto para las
+   * tarjetas que no representan UNA cosa sino un tipo de renglón —"entrega por
+   * zona" puede ir a tres zonas distintas—, donde quitarlo todo de un clic
+   * borraría trabajo ajeno a lo que se tocó. Esas se quitan con su ✕.
+   */
+  modo?: 'alternar' | 'agregar';
   onClick: () => void;
+  /** Si se pasa, la tarjeta elegida ofrece añadir otra partida igual. */
+  onAgregarOtra?: () => void;
 }) {
+  const activa = n > 0;
   return (
-    <button type="button" className="cz-pick" data-on={n && n > 0 ? '1' : '0'} onClick={onClick}>
-      {n && n > 0 ? <span className="n">{n}</span> : null}
-      <span className="ico">
-        <IconoCotizador nombre={icono} size={30} />
-      </span>
-      <b>{titulo}</b>
-      {nota ? <span className="pu">{nota}</span> : null}
-    </button>
+    <div className="cz-pick-wrap">
+      <button
+        type="button"
+        className="cz-pick"
+        data-on={activa ? '1' : '0'}
+        aria-pressed={modo === 'alternar' ? activa : undefined}
+        onClick={onClick}
+      >
+        <span className="ico">
+          <IconoCotizador nombre={icono} size={30} />
+        </span>
+        <b>{titulo}</b>
+        {nota ? <span className="pu">{nota}</span> : null}
+        {activa && modo === 'alternar' ? (
+          <span className="cz-pick-quitar">
+            <X className="size-3" aria-hidden /> Toca para quitar
+          </span>
+        ) : null}
+      </button>
+
+      {activa ? (
+        <span className="cz-pick-badges">
+          {onAgregarOtra ? (
+            <button
+              type="button"
+              className="cz-pick-mas"
+              title="Agregar otra partida igual (para cotizarla con otra duración)"
+              aria-label={`Agregar otra partida de ${titulo}`}
+              onClick={onAgregarOtra}
+            >
+              <Plus className="size-3.5" />
+            </button>
+          ) : null}
+          <span className="cz-pick-n" aria-label={`${n} partidas de ${titulo}`}>{n}</span>
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -178,7 +257,7 @@ export function Linea({
         </span>
         {insignia ? <span className="cz-tier">{insignia}</span> : null}
         <button type="button" className="cz-rm" aria-label="Quitar partida" onClick={onQuitar}>
-          ✕
+          <X className="size-4" />
         </button>
       </div>
       <div className="cz-ctrl">{children}</div>

@@ -10,11 +10,16 @@ import {
   type OpcionesCotizador,
   type PartidaCotizador,
 } from '@maqserv/config';
+import { ArrowLeft, ArrowRight, Check, Printer, RotateCcw } from 'lucide-react';
 import { COTIZADOR_CSS } from './estilos';
 import { DOCUMENTO_CSS, documentoCuerpo, imprimirDocumento, type DatosDocumento } from './documento';
 import { money } from './formato';
 import { IconoCotizador } from './iconos';
 import { Aviso, Campo } from './piezas';
+import { ShButton } from '../shadcn/button';
+import { ShCombobox } from '../shadcn/combobox';
+import { ShInput, ShTextarea } from '../shadcn/input';
+import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '../shadcn/select';
 import {
   CONTEXTO_VACIO,
   aPartidas,
@@ -107,6 +112,25 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
     setLineas((prev) => prev.map((l) => (l.uid === uid ? ({ ...l, ...patch } as LineaCotizador) : l)));
 
   /**
+   * Elegir / quitar desde la tarjeta del catálogo.
+   *
+   * Tocar de nuevo lo que ya elegiste es el gesto que todo el mundo intenta
+   * primero, y antes no hacía nada: la tarjeta solo sumaba y el contador subía
+   * sin forma de bajarlo. Para quitar algo había que avanzar al paso siguiente
+   * y buscar su ✕, que nadie encuentra si no sabe que está ahí.
+   *
+   * Quita TODAS las partidas de ese equipo/material, no la última: el contador
+   * que se ve en la tarjeta es de ese conjunto, y dejar una a medias haría que
+   * el número bajara sin que la tarjeta se apagara.
+   */
+  const alternar = (coincide: (l: LineaCotizador) => boolean, crear: () => LineaCotizador) =>
+    setLineas((prev) => (prev.some(coincide) ? prev.filter((l) => !coincide(l)) : [...prev, crear()]));
+
+  const esEquipo = (id: string) => (l: LineaCotizador) => l.tipo === 'equipo' && l.id === id;
+  const esServicio = (id: string) => (l: LineaCotizador) => l.tipo === 'servicio' && l.id === id;
+  const esMaterial = (id: string) => (l: LineaCotizador) => l.tipo === 'material' && l.id === id;
+
+  /**
    * Al deseleccionar una modalidad se tiran sus partidas.
    *
    * Conservarlas parece más amable, pero entonces el documento saldría con
@@ -192,7 +216,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
       <div className="cz" data-variante={variante}>
         <style>{COTIZADOR_CSS}</style>
         <div className="cz-card cz-done">
-          <div className="mark">✓</div>
+          <div className="mark"><Check className="size-8" /></div>
           <h2>{esPanel ? 'Cotización guardada' : 'Solicitud enviada'}</h2>
           <p>
             {esPanel
@@ -201,12 +225,12 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
           </p>
           <div className="cz-folio">{hecho.folio}</div>
           <div className="cz-done-acts">
-            <button type="button" className="cz-btn primary" onClick={() => imprimir(hecho.folio)}>
-              Imprimir / Guardar PDF
-            </button>
-            <button type="button" className="cz-btn ghost" onClick={reiniciar}>
-              Nueva cotización
-            </button>
+            <ShButton onClick={() => imprimir(hecho.folio)}>
+              <Printer className="size-4" /> Imprimir / Guardar PDF
+            </ShButton>
+            <ShButton variant="outline" onClick={reiniciar}>
+              <RotateCcw className="size-4" /> Nueva cotización
+            </ShButton>
           </div>
           {error ? (
             <div style={{ marginTop: 16 }}>
@@ -256,7 +280,8 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               cat={catalogo as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
               mostrarPrecios={verPrecios}
-              agregar={(id) => agregar(lineaDeEquipo(id))}
+              alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
+              agregarOtra={(id) => agregar(lineaDeEquipo(id))}
             />
           ) : null}
 
@@ -275,7 +300,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               cat={catalogo as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
               mostrarPrecios={verPrecios}
-              agregar={(id) => agregar(lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
+              alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
               actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
               quitar={quitar}
             />
@@ -291,7 +316,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               lineas={lineas as LineaTriturados[]}
               modalidades={modalidades}
               mostrarPrecios={verPrecios}
-              agregarMaterial={(id) => agregar(lineaDeMaterial(catalogo as CatalogoTriturados, id))}
+              alternarMaterial={(id) => alternar(esMaterial(id), () => lineaDeMaterial(catalogo as CatalogoTriturados, id))}
               agregarZona={() => agregar(lineaDeZona(catalogo as CatalogoTriturados))}
               agregarBanco={() => agregar(lineaDeBanco(catalogo as CatalogoTriturados))}
               actualizar={actualizar}
@@ -321,22 +346,31 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
 
               {tipo === 'maquinaria' && verPrecios ? (
                 <Campo label="Presentar cantidades en" help="Cómo se ven las cantidades en el documento; el total no cambia.">
-                  <select className="cz-select" value={modoUnidad} onChange={(e) => setModoUnidad(e.target.value as 'horas' | 'dias')}>
-                    <option value="horas">Horas (HRS)</option>
-                    <option value="dias">Jornadas (JOR)</option>
-                  </select>
+                  {(id) => (
+                    <ShSelect value={modoUnidad} onValueChange={(v) => setModoUnidad(v as 'horas' | 'dias')}>
+                      <ShSelectTrigger id={id} className="max-w-xs">
+                        <ShSelectValue />
+                      </ShSelectTrigger>
+                      <ShSelectContent>
+                        <ShSelectItem value="horas">Horas (HRS)</ShSelectItem>
+                        <ShSelectItem value="dias">Jornadas (JOR)</ShSelectItem>
+                      </ShSelectContent>
+                    </ShSelect>
+                  )}
                 </Campo>
               ) : null}
 
               <div style={{ marginTop: 14 }}>
                 <Campo label="Notas para el cliente (opcional)" ancho="full">
-                  <textarea
-                    className="cz-textarea"
-                    value={ctx.notas}
-                    maxLength={2000}
-                    placeholder="Vigencia, condiciones especiales, contacto en obra…"
-                    onChange={(e) => setCtx({ ...ctx, notas: e.target.value })}
-                  />
+                  {(id) => (
+                    <ShTextarea
+                      id={id}
+                      value={ctx.notas}
+                      maxLength={2000}
+                      placeholder="Vigencia, condiciones especiales, contacto en obra…"
+                      onChange={(e) => setCtx({ ...ctx, notas: e.target.value })}
+                    />
+                  )}
                 </Campo>
               </div>
 
@@ -361,17 +395,17 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
           ) : null}
 
           <div className="cz-nav">
-            <button type="button" className="cz-btn ghost" onClick={retroceder} disabled={paso === 0 || enviando}>
-              ← Atrás
-            </button>
+            <ShButton variant="outline" onClick={retroceder} disabled={paso === 0 || enviando}>
+              <ArrowLeft className="size-4" /> Atrás
+            </ShButton>
             {esUltimo ? (
-              <button type="button" className="cz-btn primary" onClick={enviar} disabled={enviando}>
+              <ShButton onClick={enviar} disabled={enviando}>
                 {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Enviar solicitud'}
-              </button>
+              </ShButton>
             ) : (
-              <button type="button" className="cz-btn primary" onClick={avanzar}>
-                Continuar →
-              </button>
+              <ShButton onClick={avanzar}>
+                Continuar <ArrowRight className="size-4" />
+              </ShButton>
             )}
           </div>
         </div>
@@ -411,38 +445,54 @@ function PasoObra({
       <p className="cz-card-s">Es lo que sale impreso en el encabezado de la cotización.</p>
       <div className="cz-row">
         <Campo label="Cliente o empresa" req ancho="full" error={tocado && ctx.cliente.trim().length < 2 ? 'Escribe a nombre de quién va la cotización.' : null}>
-          <input className="cz-input" value={ctx.cliente} maxLength={190} placeholder="Ej. Constructora del Norte" onChange={(e) => set({ cliente: e.target.value })} />
+          {(id) => (
+            <ShInput id={id} value={ctx.cliente} maxLength={190} placeholder="Ej. Constructora del Norte" onChange={(e) => set({ cliente: e.target.value })} />
+          )}
         </Campo>
         <Campo label="Obra o proyecto">
-          <input className="cz-input" value={ctx.obra} maxLength={190} placeholder="Ej. Fraccionamiento Los Encinos" onChange={(e) => set({ obra: e.target.value })} />
+          {(id) => (
+            <ShInput id={id} value={ctx.obra} maxLength={190} placeholder="Ej. Fraccionamiento Los Encinos" onChange={(e) => set({ obra: e.target.value })} />
+          )}
         </Campo>
         <Campo label="Atención a">
-          <input className="cz-input" value={ctx.atencion} maxLength={190} placeholder="Ing. / Lic." onChange={(e) => set({ atencion: e.target.value })} />
+          {(id) => <ShInput id={id} value={ctx.atencion} maxLength={190} placeholder="Ing. / Lic." onChange={(e) => set({ atencion: e.target.value })} />}
         </Campo>
+        {/* Combobox y no `<input list>`: el datalist lo dibuja el sistema
+            operativo y sobre el sitio oscuro abría una lista blanca de Windows
+            que ningún CSS alcanza. Sigue admitiendo texto libre, que aquí hace
+            falta: la cobertura cambia y el catálogo de municipios va detrás. */}
         <Campo label="Municipio de entrega" help="Define la zona de flete">
-          <input className="cz-input" list="cz-municipios" value={ctx.municipio} maxLength={90} placeholder="Ej. Apodaca" onChange={(e) => set({ municipio: e.target.value })} />
-          <datalist id="cz-municipios">
-            {catalogo.municipios.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
+          {(id) => (
+            <ShCombobox
+              id={id}
+              value={ctx.municipio}
+              onChange={(v) => set({ municipio: v })}
+              options={catalogo.municipios}
+              placeholder="Ej. Apodaca"
+              buscar="Busca o escribe el municipio…"
+            />
+          )}
         </Campo>
         {pideContacto ? (
           <>
             <Campo label="Correo" req error={malCorreo ? 'Escribe un correo válido para poder contestarte.' : null}>
-              <input className="cz-input" type="email" value={ctx.correo} maxLength={190} placeholder="tu@empresa.com" onChange={(e) => set({ correo: e.target.value })} />
+              {(id) => (
+                <ShInput id={id} type="email" value={ctx.correo} maxLength={190} placeholder="tu@empresa.com" aria-invalid={malCorreo} onChange={(e) => set({ correo: e.target.value })} />
+              )}
             </Campo>
             <Campo label="Teléfono" req error={tocado && ctx.telefono.trim().length < 7 ? 'Necesitamos un teléfono de contacto.' : null}>
-              <input className="cz-input" type="tel" value={ctx.telefono} maxLength={40} placeholder="81 0000 0000" onChange={(e) => set({ telefono: e.target.value })} />
+              {(id) => (
+                <ShInput id={id} type="tel" value={ctx.telefono} maxLength={40} placeholder="81 0000 0000" onChange={(e) => set({ telefono: e.target.value })} />
+              )}
             </Campo>
           </>
         ) : (
           <>
             <Campo label="Correo del cliente (opcional)">
-              <input className="cz-input" type="email" value={ctx.correo} maxLength={190} onChange={(e) => set({ correo: e.target.value })} />
+              {(id) => <ShInput id={id} type="email" value={ctx.correo} maxLength={190} onChange={(e) => set({ correo: e.target.value })} />}
             </Campo>
             <Campo label="Teléfono del cliente (opcional)">
-              <input className="cz-input" type="tel" value={ctx.telefono} maxLength={40} onChange={(e) => set({ telefono: e.target.value })} />
+              {(id) => <ShInput id={id} type="tel" value={ctx.telefono} maxLength={40} onChange={(e) => set({ telefono: e.target.value })} />}
             </Campo>
           </>
         )}

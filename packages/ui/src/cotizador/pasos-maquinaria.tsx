@@ -9,12 +9,16 @@ import { num, type LineaEquipo, type LineaMaquinaria, type LineaServicio } from 
 export function PasoEquipos({
   cat,
   lineas,
-  agregar,
+  alternar,
+  agregarOtra,
   mostrarPrecios,
 }: {
   cat: CatalogoMaquinaria;
   lineas: LineaMaquinaria[];
-  agregar: (id: string) => void;
+  /** Elige el equipo o, si ya estaba elegido, lo quita. */
+  alternar: (id: string) => void;
+  /** Añade OTRA partida del mismo equipo (para cotizarla con otra duración). */
+  agregarOtra: (id: string) => void;
   mostrarPrecios: boolean;
 }) {
   const cuenta = (id: string) => lineas.filter((l) => l.tipo === 'equipo' && l.id === id).length;
@@ -22,8 +26,8 @@ export function PasoEquipos({
     <div className="cz-card">
       <h2 className="cz-card-h">Equipos disponibles</h2>
       <p className="cz-card-s">
-        Toca un equipo para agregarlo. Todos incluyen operador con DC3, diésel, IMSS y seguro; el flete
-        a obra se suma solo.
+        Toca un equipo para elegirlo y tócalo otra vez para quitarlo. Todos incluyen operador con DC3,
+        diésel, IMSS y seguro; el flete a obra se suma solo.
       </p>
       <div className="cz-cards">
         {cat.equipos.map((e) => (
@@ -33,7 +37,8 @@ export function PasoEquipos({
             titulo={e.nombre}
             nota={mostrarPrecios ? `desde ${money(e.tarifas.mes)} / día` : `flete ${e.flete_tipo}`}
             n={cuenta(e.id)}
-            onClick={() => agregar(e.id)}
+            onClick={() => alternar(e.id)}
+            onAgregarOtra={() => agregarOtra(e.id)}
           />
         ))}
       </div>
@@ -171,14 +176,14 @@ export function PasoDuracion({
 export function PasoServicios({
   cat,
   lineas,
-  agregar,
+  alternar,
   actualizar,
   quitar,
   mostrarPrecios,
 }: {
   cat: CatalogoMaquinaria;
   lineas: LineaMaquinaria[];
-  agregar: (id: string) => void;
+  alternar: (id: string) => void;
   actualizar: (uid: number, patch: Partial<LineaServicio>) => void;
   quitar: (uid: number) => void;
   mostrarPrecios: boolean;
@@ -200,7 +205,7 @@ export function PasoServicios({
             titulo={s.nombre}
             nota={mostrarPrecios ? `${money(s.precio)} / ${s.unidad}` : `por ${s.unidad}`}
             n={cuenta(s.id)}
-            onClick={() => agregar(s.id)}
+            onClick={() => alternar(s.id)}
           />
         ))}
       </div>

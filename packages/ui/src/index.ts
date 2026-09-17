@@ -4,3 +4,7 @@ export { Input } from './Input';
 
 // Cotizadores internos (maquinaria y triturados): los comparten el panel y el sitio.
 export * from './cotizador';
+
+// Primitivas de shadcn/ui (Radix) atadas al contrato de tokens --ui-*.
+// Ver shadcn/button.tsx para por que no se usan los colores de fabrica.
+export * from "./shadcn";

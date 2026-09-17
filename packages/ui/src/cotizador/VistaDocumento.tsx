@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { Printer } from 'lucide-react';
 import { COTIZADOR_CSS } from './estilos';
 import { DOCUMENTO_CSS, documentoCuerpo, imprimirDocumento, type DatosDocumento } from './documento';
+import { ShButton } from '../shadcn/button';
 
 /**
  * Una cotización YA EMITIDA, tal como se imprimió.
@@ -19,17 +21,16 @@ export function VistaDocumento({ datos, acciones }: { datos: DatosDocumento; acc
     <div className="cz" data-variante="panel">
       <style>{COTIZADOR_CSS}</style>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-        <button
-          type="button"
-          className="cz-btn primary sm"
+        <ShButton
+          size="sm"
           onClick={() => {
             if (!imprimirDocumento(datos)) {
               setError('El navegador bloqueó la ventana del documento. Permite las ventanas emergentes e inténtalo otra vez.');
             }
           }}
         >
-          Imprimir / Guardar PDF
-        </button>
+          <Printer className="size-4" /> Imprimir / Guardar PDF
+        </ShButton>
         {acciones}
       </div>
       {error ? <div className="cz-note bad" style={{ marginBottom: 14 }}>{error}</div> : null}

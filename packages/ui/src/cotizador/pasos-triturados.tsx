@@ -3,6 +3,8 @@
 import { precioZona, zonaDe, type CatalogoTriturados } from '@maqserv/config';
 import { money, money2 } from './formato';
 import { Campo, Chip, Contador, Linea, NumeroTexto, Renglon, Tarjeta } from './piezas';
+import { ShInput } from '../shadcn/input';
+import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '../shadcn/select';
 import {
   num,
   type LineaBanco,
@@ -71,7 +73,7 @@ export function PasoMateriales({
   cat,
   lineas,
   modalidades,
-  agregarMaterial,
+  alternarMaterial,
   agregarZona,
   agregarBanco,
   actualizar,
@@ -81,7 +83,8 @@ export function PasoMateriales({
   cat: CatalogoTriturados;
   lineas: LineaTriturados[];
   modalidades: Modalidad[];
-  agregarMaterial: (id: string) => void;
+  /** Elige el material o, si ya estaba, lo quita. */
+  alternarMaterial: (id: string) => void;
   agregarZona: () => void;
   agregarBanco: () => void;
   /** Parche genérico: las tres líneas de triturados tienen campos distintos y
@@ -98,7 +101,7 @@ export function PasoMateriales({
       {modalidades.includes('material') ? (
         <div className="cz-card">
           <h2 className="cz-card-h">Materiales por tonelada</h2>
-          <p className="cz-card-s">Toca un material para agregarlo y captura las toneladas.</p>
+          <p className="cz-card-s">Toca un material para elegirlo y tócalo otra vez para quitarlo. Luego captura las toneladas.</p>
           <div className="cz-cards">
             {cat.productos.map((p) => (
               <Tarjeta
@@ -107,7 +110,7 @@ export function PasoMateriales({
                 titulo={p.nombre}
                 nota={mostrarPrecios ? `${money(p.precio_ton)} / ton` : 'por tonelada'}
                 n={cuenta(p.id)}
-                onClick={() => agregarMaterial(p.id)}
+                onClick={() => alternarMaterial(p.id)}
               />
             ))}
             <Tarjeta
@@ -115,7 +118,7 @@ export function PasoMateriales({
               titulo="Otro material"
               nota="Escribe el nombre y el precio"
               n={cuenta('custom')}
-              onClick={() => agregarMaterial('custom')}
+              onClick={() => alternarMaterial('custom')}
             />
           </div>
         </div>
@@ -131,6 +134,7 @@ export function PasoMateriales({
               titulo="Agregar entrega por zona"
               nota={cat.nota_zona}
               n={lineas.filter((l) => l.tipo === 'zona').length}
+              modo="agregar"
               onClick={agregarZona}
             />
           </div>
@@ -149,6 +153,7 @@ export function PasoMateriales({
               titulo={`Agregar ${cat.material_banco.nombre.toLowerCase()}`}
               nota={`por ${cat.material_banco.unidad.toLowerCase()}`}
               n={lineas.filter((l) => l.tipo === 'banco').length}
+              modo="agregar"
               onClick={agregarBanco}
             />
           </div>
@@ -193,9 +198,8 @@ function LineaMaterialUI({
       icono="material"
       titulo={
         esCustom ? (
-          <input
-            className="cz-input"
-            style={{ height: 34, fontSize: 13.5 }}
+          <ShInput
+            className="h-9 text-[13.5px]"
             placeholder="Nombre del material"
             aria-label="Nombre del material"
             value={l.nombre}
@@ -294,22 +298,36 @@ function LineaZonaUI({
       }
     >
       <Campo label="Zona de entrega" ancho="full">
-        <select className="cz-select" value={l.zonaId} onChange={(e) => actualizar(l.uid, { zonaId: e.target.value })}>
-          {cat.zonas.map((zz) => (
-            <option key={zz.id} value={zz.id}>
-              {zz.nombre}
-            </option>
-          ))}
-        </select>
+        {(id) => (
+          <ShSelect value={l.zonaId} onValueChange={(v) => actualizar(l.uid, { zonaId: v })}>
+            <ShSelectTrigger id={id} aria-label="Zona de entrega">
+              <ShSelectValue placeholder="Elige la zona" />
+            </ShSelectTrigger>
+            <ShSelectContent>
+              {cat.zonas.map((zz) => (
+                <ShSelectItem key={zz.id} value={zz.id}>
+                  {zz.nombre}
+                </ShSelectItem>
+              ))}
+            </ShSelectContent>
+          </ShSelect>
+        )}
       </Campo>
       <Campo label="Material">
-        <select className="cz-select" value={l.productoId} onChange={(e) => actualizar(l.uid, { productoId: e.target.value })}>
-          {cat.productos.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.nombre}
-            </option>
-          ))}
-        </select>
+        {(id) => (
+          <ShSelect value={l.productoId} onValueChange={(v) => actualizar(l.uid, { productoId: v })}>
+            <ShSelectTrigger id={id} aria-label="Material">
+              <ShSelectValue placeholder="Elige el material" />
+            </ShSelectTrigger>
+            <ShSelectContent>
+              {cat.productos.map((p) => (
+                <ShSelectItem key={p.id} value={p.id}>
+                  {p.nombre}
+                </ShSelectItem>
+              ))}
+            </ShSelectContent>
+          </ShSelect>
+        )}
       </Campo>
       <div className="cz-qty">
         <span className="cz-lbl">Viajes</span>
@@ -365,8 +383,7 @@ export function PasoEntrega({
                 }
               >
                 <Campo label="Área de entrega (opcional)" help="Sale impresa en el concepto del flete">
-                  <input
-                    className="cz-input"
+                  <ShInput
                     aria-label="área de entrega"
                     placeholder="Ej. área El Uro"
                     value={l.fleteZona}

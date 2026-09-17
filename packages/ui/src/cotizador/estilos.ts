@@ -14,25 +14,25 @@
  * el cotizador, en las dos apps.
  */
 export const COTIZADOR_CSS = `
+/* Las superficies salen del contrato --ui-* que cada app declara en :root
+   (ver el bloque "CONTRATO DE SUPERFICIE" de sus globals.css). Antes se
+   redefinían aquí con un override por variante, pero los menús de Radix se
+   abren en un portal colgado de <body> y ahí no llegaba nada declarado en
+   la raíz del componente: el desplegable salía sin color. */
 .cz{
-  --cz-surface: var(--color-surface, #fff);
-  --cz-surface-2: var(--surface-2, color-mix(in srgb, var(--color-bg, #fff) 55%, var(--color-surface, #fff)));
-  --cz-border: var(--color-border, rgba(0,0,0,.12));
-  --cz-text: var(--color-text, #15181c);
-  --cz-muted: var(--color-text-muted, #6b7280);
-  --cz-accent: var(--color-primary, #008CFF);
-  --cz-accent-fg: var(--color-primary-fg, #fff);
-  --cz-accent-soft: color-mix(in srgb, var(--cz-accent) 13%, transparent);
-  --cz-radius: var(--radius-md, 12px);
+  --cz-surface: var(--ui-surface);
+  --cz-surface-2: var(--ui-surface-2);
+  --cz-border: var(--ui-border);
+  --cz-text: var(--ui-text);
+  --cz-muted: var(--ui-muted);
+  --cz-accent: var(--ui-accent);
+  --cz-accent-fg: var(--ui-accent-fg);
+  --cz-accent-soft: var(--ui-accent-soft);
+  --cz-radius: var(--ui-radius);
   --cz-ok: var(--color-success, #22C55E);
-  --cz-bad: var(--color-error, #F87171);
+  --cz-bad: var(--ui-danger);
   color: var(--cz-text);
   font-family: var(--font-sans, 'Inter'), system-ui, sans-serif;
-}
-/* Panel: superficies fijas del admin (ver design-tokens.ts). El acento sigue al tema. */
-.cz[data-variante="panel"]{
-  --cz-surface:#141416; --cz-surface-2:#101012; --cz-border:rgba(255,255,255,.07);
-  --cz-text:#f5f5f4; --cz-muted:#8a8a93;
 }
 .cz *{ box-sizing:border-box; }
 .cz button{ font-family:inherit; }
@@ -83,7 +83,11 @@ export const COTIZADOR_CSS = `
 
 /* ---- Tarjetas de catálogo ---- */
 .cz-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:11px; }
-.cz-pick{ position:relative; display:flex; flex-direction:column; align-items:flex-start; gap:7px;
+/* El "+" y el contador van FUERA del botón: un <button> dentro de otro no es
+   HTML válido y el navegador lo desanida, con lo que el "+" dejaba de recibir
+   sus propios clics. */
+.cz-pick-wrap{ position:relative; display:flex; }
+.cz-pick{ flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:7px;
   padding:15px 14px; border-radius:var(--cz-radius); border:1px solid var(--cz-border);
   background:var(--cz-surface-2); color:var(--cz-text); cursor:pointer; text-align:left;
   transition:border-color .16s, transform .16s, background .16s; }
@@ -92,9 +96,17 @@ export const COTIZADOR_CSS = `
 .cz-pick .ico{ color:var(--cz-accent); display:flex; }
 .cz-pick b{ font-size:13.5px; line-height:1.3; }
 .cz-pick .pu{ font-size:11.5px; color:var(--cz-muted); }
-.cz-pick .n{ position:absolute; top:9px; right:9px; min-width:21px; height:21px; padding:0 6px;
-  border-radius:999px; background:var(--cz-accent); color:var(--cz-accent-fg);
+/* Dice en palabras lo que hace el segundo toque: el color por sí solo no
+   distingue "elegido" de "elegido y se puede quitar". */
+.cz-pick-quitar{ display:inline-flex; align-items:center; gap:4px; margin-top:2px;
+  font-size:10.5px; font-weight:700; letter-spacing:.02em; color:var(--cz-accent); opacity:.85; }
+.cz-pick-badges{ position:absolute; top:8px; right:8px; display:flex; align-items:center; gap:5px; }
+.cz-pick-n{ min-width:21px; height:21px; padding:0 6px; border-radius:999px;
+  background:var(--cz-accent); color:var(--cz-accent-fg);
   font-size:11.5px; font-weight:800; display:grid; place-items:center; }
+.cz-pick-mas{ width:21px; height:21px; border-radius:999px; display:grid; place-items:center;
+  border:1px solid var(--cz-accent); background:var(--cz-surface); color:var(--cz-accent); cursor:pointer; padding:0; }
+.cz-pick-mas:hover{ background:var(--cz-accent); color:var(--cz-accent-fg); }
 
 /* ---- Líneas del carrito ---- */
 .cz-line{ border:1px solid var(--cz-border); border-radius:var(--cz-radius); background:var(--cz-surface-2); padding:14px; }
@@ -111,12 +123,17 @@ export const COTIZADOR_CSS = `
 .cz-ctrl{ display:flex; flex-wrap:wrap; gap:11px; }
 .cz-qty{ flex:1 1 120px; min-width:104px; display:grid; gap:5px; }
 .cz-qty.wide{ flex-basis:100%; }
-.cz-stp{ display:flex; align-items:center; border:1px solid var(--cz-border); border-radius:10px; overflow:hidden; background:var(--cz-surface); }
+.cz-stp{ display:flex; align-items:center; border:1px solid var(--cz-border);
+  border-radius:var(--cz-radius); overflow:hidden; background:var(--cz-surface-2); }
+.cz-stp:focus-within{ border-color:var(--cz-accent); }
 .cz-stp button{ width:38px; height:42px; border:none; background:transparent; color:var(--cz-text);
-  font-size:17px; cursor:pointer; flex-shrink:0; }
-.cz-stp button:hover{ background:var(--cz-accent-soft); color:var(--cz-accent); }
+  display:grid; place-items:center; cursor:pointer; flex-shrink:0; }
+.cz-stp button:hover:not(:disabled){ background:var(--cz-accent-soft); color:var(--cz-accent); }
+.cz-stp button:disabled{ opacity:.35; cursor:not-allowed; }
 .cz-stp input{ flex:1; min-width:0; width:100%; height:42px; border:none; background:transparent;
-  color:var(--cz-text); text-align:center; font-size:14px; font-weight:700; font-family:inherit; outline:none; }
+  color:var(--cz-text); text-align:center; font-size:14px; font-weight:700; font-family:inherit; outline:none;
+  -moz-appearance:textfield; }
+.cz-stp input::-webkit-outer-spin-button, .cz-stp input::-webkit-inner-spin-button{ appearance:none; margin:0; }
 .cz-chips{ display:flex; flex-wrap:wrap; gap:6px; }
 .cz-chip{ border:1px solid var(--cz-border); background:var(--cz-surface); color:var(--cz-muted);
   border-radius:999px; padding:6px 11px; font-size:12px; font-weight:600; cursor:pointer; }

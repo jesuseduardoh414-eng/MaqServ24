@@ -1,4 +1,9 @@
 @import "tailwindcss";
+/* Animaciones de entrada/salida que usan las primitivas de shadcn (Radix):
+   `animate-in`, `fade-in-0`, `zoom-in-95`… Sin esto los desplegables aparecen
+   de golpe: no es un error, pero el salto se nota. */
+@import "tw-animate-css";
+
 
 /* Tailwind escanea también los packages compartidos del monorepo */
 @source "../../../../packages/ui/src";
@@ -457,4 +462,37 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
    antes que el menú ceda legibilidad. */
 @media (min-width: 1200px) and (max-width: 1360px) {
   .hdr-logo-img { height: 38px; }
+}
+
+/* ============================================================
+   CONTRATO DE SUPERFICIE para los componentes compartidos (shadcn en
+   @maqserv/ui: Select, Combobox, Input, Button…).
+
+   ¿Por qué otra capa de variables si ya están los tokens? Por dos razones
+   concretas, no por gusto:
+
+   1. Radix abre sus menús en un PORTAL, colgado de <body>. Cualquier variable
+      declarada dentro del componente —como las `--cz-*` del cotizador— no
+      llega ahí: el desplegable salía sin color. Estas viven en :root, así que
+      el portal las hereda.
+
+   2. El panel y el sitio tienen cromo distinto (el panel es oscuro siempre).
+      Cada app declara ESTE MISMO juego apuntando a lo suyo, y los componentes
+      compartidos no necesitan saber en cuál de las dos están.
+
+   Aquí todas salen de los tokens del tema, así que cambiar un color en Diseño
+   sigue moviendo también estos componentes, sin recompilar. La regla de oro
+   queda intacta.
+   ============================================================ */
+:root {
+  --ui-surface: var(--color-surface);
+  --ui-surface-2: var(--surface-2);
+  --ui-border: var(--color-border);
+  --ui-text: var(--color-text);
+  --ui-muted: var(--color-text-muted);
+  --ui-accent: var(--color-primary);
+  --ui-accent-fg: var(--color-primary-fg);
+  --ui-accent-soft: color-mix(in srgb, var(--color-primary) 13%, transparent);
+  --ui-radius: var(--radius-md);
+  --ui-danger: var(--color-error);
 }

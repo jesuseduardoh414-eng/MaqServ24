@@ -1,4 +1,9 @@
 @import "tailwindcss";
+/* Animaciones de entrada/salida que usan las primitivas de shadcn (Radix):
+   `animate-in`, `fade-in-0`, `zoom-in-95`… Sin esto los desplegables aparecen
+   de golpe: no es un error, pero el salto se nota. */
+@import "tw-animate-css";
+
 
 @source "../../../../packages/ui/src";
 
@@ -316,4 +321,27 @@ h1, h2, h3 {
 
 @media (prefers-reduced-motion: reduce) {
   .adm-sidebar, .adm-scrim { transition: none; }
+}
+
+/* ============================================================
+   CONTRATO DE SUPERFICIE para los componentes compartidos (shadcn en
+   @maqserv/ui). Mismos nombres que en la web —ver allí el porqué largo—, pero
+   apuntando a la paleta del panel, que es oscura siempre.
+
+   Va en :root y no en `.adm-shell` a propósito: Radix abre sus menús en un
+   portal colgado de <body>, fuera del shell, y ahí una variable declarada en
+   `.adm-shell` no existe. El ACENTO sí sigue al tema (--color-primary), igual
+   que el resto del cromo del panel.
+   ============================================================ */
+:root {
+  --ui-surface: #141416;
+  --ui-surface-2: #101012;
+  --ui-border: rgba(255, 255, 255, 0.08);
+  --ui-text: #f5f5f4;
+  --ui-muted: #8a8a93;
+  --ui-accent: var(--color-primary);
+  --ui-accent-fg: var(--color-primary-fg);
+  --ui-accent-soft: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  --ui-radius: 11px;
+  --ui-danger: var(--color-error);
 }
