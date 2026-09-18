@@ -289,14 +289,34 @@ export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
   // Imagen principal: solo la del token (se sube en «Imagen y estilo»). Las
   // razones son texto ◆ sin imagen. Colores: el token manda; null ⇒ tema.
   const image = cfg?.image ?? null;
-  const statsBg = cfg?.statsBg ?? 'var(--color-primary)';
-  const statsFg = cfg?.statsFg ?? 'var(--color-primary-fg)';
   const accent = cfg?.accentColor ?? 'var(--color-primary)';
-  const stats = [
-    { num: t(theme, 'home.whyChooseUs.stat1.num'), label: t(theme, 'home.whyChooseUs.stat1.label') },
-    { num: t(theme, 'home.whyChooseUs.stat2.num'), label: t(theme, 'home.whyChooseUs.stat2.label') },
-    { num: t(theme, 'home.whyChooseUs.stat3.num'), label: t(theme, 'home.whyChooseUs.stat3.label') },
-  ];
+  // Por defecto, superficie oscura y letra normal: el azul deja de ser el
+  // fondo de la banda y pasa a la cifra (ver la nota larga donde se pintan).
+  const statsBg = cfg?.statsBg ?? 'var(--surface-2)';
+  const statsFg = cfg?.statsFg ?? 'var(--color-text)';
+  /**
+   * Color de la cifra.
+   *
+   * Con el fondo por defecto va en el acento, porque es el dato. Si el cliente
+   * eligió un fondo propio —pongamos azul— la cifra vuelve al color de texto
+   * que él mismo configuró: pintarla de acento sobre su acento la borraría.
+   */
+  const numColor = cfg?.statsBg ? statsFg : accent;
+  /**
+   * Las cifras, SIN las vacías.
+   *
+   * Son tres ranuras fijas y este tema solo llena dos: la tercera se pintaba
+   * igual, como un tercio de banda en blanco que parecía un fallo de carga. Un
+   * dato sin contenido no es un dato.
+   */
+  const stats = [1, 2, 3]
+    .map((n) => ({
+      num: t(theme, `home.whyChooseUs.stat${n}.num`),
+      label: t(theme, `home.whyChooseUs.stat${n}.label`),
+    }))
+    // `t()` devuelve la propia clave cuando el copy no existe; eso también es
+    // "vacío" y no debe acabar impreso en la página.
+    .filter((s) => s.num.trim() && !s.num.startsWith('home.whyChooseUs.'));
   return (
     <section style={{ ...CONTAINER, paddingTop: 88, paddingBottom: 88 }}>
       {/* `minmax(300px,…)` mantenía 2 columnas hasta muy abajo: en tablet daba
@@ -337,12 +357,46 @@ export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
               </div>
             ))}
           </div>
-          {cfg?.showStats !== false ? (
-            <div className="why-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', background: statsBg, borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: '0 18px 36px -20px color-mix(in srgb, var(--color-primary) 85%, transparent)' }}>
-              {stats.map((s, i) => (
-                <div key={s.label} style={{ padding: '22px 16px', textAlign: 'center', color: statsFg, borderRight: i < 2 ? `1px solid color-mix(in srgb, ${statsFg} 14%, transparent)` : 'none' }}>
-                  <CountUp value={s.num} style={{ fontWeight: 800, fontSize: '28px', display: 'block' }} />
-                  <div style={{ fontSize: '12px', marginTop: 2, fontWeight: 500 }}>{s.label}</div>
+          {cfg?.showStats !== false && stats.length > 0 ? (
+            /*
+              Cada cifra es su propia tarjeta, no una franja partida en tres.
+              Dos motivos:
+
+              1. EL MANUAL. El azul eléctrico significa ACCIÓN y datos, y no
+                 rellena superficies (11-12 / COLOR FUNCIONAL). La banda entera
+                 en azul con letra negra era justo lo contrario: el color como
+                 fondo y el dato apagado encima. Ahora manda la superficie
+                 oscura y el azul se queda en la cifra, que es el dato.
+              2. Con tarjetas sueltas, la rejilla puede envolver a una o dos
+                 columnas sin que queden bordes internos colgando ni celdas a
+                 medias — que era lo que obligaba a la media query a
+                 estirar la primera a todo el ancho.
+
+              `statsBg`/`statsFg` siguen mandando si el cliente los configura
+              desde Diseño → Sección 4; esto solo cambia a qué caen por defecto.
+            */
+            <div
+              className="why-stats"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(auto-fit, minmax(${stats.length > 1 ? '150px' : '100%'}, 1fr))`,
+                gap: 12,
+              }}
+            >
+              {stats.map((s) => (
+                <div
+                  key={s.label || s.num}
+                  style={{
+                    padding: '20px 16px',
+                    textAlign: 'center',
+                    background: statsBg,
+                    color: statsFg,
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-lg)',
+                  }}
+                >
+                  <CountUp value={s.num} style={{ fontWeight: 800, fontSize: '28px', display: 'block', color: numColor, letterSpacing: '-.02em' }} />
+                  {s.label ? <div style={{ fontSize: '12.5px', marginTop: 4, fontWeight: 500, lineHeight: 1.4 }}>{s.label}</div> : null}
                 </div>
               ))}
             </div>

@@ -179,9 +179,10 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
 @media (max-width: 600px) {
   /* Las 3 cifras (equipos / proyectos / clientes) no caben en una fila:
      a 130px por celda el número se partía. */
-  .why-stats { grid-template-columns: 1fr 1fr !important; }
-  .why-stats > div { border-right: none !important; }
-  .why-stats > div:first-child { grid-column: 1 / -1; border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); }
+  /* Las cifras ya no son una franja partida: cada una es su tarjeta y la
+     rejilla envuelve sola (auto-fit en el componente). Las reglas que estiraban
+     la primera a todo el ancho y quitaban bordes internos sobraban, y con el
+     dato vacio fuera dejaban un hueco a media fila. */
 }
 
 /* Newsletter del footer: título e input lado a lado solo cuando hay sitio.
