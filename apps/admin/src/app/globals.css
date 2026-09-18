@@ -345,3 +345,15 @@ h1, h2, h3 {
   --ui-radius: 11px;
   --ui-danger: var(--color-error);
 }
+
+/* Autorrelleno: ver la nota larga en globals.css de la web. Chrome pinta esos
+   campos de blanco y sobre el panel oscuro se ven como un error. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ui-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--ui-surface-2) inset;
+  box-shadow: 0 0 0 1000px var(--ui-surface-2) inset;
+  caret-color: var(--ui-text);
+  transition: background-color 9999s ease-in-out 0s;
+}

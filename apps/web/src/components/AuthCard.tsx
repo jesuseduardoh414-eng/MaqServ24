@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { ShButton, ShInput, ShLabel } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
 
 const MONO = 'var(--font-sans)';
@@ -22,17 +23,53 @@ function strength(p: string): number {
 const STRENGTH_LABEL = ['MUY DÉBIL', 'DÉBIL', 'ACEPTABLE', 'BUENA', 'FUERTE'];
 const STRENGTH_COLOR = ['var(--color-error)', 'var(--color-warning)', 'var(--color-primary)', 'var(--color-success)', 'var(--color-success)'];
 
-const labelStyle: React.CSSProperties = { display: 'block', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)' };
-const errStyle: React.CSSProperties = { fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 6, letterSpacing: '0.04em' };
-const primaryBtn: React.CSSProperties = { width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 15, borderRadius: 'var(--radius-button)', cursor: 'pointer' };
+/**
+ * Motivos con los que vuelve el callback de Google.
+ *
+ * Se traducen aquí y no en la ruta porque la ruta redirige —no puede pintar
+ * nada— y porque el texto es de cara al cliente: en la URL solo viaja una
+ * clave corta, que además no filtra detalle técnico a quien mire la barra.
+ */
+const ERRORES: Record<string, string> = {
+  google_off: 'El inicio con Google todavía no está configurado en este sitio.',
+  google: 'No pudimos completar el inicio con Google. Inténtalo otra vez.',
+  google_sin_codigo: 'Google no devolvió la confirmación. Inténtalo otra vez.',
+  google_estado: 'La sesión con Google caducó. Vuelve a intentarlo.',
+  google_cuenta_existente: 'Ya existe una cuenta con ese correo. Entra con tu contraseña.',
+  servidor: 'El servidor no respondió. Espera unos segundos e inténtalo de nuevo.',
+};
 
-function field(err: boolean, extra?: React.CSSProperties): React.CSSProperties {
-  return {
-    width: '100%', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--color-text)',
-    background: err ? 'color-mix(in srgb, var(--color-error) 8%, var(--color-surface))' : 'color-mix(in srgb, var(--color-text) 3%, var(--color-surface))',
-    border: `1px solid ${err ? 'var(--color-error)' : 'var(--color-border)'}`,
-    borderRadius: 10, padding: '14px 16px', marginTop: 8, ...extra,
-  };
+const errStyle: React.CSSProperties = { fontSize: 12.5, color: 'var(--color-error)', marginTop: 6 };
+
+/** Logotipo oficial de Google. Va en color a propósito: es marca de un tercero. */
+function LogoGoogle() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden style={{ flexShrink: 0 }}>
+      <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-2.7-.4-3.9H24v7.1h12.1c-.2 1.8-1.6 4.6-4.5 6.4l6.9 5.3c4.1-3.8 6.6-9.4 6.6-15z" />
+      <path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.3c-1.8 1.3-4.3 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8.1 41.1 15.4 46 24 46z" />
+      <path fill="#FBBC05" d="M11.5 28.5c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.7-4.5l-7.1-5.5C2.8 17 2 20.4 2 24s.8 7 2.3 10l7.2-5.5z" />
+      <path fill="#EA4335" d="M24 9.5c4.1 0 6.9 1.8 8.5 3.3l6.2-6C34.9 3.4 29.9 1 24 1 15.4 1 8.1 5.9 4.3 13l7.1 5.5C13.3 13.3 18.2 9.5 24 9.5z" />
+    </svg>
+  );
+}
+
+function OjoIcono({ abierto }: { abierto: boolean }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {abierto ? (
+        <>
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+          <circle cx="12" cy="12" r="3" />
+        </>
+      ) : (
+        <>
+          <path d="M9.9 4.24A9.1 9.1 0 0 1 12 4c6.5 0 10 7 10 7a18 18 0 0 1-2.7 3.7M6.6 6.6A18 18 0 0 0 2 11s3.5 7 10 7a9 9 0 0 0 5.4-1.6" />
+          <path d="M14.1 14.1a3 3 0 0 1-4.2-4.2" />
+          <line x1="2" y1="2" x2="22" y2="22" />
+        </>
+      )}
+    </svg>
+  );
 }
 
 /**
@@ -61,11 +98,30 @@ const DEFAULT_LABELS: AuthLabels = {
   doneTitle: 'Revisa tu correo', doneBody: 'Si el correo existe, recibirás un enlace para restablecer tu contraseña.',
 };
 
-export function AuthCard({ initialView, redirectTo = '/', labels }: { initialView: 'login' | 'register'; redirectTo?: string; labels?: Partial<AuthLabels> }) {
+export function AuthCard({
+  initialView,
+  redirectTo = '/',
+  labels,
+  googleActivo = false,
+  errorInicial,
+}: {
+  initialView: 'login' | 'register';
+  redirectTo?: string;
+  labels?: Partial<AuthLabels>;
+  /**
+   * ¿Hay credenciales de Google en el servidor? Lo resuelve la página.
+   *
+   * Si no las hay, el botón NO se pinta. Antes salía siempre y al tocarlo
+   * decía "estará disponible pronto": prometer algo que no existe es peor que
+   * no ofrecerlo.
+   */
+  googleActivo?: boolean;
+  /** Clave de error con la que volvió el callback de Google (`?error=`). */
+  errorInicial?: string | null;
+}) {
   const L: AuthLabels = { ...DEFAULT_LABELS, ...labels };
   const router = useRouter();
   const [view, setView] = useState<View>(initialView);
-  const [successType, setSuccessType] = useState<'forgot'>('forgot');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,10 +130,11 @@ export function AuthCard({ initialView, redirectTo = '/', labels }: { initialVie
   const [showPw, setShowPw] = useState(false);
   const [touched, setTouched] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [serverErr, setServerErr] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [serverErr, setServerErr] = useState<string | null>(
+    errorInicial ? (ERRORES[errorInicial] ?? ERRORES.google) : null,
+  );
 
-  const go = (v: View) => { setView(v); setTouched(false); setServerErr(null); setNotice(null); };
+  const go = (v: View) => { setView(v); setTouched(false); setServerErr(null); };
 
   const nameErr = touched && view === 'register' && !name.trim();
   const emailErr = touched && !emailOk(email.trim());
@@ -115,62 +172,146 @@ export function AuthCard({ initialView, redirectTo = '/', labels }: { initialVie
     setLoading(true);
     try {
       await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim() }) });
-      setSuccessType('forgot'); setView('success');
-    } catch { setSuccessType('forgot'); setView('success'); } finally { setLoading(false); }
+      setView('success');
+    } catch { setView('success'); } finally { setLoading(false); }
   }
 
   const showTabs = view === 'login' || view === 'register';
-  const showSocial = view === 'login' || view === 'register';
+  const showSocial = (view === 'login' || view === 'register') && googleActivo;
 
-  const tabStyle = (on: boolean): React.CSSProperties => ({ flex: 1, cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: 11, borderRadius: 'var(--radius-button)', border: 'none', background: on ? 'var(--color-text)' : 'transparent', color: on ? 'var(--color-bg)' : 'var(--color-text-muted)', transition: 'all .18s ease' });
-  const checkbox = (on: boolean): React.CSSProperties => ({ width: 22, height: 22, flexShrink: 0, borderRadius: 6, cursor: 'pointer', border: on ? 'none' : '2px solid var(--color-border)', background: on ? 'var(--color-text)' : 'var(--color-surface)', color: 'var(--color-bg)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 });
-  const pwToggle: React.CSSProperties = { position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)' };
-  const socialBtn: React.CSSProperties = { flex: 1, fontFamily: MONO, fontWeight: 700, fontSize: 13, background: 'var(--color-surface)', color: 'var(--color-text)', border: '1px solid var(--color-border)', padding: 13, borderRadius: 10, cursor: 'pointer', letterSpacing: '0.04em' };
+  /**
+   * Pestañas.
+   *
+   * La activa era BLANCA con letra negra (`--color-text` de fondo) y sobre el
+   * sitio oscuro parecía un recorte pegado. Ahora usa el acento de la marca,
+   * que es lo que el manual reserva para "estado interactivo".
+   */
+  const tabStyle = (on: boolean): React.CSSProperties => ({
+    flex: 1, cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 14.5,
+    padding: '11px 8px', borderRadius: 'calc(var(--radius-button) - 2px)', border: '1px solid transparent',
+    background: on ? 'var(--color-surface)' : 'transparent',
+    borderColor: on ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)' : 'transparent',
+    color: on ? 'var(--color-primary)' : 'var(--color-text-muted)',
+    transition: 'color .18s ease, background .18s ease, border-color .18s ease',
+  });
+
+  const checkbox = (on: boolean): React.CSSProperties => ({
+    width: 21, height: 21, flexShrink: 0, borderRadius: 6, cursor: 'pointer',
+    border: on ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+    background: on ? 'var(--color-primary)' : 'var(--surface-2)',
+    color: 'var(--color-primary-fg)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+    transition: 'background .15s ease, border-color .15s ease',
+  });
+
+  const pwToggle: React.CSSProperties = {
+    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)',
+    display: 'grid', placeItems: 'center', width: 32, height: 32, borderRadius: 8,
+  };
+
+  const eyebrow: React.CSSProperties = {
+    fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
+    color: 'var(--color-primary)', marginBottom: 10, fontWeight: 700,
+  };
+  const heading: React.CSSProperties = {
+    fontFamily: DISPLAY, margin: '0 0 26px', fontSize: 'clamp(26px, 5vw, 32px)',
+    fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)',
+  };
+
+  /** Aviso de error: caja legible, no una línea roja de 11 px al pie. */
+  const alerta = serverErr ? (
+    <div
+      role="alert"
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: 9, padding: '11px 13px',
+        borderRadius: 10, fontSize: 13.5, lineHeight: 1.5,
+        color: 'var(--color-text)',
+        background: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
+        border: '1px solid color-mix(in srgb, var(--color-error) 40%, transparent)',
+      }}
+    >
+      <span style={{ color: 'var(--color-error)', flexShrink: 0, marginTop: 1 }}>
+        <Icon name="warning" size={15} />
+      </span>
+      {serverErr}
+    </div>
+  ) : null;
+
+  const campo = (contenido: React.ReactNode) => <div style={{ display: 'grid', gap: 7 }}>{contenido}</div>;
 
   return (
-    <div style={{ position: 'relative', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 16, padding: 40, boxShadow: '0 30px 60px -40px rgba(17,17,17,0.35)' }}>
-      {/* Marcas de esquina */}
-      {[['12px', 'auto', 'auto', '12px'], ['12px', '12px', 'auto', 'auto'], ['auto', 'auto', '12px', '12px'], ['auto', '12px', '12px', 'auto']].map((pos, i) => (
-        <span key={i} style={{ position: 'absolute', top: pos[0], right: pos[1], bottom: pos[2], left: pos[3], width: 14, height: 14, borderTop: i < 2 ? '2px solid var(--color-text)' : undefined, borderBottom: i >= 2 ? '2px solid var(--color-text)' : undefined, borderLeft: i % 2 === 0 ? '2px solid var(--color-text)' : undefined, borderRight: i % 2 === 1 ? '2px solid var(--color-text)' : undefined }} />
+    <div
+      style={{
+        position: 'relative', background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+        padding: 'clamp(24px, 5vw, 38px)', boxShadow: 'var(--shadow)',
+      }}
+    >
+      {/* Marcas de esquina (firma del diseño). En el acento y más finas: en
+          blanco puro competían con el contenido en vez de enmarcarlo. */}
+      {[['14px', 'auto', 'auto', '14px'], ['14px', '14px', 'auto', 'auto'], ['auto', 'auto', '14px', '14px'], ['auto', '14px', '14px', 'auto']].map((pos, i) => (
+        <span
+          key={i}
+          aria-hidden
+          style={{
+            position: 'absolute', top: pos[0], right: pos[1], bottom: pos[2], left: pos[3],
+            width: 12, height: 12, opacity: 0.55, pointerEvents: 'none',
+            borderTop: i < 2 ? '1.5px solid var(--color-primary)' : undefined,
+            borderBottom: i >= 2 ? '1.5px solid var(--color-primary)' : undefined,
+            borderLeft: i % 2 === 0 ? '1.5px solid var(--color-primary)' : undefined,
+            borderRight: i % 2 === 1 ? '1.5px solid var(--color-primary)' : undefined,
+          }}
+        />
       ))}
 
       {showTabs ? (
-        <div style={{ display: 'flex', gap: 4, background: 'color-mix(in srgb, var(--color-text) 5%, var(--color-surface))', borderRadius: 'var(--radius-button)', padding: 4, marginBottom: 32 }}>
-          <button type="button" onClick={() => go('login')} style={tabStyle(view === 'login')}>{L.tabLogin}</button>
-          <button type="button" onClick={() => go('register')} style={tabStyle(view === 'register')}>{L.tabRegister}</button>
+        <div
+          style={{
+            display: 'flex', gap: 4, background: 'var(--surface-2)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-button)', padding: 4, marginBottom: 28,
+          }}
+        >
+          <button type="button" onClick={() => go('login')} style={tabStyle(view === 'login')} aria-pressed={view === 'login'}>{L.tabLogin}</button>
+          <button type="button" onClick={() => go('register')} style={tabStyle(view === 'register')} aria-pressed={view === 'register'}>{L.tabRegister}</button>
         </div>
       ) : null}
 
       {/* LOGIN */}
       {view === 'login' ? (
         <div>
-          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 10 }}>{L.loginEyebrow}</div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 28px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.loginHeading}</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div>
-              {/* htmlFor/id: sin la asociación, el nombre accesible vivía solo
-                  en el placeholder — que desaparece al escribir. */}
-              <label htmlFor="login-email" style={labelStyle}>{L.fieldEmail}</label>
-              <input id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
-              {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
-            </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label htmlFor="login-password" style={labelStyle}>{L.fieldPassword}</label>
-                <button type="button" onClick={() => go('forgot')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: MONO, fontSize: 11, textTransform: 'uppercase', color: 'var(--color-primary)', letterSpacing: '0.04em' }}>{L.forgotLink}</button>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <input id="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password" style={field(passErr, { paddingRight: 70 })} />
-                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}>{showPw ? 'OCULTAR' : 'VER'}</button>
-              </div>
-              {passErr ? <div style={errStyle}>Ingresa tu contraseña.</div> : null}
-            </div>
+          <div style={eyebrow}>{L.loginEyebrow}</div>
+          <h2 style={heading}>{L.loginHeading}</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
+            {campo(
+              <>
+                <ShLabel htmlFor="login-email">{L.fieldEmail}</ShLabel>
+                <ShInput id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} className="h-12 text-[15px]" />
+                {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
+              </>,
+            )}
+            {campo(
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <ShLabel htmlFor="login-password">{L.fieldPassword}</ShLabel>
+                  <button type="button" onClick={() => go('forgot')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--color-primary)', padding: 0 }}>{L.forgotLink}</button>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <ShInput id="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password" aria-invalid={passErr} className="h-12 pr-12 text-[15px]" />
+                  <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}><OjoIcono abierto={showPw} /></button>
+                </div>
+                {passErr ? <div style={errStyle}>Ingresa tu contraseña.</div> : null}
+              </>,
+            )}
             <span style={{ display: 'flex', alignItems: 'center', gap: 10, userSelect: 'none' }}>
-              <button type="button" role="checkbox" aria-checked={remember} aria-label={L.remember} onClick={() => setRemember((v) => !v)} style={checkbox(remember)}>{remember ? <Icon name="check" size={13} /> : null}</button>
-              <span onClick={() => setRemember((v) => !v)} style={{ fontSize: 14, color: 'var(--color-text-muted)', cursor: 'pointer' }}>{L.remember}</span>
+              <button type="button" role="checkbox" aria-checked={remember} aria-label={L.remember} onClick={() => setRemember((v) => !v)} style={checkbox(remember)}>{remember ? <Icon name="check" size={12} /> : null}</button>
+              <span onClick={() => setRemember((v) => !v)} style={{ fontSize: 13.5, color: 'var(--color-text-muted)', cursor: 'pointer' }}>{L.remember}</span>
             </span>
-            {serverErr ? <div role="alert" style={errStyle}>{serverErr}</div> : null}
-            <button type="button" onClick={submitLogin} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Entrando…' : L.loginSubmit}</button>
+            {alerta}
+            <ShButton onClick={submitLogin} disabled={loading} className="h-12 w-full text-[15px]">
+              {loading ? 'Entrando…' : L.loginSubmit}
+            </ShButton>
           </div>
         </div>
       ) : null}
@@ -178,44 +319,52 @@ export function AuthCard({ initialView, redirectTo = '/', labels }: { initialVie
       {/* REGISTER */}
       {view === 'register' ? (
         <div>
-          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 10 }}>{L.registerEyebrow}</div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 28px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.registerHeading}</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div>
-              <label htmlFor="reg-name" style={labelStyle}>{L.fieldName}</label>
-              <input id="reg-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" style={field(nameErr)} />
-              {nameErr ? <div style={errStyle}>Ingresa tu nombre.</div> : null}
-            </div>
-            <div>
-              <label htmlFor="reg-email" style={labelStyle}>{L.fieldEmail}</label>
-              <input id="reg-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
-              {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
-            </div>
-            <div>
-              <label htmlFor="reg-password" style={labelStyle}>{L.fieldPassword}</label>
-              <div style={{ position: 'relative' }}>
-                <input id="reg-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 8 caracteres" autoComplete="new-password" style={field(passErr, { paddingRight: 70 })} />
-                <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}>{showPw ? 'OCULTAR' : 'VER'}</button>
-              </div>
-              {password.length > 0 ? (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ display: 'flex', gap: 5 }}>
-                    {[0, 1, 2, 3].map((i) => (
-                      <span key={i} style={{ flex: 1, height: 5, borderRadius: 3, background: i < st ? STRENGTH_COLOR[st - 1] : 'var(--color-border)' }} />
-                    ))}
-                  </div>
-                  <div style={{ fontFamily: MONO, fontSize: 11, color: st > 0 ? STRENGTH_COLOR[st - 1] : 'var(--color-text-muted)', marginTop: 6, letterSpacing: '0.06em' }}>{STRENGTH_LABEL[st]}</div>
+          <div style={eyebrow}>{L.registerEyebrow}</div>
+          <h2 style={heading}>{L.registerHeading}</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
+            {campo(
+              <>
+                <ShLabel htmlFor="reg-name">{L.fieldName}</ShLabel>
+                <ShInput id="reg-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" aria-invalid={nameErr} className="h-12 text-[15px]" />
+                {nameErr ? <div style={errStyle}>Ingresa tu nombre.</div> : null}
+              </>,
+            )}
+            {campo(
+              <>
+                <ShLabel htmlFor="reg-email">{L.fieldEmail}</ShLabel>
+                <ShInput id="reg-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} className="h-12 text-[15px]" />
+                {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
+              </>,
+            )}
+            {campo(
+              <>
+                <ShLabel htmlFor="reg-password">{L.fieldPassword}</ShLabel>
+                <div style={{ position: 'relative' }}>
+                  <ShInput id="reg-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 8 caracteres" autoComplete="new-password" aria-invalid={passErr} className="h-12 pr-12 text-[15px]" />
+                  <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}><OjoIcono abierto={showPw} /></button>
                 </div>
-              ) : null}
-              {passErr ? <div style={errStyle}>La contraseña debe tener al menos 8 caracteres.</div> : null}
-            </div>
+                {password.length > 0 ? (
+                  <div style={{ marginTop: 4 }}>
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      {[0, 1, 2, 3].map((i) => (
+                        <span key={i} style={{ flex: 1, height: 4, borderRadius: 3, background: i < st ? STRENGTH_COLOR[st - 1] : 'var(--color-border)', transition: 'background .2s ease' }} />
+                      ))}
+                    </div>
+                    <div style={{ fontFamily: MONO, fontSize: 11, color: st > 0 ? STRENGTH_COLOR[st - 1] : 'var(--color-text-muted)', marginTop: 6, letterSpacing: '0.06em', fontWeight: 700 }}>{STRENGTH_LABEL[st]}</div>
+                  </div>
+                ) : null}
+                {passErr ? <div style={errStyle}>La contraseña debe tener al menos 8 caracteres.</div> : null}
+              </>,
+            )}
             <span style={{ display: 'flex', alignItems: 'flex-start', gap: 10, userSelect: 'none' }}>
-              <button type="button" role="checkbox" aria-checked={terms} aria-label="Acepto los términos y el aviso de privacidad" onClick={() => setTerms((v) => !v)} style={checkbox(terms)}>{terms ? <Icon name="check" size={13} /> : null}</button>
+              <button type="button" role="checkbox" aria-checked={terms} aria-label="Acepto los términos y el aviso de privacidad" onClick={() => setTerms((v) => !v)} style={checkbox(terms)}>{terms ? <Icon name="check" size={12} /> : null}</button>
               <span onClick={() => setTerms((v) => !v)} style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.5, cursor: 'pointer' }}>Acepto los <Link href="/terminos" style={{ color: 'var(--color-primary)', fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>Términos</Link> y el <Link href="/privacidad" style={{ color: 'var(--color-primary)', fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>Aviso de privacidad</Link>.</span>
             </span>
             {termsErr ? <div style={errStyle}>Debes aceptar los términos.</div> : null}
-            {serverErr ? <div role="alert" style={errStyle}>{serverErr}</div> : null}
-            <button type="button" onClick={submitRegister} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Creando…' : L.registerSubmit}</button>
+            {alerta}
+            <ShButton onClick={submitRegister} disabled={loading} className="h-12 w-full text-[15px]">
+              {loading ? 'Creando…' : L.registerSubmit}
+            </ShButton>
           </div>
         </div>
       ) : null}
@@ -223,17 +372,24 @@ export function AuthCard({ initialView, redirectTo = '/', labels }: { initialVie
       {/* FORGOT */}
       {view === 'forgot' ? (
         <div>
-          <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 10 }}>{L.forgotEyebrow}</div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 10px', fontSize: 32, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.forgotTitle}</h2>
+          <div style={eyebrow}>{L.forgotEyebrow}</div>
+          <h2 style={{ ...heading, marginBottom: 10 }}>{L.forgotTitle}</h2>
           <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>{L.forgotHint}</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div>
-              <label htmlFor="forgot-email" style={labelStyle}>{L.fieldEmail}</label>
-              <input id="forgot-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" style={field(emailErr)} />
-              {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
-            </div>
-            <button type="button" onClick={submitForgot} disabled={loading} style={{ ...primaryBtn, opacity: loading ? 0.7 : 1 }}>{loading ? 'Enviando…' : L.forgotSubmit}</button>
-            <button type="button" onClick={() => go('login')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 14, color: 'var(--color-text)', padding: 4 }}><Icon name="arrowLeft" size={14} />{L.forgotBack}</button>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
+            {campo(
+              <>
+                <ShLabel htmlFor="forgot-email">{L.fieldEmail}</ShLabel>
+                <ShInput id="forgot-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} className="h-12 text-[15px]" />
+                {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
+              </>,
+            )}
+            {alerta}
+            <ShButton onClick={submitForgot} disabled={loading} className="h-12 w-full text-[15px]">
+              {loading ? 'Enviando…' : L.forgotSubmit}
+            </ShButton>
+            <ShButton variant="ghost" onClick={() => go('login')} className="w-full">
+              <Icon name="arrowLeft" size={14} />{L.forgotBack}
+            </ShButton>
           </div>
         </div>
       ) : null}
@@ -241,26 +397,37 @@ export function AuthCard({ initialView, redirectTo = '/', labels }: { initialVie
       {/* SUCCESS (forgot) */}
       {view === 'success' ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <div style={{ width: 68, height: 68, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 34, margin: '0 auto 22px' }}><Icon name="check" size={34} /></div>
-          <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)' }}>{L.doneTitle}</h2>
-          <p style={{ margin: '0 0 28px', fontSize: 15, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{L.doneBody}</p>
-          <button type="button" onClick={() => go('login')} style={primaryBtn}>{L.forgotBack}</button>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}><Icon name="check" size={30} /></div>
+          <h2 style={{ ...heading, marginBottom: 12 }}>{L.doneTitle}</h2>
+          <p style={{ margin: '0 0 26px', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{L.doneBody}</p>
+          <ShButton onClick={() => go('login')} className="h-12 w-full text-[15px]">{L.forgotBack}</ShButton>
         </div>
       ) : null}
 
-      {/* Social (login + register) */}
+      {/* Entrar con Google. Solo aparece si el servidor tiene credenciales. */}
       {showSocial ? (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '26px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '24px 0' }}>
             <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
             <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>O CONTINÚA CON</span>
             <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button type="button" onClick={() => setNotice('El inicio con Google estará disponible pronto.')} style={socialBtn}>G · Google</button>
-            <button type="button" onClick={() => setNotice('El inicio con Facebook estará disponible pronto.')} style={socialBtn}>f · Facebook</button>
-          </div>
-          {notice ? <div style={{ ...errStyle, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 12 }}>{notice}</div> : null}
+          {/*
+            Enlace, NO botón con fetch: el navegador tiene que NAVEGAR de verdad
+            a accounts.google.com. Un fetch lo bloquearía el propio Google (no
+            permite que su pantalla de consentimiento se cargue por XHR).
+          */}
+          <a
+            href={`/api/auth/google?next=${encodeURIComponent(redirectTo || '/')}`}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              height: 48, borderRadius: 'var(--radius-button)', textDecoration: 'none',
+              border: '1px solid var(--color-border)', background: 'var(--surface-2)',
+              color: 'var(--color-text)', fontWeight: 700, fontSize: 14.5,
+            }}
+          >
+            <LogoGoogle /> Continuar con Google
+          </a>
         </div>
       ) : null}
     </div>

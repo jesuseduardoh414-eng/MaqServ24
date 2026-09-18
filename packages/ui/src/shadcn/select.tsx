@@ -30,8 +30,9 @@ const ShSelectTrigger = React.forwardRef<
     className={cn(
       'flex h-11 w-full items-center justify-between gap-2 rounded-[var(--ui-radius)] px-3.5 text-sm',
       'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-[var(--ui-text)]',
-      'outline-none transition-colors data-[placeholder]:text-[var(--ui-muted)]',
-      'focus-visible:border-[var(--ui-accent)] focus-visible:ring-1 focus-visible:ring-[var(--ui-accent)]',
+      'transition-colors data-[placeholder]:text-[var(--ui-muted)]',
+      // Ver nota en combobox.tsx: el anillo de foco es el global del sitio.
+      'focus-visible:border-[var(--ui-accent)] data-[state=open]:border-[var(--ui-accent)]',
       'disabled:cursor-not-allowed disabled:opacity-50',
       '[&>span]:truncate [&>span]:text-left',
       className,
@@ -81,9 +82,11 @@ const ShSelectContent = React.forwardRef<
           'p-0',
           // Barra propia: la nativa de Windows es una franja gris clara de
           // 17 px que sobre el panel oscuro parece un error de maquetación.
-          '[scrollbar-width:thin] [scrollbar-color:var(--ui-border)_transparent]',
+          '[scrollbar-width:thin]',
+          '[scrollbar-color:color-mix(in_srgb,var(--ui-muted)_40%,transparent)_transparent]',
           '[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent',
-          '[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[var(--ui-border)]',
+          '[&::-webkit-scrollbar-thumb]:rounded-full',
+          '[&::-webkit-scrollbar-thumb]:bg-[color-mix(in_srgb,var(--ui-muted)_40%,transparent)]',
         )}
       >
         {children}
@@ -105,7 +108,10 @@ const ShSelectItem = React.forwardRef<
     className={cn(
       'relative flex w-full cursor-pointer select-none items-center gap-2 rounded-[calc(var(--ui-radius)-3px)]',
       'py-2 pl-3 pr-8 text-sm outline-none transition-colors',
-      'focus:bg-[var(--ui-accent-soft)] focus:text-[var(--ui-text)]',
+      // Dónde está el cursor (fondo tenue) y cuál está elegido (texto de
+      // acento + palomita) son dos cosas distintas: pintarlas igual las sumaba
+      // en un bloque pesado sobre la opción actual.
+      'focus:bg-[color-mix(in_srgb,var(--ui-text)_7%,transparent)] focus:text-[var(--ui-text)]',
       'data-[state=checked]:text-[var(--ui-accent)] data-[state=checked]:font-semibold',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,

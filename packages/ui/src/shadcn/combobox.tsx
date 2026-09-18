@@ -77,9 +77,12 @@ export function ShCombobox({
           aria-describedby={describedBy}
           className={cn(
             'flex h-11 w-full items-center justify-between gap-2 rounded-[var(--ui-radius)] px-3.5 text-sm',
-            'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-left outline-none transition-colors',
+            'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-left transition-colors',
             'hover:border-[color-mix(in_srgb,var(--ui-accent)_55%,var(--ui-border))]',
-            'focus-visible:border-[var(--ui-accent)] focus-visible:ring-1 focus-visible:ring-[var(--ui-accent)]',
+            // El anillo de foco lo pone la regla `:focus-visible` global del
+            // sitio. Aquí NO se añade otro: esa regla va después de las
+            // utilidades de Tailwind en la hoja compilada, así que gana, y el
+            // resultado eran dos indicadores encimados.
             'data-[state=open]:border-[var(--ui-accent)]',
             value ? 'text-[var(--ui-text)]' : 'text-[var(--ui-muted)]',
             className,
@@ -104,13 +107,23 @@ export function ShCombobox({
         collisionPadding={12}
       >
         <CommandPrimitive shouldFilter={false} className="flex max-h-[inherit] flex-col overflow-hidden">
-          <div className="flex shrink-0 items-center gap-2 border-b border-[var(--ui-border)] px-3">
+          {/* El foco se marca en la FILA, no en el campo: cmdk enfoca el campo
+              al abrir, y el contorno global del sitio —2 px con 2 px de
+              separación— dibujaba un rectángulo suelto dentro del panel, que
+              es lo que parecía un error de maquetación. */}
+          <div
+            className={cn(
+              'flex shrink-0 items-center gap-2 px-3 transition-colors',
+              'border-b border-[var(--ui-border)] focus-within:border-[var(--ui-accent)]',
+            )}
+          >
             <Search className="size-4 shrink-0 text-[var(--ui-muted)]" />
             <CommandPrimitive.Input
               value={consulta}
               onValueChange={setConsulta}
               placeholder={buscar}
-              className="h-10 w-full bg-transparent text-sm text-[var(--ui-text)] outline-none placeholder:text-[var(--ui-muted)]"
+              // `!` para ganarle a la regla global (ver comentario de arriba).
+              className="h-10 w-full bg-transparent text-sm text-[var(--ui-text)] outline-none! placeholder:text-[var(--ui-muted)]"
               onKeyDown={(e) => {
                 // Enter con texto libre y sin resultados: se usa lo escrito.
                 if (e.key === 'Enter' && ofrecerLibre && filtradas.length === 0) {
@@ -126,12 +139,14 @@ export function ShCombobox({
               'min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5',
               // Barra de desplazamiento propia: la nativa de Windows es una
               // franja gris clara de 17 px que sobre el panel oscuro se veía
-              // como un error de maquetación.
-              '[scrollbar-width:thin] [scrollbar-color:var(--ui-border)_transparent]',
+              // como un error de maquetación. Va translúcida para que se note
+              // que hay más lista sin competir con el contenido.
+              '[scrollbar-width:thin]',
+              '[scrollbar-color:color-mix(in_srgb,var(--ui-muted)_40%,transparent)_transparent]',
               '[&::-webkit-scrollbar]:w-1.5',
               '[&::-webkit-scrollbar-track]:bg-transparent',
               '[&::-webkit-scrollbar-thumb]:rounded-full',
-              '[&::-webkit-scrollbar-thumb]:bg-[var(--ui-border)]',
+              '[&::-webkit-scrollbar-thumb]:bg-[color-mix(in_srgb,var(--ui-muted)_40%,transparent)]',
             )}
           >
             {filtradas.length === 0 && !ofrecerLibre ? (
@@ -166,7 +181,10 @@ export function ShCombobox({
                 className={cn(
                   'flex cursor-pointer select-none items-center justify-between gap-2',
                   'rounded-[calc(var(--ui-radius)-3px)] px-3 py-2 text-sm outline-none transition-colors',
-                  'data-[selected=true]:bg-[var(--ui-accent-soft)]',
+                  // Dos cosas DISTINTAS que antes se pintaban igual y se
+                  // sumaban en un bloque pesado: dónde está el cursor (fondo
+                  // tenue) y cuál está elegido (texto de acento + palomita).
+                  'data-[selected=true]:bg-[color-mix(in_srgb,var(--ui-text)_7%,transparent)]',
                   o === value ? 'font-semibold text-[var(--ui-accent)]' : 'text-[var(--ui-text)]',
                 )}
               >

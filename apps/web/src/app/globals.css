@@ -505,3 +505,28 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
    donde no pisa nada. La primera declaración es el respaldo para navegadores
    que no conocen la palabra clave. */
 .hdr-nav { justify-content: center; justify-content: safe center; }
+
+/* ============================================================
+   AUTORRELLENO DEL NAVEGADOR
+
+   Chrome pinta los campos autorrellenados con SU color —un blanco azulado— y
+   no hay forma de cambiarlo con `background`: el navegador lo dibuja por
+   encima. Sobre un sitio oscuro el resultado eran dos cajas blancas en mitad
+   del formulario de acceso, que es exactamente donde peor se ve.
+
+   El truco que sí funciona es una sombra interior gigante del color que
+   queremos, más `-webkit-text-fill-color` para la letra (`color` tampoco lo
+   toca). La transición absurda evita el parpadeo blanco de un frame al
+   enfocar el campo.
+   ============================================================ */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: var(--color-text);
+  -webkit-box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  box-shadow: 0 0 0 1000px var(--surface-2) inset;
+  caret-color: var(--color-text);
+  transition: background-color 9999s ease-in-out 0s;
+}

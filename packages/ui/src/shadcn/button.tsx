@@ -20,10 +20,12 @@ import { cn } from '../lib/utils';
  * cambiando de color cuando se cambia la paleta en Diseño.
  */
 const buttonVariants = cva(
+  // El anillo de foco lo pone la regla `:focus-visible` global del sitio, que
+  // en la hoja compilada va DESPUÉS de las utilidades de Tailwind y por tanto
+  // gana. Añadir aquí otro solo dibujaba dos indicadores encimados.
   'inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold ' +
-    'transition-colors outline-none disabled:pointer-events-none disabled:opacity-50 ' +
-    'focus-visible:ring-2 focus-visible:ring-[var(--ui-accent)] focus-visible:ring-offset-0 ' +
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+    'transition-colors disabled:pointer-events-none disabled:opacity-50 ' +
+    '[&_svg]:pointer-events-none [&_svg]:shrink-0',
   {
     variants: {
       variant: {

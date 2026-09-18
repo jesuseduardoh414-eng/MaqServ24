@@ -13,7 +13,7 @@ export const ShInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttribu
         'flex h-11 w-full min-w-0 rounded-[var(--ui-radius)] px-3.5 text-sm',
         'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-[var(--ui-text)]',
         'placeholder:text-[var(--ui-muted)] outline-none transition-colors',
-        'focus-visible:border-[var(--ui-accent)] focus-visible:ring-1 focus-visible:ring-[var(--ui-accent)]',
+        'focus-visible:border-[var(--ui-accent)]',
         'aria-[invalid=true]:border-[var(--ui-danger)]',
         'disabled:cursor-not-allowed disabled:opacity-50',
         // Las flechitas del input numérico invitan a subir de 1 en 1 y aquí las
@@ -37,7 +37,7 @@ export const ShTextarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHT
         'flex min-h-[88px] w-full rounded-[var(--ui-radius)] px-3.5 py-3 text-sm leading-relaxed',
         'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-[var(--ui-text)]',
         'placeholder:text-[var(--ui-muted)] outline-none transition-colors resize-y',
-        'focus-visible:border-[var(--ui-accent)] focus-visible:ring-1 focus-visible:ring-[var(--ui-accent)]',
+        'focus-visible:border-[var(--ui-accent)]',
         className,
       )}
       {...props}
