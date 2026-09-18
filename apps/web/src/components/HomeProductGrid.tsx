@@ -43,6 +43,12 @@ export function HomeProductGrid({
   }, []);
 
   const tabBtn = (active: boolean): React.CSSProperties => ({
+    // Los dos evitan que el filtro se parta: sin `flexShrink` las pestañas se
+    // aplastan hasta quedar ilegibles antes de desbordar, y sin `nowrap` una
+    // etiqueta larga ("Plataformas de elevación") se corta en dos renglones
+    // dentro de su propia píldora.
+    flexShrink: 0,
+    whiteSpace: 'nowrap',
     border: active ? 'none' : '1px solid var(--color-border)',
     background: active ? 'var(--color-primary)' : 'var(--color-surface)',
     color: active ? 'var(--color-primary-fg)' : 'var(--color-text)',
@@ -56,8 +62,35 @@ export function HomeProductGrid({
 
   return (
     <>
+      {/*
+        Filtro de destacados: UNA SOLA FILA, siempre.
+
+        Con `flexWrap: 'wrap'` se partía en dos y hasta tres renglones en móvil
+        y empujaba los productos fuera de la pantalla: al entrar, lo primero
+        que se veía era una pila de botones en vez del equipo. Ahora no se
+        parte, se desplaza de lado — el mismo gesto que el visitante ya hace en
+        el carrusel de categorías.
+      */}
       {showTabs ? (
-        <div style={{ display: 'flex', justifyContent: align === 'left' ? 'flex-start' : 'center', gap: 10, flexWrap: 'wrap', margin: '28px 0 34px' }}>
+        <div
+          className="no-sb"
+          style={{
+            display: 'flex',
+            // `safe center`: centra mientras quepa y, en cuanto no cabe, se
+            // comporta como `start`. Con `center` a secas el desbordamiento se
+            // reparte por los dos lados y la primera pestaña —"Todos", la
+            // activa por defecto— nacía cortada por la izquierda.
+            justifyContent: align === 'left' ? 'flex-start' : 'safe center',
+            gap: 10,
+            flexWrap: 'nowrap',
+            overflowX: 'auto',
+            overscrollBehaviorX: 'contain',
+            // Aire al final para que la última pestaña no quede pegada al
+            // borde cuando se llega al tope del desplazamiento.
+            padding: '2px 2px 2px 0',
+            margin: '28px 0 34px',
+          }}
+        >
           <button type="button" style={tabBtn(tab === 'all')} onClick={() => setTab('all')}>
             {t(theme, 'home.featured.filterAll')}
           </button>
