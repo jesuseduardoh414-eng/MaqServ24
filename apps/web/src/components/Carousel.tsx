@@ -1,46 +1,85 @@
 'use client';
 
-import { useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/Icon';
+
+const GAP = 22;
 
 /**
  * Carrusel horizontal con encabezado (eyebrow + título) y botones ←/→.
  * Presentacional: las tarjetas (children) se renderizan en el servidor y se
  * pasan aquí; este componente solo aporta el scroll interactivo.
  * Estilos: solo tokens del tema (var(--...)).
+ *
+ * EL AVANCE SE MIDE AL HACER CLIC. Antes era un número fijo de píxeles (422,
+ * el ancho de la tarjeta en escritorio) que no tenía nada que ver con el ancho
+ * real en el navegador de turno: en un teléfono, donde la tarjeta mide el 84 %
+ * de la pantalla, cada clic dejaba el carrusel entre dos tarjetas y se veían
+ * las dos cortadas. Mismo arreglo que en `CategoryStrip`.
  */
 export function Carousel({
   eyebrow,
   title,
-  step = 300,
   eyebrowColor,
   titleColor,
   children,
 }: {
   eyebrow: string;
   title: string;
-  step?: number;
   eyebrowColor?: string;
   titleColor?: string;
   children: ReactNode;
 }) {
   const track = useRef<HTMLDivElement>(null);
-  const by = (dir: number) => track.current?.scrollBy({ left: dir * step, behavior: 'smooth' });
+  const [alInicio, setAlInicio] = useState(true);
+  const [alFinal, setAlFinal] = useState(false);
 
-  const arrow: React.CSSProperties = {
-    width: 48,
-    height: 48,
+  const medir = useCallback(() => {
+    const el = track.current;
+    if (!el) return;
+    // 2px de margen: con anchos fraccionarios `scrollLeft` no llega nunca al
+    // máximo exacto y la flecha derecha se quedaría siempre encendida.
+    setAlInicio(el.scrollLeft <= 2);
+    setAlFinal(el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
+  }, []);
+
+  useEffect(() => {
+    const el = track.current;
+    if (!el) return;
+    medir();
+    el.addEventListener('scroll', medir, { passive: true });
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', medir);
+      ro.disconnect();
+    };
+  }, [medir]);
+
+  function by(dir: -1 | 1) {
+    const el = track.current;
+    if (!el) return;
+    const card = el.firstElementChild as HTMLElement | null;
+    const ancho = (card?.offsetWidth ?? 380) + GAP;
+    const caben = Math.max(1, Math.floor(el.clientWidth / ancho));
+    el.scrollBy({ left: dir * ancho * caben, behavior: 'smooth' });
+  }
+
+  const arrow = (apagada: boolean): React.CSSProperties => ({
+    width: 46,
+    height: 46,
     borderRadius: 'var(--radius-md)',
     border: '1px solid var(--color-border)',
     background: 'var(--color-surface)',
-    color: 'var(--color-text)',
-    fontSize: '18px',
-    cursor: 'pointer',
-    boxShadow: 'var(--shadow-sm)',
+    color: apagada ? 'var(--color-text-muted)' : 'var(--color-text)',
+    cursor: apagada ? 'default' : 'pointer',
+    opacity: apagada ? 0.4 : 1,
+    boxShadow: apagada ? 'none' : 'var(--shadow-sm)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-  };
+    transition: 'opacity .18s ease, color .18s ease',
+  });
 
   return (
     <>
@@ -60,9 +99,16 @@ export function Carousel({
             {title}
           </h2>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button type="button" aria-label="Anterior" style={arrow} onClick={() => by(-1)}><Icon name="arrowLeft" size={18} /></button>
-          <button type="button" aria-label="Siguiente" style={arrow} onClick={() => by(1)}><Icon name="arrowRight" size={18} /></button>
+        {/* `marginLeft: auto`: al bajar de renglón en pantallas estrechas, las
+            flechas se van al borde derecho en vez de quedar descolgadas bajo el
+            título, que es donde parecían un error. */}
+        <div style={{ display: 'flex', gap: 10, marginLeft: 'auto' }}>
+          <button type="button" aria-label="Anterior" disabled={alInicio} style={arrow(alInicio)} onClick={() => by(-1)}>
+            <Icon name="arrowLeft" size={18} />
+          </button>
+          <button type="button" aria-label="Siguiente" disabled={alFinal} style={arrow(alFinal)} onClick={() => by(1)}>
+            <Icon name="arrowRight" size={18} />
+          </button>
         </div>
       </div>
       <div
@@ -70,9 +116,10 @@ export function Carousel({
         className="no-sb"
         style={{
           display: 'flex',
-          gap: 22,
+          gap: GAP,
           overflowX: 'auto',
           scrollSnapType: 'x mandatory',
+          scrollPaddingInline: 4,
           padding: '4px 4px 22px',
           scrollBehavior: 'smooth',
         }}

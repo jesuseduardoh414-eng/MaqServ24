@@ -18,6 +18,16 @@ export function categoryHref(c: { slug: string; productCount: number }): string 
 }
 
 /** Texto bajo el nombre: el conteo si hay equipos, la acción si no los hay. */
-export function categoryCountLabel(c: { productCount: number }, unit: string): string {
-  return c.productCount > 0 ? `${c.productCount} ${unit}` : 'Cotizar servicio';
+export function categoryCountLabel(
+  c: { productCount: number },
+  unit: string,
+  unitOne?: string,
+): string {
+  if (c.productCount <= 0) return 'Cotizar servicio';
+  // "1 equipos" se leía en la tarjeta de Volteos. El singular es un copy
+  // aparte y no una regla: en español no basta con quitarle la "s" final
+  // (mes/meses, camión/camiones), y además el cliente puede cambiar la
+  // palabra desde Diseño y no tiene por qué elegir una que se preste.
+  const palabra = c.productCount === 1 ? (unitOne || unit) : unit;
+  return `${c.productCount} ${palabra}`;
 }

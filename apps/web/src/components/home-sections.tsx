@@ -179,11 +179,10 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
     return v === key ? def : v;
   };
   const unit = t(theme, 'home.categories.unit');
+  const unitOne = t(theme, 'home.categories.unit.one');
   const eyebrowColor = cs.eyebrowColor ?? 'var(--color-accent)';
   const titleColor = cs.titleColor ?? 'var(--color-text)';
   const accent = cs.cardAccentColor ?? 'var(--color-primary)';
-  // Regla de avance: múltiplo de perView ⇒ pagina de perView en perView; si no, de 1 en 1.
-  const step = categories.length % cs.perView === 0 ? cs.perView : 1;
   return (
     <section style={{ ...CONTAINER, paddingTop: 82, paddingBottom: 40 }}>
       <CategoryStrip
@@ -196,7 +195,6 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
         titleColor={titleColor}
         accentColor={accent}
         perView={cs.perView}
-        step={step}
       >
         {categories.map((c) => (
           <Link
@@ -217,7 +215,7 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             {/* Nombre + conteo encima (abajo-izquierda) */}
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '16px 16px 15px', display: 'grid', gap: 4 }}>
               <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', textTransform: 'uppercase', letterSpacing: '-.01em', lineHeight: 1.12 }}>{c.name}</span>
-              <span style={{ color: accent, fontWeight: 700, fontSize: '12.5px' }}>{categoryCountLabel(c, unit)}</span>
+              <span style={{ color: accent, fontWeight: 700, fontSize: '12.5px' }}>{categoryCountLabel(c, unit, unitOne)}</span>
             </div>
           </Link>
         ))}
@@ -457,7 +455,7 @@ export async function ReviewsSection({ theme }: { theme: Theme }) {
   const accent = cfg?.accentColor ?? 'var(--color-primary)';
   return (
     <section style={{ ...CONTAINER, paddingTop: 20, paddingBottom: 80 }}>
-      <Carousel eyebrow={t(theme, 'home.reviews.eyebrow')} title={t(theme, 'home.reviews.title')} step={422} eyebrowColor={cfg?.eyebrowColor ?? undefined} titleColor={cfg?.titleColor ?? undefined}>
+      <Carousel eyebrow={t(theme, 'home.reviews.eyebrow')} title={t(theme, 'home.reviews.title')} eyebrowColor={cfg?.eyebrowColor ?? undefined} titleColor={cfg?.titleColor ?? undefined}>
         {reviews.map((r) => (
           <figure
             key={r.id}

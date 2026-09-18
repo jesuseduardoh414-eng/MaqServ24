@@ -476,6 +476,8 @@ export const defaultTheme: Theme = {
       'home.categories.eyebrow': 'Ecosistema de servicios',
       'home.categories.title': 'Seis categorías. Una sola marca.',
       'home.categories.unit': 'equipos',
+      // Singular aparte: "1 equipos" se leia en la tarjeta de Volteos.
+      'home.categories.unit.one': 'equipo',
       'home.featured.eyebrow': 'Equipos',
       'home.featured.title': 'Equipo destacado y disponible',
       // "en tiempo real" era falso: la disponibilidad hoy es un entero de stock,
