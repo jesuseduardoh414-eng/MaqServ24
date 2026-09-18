@@ -211,10 +211,46 @@ export default async function AboutPage() {
           <section style={{ borderTop: '1px solid var(--color-border)' }}>
             <div style={{ ...CONTAINER, paddingTop: 52, paddingBottom: 52, textAlign: 'center' }}>
               <p style={{ margin: '0 0 30px', fontSize: 13, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>{brands.eyebrow}</p>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 56, flexWrap: 'wrap' }}>
-                {brands.list.map((b, i) => (
-                  <span key={i} style={{ fontFamily: 'var(--font-heading)', fontSize: 26, fontWeight: 900, letterSpacing: '.04em', color: 'color-mix(in srgb, var(--color-text-muted) 70%, transparent)' }}>{b}</span>
-                ))}
+              {/*
+                UNA SOLA FILA, EN MOVIMIENTO.
+
+                Con `flexWrap` las seis marcas se apilaban en tres renglones en
+                móvil y la sección pasaba de ser una tira discreta a un bloque
+                que se comía la pantalla. Ahora desfilan, que es además la forma
+                natural de enseñar una lista de logos: se lee como "hay varias"
+                sin obligar a contarlas.
+
+                La lista va DUPLICADA a propósito: la animación desplaza el
+                carril un 50 % exacto, así que al terminar la primera copia la
+                segunda está justo donde empezó la primera y el bucle no tiene
+                costura. Con una sola copia se vería el salto.
+
+                `marquee-mask` desvanece los bordes para que las marcas no
+                aparezcan y desaparezcan de golpe contra el filo, y el CSS pausa
+                el desfile al pasar el cursor y lo desactiva por completo con
+                `prefers-reduced-motion`.
+              */}
+              <div
+                className="marquee-mask"
+                style={{
+                  overflow: 'hidden',
+                  WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent)',
+                  maskImage: 'linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent)',
+                }}
+              >
+                <div className="marquee-track" style={{ display: 'flex', alignItems: 'center', gap: 56, whiteSpace: 'nowrap' }}>
+                  {[...brands.list, ...brands.list].map((b, i) => (
+                    <span
+                      key={i}
+                      // La segunda copia se oculta a los lectores de pantalla:
+                      // si no, las marcas se anuncian dos veces.
+                      aria-hidden={i >= brands.list.length}
+                      style={{ flex: '0 0 auto', fontFamily: 'var(--font-heading)', fontSize: 26, fontWeight: 900, letterSpacing: '.04em', color: 'color-mix(in srgb, var(--color-text-muted) 70%, transparent)' }}
+                    >
+                      {b}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </section>

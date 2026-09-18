@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   calcularCotizacion,
   pasosDe,
@@ -100,6 +100,27 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
   const [error, setError] = useState<string | null>(null);
   const [tocado, setTocado] = useState(false);
   const [hecho, setHecho] = useState<ResultadoEnvio | null>(null);
+
+  /**
+   * La barra de pasos se centra sola en el paso actual.
+   *
+   * Al ir en UNA fila que se desplaza, en un teléfono solo se ven dos o tres
+   * de los cinco: sin esto, al avanzar al paso 4 la barra seguía enseñando el
+   * 1 y el 2 y parecía que no había pasado nada.
+   *
+   * Se mueve el CONTENEDOR y no se usa `scrollIntoView`, que además desplaza
+   * la página en vertical y daría un salto en cada paso.
+   */
+  const barraPasos = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    const cont = barraPasos.current;
+    const activo = cont?.querySelector<HTMLElement>('[data-estado="activo"]');
+    if (!cont || !activo) return;
+    cont.scrollTo({
+      left: activo.offsetLeft - (cont.clientWidth - activo.offsetWidth) / 2,
+      behavior: 'smooth',
+    });
+  }, [paso]);
 
   const opciones: Partial<OpcionesCotizador> = tipo === 'maquinaria' ? { modo_unidad: modoUnidad } : { con_iva: conIva };
   const partidas = useMemo(() => aPartidas(lineas), [lineas]);
@@ -248,15 +269,25 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
     <div className="cz" data-variante={variante}>
       <style>{COTIZADOR_CSS}</style>
 
-      <ol className="cz-steps">
+      <ol className="cz-steps" ref={barraPasos}>
         {pasos.map((p, i) => {
           const estado = i === paso ? 'activo' : i < paso ? 'hecho' : 'pendiente';
           return (
             <li key={p.clave} className="cz-step" data-estado={estado}>
               {/* Se puede volver a un paso ya hecho, nunca saltar hacia adelante:
                   lo de adelante depende de lo que se conteste antes. */}
-              <button type="button" disabled={i >= paso} onClick={() => i < paso && setPaso(i)} aria-current={i === paso ? 'step' : undefined}>
-                <span className="cz-step-n">{estado === 'hecho' ? '✓' : i + 1} · Paso {i + 1}</span>
+              <button
+                type="button"
+                disabled={i >= paso}
+                onClick={() => i < paso && setPaso(i)}
+                aria-current={i === paso ? 'step' : undefined}
+                // El número por sí solo no dice en cuál vas ni cuántos faltan:
+                // el color no es información para quien no lo distingue.
+                aria-label={`Paso ${i + 1} de ${pasos.length}: ${p.titulo}${estado === 'hecho' ? ' (completado)' : ''}`}
+              >
+                <span className="cz-step-n" aria-hidden>
+                  {estado === 'hecho' ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
+                </span>
                 <span className="cz-step-t">{p.titulo}</span>
               </button>
             </li>

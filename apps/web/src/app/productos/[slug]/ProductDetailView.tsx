@@ -323,9 +323,49 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
         {/* tabs */}
         <div style={{ marginTop: 80 }}>
-          <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid var(--color-text)', flexWrap: 'wrap' }}>
+          {/*
+            UNA SOLA FILA. Con `flexWrap` las cuatro pestañas se partían en dos
+            renglones en móvil y el subrayado del borde inferior quedaba a media
+            altura, cortando la pestaña activa por la mitad. Ahora la fila se
+            desplaza de lado y la línea inferior vuelve a ser una sola.
+          */}
+          <div
+            className="no-sb"
+            style={{
+              display: 'flex',
+              gap: 4,
+              borderBottom: '2px solid var(--color-text)',
+              flexWrap: 'nowrap',
+              overflowX: 'auto',
+              overscrollBehaviorX: 'contain',
+            }}
+          >
             {TAB_KEYS.map(([key, copyKey]) => [key, tCopy(theme, copyKey)] as const).map(([key, label]) => (
-              <button key={key} type="button" onClick={() => setTab(key)} style={{ fontFamily: DISPLAY, fontSize: 16, fontWeight: 700, cursor: 'pointer', background: 'transparent', border: 'none', padding: '14px 20px', color: tab === key ? 'var(--color-text)' : 'var(--color-text-muted)', borderBottom: `3px solid ${tab === key ? 'var(--color-primary)' : 'transparent'}`, marginBottom: -2, letterSpacing: '-0.01em' }}>{label}{key === 'reviews' && rating.count > 0 ? ` (${rating.count})` : ''}</button>
+              <button
+                key={key}
+                type="button"
+                onClick={() => setTab(key)}
+                style={{
+                  // Sin esto flexbox aplasta las pestañas hasta partir el texto
+                  // antes de dejar que la fila desborde.
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  fontFamily: DISPLAY,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '14px 18px',
+                  color: tab === key ? 'var(--color-text)' : 'var(--color-text-muted)',
+                  borderBottom: `3px solid ${tab === key ? 'var(--color-primary)' : 'transparent'}`,
+                  marginBottom: -2,
+                  letterSpacing: '-0.01em',
+                  transition: 'color .18s ease, border-color .18s ease',
+                }}
+              >
+                {label}{key === 'reviews' && rating.count > 0 ? ` (${rating.count})` : ''}
+              </button>
             ))}
           </div>
 

@@ -41,16 +41,68 @@ export const COTIZADOR_CSS = `
 .cz-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:18px; flex-wrap:wrap; margin-bottom:18px; }
 .cz-title{ margin:0; font-family:var(--font-heading, inherit); font-size:clamp(23px,3.2vw,31px); letter-spacing:-0.025em; line-height:1.1; }
 .cz-sub{ margin:6px 0 0; color:var(--cz-muted); font-size:13.5px; max-width:62ch; }
-.cz-steps{ display:flex; gap:6px; list-style:none; margin:0 0 22px; padding:0; flex-wrap:wrap; }
-.cz-step{ flex:1 1 118px; min-width:96px; }
-.cz-step button{ width:100%; text-align:left; background:transparent; border:none; padding:0 0 9px;
-  border-bottom:2px solid var(--cz-border); cursor:default; }
+/* ---- Paso a paso ----
+   UNA SOLA FILA, siempre. Antes era "flex-wrap: wrap" con celdas de 118px: en
+   un teléfono los cinco pasos se acomodaban en una rejilla de dos columnas que
+   ya no se leía como una secuencia, que es lo único que un indicador de pasos
+   tiene que comunicar. Ahora es una fila que se desplaza, con la línea de
+   avance uniéndolos y el paso activo centrado solo (ver "Cotizador.tsx"). */
+.cz-steps{
+  display:flex; gap:0; list-style:none; margin:0 0 24px; padding:2px 2px 4px;
+  flex-wrap:nowrap; overflow-x:auto; overscroll-behavior-x:contain; scroll-behavior:smooth;
+}
+.cz-step{ position:relative; flex:1 0 auto; min-width:124px; }
+/* La línea que une un paso con el siguiente. Arranca del borde del círculo y
+   muere en el del siguiente, de ahí los 17px de descuento a cada lado. */
+.cz-step::before{
+  content:''; position:absolute; top:13px; height:2px; z-index:0;
+  left:calc(50% + 17px); right:calc(-50% + 17px);
+  background:var(--cz-border); transition:background-color .3s ease;
+}
+.cz-step:last-child::before{ display:none; }
+.cz-step[data-estado="hecho"]::before{ background:var(--cz-accent); }
+.cz-step button{
+  position:relative; z-index:1; width:100%; display:flex; flex-direction:column; align-items:center;
+  gap:7px; background:transparent; border:none; padding:0 8px; cursor:default;
+}
 .cz-step button:not(:disabled){ cursor:pointer; }
-.cz-step[data-estado="hecho"] button, .cz-step[data-estado="activo"] button{ border-bottom-color:var(--cz-accent); }
-.cz-step-n{ display:block; font-size:10px; letter-spacing:.1em; font-weight:700; color:var(--cz-muted); text-transform:uppercase; }
-.cz-step[data-estado="hecho"] .cz-step-n, .cz-step[data-estado="activo"] .cz-step-n{ color:var(--cz-accent); }
-.cz-step-t{ display:block; margin-top:4px; font-size:12.5px; color:var(--cz-muted); }
+/* El número, dentro de su círculo. Es lo que de verdad marca el estado. */
+.cz-step-n{
+  position:relative; /* ancla del halo; sin esto se dibujaba en la esquina del paso */
+  width:28px; height:28px; border-radius:999px; display:grid; place-items:center; flex-shrink:0;
+  font-size:12.5px; font-weight:800; font-variant-numeric:tabular-nums;
+  border:2px solid var(--cz-border); background:var(--cz-surface); color:var(--cz-muted);
+  transition:background-color .25s ease, border-color .25s ease, color .25s ease, transform .25s ease;
+}
+.cz-step[data-estado="hecho"] .cz-step-n{
+  border-color:var(--cz-accent); background:var(--cz-accent-soft); color:var(--cz-accent);
+}
+.cz-step[data-estado="activo"] .cz-step-n{
+  border-color:var(--cz-accent); background:var(--cz-accent); color:var(--cz-accent-fg);
+  transform:scale(1.08);
+}
+/* Halo del paso activo: late despacio para que el ojo vuelva ahí tras cambiar
+   de pantalla, sin competir con el formulario. */
+.cz-step[data-estado="activo"] .cz-step-n::after{
+  content:''; position:absolute; inset:-2px; border-radius:999px; pointer-events:none;
+  border:2px solid var(--cz-accent); animation:czLatido 2s ease-out infinite;
+}
+@keyframes czLatido{
+  0%{ transform:scale(1); opacity:.55; }
+  70%{ transform:scale(1.85); opacity:0; }
+  100%{ transform:scale(1.85); opacity:0; }
+}
+.cz-step-t{
+  display:block; font-size:12px; line-height:1.3; text-align:center; color:var(--cz-muted);
+  transition:color .25s ease;
+}
 .cz-step[data-estado="activo"] .cz-step-t{ color:var(--cz-text); font-weight:700; }
+.cz-step[data-estado="hecho"] .cz-step-t{ color:var(--cz-text); }
+@media (prefers-reduced-motion: reduce){
+  .cz-steps{ scroll-behavior:auto; }
+  .cz-step[data-estado="activo"] .cz-step-n::after{ animation:none; }
+  .cz-step-n, .cz-step-t, .cz-step::before{ transition:none; }
+}
 
 /* Ayuda del paso: a todo el ancho y ANTES de la rejilla, para que la tarjeta
    del paso y el resumen empiecen a la misma altura. */
