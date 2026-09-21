@@ -4,6 +4,7 @@ import { getTheme, t } from '@/lib/theme';
 import { CartProvider } from '@/components/CartProvider';
 import { DevAutoRefresh } from '@/components/DevAutoRefresh';
 import './globals.css';
+import { RecortarEspacios } from '@maqserv/ui';
 
 /**
  * CADUCIDAD DE LAS PÁGINAS (red de seguridad del panel).
@@ -55,6 +56,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body>
+        {/* Un espacio pegado sin querer no debe costar un "datos incorrectos". */}
+        <RecortarEspacios />
         <CartProvider>{children}</CartProvider>
         <DevAutoRefresh />
       </body>
