@@ -216,3 +216,54 @@ export async function restablecerConToken(token: string, nueva: string): Promise
   });
   return true;
 }
+
+/* ============================================================
+   RESTABLECER CONTRASEÑA DE ADMINISTRADORES
+   ------------------------------------------------------------
+   Los clientes guardan una huella en `users.reset_token`. Para el panel se
+   usa otra vía: un token FIRMADO que lleva la huella del hash actual (`pv`,
+   la misma idea del refresh token). Dos razones:
+
+   1. `admins` no tiene columnas de restablecimiento y añadirlas es una
+      migración más en producción (donde `db push` ya arrastra un cambio
+      ajeno). Un JWT no necesita tabla.
+   2. El token muere solo cuando cambia la contraseña: `pv` deja de
+      coincidir. Un solo uso sin guardar estado, y de paso caducan todas las
+      sesiones abiertas de esa cuenta, que es justo lo que uno quiere al
+      restablecer.
+
+   `typ: 'reset-admin'` y sin `audience`: `verifyAccessToken` exige audience,
+   así que este token jamás sirve para entrar; y `refreshGrant` exige
+   `typ: 'refresh'`, así que tampoco renueva nada.
+   ============================================================ */
+
+/** Huella corta de un hash de contraseña (la que viaja como `pv`). */
+export const huellaDeHash = (hash: string): string => versionDe(hash);
+
+export const RESTABLECER_ADMIN_MINUTOS = RESTABLECER_MINUTOS;
+
+export async function firmarRestablecimientoAdmin(adminId: number, hashActual: string): Promise<string> {
+  return new SignJWT({ typ: 'reset-admin', pv: versionDe(hashActual) })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(EMISOR)
+    .setSubject(`admin:${adminId}`)
+    .setIssuedAt()
+    .setExpirationTime(`${RESTABLECER_MINUTOS}m`)
+    .sign(llave());
+}
+
+/** Null si el token no es de restablecimiento de admin, está mal firmado o venció. */
+export async function leerRestablecimientoAdmin(token: string): Promise<{ adminId: number; pv: string } | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    if (payload.typ !== 'reset-admin' || typeof payload.sub !== 'string' || !payload.sub.startsWith('admin:')) {
+      return null;
+    }
+    const adminId = Number(payload.sub.slice('admin:'.length));
+    if (!Number.isInteger(adminId) || typeof payload.pv !== 'string') return null;
+    return { adminId, pv: payload.pv };
+  } catch {
+    return null;
+  }
+}

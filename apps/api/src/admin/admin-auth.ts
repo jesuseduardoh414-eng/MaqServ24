@@ -7,7 +7,13 @@ import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
-import { passwordGrant, verifyAccessToken } from '../common/app-auth';
+import {
+  firmarRestablecimientoAdmin, hashPassword, huellaDeHash, leerRestablecimientoAdmin,
+  passwordGrant, RESTABLECER_ADMIN_MINUTOS, verifyAccessToken,
+} from '../common/app-auth';
+import { MailerService } from '../notifications/mailer.service';
+import { correoRestablecerContrasena } from '../notifications/email-templates';
+import { registrarAccion } from './audit';
 import { permisosVigentes } from './permisos';
 
 /**
@@ -152,6 +158,8 @@ const loginSchema = z.object({ email: z.string().email(), password: z.string().m
 
 @Controller('admin/auth')
 export class AdminAuthController {
+  constructor(private readonly mailer: MailerService) {}
+
   // La puerta del panel: pocos usuarios, ninguna razón para intentar 10 veces por
   // minuto, y el premio de entrar es todo el negocio.
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
@@ -189,5 +197,77 @@ export class AdminAuthController {
     const rol = rolDeAdmin(a.role);
     // El panel dibuja su menú con esto: una sola fuente para API y pantalla.
     return { ...a, rol, modulos: modulosEfectivos(rol, await permisosVigentes()), rolNombre: ROLES_ADMIN[rol].nombre };
+  }
+
+  /**
+   * "¿Olvidaste tu contraseña?" del panel, paso 1.
+   *
+   * Responde `ok` SIEMPRE, exista o no el correo: si la respuesta cambiara,
+   * esta ruta serviría para averiguar qué correos tienen cuenta de
+   * administrador, que es lo primero que busca quien quiere entrar sin permiso.
+   * Solo cuentas activas: una desactivada tampoco debe poder volver por aquí.
+   *
+   * El enlace apunta al PANEL (`ADMIN_URL`), no al sitio: no se acepta un
+   * destino desde el cuerpo, para que nadie pueda fabricar enlaces de
+   * restablecimiento que lleven a otro dominio.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 3 } })
+  @Post('olvide')
+  async olvide(@Body() body: unknown) {
+    const parsed = z.object({ email: z.string().email() }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Escribe un correo válido.');
+    const correo = parsed.data.email.trim().toLowerCase();
+
+    const a = await prisma.admins.findFirst({
+      where: { email: correo, status: 1 },
+      select: { id: true, name: true, email: true, password: true },
+    });
+    if (!a || !a.password) return { ok: true };
+
+    const token = await firmarRestablecimientoAdmin(a.id, a.password);
+    const base = (process.env.ADMIN_URL ?? 'http://localhost:3001').replace(/\/$/, '');
+    const correoListo = correoRestablecerContrasena({
+      nombre: a.name, url: `${base}/restablecer?token=${token}`, minutos: RESTABLECER_ADMIN_MINUTOS,
+    });
+    await this.mailer.enviar({ kind: 'password_reset', to: a.email, toName: a.name, ...correoListo });
+    return { ok: true };
+  }
+
+  /**
+   * Paso 2: el token viene del enlace del correo. Vale una sola vez porque
+   * lleva la huella del hash vigente: en cuanto se guarda la contraseña nueva,
+   * la huella cambia y ese mismo enlace deja de coincidir.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Post('restablecer')
+  async restablecer(@Body() body: unknown) {
+    const parsed = z.object({ token: z.string().min(20), password: z.string().min(8).max(200) }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('La contraseña necesita al menos 8 caracteres.');
+
+    const caducado = 'El enlace ya no sirve. Pide uno nuevo desde "¿Olvidaste tu contraseña?".';
+    const leido = await leerRestablecimientoAdmin(parsed.data.token);
+    if (!leido) throw new UnauthorizedException(caducado);
+
+    const a = await prisma.admins.findFirst({
+      where: { id: leido.adminId, status: 1 },
+      select: { id: true, name: true, email: true, role: true, password: true },
+    });
+    if (!a || !a.password || huellaDeHash(a.password) !== leido.pv) throw new UnauthorizedException(caducado);
+
+    await prisma.admins.update({
+      where: { id: a.id },
+      data: { password: await hashPassword(parsed.data.password), updated_at: new Date() },
+    });
+    // La caché del guard guarda `role`, no el hash, pero se limpia igual: es
+    // barato y evita cualquier sorpresa con una sesión a medio renovar.
+    forgetAdmin(a.id);
+    // Queda en la bitácora como acción de la propia cuenta: quien restablece
+    // es quien tiene el correo, y "¿quién cambió esta contraseña?" es una
+    // pregunta que sí se hace.
+    await registrarAccion(
+      { adminId: a.id, adminRol: rolDeAdmin(a.role), adminEmail: a.email, adminNombre: a.name, headers: {} },
+      'admins', 'contrasena.restablecer', a.email, 'Por enlace de "¿Olvidaste tu contraseña?"',
+    );
+    return { ok: true };
   }
 }
