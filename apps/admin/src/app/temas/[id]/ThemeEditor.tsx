@@ -56,7 +56,6 @@ const SECTION_META: Record<string, SectionMeta> = {
   'home.reviews': { name: 'Reseñas / Testimonios', recommendation: 'Opiniones de clientes reales. Recomendada como prueba social.' },
   'home.brands': { name: 'Marcas', recommendation: 'Logos de marcas con las que trabajas. Para distribuidores o aliados.' },
   'home.faq': { name: 'Preguntas frecuentes', recommendation: 'Resuelve dudas comunes. Reduce fricción en cualquier giro.' },
-  'home.services': { name: 'Servicios', recommendation: 'Los servicios que ofreces. Para negocios de servicios más que de producto.' },
   'home.banners': { name: 'Banners', recommendation: 'Imágenes promocionales enlazables. Para campañas visuales.' },
   'home.blog': { name: 'Blog / Noticias', recommendation: 'Artículos recientes. Si generas contenido o buscas SEO.' },
   'home.success-cases': { name: 'Casos de éxito', recommendation: 'Proyectos o trabajos realizados. Ideal como portafolio.' },

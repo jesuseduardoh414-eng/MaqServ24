@@ -268,45 +268,6 @@ export class AdminCmsController {
     return { ok: true, branding };
   }
 
-  // ---- Servicios ----
-
-  @Get('services')
-  async services() {
-    const rows = await prisma.services.findMany({ orderBy: { id: 'asc' } });
-    return rows.map((s) => ({ id: s.id, title: s.title, text: s.text, image: imageUrl(s.photo) }));
-  }
-
-  @Post('services')
-  @UseInterceptors(FileInterceptor('photo', { storage: photoStorage, limits: { fileSize: 4 * 1024 * 1024 } }))
-  async createService(@Body() body: unknown, @UploadedFile() photo?: Express.Multer.File) {
-    const parsed = itemSchema.safeParse(body);
-    if (!parsed.success) throw new BadRequestException('Datos inválidos');
-    photoOk(photo);
-    const s = await prisma.services.create({
-      data: { title: parsed.data.title, text: parsed.data.text, photo: photo ? `uploads/${photo.filename}` : '' },
-    });
-    return { id: s.id };
-  }
-
-  @Patch('services/:id')
-  @UseInterceptors(FileInterceptor('photo', { storage: photoStorage, limits: { fileSize: 4 * 1024 * 1024 } }))
-  async updateService(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @UploadedFile() photo?: Express.Multer.File) {
-    const parsed = itemSchema.partial().safeParse(body);
-    if (!parsed.success) throw new BadRequestException('Datos inválidos');
-    photoOk(photo);
-    await prisma.services.update({
-      where: { id },
-      data: { ...parsed.data, ...(photo ? { photo: `uploads/${photo.filename}` } : {}) },
-    });
-    return { ok: true };
-  }
-
-  @Delete('services/:id')
-  async deleteService(@Param('id', ParseIntPipe) id: number) {
-    await prisma.services.delete({ where: { id } });
-    return { ok: true };
-  }
-
   // ---- Why choose us ----
 
   @Get('why-choose-us')

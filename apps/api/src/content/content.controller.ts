@@ -26,11 +26,6 @@ export class ContentController {
     return this.content.whyChooseUs();
   }
 
-  @Get('services')
-  services() {
-    return this.content.services();
-  }
-
   @Get('blogs')
   blogs(@Query('limit') limit?: string) {
     return this.content.blogs(limit ? Number(limit) : undefined);

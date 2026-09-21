@@ -38,13 +38,6 @@ export interface WhyChooseUsItem {
   placement: 'both' | 'home' | 'about';
 }
 
-export interface ServiceItem {
-  id: number;
-  title: string;
-  text: string;
-  photo: string | null;
-}
-
 export interface BlogCard {
   id: number;
   slug: string;

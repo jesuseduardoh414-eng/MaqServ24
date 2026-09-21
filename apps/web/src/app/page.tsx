@@ -12,7 +12,6 @@ import {
   OfferSection,
   ReviewsSection,
   SectorsSection,
-  ServicesSection,
   WhyChooseUsSection,
 } from '@/components/home-sections';
 
@@ -21,8 +20,9 @@ import {
  * `theme.tokens.sections` (editable desde el admin en F4). Las claves sin
  * componente registrado se omiten sin romper.
  *
- * Retiradas (jul 2026): `home.success-cases` (el cliente decidió no incluir el
- * módulo) y `home.banners` (legacy; su editor ya se había quitado del menú).
+ * Retiradas: `home.success-cases` (el cliente decidió no incluir el módulo) y
+ * `home.banners` (legacy; su editor ya se había quitado del menú) en jul 2026;
+ * `home.services` en sep 2026, porque nunca se encendió en el sitio.
  */
 const SECTIONS: Record<string, (props: { theme: Theme }) => Promise<ReactNode> | ReactNode> = {
   'home.hero': Hero,
@@ -32,7 +32,6 @@ const SECTIONS: Record<string, (props: { theme: Theme }) => Promise<ReactNode> |
   'home.why-choose-us': WhyChooseUsSection,
   'home.offer': OfferSection,
   'home.brands': BrandsSection,
-  'home.services': ServicesSection,
   'home.blog': BlogSection,
   'home.reviews': ReviewsSection,
   'home.faq': FaqSection,

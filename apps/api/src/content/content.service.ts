@@ -6,7 +6,6 @@ import type {
   BlogDetail,
   FaqItem,
   HomeHero,
-  ServiceItem,
   SiteReview,
   StrategicSector,
   StrategicSectorDetail,
@@ -123,16 +122,6 @@ export class ContentService {
       icon: w.icon,
       photo: imageUrl(w.photo),
       placement: (w.placement === 'home' || w.placement === 'about' ? w.placement : 'both') as 'both' | 'home' | 'about',
-    }));
-  }
-
-  async services(): Promise<ServiceItem[]> {
-    const rows = await prisma.services.findMany({ orderBy: { id: 'asc' } });
-    return rows.map((s) => ({
-      id: s.id,
-      title: s.title,
-      text: stripHtml(s.text),
-      photo: imageUrl(s.photo),
     }));
   }
 

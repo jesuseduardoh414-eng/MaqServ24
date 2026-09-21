@@ -10,7 +10,6 @@ import {
   getProducts,
   getReviews,
   getSectors,
-  getServices,
   getWhyChooseUs,
 } from '@/lib/api';
 import { categoryHref, categoryCountLabel } from '@/lib/category-link';
@@ -596,32 +595,6 @@ export async function FaqSection({ theme }: { theme: Theme }) {
 }
 
 /* ============ Secciones opcionales (desactivadas por defecto) ============ */
-
-export async function ServicesSection({ theme }: { theme: Theme }) {
-  const services = await getServices();
-  if (services.length === 0) return null;
-  return (
-    <section style={{ ...CONTAINER, paddingTop: 60, paddingBottom: 60 }}>
-      <div style={{ marginBottom: 30 }}>
-        {/* Mismo arreglo que en Blog: el eyebrow es su propio copy. */}
-        <CenterHead eyebrow={t(theme, 'home.services.eyebrow')} title={t(theme, 'home.services.title')} />
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 24 }}>
-        {services.map((s) => (
-          <div key={s.id} className="lift" style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-            <div style={{ position: 'relative', aspectRatio: '16 / 9' }}>
-              {s.photo ? <Image src={s.photo} alt={s.title} fill sizes="33vw" className="zoom" style={{ objectFit: 'cover' }} /> : <span className="ph zoom" style={{ position: 'absolute', inset: 0 }} />}
-            </div>
-            <div style={{ padding: 18, display: 'grid', gap: '.4rem' }}>
-              <strong>{s.title}</strong>
-              <span style={{ color: 'var(--color-text-muted)', fontSize: '13.5px', fontWeight: 300 }}>{s.text}</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 export async function BlogSection({ theme }: { theme: Theme }) {
   // Cuántas entradas: configurable en el módulo Blog. Antes estaba fijo en 3.
