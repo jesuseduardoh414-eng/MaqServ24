@@ -26,13 +26,26 @@
   --radius-btn: var(--radius-button);
 }
 
+/* El panel es oscuro siempre. Sin esto Chrome pinta los controles NATIVOS con
+   su esquema claro: la lista desplegada de un <select> (rol del administrador,
+   filtros…) salía blanca con el texto casi blanco (21-sep). `color-scheme`
+   también arregla el calendario de los <input type=date> y las barras. */
+html { color-scheme: dark; }
+
 body {
   margin: 0;
   background: var(--color-bg);
-  color: var(--color-text);
+  color: var(--adm-text, #f5f5f4);
   font-family: var(--font-sans);
   font-size: var(--text-base);
   line-height: 1.6;
+}
+
+/* Firefox (y Chrome en Windows) sí leen estos colores en las opciones;
+   `color-scheme` cubre a los que no. */
+select option, select optgroup {
+  background: var(--adm-card, #141416);
+  color: var(--adm-text, #f5f5f4);
 }
 
 h1, h2, h3 {
@@ -72,7 +85,7 @@ h1, h2, h3 {
   height: 100dvh;
   overflow: hidden;
   background: var(--adm-page);
-  color: var(--adm-text);
+  color: var(--adm-text, #f5f5f4);
   /* La tipografía SIGUE AL TEMA (el layout ya lo prometía): un cambio de fuente
      en Diseño mueve el panel igual que el sitio. Inter queda de respaldo. */
   font-family: var(--font-sans, 'Inter'), system-ui, sans-serif;
