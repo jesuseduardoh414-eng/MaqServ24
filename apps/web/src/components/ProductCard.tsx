@@ -9,7 +9,7 @@ import { UNIDADES, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { formatPrice } from '@/lib/format';
 import { useCart } from '@/components/CartProvider';
-import { AvailabilityBadge } from '@/components/AvailabilityBadge';
+import { AvailabilityBadge, CHIP_BG, CHIP_BORDER, CHIP_FG } from '@/components/AvailabilityBadge';
 import { estadoDeProducto } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
 import { Icon } from '@/components/Icon';
@@ -72,12 +72,14 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
   const discount = p.oldPrice && p.price && p.oldPrice > p.price ? Math.round((1 - p.price / p.oldPrice) * 100) : 0;
   // Prioridad del badge: descuento > destacado > renta. Textos del TEMA
   // (requisito duro: todo copy editable en Panel → Diseño).
+  // Un solo chip gris plata con texto negro para las tres variantes: la palabra
+  // distingue, no el color (antes cada una traía su propio fondo de color).
   const badge = discount
-    ? { text: `-${discount}%`, bg: 'var(--color-primary)', fg: 'var(--color-primary-fg)' }
+    ? `-${discount}%`
     : p.featured
-      ? { text: t(theme, 'product.badge.featured'), bg: 'var(--color-accent)', fg: '#fff' }
+      ? t(theme, 'product.badge.featured')
       : p.isRental
-        ? { text: t(theme, 'product.badge.rental'), bg: 'var(--color-secondary)', fg: '#fff' }
+        ? t(theme, 'product.badge.rental')
         : null;
   const canAdd = !quoteMode && p.inStock && !p.isRental && p.price !== null;
   // El modo (renta/venta) y la DISPONIBILIDAD ya no van juntos en una cadena:
@@ -119,7 +121,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
           <span aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)' }} />
         )}
         {badge ? (
-          <span style={{ position: 'absolute', top: 13, left: 13, background: badge.bg, color: badge.fg, fontSize: '11px', fontWeight: 800, padding: '5px 11px', borderRadius: 'var(--radius-sm)' }}>{badge.text}</span>
+          <span style={{ position: 'absolute', top: 13, left: 13, background: CHIP_BG, color: CHIP_FG, border: `1px solid ${CHIP_BORDER}`, fontSize: '11px', fontWeight: 800, padding: '5px 11px', borderRadius: 'var(--radius-sm)' }}>{badge}</span>
         ) : null}
       </Link>
 
