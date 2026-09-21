@@ -157,6 +157,13 @@ function empaquetarNext(app) {
         `// El server real de Next vive en ${relPosix}/server.js: el bundle standalone\n` +
         `// conserva la estructura del monorepo. Este archivo solo lo carga.\n` +
         `// En cPanel, "Application startup file" = server.js (este).\n` +
+        `//\n` +
+        `// Topes de hilos. En la jaula de CloudLinux cada hilo cuenta como un proceso\n` +
+        `// (NPROC), y tanto libuv como libvips (sharp, el recortador de imagenes) se\n` +
+        `// dimensionan por nucleos del SERVIDOR, no de la cuenta. Van aqui porque es\n` +
+        `// lo primero que corre; si cPanel ya trae la variable, se respeta.\n` +
+        `process.env.UV_THREADPOOL_SIZE ??= '2';\n` +
+        `process.env.VIPS_CONCURRENCY ??= '1';\n` +
         `require('./${relPosix}/server.js');\n`,
     );
   }

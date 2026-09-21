@@ -7,6 +7,15 @@
  * Se respeta si el entorno ya lo fijó.
  */
 process.env.UV_THREADPOOL_SIZE ??= '2';
+/**
+ * Hilos del motor de Prisma (Rust/Tokio): por defecto abre UNO POR NÚCLEO del
+ * servidor. En un hosting compartido de muchos núcleos son decenas de hilos
+ * parados, y en la jaula de CloudLinux cada uno ocupa una ranura de NPROC.
+ * Tokio lee esta variable al crear su runtime; tiene que estar puesta antes de
+ * que se cargue la librería del motor (es decir, antes de cualquier import).
+ * Medido el 2026-09-21: 53/100 ranuras con solo api y web en reposo.
+ */
+process.env.TOKIO_WORKER_THREADS ??= '2';
 
 import 'reflect-metadata';
 import { join, resolve } from 'node:path';
