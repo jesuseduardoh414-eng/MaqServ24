@@ -11,7 +11,7 @@ export default async function BrandingPage() {
   const branding = (await adminFetch<Record<string, string | null>>('/admin/cms/branding')) ?? {};
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <BrandingEditor initial={branding} />
     </AdminShell>
   );

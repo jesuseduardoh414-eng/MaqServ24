@@ -20,7 +20,7 @@ export default async function FooterDesignPage() {
   const brand = detail?.copys?.es?.['site.name'] ?? 'MAQSER24';
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <FooterEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

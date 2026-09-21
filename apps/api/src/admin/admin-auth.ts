@@ -6,8 +6,9 @@ import { Reflector } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
-import { rolDeAdmin, puedeVer, modulosDe, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
+import { rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 import { passwordGrant, verifyAccessToken } from '../common/app-auth';
+import { permisosVigentes } from './permisos';
 
 /**
  * Auth de ADMINISTRADORES con JWT propio (ver common/app-auth.ts). El token
@@ -132,7 +133,10 @@ export class AdminGuard implements CanActivate {
       ctx.getHandler(),
       ctx.getClass(),
     ]);
-    if (modulo ? !puedeVer(rol, modulo) : rol !== 'direccion') {
+    // Los permisos salen de la tabla por defecto MÁS lo que Dirección haya
+    // cambiado en el panel (permisos.ts trae su propia caché).
+    const permisos = await permisosVigentes();
+    if (modulo ? !puedeVerCon(rol, modulo, permisos) : rol !== 'direccion') {
       throw new ForbiddenException('Tu rol no tiene acceso a esta sección del panel');
     }
 
@@ -184,6 +188,6 @@ export class AdminAuthController {
     if (!a) throw new UnauthorizedException();
     const rol = rolDeAdmin(a.role);
     // El panel dibuja su menú con esto: una sola fuente para API y pantalla.
-    return { ...a, rol, modulos: modulosDe(rol), rolNombre: ROLES_ADMIN[rol].nombre };
+    return { ...a, rol, modulos: modulosEfectivos(rol, await permisosVigentes()), rolNombre: ROLES_ADMIN[rol].nombre };
   }
 }

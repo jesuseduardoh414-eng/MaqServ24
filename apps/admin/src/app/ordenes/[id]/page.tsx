@@ -71,7 +71,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const canceled = shipping?.state === 'cancelado';
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <div style={{ fontFamily: FONT, color: D.text }}>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         <style>{`

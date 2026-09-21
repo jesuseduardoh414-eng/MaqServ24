@@ -29,7 +29,7 @@ export default async function TarifasCotizador() {
   };
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '4px 0 20px' }}>
         <header style={{ marginBottom: 20 }}>
           <Link href="/cotizador" style={{ fontSize: 12.5, color: D.muted2, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>

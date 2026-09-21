@@ -8,7 +8,7 @@ export default async function NewBlogPage() {
   if (!admin) redirect('/login');
   exigirModulo(admin, 'diseno');
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <BlogForm initial={{}} />
     </AdminShell>
   );

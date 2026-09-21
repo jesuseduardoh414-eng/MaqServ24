@@ -25,7 +25,7 @@ export default async function ReviewsDesignPage() {
   const approved = (reviews ?? []).filter((r) => r.status === 1);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <ReviewsEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

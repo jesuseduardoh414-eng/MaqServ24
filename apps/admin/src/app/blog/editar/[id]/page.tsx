@@ -12,7 +12,7 @@ export default async function EditBlogPage({ params }: { params: Promise<{ id: s
   if (!blog) notFound();
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <BlogForm initial={blog} />
     </AdminShell>
   );

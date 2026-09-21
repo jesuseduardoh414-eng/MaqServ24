@@ -22,7 +22,7 @@ export default async function AdminServicios() {
   const servicios = (await adminFetch<ServicioRow[]>('/admin/services')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <ServicesBoard initial={servicios} />
     </AdminShell>
   );

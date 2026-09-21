@@ -24,7 +24,7 @@ export default async function AdminBlog() {
   const section = tokens.sections.find((s) => s.key === 'home.blog');
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <BlogManager
         blogs={blogs}
         themeId={active?.id ?? null}

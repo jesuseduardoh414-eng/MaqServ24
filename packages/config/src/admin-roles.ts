@@ -58,6 +58,30 @@ export const MODULOS_ADMIN = [
 
 export type ModuloAdmin = (typeof MODULOS_ADMIN)[number];
 
+/**
+ * Cómo se llama cada módulo en pantalla. La clave es para el código; esto es
+ * para la persona que reparte los permisos, que no tiene por qué saber que
+ * "comunidad" incluye los mensajes del formulario de contacto.
+ */
+export const MODULOS_META: Record<ModuloAdmin, { nombre: string; detalle: string }> = {
+  inicio: { nombre: 'Inicio', detalle: 'Tablero de lo que hay que atender. No se le puede quitar a nadie.' },
+  indicadores: { nombre: 'Indicadores', detalle: 'Ventas, cotizaciones y desempeño.' },
+  catalogo: { nombre: 'Catálogo', detalle: 'Productos y categorías del sitio.' },
+  disponibilidad: { nombre: 'Disponibilidad', detalle: 'Qué equipo está libre y cuándo.' },
+  ordenes: { nombre: 'Órdenes', detalle: 'Pedidos, pagos, envíos y su estado.' },
+  cotizaciones: { nombre: 'Cotizaciones', detalle: 'La bandeja de lo que pide el cliente.' },
+  cotizador: { nombre: 'Cotizador', detalle: 'La herramienta de precio y el tabulador de tarifas.' },
+  servicios: { nombre: 'Servicios', detalle: 'Lo que está en curso, asignaciones e incidencias.' },
+  agenda: { nombre: 'Agenda', detalle: 'Lo que viene en los próximos días.' },
+  clientes: { nombre: 'Clientes y obras', detalle: 'Las empresas que contratan y sus frentes abiertos.' },
+  proveedores: { nombre: 'Proveedores', detalle: 'La red de aliados, sus papeles y su desempeño.' },
+  marketplace: { nombre: 'Marketplace', detalle: 'Vendedores y RETIROS DE DINERO.' },
+  comunidad: { nombre: 'Comunidad', detalle: 'Cuentas, reseñas, preguntas, mensajes y suscriptores.' },
+  diseno: { nombre: 'Diseño del sitio', detalle: 'Secciones del home, textos, colores, blog y marca.' },
+  configuracion: { nombre: 'Configuración', detalle: 'Correo, pasarelas de pago y traslado.' },
+  admins: { nombre: 'Administradores', detalle: 'Las cuentas del panel y estos permisos.' },
+};
+
 export type RolAdmin = 'direccion' | 'operaciones' | 'red' | 'comercial' | 'marca';
 
 export interface DefinicionRol {
@@ -80,8 +104,10 @@ export const ROLES_ADMIN: Record<RolAdmin, DefinicionRol> = {
     clave: 'operaciones',
     nombre: 'Operaciones',
     descripcion: 'Solicitudes, asignaciones, logística, incidencias y cumplimiento.',
+    // 'catalogo' entró después: Operaciones coordina los equipos y no podía
+    // corregir la ficha del equipo que estaba coordinando.
     modulos: [
-      'inicio', 'indicadores', 'ordenes', 'cotizaciones', 'cotizador', 'servicios',
+      'inicio', 'indicadores', 'catalogo', 'ordenes', 'cotizaciones', 'cotizador', 'servicios',
       'agenda', 'clientes', 'disponibilidad', 'proveedores',
     ],
   },
@@ -95,7 +121,9 @@ export const ROLES_ADMIN: Record<RolAdmin, DefinicionRol> = {
     clave: 'comercial',
     nombre: 'Comercial y Atención',
     descripcion: 'Adquisición de clientes, cuentas, obras, seguimiento, conversión y resolución de fricciones.',
-    modulos: ['inicio', 'indicadores', 'cotizaciones', 'cotizador', 'clientes', 'comunidad'],
+    // 'ordenes' entró después: cerraba la venta y no veía el pedido que salía
+    // de ella, que es justo lo que el cliente le pregunta por teléfono.
+    modulos: ['inicio', 'indicadores', 'ordenes', 'cotizaciones', 'cotizador', 'clientes', 'comunidad'],
   },
   marca: {
     clave: 'marca',
@@ -132,4 +160,65 @@ export function puedeVer(rol: RolAdmin, modulo: ModuloAdmin): boolean {
 /** Los módulos de un rol, ya resueltos (Dirección incluida). */
 export function modulosDe(rol: RolAdmin): readonly ModuloAdmin[] {
   return ROLES_ADMIN[rol]?.modulos ?? MODULOS_ADMIN;
+}
+
+/* ============================================================
+   PERMISOS EDITABLES DESDE EL PANEL
+   ------------------------------------------------------------
+   La tabla de arriba deja de ser la última palabra y pasa a ser el PUNTO DE
+   PARTIDA: Dirección puede reajustar qué ve cada rol desde Administradores →
+   Permisos, y eso se guarda en la BD. Un rol sin fila guardada sigue usando su
+   lista de arriba, así que un despliegue nuevo no estrena permisos en blanco.
+
+   Dos reglas que no se pueden desactivar, y por qué:
+    - Dirección lo ve todo SIEMPRE. Si se le pudiera quitar el módulo de
+      cuentas, el primer clic desafortunado dejaría el panel sin nadie que
+      pueda volver a repartir permisos.
+    - 'inicio' va en todos los roles. Es la primera pantalla tras entrar y la
+      ruta `/admin/auth/me` que pide toda página: sin ella, la cuenta entra y
+      rebota.
+   ============================================================ */
+
+/** Lo que Dirección guarda desde el panel: rol → módulos. */
+export type PermisosOverride = Partial<Record<RolAdmin, readonly string[]>>;
+
+/** No se le puede quitar a nadie (ver arriba). */
+export const MODULOS_OBLIGATORIOS: readonly ModuloAdmin[] = ['inicio'];
+
+/** Roles cuya lista no se edita. */
+export const ROLES_FIJOS: readonly RolAdmin[] = ['direccion'];
+
+export const esRolFijo = (rol: RolAdmin): boolean => ROLES_FIJOS.includes(rol);
+
+/**
+ * Deja una lista guardada en forma canónica: tira lo que no reconoce (un
+ * módulo renombrado en el código no debe conceder nada), añade los
+ * obligatorios y respeta el orden de `MODULOS_ADMIN` para que la pantalla no
+ * dependa del orden en que se hicieron clic las casillas.
+ */
+export function normalizarModulos(lista: readonly string[]): ModuloAdmin[] {
+  const set = new Set<ModuloAdmin>(
+    lista.filter((m): m is ModuloAdmin => (MODULOS_ADMIN as readonly string[]).includes(m)),
+  );
+  for (const m of MODULOS_OBLIGATORIOS) set.add(m);
+  return MODULOS_ADMIN.filter((m) => set.has(m));
+}
+
+/** Los módulos de un rol AHORA: lo guardado si existe, si no su lista por defecto. */
+export function modulosEfectivos(
+  rol: RolAdmin,
+  overrides?: PermisosOverride | null,
+): readonly ModuloAdmin[] {
+  if (esRolFijo(rol)) return MODULOS_ADMIN;
+  const guardado = overrides?.[rol];
+  return guardado ? normalizarModulos(guardado) : modulosDe(rol);
+}
+
+/** ¿Puede entrar, con los permisos vigentes? Es lo que pregunta el guard. */
+export function puedeVerCon(
+  rol: RolAdmin,
+  modulo: ModuloAdmin,
+  overrides?: PermisosOverride | null,
+): boolean {
+  return modulosEfectivos(rol, overrides).includes(modulo);
 }

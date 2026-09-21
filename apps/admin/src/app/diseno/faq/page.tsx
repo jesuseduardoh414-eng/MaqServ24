@@ -26,7 +26,7 @@ export default async function FaqDesignPage() {
   const featured = (questions ?? []).filter((q) => q.featured && q.answered && q.status === 1);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <FaqEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

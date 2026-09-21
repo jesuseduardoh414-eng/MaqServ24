@@ -11,7 +11,7 @@ export default async function AdminCategories() {
   const cats = (await adminFetch<CategoryRow[]>('/admin/catalog/categories')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <CategoriesManager initial={cats} />
     </AdminShell>
   );

@@ -33,7 +33,7 @@ export default async function CotizadorHome() {
   const porAtender = pendientes?.total ?? 0;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '4px 0 40px' }}>
         <h1 style={{ margin: 0, fontSize: 29, letterSpacing: '-0.03em', color: D.text }}>Cotizador</h1>
         <p style={{ margin: '8px 0 26px', fontSize: 14, color: D.muted2, maxWidth: '68ch' }}>

@@ -10,7 +10,7 @@ export default async function NewProductPage() {
   const categories = (await adminFetch<Array<{ id: number; name: string }>>('/admin/catalog/categories')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: '1.2rem' }}>Nuevo producto</h1>
       <ProductForm initial={{}} categories={categories} />
     </AdminShell>

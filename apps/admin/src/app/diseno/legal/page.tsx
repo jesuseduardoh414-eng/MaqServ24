@@ -25,7 +25,7 @@ export default async function LegalDesignPage() {
   };
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <LegalEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

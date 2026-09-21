@@ -17,7 +17,7 @@ export default async function CotizadorMaquinaria() {
   const catalogo = (await adminFetch<CatalogoCotizador>('/admin/quoter/catalog/maquinaria')) ?? CATALOGO_MAQUINARIA_DEFAULT;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <CotizadorPanel catalogo={catalogo} titulo="Cotizador de maquinaria" resumen={COTIZADORES_META.maquinaria.resumen} />
     </AdminShell>
   );

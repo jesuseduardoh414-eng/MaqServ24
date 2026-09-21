@@ -14,7 +14,7 @@ export default async function CotizadorTriturados() {
   const catalogo = (await adminFetch<CatalogoCotizador>('/admin/quoter/catalog/triturados')) ?? CATALOGO_TRITURADOS_DEFAULT;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <CotizadorPanel catalogo={catalogo} titulo="Cotizador de triturados" resumen={COTIZADORES_META.triturados.resumen} />
     </AdminShell>
   );

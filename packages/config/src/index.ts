@@ -39,11 +39,20 @@ export {
 } from './product-attributes';
 export {
   MODULOS_ADMIN,
+  MODULOS_META,
   ROLES_ADMIN,
   ROL_POR_DEFECTO,
   rolDeAdmin,
   puedeVer,
   modulosDe,
+  // Permisos editables desde el panel (overrides guardados en BD).
+  MODULOS_OBLIGATORIOS,
+  ROLES_FIJOS,
+  esRolFijo,
+  normalizarModulos,
+  modulosEfectivos,
+  puedeVerCon,
+  type PermisosOverride,
   type ModuloAdmin,
   type RolAdmin,
   type DefinicionRol,

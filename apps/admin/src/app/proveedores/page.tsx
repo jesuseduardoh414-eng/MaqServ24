@@ -17,7 +17,7 @@ export default async function AdminProveedores() {
   const provs = (await adminFetch<ProviderRow[]>('/admin/providers')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <ProvidersManager initial={provs} />
     </AdminShell>
   );

@@ -31,7 +31,7 @@ export default async function AdminProducts() {
   const cats = catsRaw ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <ProductsManager initial={items} // El slug decide que unidades de precio se ofrecen (viaje, tonelada, mes...).
         categories={cats.map((c) => ({ id: c.id, name: c.name, slug: c.slug }))} />
     </AdminShell>

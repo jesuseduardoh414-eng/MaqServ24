@@ -43,7 +43,7 @@ export default async function AdminQuotes() {
   });
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <QuotesManager items={items} />
     </AdminShell>
   );

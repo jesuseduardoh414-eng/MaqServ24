@@ -18,7 +18,7 @@ export default async function AdminClientes() {
   const clientes = (await adminFetch<ClienteRow[]>('/admin/clients')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <ClientsManager initial={clientes} />
     </AdminShell>
   );

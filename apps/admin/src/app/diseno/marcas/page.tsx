@@ -19,7 +19,7 @@ export default async function BrandsDesignPage() {
   const tokens = detail?.tokens ? themeTokensSchema.parse(detail.tokens) : defaultTheme.tokens;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <BrandsEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

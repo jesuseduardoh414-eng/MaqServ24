@@ -25,7 +25,7 @@ export default async function AdminReviews() {
   }));
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <ReviewsBoard initial={reviews} />
     </AdminShell>
   );

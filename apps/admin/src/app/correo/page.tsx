@@ -23,7 +23,7 @@ export default async function AdminCorreo() {
   ]);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <MailPanel estado={estado} registro={registro?.items ?? []} total={registro?.total ?? 0} />
     </AdminShell>
   );

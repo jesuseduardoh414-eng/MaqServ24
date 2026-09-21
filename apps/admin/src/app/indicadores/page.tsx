@@ -33,7 +33,7 @@ export default async function AdminIndicadores({
   ]);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <AnalyticsBoard
         tablero={tablero}
         categorias={(categorias ?? []).map((c) => ({ slug: c.slug, name: c.name }))}

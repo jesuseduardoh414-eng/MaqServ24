@@ -24,7 +24,7 @@ export default async function ContactDesignPage() {
   const contact = { ...tokens.contact, address: tokens.contact.address || (settings?.street ?? '') };
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <ContactEditor
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

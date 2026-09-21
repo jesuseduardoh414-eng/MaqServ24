@@ -1811,3 +1811,21 @@ model quoter_quotes {
   @@index([origin, created_at(sort: Desc)], map: "quoter_quotes_origin_idx")
   @@map("quoter_quotes")
 }
+
+/// PERMISOS POR ROL, editables desde el panel (Administradores → Permisos).
+///
+/// Una fila por rol que Dirección haya tocado; el rol que no tenga fila usa la
+/// tabla por defecto de `@maqserv/config`. Se guarda así —y no como columna de
+/// `admins`— porque el permiso es del ROL, no de la persona: cambiarlo una vez
+/// mueve a todas las cuentas de ese equipo.
+model admin_role_modules {
+  /// Clave del rol: direccion | operaciones | red | comercial | marca.
+  rol        String   @id @db.VarChar(32)
+  /// Lista de módulos, ya normalizada al guardar.
+  modulos    Json
+  updated_at DateTime @default(now()) @db.DateTime(0)
+  /// Quién lo dejó así (el detalle completo va en `admin_audit`).
+  updated_by Int?
+
+  @@map("admin_role_modules")
+}

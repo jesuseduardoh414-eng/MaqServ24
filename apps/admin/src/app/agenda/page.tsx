@@ -27,7 +27,7 @@ export default async function AdminAgenda({
   const agenda = await adminFetch<Agenda>(`/admin/agenda${qs.size ? `?${qs}` : ''}`);
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <AgendaView agenda={agenda} filtros={{ desde: sp.desde ?? '', semanas: sp.semanas ?? '2' }} />
     </AdminShell>
   );

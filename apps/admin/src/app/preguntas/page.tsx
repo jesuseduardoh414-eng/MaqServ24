@@ -10,7 +10,7 @@ export default async function AdminQuestions() {
   const questions = (await adminFetch<AdminQuestion[]>('/admin/questions')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <QuestionsManager initial={questions} />
     </AdminShell>
   );

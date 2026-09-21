@@ -22,7 +22,7 @@ export default async function AdminThemes() {
   const themes = (await adminFetch<ThemeRow[]>('/admin/themes')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: '1.2rem' }}>Temas</h1>
       <div style={{ display: 'grid', gap: '1.2rem' }}>
         <ThemeDuplicate themes={themes.map((t) => ({ id: t.id, name: t.name }))} />

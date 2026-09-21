@@ -22,7 +22,7 @@ export default async function PaymentsPage() {
   const tokens = detail?.tokens ? themeTokensSchema.parse(detail.tokens) : defaultTheme.tokens;
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <PaymentsManager
         themeId={active?.id ?? null}
         copys={detail?.copys ?? { es: {} }}

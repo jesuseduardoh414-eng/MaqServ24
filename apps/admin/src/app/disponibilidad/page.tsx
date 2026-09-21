@@ -18,7 +18,7 @@ export default async function AdminDisponibilidad() {
   const equipos = (await adminFetch<EquipoRow[]>('/admin/availability')) ?? [];
 
   return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol}>
+    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <AvailabilityManager initial={equipos} />
     </AdminShell>
   );
