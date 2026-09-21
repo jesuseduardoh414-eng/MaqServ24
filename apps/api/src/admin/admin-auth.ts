@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, CanActivate, Controller, ExecutionContext, ForbiddenException, Get,
-  Injectable, Post, Req, SetMetadata, UnauthorizedException, UseGuards,
+  Injectable, Post, Req, ServiceUnavailableException, SetMetadata, UnauthorizedException, UseGuards,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
@@ -218,6 +218,15 @@ export class AdminAuthController {
     if (!parsed.success) throw new BadRequestException('Escribe un correo válido.');
     const correo = parsed.data.email.trim().toLowerCase();
 
+    // Sin ADMIN_URL no se manda nada. Antes caía a localhost:3001 y el 21-sep
+    // producción salió así: el correo llegó bien, pero el enlace abría el panel
+    // LOCAL del desarrollador, cuya API rechazaba un token firmado por otra.
+    // Se comprueba ANTES de buscar el correo para no delatar si existe.
+    const base = (process.env.ADMIN_URL ?? '').trim().replace(/\/$/, '');
+    if (!base) {
+      throw new ServiceUnavailableException('Falta ADMIN_URL en las variables de la API: sin ella no se puede armar el enlace del correo.');
+    }
+
     const a = await prisma.admins.findFirst({
       where: { email: correo, status: 1 },
       select: { id: true, name: true, email: true, password: true },
@@ -225,7 +234,6 @@ export class AdminAuthController {
     if (!a || !a.password) return { ok: true };
 
     const token = await firmarRestablecimientoAdmin(a.id, a.password);
-    const base = (process.env.ADMIN_URL ?? 'http://localhost:3001').replace(/\/$/, '');
     const correoListo = correoRestablecerContrasena({
       nombre: a.name, url: `${base}/restablecer?token=${token}`, minutos: RESTABLECER_ADMIN_MINUTOS,
     });
@@ -244,15 +252,24 @@ export class AdminAuthController {
     const parsed = z.object({ token: z.string().min(20), password: z.string().min(8).max(200) }).safeParse(body);
     if (!parsed.success) throw new BadRequestException('La contraseña necesita al menos 8 caracteres.');
 
-    const caducado = 'El enlace ya no sirve. Pide uno nuevo desde "¿Olvidaste tu contraseña?".';
+    const pideOtro = 'Pide uno nuevo desde "¿Olvidaste tu contraseña?".';
     const leido = await leerRestablecimientoAdmin(parsed.data.token);
-    if (!leido) throw new UnauthorizedException(caducado);
+    if (!leido.ok) {
+      throw new UnauthorizedException(
+        leido.motivo === 'caducado'
+          ? `El enlace caducó: dura ${RESTABLECER_ADMIN_MINUTOS} minutos desde que se pide. ${pideOtro}`
+          : `Este enlace no es de este panel o llegó incompleto. ${pideOtro}`,
+      );
+    }
 
     const a = await prisma.admins.findFirst({
       where: { id: leido.adminId, status: 1 },
       select: { id: true, name: true, email: true, role: true, password: true },
     });
-    if (!a || !a.password || huellaDeHash(a.password) !== leido.pv) throw new UnauthorizedException(caducado);
+    // Huella distinta = la contraseña ya cambió después de pedir el enlace: se usó.
+    if (!a || !a.password || huellaDeHash(a.password) !== leido.pv) {
+      throw new UnauthorizedException(`Este enlace ya se usó, o la contraseña cambió después de pedirlo. ${pideOtro}`);
+    }
 
     await prisma.admins.update({
       where: { id: a.id },

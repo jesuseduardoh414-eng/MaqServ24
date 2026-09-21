@@ -310,6 +310,7 @@ reales están en tu `packages/db/.env` y en los `.env.example` de cada app.
 | `MEDIA_DIR` | `/home/maqserv24/media` |
 | `IMAGE_BASE_URL` | `https://media.maqserv24.com` |
 | `SITE_URL` | `https://maqserv24.com` |
+| `ADMIN_URL` | `https://admin.maqserv24.com` — a dónde apunta el enlace de "¿Olvidaste tu contraseña?" del panel. **Sin ella la API contesta 503 en `/admin/auth/olvide`** (hasta el 21-sep caía a `localhost:3001` y el correo salía con un enlace que abría el panel local del desarrollador) |
 | `API_PUBLIC_URL` | `https://api.maqserv24.com` |
 | `CORS_ORIGINS` | `https://maqserv24.com,https://admin.maqserv24.com` |
 | `MP_ACCESS_TOKEN` | access token de MercadoPago |

@@ -252,18 +252,28 @@ export async function firmarRestablecimientoAdmin(adminId: number, hashActual: s
     .sign(llave());
 }
 
-/** Null si el token no es de restablecimiento de admin, está mal firmado o venció. */
-export async function leerRestablecimientoAdmin(token: string): Promise<{ adminId: number; pv: string } | null> {
-  if (!token) return null;
+export type LecturaRestablecimientoAdmin =
+  | { ok: true; adminId: number; pv: string }
+  /** `caducado`: pasaron los minutos. `ajeno`: no lo firmó esta API, o no es un enlace de restablecimiento. */
+  | { ok: false; motivo: 'caducado' | 'ajeno' };
+
+/**
+ * Distingue "venció" de "no es de aquí" a propósito. El 21-sep un enlace
+ * firmado por producción acabó en la API local (producción no tenía
+ * ADMIN_URL) y el mensaje genérico hizo creer que el token duraba segundos.
+ */
+export async function leerRestablecimientoAdmin(token: string): Promise<LecturaRestablecimientoAdmin> {
+  const ajeno = { ok: false, motivo: 'ajeno' } as const;
+  if (!token) return ajeno;
   try {
     const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
     if (payload.typ !== 'reset-admin' || typeof payload.sub !== 'string' || !payload.sub.startsWith('admin:')) {
-      return null;
+      return ajeno;
     }
     const adminId = Number(payload.sub.slice('admin:'.length));
-    if (!Number.isInteger(adminId) || typeof payload.pv !== 'string') return null;
-    return { adminId, pv: payload.pv };
-  } catch {
-    return null;
+    if (!Number.isInteger(adminId) || typeof payload.pv !== 'string') return ajeno;
+    return { ok: true, adminId, pv: payload.pv };
+  } catch (e) {
+    return (e as { code?: string })?.code === 'ERR_JWT_EXPIRED' ? { ok: false, motivo: 'caducado' } : ajeno;
   }
 }
