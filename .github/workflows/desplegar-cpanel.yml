@@ -80,9 +80,12 @@ jobs:
       HOST: ${{ vars.CPANEL_HOST }}
       USUARIO: ${{ vars.CPANEL_USER }}
       PUERTO: ${{ vars.CPANEL_PORT || 22 }}
-      API_URL: ${{ vars.API_URL || 'https://api.maqserv24.com' }}
-      SITE_URL: ${{ vars.SITE_URL || 'https://maqserv24.com' }}
-      ADMIN_URL: ${{ vars.ADMIN_URL || 'https://admin.maqserv24.com' }}
+      # Variables PROPIAS del despliegue (DEPLOY_*), no las API_URL/SITE_URL del
+      # repo: ésas las usa la compilación y pueden apuntar a otra cosa (venían
+      # de la época de Render). Sin ellas, los dominios de producción.
+      API_URL: ${{ vars.DEPLOY_API_URL || 'https://api.maqserv24.com' }}
+      SITE_URL: ${{ vars.DEPLOY_SITE_URL || 'https://maqserv24.com' }}
+      ADMIN_URL: ${{ vars.DEPLOY_ADMIN_URL || 'https://admin.maqserv24.com' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -116,24 +119,31 @@ jobs:
 
             # Despertar y esperar. La app arranca con la primera petición y
             # tarda 5-10 s en frío; se le dan hasta 2,5 minutos.
+            #
+            # La comprobación se hace DESDE EL SERVIDOR (por SSH), no desde el
+            # runner: la primera corrida real (21-sep) desplegó bien la API y
+            # aun así falló, porque el runner de GitHub no alcanzaba la API por
+            # HTTPS (curl → 000, sin conexión). El servidor sí se alcanza a sí
+            # mismo, y el SSH ya demostró que llega.
             case $app in
               api)   url="$API_URL/health";  espera='"db":"ok"' ;;
               web)   url="$SITE_URL/";       espera='' ;;
               admin) url="$ADMIN_URL/login"; espera='' ;;
             esac
-            ok=""
+            ok=""; codigo=""
             for i in $(seq 1 30); do
-              cuerpo=$(curl -s --max-time 60 -w '\n%{http_code}' "$url" || true)
+              cuerpo=$($SSH "curl -s --max-time 60 -w '\n%{http_code}' '$url'" || true)
               codigo=$(printf '%s' "$cuerpo" | tail -n1)
               if [ "$codigo" = "200" ] && { [ -z "$espera" ] || printf '%s' "$cuerpo" | grep -q "$espera"; }; then
                 ok=1; break
               fi
+              echo "   … $app aún no responde ($url → ${codigo:-sin respuesta}), intento $i/30"
               sleep 5
             done
             if [ -z "$ok" ]; then
-              echo "::error::$app no respondió bien tras el reinicio (último código: ${codigo:-ninguno}). Me detengo para no tumbar las demás. Revisa Setup Node.js App; si sale 'Unable to fork', suspende/reactiva la cuenta desde WHM."
+              echo "::error::$app no respondió bien tras el reinicio ($url → ${codigo:-sin respuesta}). Me detengo para no tumbar las demás. Revisa Setup Node.js App; si sale 'Unable to fork', suspende/reactiva la cuenta desde WHM."
               exit 1
             fi
-            echo "✅ $app responde"
+            echo "✅ $app responde ($url)"
           done
           echo "Despliegue completo: $APPS"
