@@ -1,0 +1,139 @@
+# Despliega en cPanel SIN pasar por el Administrador de archivos.
+#
+# Antes: Run workflow → bajar cpanel.zip → subir tres .tar.gz → extraer cada uno
+# en su carpeta → RESTART app por app. Cada despliegue eran ~15 minutos de
+# clics y dos trampas conocidas (extraer en la carpeta equivocada, olvidar el
+# RESTART). Ahora todo eso lo hace este workflow por SSH.
+#
+# SE DISPARA:
+#   - solo con cada push a `main` (automático), y
+#   - a mano desde Actions → "Desplegar en cPanel" → Run workflow.
+#
+# ORDEN Y FRENO: api → web → admin, UNA a la vez, y después de reiniciar cada
+# una espera a que responda antes de seguir. Si una no levanta, se detiene ahí:
+# en esta cuenta un reinicio puede fallar por falta de procesos (NPROC), y
+# tumbar las tres a la vez sería quedarse sin sitio. La API va primero porque
+# las otras dos dependen de ella.
+#
+# CÓMO REINICIA: `touch tmp/restart.txt` en la carpeta de la app. Es la señal
+# que Passenger/LiteSpeed reconocen (comprobado en este servidor el 21-sep).
+# Las variables de entorno de cPanel no se tocan: sobreviven al despliegue.
+#
+# QUÉ NECESITA (una sola vez, ver DEPLOY-CPANEL.md):
+#   Secret  CPANEL_SSH_KEY   llave privada (su pública, autorizada en cPanel → SSH Access)
+#   Var     CPANEL_HOST      s882.use1.mysecurecloudhost.com
+#   Var     CPANEL_USER      maqserv24
+#   Var     CPANEL_PORT      22 (o el que diga cPanel → SSH Access)
+#   Vars    API_URL, SITE_URL, ADMIN_URL   para comprobar que cada app responde
+name: Desplegar en cPanel
+
+on:
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: 'Qué desplegar (web admin api)'
+        default: 'web admin api'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+
+# Dos despliegues a la vez pisándose los archivos sería lo peor que puede pasar.
+concurrency:
+  group: despliegue-cpanel
+  cancel-in-progress: false
+
+jobs:
+  # Primero lo barato: si faltan la llave o el host, que falle en 5 segundos
+  # y no después de compilar tres apps durante dos minutos.
+  comprobar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comprobar configuración
+        env:
+          LLAVE: ${{ secrets.CPANEL_SSH_KEY }}
+          HOST: ${{ vars.CPANEL_HOST }}
+          USUARIO: ${{ vars.CPANEL_USER }}
+        run: |
+          faltan=""
+          [ -n "$LLAVE" ]   || faltan="$faltan CPANEL_SSH_KEY(secret)"
+          [ -n "$HOST" ]    || faltan="$faltan CPANEL_HOST(var)"
+          [ -n "$USUARIO" ] || faltan="$faltan CPANEL_USER(var)"
+          if [ -n "$faltan" ]; then
+            echo "::error::Faltan en GitHub → Settings → Secrets and variables → Actions:$faltan. Ver DEPLOY-CPANEL.md, sección 'Despliegue automático'."
+            exit 1
+          fi
+          echo "Configuración completa."
+
+  empaquetar:
+    needs: comprobar
+    uses: ./.github/workflows/empaquetar-cpanel.yml
+    with:
+      apps: ${{ inputs.apps || 'web admin api' }}
+    secrets: inherit
+
+  desplegar:
+    needs: empaquetar
+    runs-on: ubuntu-latest
+    env:
+      APPS: ${{ inputs.apps || 'web admin api' }}
+      HOST: ${{ vars.CPANEL_HOST }}
+      USUARIO: ${{ vars.CPANEL_USER }}
+      PUERTO: ${{ vars.CPANEL_PORT || 22 }}
+      API_URL: ${{ vars.API_URL || 'https://api.maqserv24.com' }}
+      SITE_URL: ${{ vars.SITE_URL || 'https://maqserv24.com' }}
+      ADMIN_URL: ${{ vars.ADMIN_URL || 'https://admin.maqserv24.com' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: cpanel
+          path: paquetes
+
+      - name: Llave SSH
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.CPANEL_SSH_KEY }}" > ~/.ssh/despliegue
+          chmod 600 ~/.ssh/despliegue
+          # Primera conexión: se acepta la huella del servidor tal cual (TOFU).
+          ssh-keyscan -p "$PUERTO" "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Subir, extraer y reiniciar (una app a la vez)
+        run: |
+          set -euo pipefail
+          SSH="ssh -p $PUERTO -i ~/.ssh/despliegue -o BatchMode=yes $USUARIO@$HOST"
+          SCP="scp -P $PUERTO -i ~/.ssh/despliegue -o BatchMode=yes"
+
+          # api primero: web y admin dependen de ella.
+          for app in api web admin; do
+            case " $APPS " in *" $app "*) ;; *) continue ;; esac
+            [ -f "paquetes/$app.tar.gz" ] || { echo "::error::No hay paquete de $app"; exit 1; }
+
+            echo "▶ $app: subiendo $(du -h "paquetes/$app.tar.gz" | cut -f1)"
+            $SCP "paquetes/$app.tar.gz" "$USUARIO@$HOST:nodeapps/$app/.paquete.tar.gz"
+
+            echo "▶ $app: extrayendo en nodeapps/$app y pidiendo reinicio"
+            $SSH "cd nodeapps/$app && tar -xzf .paquete.tar.gz && rm -f .paquete.tar.gz && mkdir -p tmp && touch tmp/restart.txt"
+
+            # Despertar y esperar. La app arranca con la primera petición y
+            # tarda 5-10 s en frío; se le dan hasta 2,5 minutos.
+            case $app in
+              api)   url="$API_URL/health";  espera='"db":"ok"' ;;
+              web)   url="$SITE_URL/";       espera='' ;;
+              admin) url="$ADMIN_URL/login"; espera='' ;;
+            esac
+            ok=""
+            for i in $(seq 1 30); do
+              cuerpo=$(curl -s --max-time 60 -w '\n%{http_code}' "$url" || true)
+              codigo=$(printf '%s' "$cuerpo" | tail -n1)
+              if [ "$codigo" = "200" ] && { [ -z "$espera" ] || printf '%s' "$cuerpo" | grep -q "$espera"; }; then
+                ok=1; break
+              fi
+              sleep 5
+            done
+            if [ -z "$ok" ]; then
+              echo "::error::$app no respondió bien tras el reinicio (último código: ${codigo:-ninguno}). Me detengo para no tumbar las demás. Revisa Setup Node.js App; si sale 'Unable to fork', suspende/reactiva la cuenta desde WHM."
+              exit 1
+            fi
+            echo "✅ $app responde"
+          done
+          echo "Despliegue completo: $APPS"

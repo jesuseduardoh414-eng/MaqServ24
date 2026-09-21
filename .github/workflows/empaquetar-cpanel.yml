@@ -26,6 +26,13 @@ on:
       apps:
         description: 'Qué empaquetar (web admin api)'
         default: 'web admin api'
+  # También como pieza reutilizable: "Desplegar en cPanel" lo llama y luego
+  # sube el artefacto por SSH. Así hay UNA sola receta de compilación.
+  workflow_call:
+    inputs:
+      apps:
+        type: string
+        default: 'web admin api'
 
 jobs:
   empaquetar:

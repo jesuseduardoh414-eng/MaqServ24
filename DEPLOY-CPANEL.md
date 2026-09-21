@@ -483,3 +483,39 @@ Vale la pena saberlo antes, no después:
 - **Ganas** un solo lugar que administrar, un solo costo, y **se acaba la siesta
   del plan free de Render** (esos ~30-50 s de la primera petición, que también
   hacían fallar webhooks de MercadoPago).
+
+
+---
+
+## Despliegue automático (desde 2026-09-21)
+
+Ya no hace falta bajar `cpanel.zip` ni tocar el Administrador de archivos. El
+workflow **"Desplegar en cPanel"** (`.github/workflows/desplegar-cpanel.yml`)
+compila las tres apps en GitHub (reutiliza "Empaquetar para cPanel"), las sube
+por SSH a `~/nodeapps/{api,web,admin}`, las extrae ahí mismo y las reinicia
+**una a la vez** (`touch tmp/restart.txt`), esperando a que cada una responda
+antes de seguir con la siguiente. Si una no levanta, se detiene y lo dice.
+
+Se dispara **con cada push a `main`** y también a mano (Actions → Run workflow,
+donde se puede elegir qué apps).
+
+### Configuración, una sola vez
+
+1. **Llave SSH.** Generar un par (`ssh-keygen -t ed25519`). La **pública** se
+   pega en cPanel → *SSH Access* → *Manage SSH Keys* → *Import Key*, y después
+   *Manage* → **Authorize** (sin autorizar no sirve). La **privada** va a GitHub
+   → *Settings* → *Secrets and variables* → *Actions* → secret **`CPANEL_SSH_KEY`**
+   (pegar el archivo completo, incluidas las líneas BEGIN/END).
+2. **Variables** (misma pantalla, pestaña *Variables*):
+   `CPANEL_HOST` = `s882.use1.mysecurecloudhost.com` · `CPANEL_USER` = `maqserv24`
+   · `CPANEL_PORT` = el que muestra cPanel → SSH Access (normalmente 22)
+   · `ADMIN_URL` = `https://admin.maqserv24.com` (API_URL y SITE_URL ya estaban).
+3. Comprobar que **Shell Access** está activado para la cuenta (WHM → Packages:
+   en `jackitso_avanzado` lo está).
+
+### Lo que NO hace
+
+- No toca las variables de entorno de cPanel (sobreviven al despliegue).
+- No corre SQL: las migraciones siguen siendo manuales en phpMyAdmin
+  (`packages/db/sql/`).
+- No crea apps nuevas en Setup Node.js App: solo actualiza las tres que existen.
