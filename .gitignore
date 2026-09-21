@@ -26,3 +26,6 @@ dist-cpanel/
 
 # Archivos del bucket de Supabase bajados con migrate/44 (se suben a MEDIA_DIR en cPanel)
 media/
+
+# Datos exportados de una BD (tarifas reales): no van al repo público.
+packages/db/sql/*-locales.sql
