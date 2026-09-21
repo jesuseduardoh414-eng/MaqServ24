@@ -24,6 +24,15 @@ const nextConfig: NextConfig = {
   ...(standalone ? { output: 'standalone' as const, outputFileTracingRoot: repoRoot } : {}),
   transpilePackages: ['@maqserv/ui'],
   images: {
+    /**
+     * 30 días de caché para cada imagen optimizada. El valor por defecto es 60 s:
+     * pasado un minuto, cada tamaño de cada foto se volvía a recortar con sharp,
+     * y sharp abre un hilo por núcleo del servidor. En la jaula de CloudLinux
+     * los hilos cuentan como procesos (NPROC), así que esto era una parte
+     * silenciosa del "100 de 100". Las fotos son inmutables —el nombre lleva la
+     * fecha de subida—, así que guardarlas un mes no muestra nada viejo.
+     */
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       // Legacy: fotos que aún apunten al bucket de Supabase (hasta que se re-suban a disco).
       { protocol: 'https', hostname: 'kxewnuotuolwloccusqx.supabase.co', pathname: '/storage/v1/object/public/media/**' },

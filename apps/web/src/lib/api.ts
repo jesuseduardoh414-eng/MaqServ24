@@ -1,3 +1,4 @@
+import { unstable_noStore as noStore } from 'next/cache';
 import type {
   BlogCard,
   BlogDetail,
@@ -7,7 +8,6 @@ import type {
   Paginated,
   ProductCard,
   ProductDetail,
-  ServiceItem,
   SiteReview,
   SiteSettings,
   StrategicSector,
@@ -131,6 +131,18 @@ async function getOr<T>(path: string, fallback: T): Promise<T> {
     return (await fetchJson(path)) as T;
   } catch (err) {
     console.warn(`[api] ${path} no respondió; se usa el valor de respaldo:`, err);
+    // UN RESPALDO NO SE GUARDA EN CACHÉ.
+    //
+    // Devolver el respaldo evita que la página reviente, pero para Next este
+    // render terminó BIEN: guarda el resultado y sirve la página vacía durante
+    // todo el periodo de revalidación. Así, un apagón de un minuto de la API se
+    // convertía en un catálogo con "0 productos" mucho después de que todo
+    // volviera a la normalidad —que es exactamente lo que se vio el 21-sep tras
+    // liberar los procesos del hosting.
+    //
+    // Marcando el render como no cacheable, el siguiente visitante vuelve a
+    // preguntar y ve los datos buenos en cuanto la API responde.
+    noStore();
     return fallback;
   }
 }
@@ -169,6 +181,8 @@ export async function pedirOr<T>(
     return data as T;
   } catch (err) {
     console.warn(`[api] ${url} no respondió bien; se usa el valor de respaldo:`, err);
+    // Mismo motivo que en `getOr`: un respaldo no se queda guardado.
+    noStore();
     return fallback;
   }
 }
@@ -234,9 +248,6 @@ export function getWhyChooseUs(): Promise<WhyChooseUsItem[]> {
   return getOr('/content/why-choose-us', []);
 }
 
-export function getServices(): Promise<ServiceItem[]> {
-  return getOr('/content/services', []);
-}
 
 export function getBlogs(limit = 3): Promise<BlogCard[]> {
   return getOr(`/content/blogs?limit=${limit}`, []);

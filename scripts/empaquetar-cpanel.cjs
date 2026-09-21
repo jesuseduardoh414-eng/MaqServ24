@@ -177,9 +177,29 @@ function empaquetarNext(app) {
  */
 function asegurarSharpLinux(destino) {
   const modulos = path.join(destino, 'node_modules');
-  const yaEsta = path.join(modulos, '@img', 'sharp-linux-x64', 'lib', 'sharp-linux-x64.node');
-  if (fs.existsSync(yaEsta)) {
-    console.log('  OK  sharp para Linux ya incluido');
+
+  // SON DOS PAQUETES, no uno. `sharp-linux-x64` es el modulo de Node y
+  // `sharp-libvips-linux-x64` es la libreria nativa (libvips) que ese modulo
+  // carga por el enlazador del sistema, no por `require()`. El trazador de
+  // Next sigue los require, asi que puede meter el primero y dejar fuera el
+  // segundo. Con eso sharp "esta" pero no arranca, y Next NO da error: entrega
+  // la imagen ORIGINAL sin recortar con max-age=60. Medido el 2026-09-21 en
+  // produccion: un thumbnail de 64 px pesaba 192 KB, lo mismo que la foto.
+  // Antes esta funcion solo comprobaba el .node y daba el OK con libvips ausente.
+  const requeridos = ['sharp-linux-x64', 'sharp-libvips-linux-x64'];
+  const falta = (p) => !fs.existsSync(path.join(modulos, '@img', p, 'package.json'));
+
+  // Primer intento, sin red: copiarlos del node_modules de la raiz. En el
+  // workflow (Linux, hoisted) estan ahi; en Windows no, y se pasa al npm install.
+  for (const p of requeridos.filter(falta)) {
+    const origen = path.join(raiz, 'node_modules', '@img', p);
+    if (fs.existsSync(origen)) {
+      fs.cpSync(origen, path.join(modulos, '@img', p), { recursive: true, dereference: true, force: true });
+      console.log(`  OK  @img/${p} copiado desde node_modules de la raiz`);
+    }
+  }
+  if (!requeridos.some(falta)) {
+    console.log('  OK  sharp para Linux completo (modulo + libvips)');
     return;
   }
 
@@ -210,11 +230,20 @@ function asegurarSharpLinux(destino) {
     console.log(`  OK  sharp ${version} para Linux anadido`);
   } catch (e) {
     console.warn(`  AVISO no pude anadir sharp para Linux: ${e.message.split('\n')[0]}`);
-    console.warn('        Sin el, /_next/image dara error en cPanel. Opciones:');
-    console.warn('        - compilar con el workflow de GitHub (Linux), o');
-    console.warn("        - poner `images: { unoptimized: true }` en next.config.ts");
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  const aunFaltan = requeridos.filter(falta);
+  if (aunFaltan.length) {
+    // Antes esto era un aviso. Se cambio a error porque el fallo en produccion
+    // es SILENCIOSO (Next sirve el original sin quejarse) y nadie lo ve hasta
+    // que el sitio "carga lento" sin motivo aparente.
+    throw new Error(
+      `sharp para Linux incompleto: falta @img/${aunFaltan.join(', @img/')}.\n` +
+        'Sin eso /_next/image entrega las fotos originales sin recortar. Compila con el ' +
+        'workflow de GitHub (Linux) o instala sharp con --os=linux --libc=glibc --include=optional.',
+    );
   }
 }
 
