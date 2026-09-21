@@ -93,10 +93,21 @@ jobs:
           path: paquetes
 
       - name: Llave SSH
+        env:
+          LLAVE: ${{ secrets.CPANEL_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "${{ secrets.CPANEL_SSH_KEY }}" > ~/.ssh/despliegue
+          # Se normaliza lo pegado: fuera los \r de Windows y los espacios de
+          # sobra al final de cada línea, y con salto final. El 21-sep una llave
+          # pegada desde el Bloc de notas llegó con \r\n y OpenSSH la rechazó con
+          # "error in libcrypto", que no dice nada a nadie.
+          printf '%s\n' "$LLAVE" | tr -d '\r' | sed -e 's/[[:space:]]*$//' > ~/.ssh/despliegue
           chmod 600 ~/.ssh/despliegue
+          if ! ssh-keygen -y -f ~/.ssh/despliegue > /tmp/publica 2>/dev/null; then
+            echo "::error::La llave privada del secret CPANEL_SSH_KEY no se puede leer. Tiene que ser el archivo COMPLETO, desde '-----BEGIN OPENSSH PRIVATE KEY-----' hasta '-----END OPENSSH PRIVATE KEY-----', sin nada más. La forma segura de copiarlo en Windows: PowerShell → Get-Content -Raw ruta\\deploy_key | Set-Clipboard"
+            exit 1
+          fi
+          echo "Llave leída. Huella: $(ssh-keygen -lf /tmp/publica | awk '{print $2}') — debe coincidir con la autorizada en cPanel → SSH Access."
           # Primera conexión: se acepta la huella del servidor tal cual (TOFU).
           ssh-keyscan -p "$PUERTO" "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
