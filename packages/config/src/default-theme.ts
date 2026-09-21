@@ -82,10 +82,10 @@ export const defaultTheme: Theme = {
       buttonStyle: 'solid',
       buttonRadius: '4px',
     },
-    // Orden de la home según el diseño SEGAshop. services y blog quedan
-    // implementadas pero desactivadas por defecto (el admin puede reactivarlas):
-    // el diseño de referencia no las incluye. banners y success-cases se retiraron
-    // en jul 2026 (legacy y decisión del cliente, respectivamente).
+    // Orden de la home según el diseño SEGAshop. blog queda implementada pero
+    // desactivada por defecto (el admin puede reactivarla): el diseño de
+    // referencia no la incluye. Retiradas: banners y success-cases (jul 2026,
+    // legacy y decisión del cliente) y services (sep 2026, no se usaba).
     sections: [
       { key: 'home.hero', enabled: true, order: 0 },
       { key: 'home.categories', enabled: true, order: 1 },
@@ -96,7 +96,6 @@ export const defaultTheme: Theme = {
       { key: 'home.reviews', enabled: true, order: 6 },
       { key: 'home.brands', enabled: true, order: 7 },
       { key: 'home.faq', enabled: true, order: 8 },
-      { key: 'home.services', enabled: false, order: 9 },
       { key: 'home.blog', enabled: false, order: 11 },
     ],
     // Identidad de marca. Estos archivos se generan desde el activo oficial que
@@ -514,8 +513,6 @@ export const defaultTheme: Theme = {
       'home.brands.title': 'Marcas presentes en la red',
       'home.brands.list': 'CAT, Komatsu, Volvo CE, JCB, Yale, Bobcat',
       'home.faq.eyebrow': 'Resolvemos tus dudas',
-      'home.services.eyebrow': 'Qué hacemos',
-      'home.services.title': 'Nuestros servicios',
       // El eyebrow va aparte del título: pasarle el mismo texto a los dos hacía que
       // `CenterHead` lo pintara duplicado (chiquito arriba y grande abajo).
       'home.blog.eyebrow': 'Bitácora',
@@ -759,6 +756,11 @@ export const defaultTheme: Theme = {
       'nav.wishlist': 'Favoritos',
       'nav.search': 'Buscar',
       'nav.menu': 'Menú',
+      // Rótulos de los grupos del cajón de móvil (MobileNav).
+      'nav.group.quick': 'Accesos rápidos',
+      'nav.group.account': 'Tu cuenta',
+      'nav.theme.light': 'Claro',
+      'nav.theme.dark': 'Oscuro',
       'topbar.hours': 'Lun–Sáb · 8:00–18:00',
       'topbar.track': 'Rastrear pedido',
       'topbar.sell': 'Vender con nosotros',

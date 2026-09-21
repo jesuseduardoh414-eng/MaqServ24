@@ -55,6 +55,7 @@ const PATHS = {
   warning: <><path d="m10.3 3.9-8.2 14A2 2 0 0 0 3.8 21h16.4a2 2 0 0 0 1.7-3.1l-8.2-14a2 2 0 0 0-3.4 0z" /><path d="M12 9v4.5M12 17.2h.01" /></>,
   dot: <circle cx="12" cy="12" r="3.5" />,
   diamond: <path d="M12 2.5 21.5 12 12 21.5 2.5 12z" />,
+  chevronDown: <polyline points="6 9 12 15 18 9" />,
   chevronLeft: <polyline points="15 18 9 12 15 6" />,
   chevronRight: <polyline points="9 18 15 12 9 6" />,
   arrowRight: <><path d="M4 12h16" /><polyline points="14 6 20 12 14 18" /></>,
@@ -68,6 +69,35 @@ const PATHS = {
   moon: <path d="M20.5 14.8A9 9 0 1 1 9.2 3.5a7 7 0 0 0 11.3 11.3z" />,
   mapPin: <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" /><circle cx="12" cy="10" r="3" /></>,
   link: <><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" /></>,
+  // Secciones del sitio: una por entrada del menú (las usa el cajón de móvil).
+  home: <><path d="M3.5 10.5 12 3.2l8.5 7.3" /><path d="M6 9.6V20.8h12V9.6" /></>,
+  box: <><path d="M20.5 7.5v9L12 21l-8.5-4.5v-9L12 3z" /><path d="m3.5 7.5 8.5 4.5 8.5-4.5M12 21v-9" /></>,
+  grid: (
+    <>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+    </>
+  ),
+  calculator: (
+    <>
+      <rect x="4.5" y="2.5" width="15" height="19" rx="2" />
+      <path d="M8 6.5h8" />
+      <path d="M8.5 11.5h.01M12 11.5h.01M15.5 11.5h.01M8.5 16h.01M12 16h.01M15.5 16h.01" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9.5" cy="8" r="3.5" />
+      <path d="M3 20.5v-.8a6 6 0 0 1 6-6h1a6 6 0 0 1 6 6v.8" />
+      <path d="M16.5 4.9a3.5 3.5 0 0 1 0 6.6" />
+      <path d="M18 14.2a5.5 5.5 0 0 1 3 4.9v1.4" />
+    </>
+  ),
+  article: <><rect x="3.5" y="4" width="17" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></>,
+  logout: <><path d="M15 3.5h3.5a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H15" /><path d="m9.5 16 4-4-4-4M13.5 12H3.5" /></>,
+  chat: <path d="M20.5 5.5A2.5 2.5 0 0 0 18 3H6a2.5 2.5 0 0 0-2.5 2.5v8A2.5 2.5 0 0 0 6 16h2.5v4l5-4H18a2.5 2.5 0 0 0 2.5-2.5z" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

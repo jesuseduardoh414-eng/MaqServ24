@@ -183,6 +183,16 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
               track: t(theme, 'topbar.track'),
               sell: t(theme, 'topbar.sell'),
               menu: t(theme, 'nav.menu'),
+              groupQuick: t(theme, 'nav.group.quick'),
+              groupAccount: t(theme, 'nav.group.account'),
+              search: t(theme, 'catalog.search.placeholder'),
+              themeLight: t(theme, 'nav.theme.light'),
+              themeDark: t(theme, 'nav.theme.dark'),
+            }}
+            brand={{
+              name: brand,
+              logoLight: theme.tokens.branding?.logoLight ?? settings.logo ?? null,
+              logoDark: theme.tokens.branding?.logoDark ?? null,
             }}
             contact={{ phone: cPhone ?? null, email: cEmail ?? null }}
           />
