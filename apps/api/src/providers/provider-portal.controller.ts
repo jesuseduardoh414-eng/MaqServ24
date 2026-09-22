@@ -41,7 +41,7 @@ import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
  * Lo que NO aparece aquí es tan importante como lo que sí. El nivel, las
  * categorías y el estado de alta se quedan fuera a propósito: son el criterio
  * con el que la plataforma decide a quién proponer. Si el aliado pudiera
- * editarlos, cualquiera se pondría "preferente" en las seis categorías y el
+ * editarlos, cualquiera se pondría "preferente" en las cinco categorías y el
  * emparejamiento dejaría de significar algo. Su cobertura sí, porque es un
  * hecho suyo que solo él conoce de primera mano.
  */

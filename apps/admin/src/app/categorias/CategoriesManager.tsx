@@ -8,6 +8,8 @@ export interface CategoryRow {
   slug: string;
   status: number;
   image: string | null;
+  /** Una línea bajo el nombre en las tarjetas del sitio. */
+  description: string | null;
   productCount: number;
 }
 
@@ -33,6 +35,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
   const [filter, setFilter] = useState<'todas' | 'activas' | 'inactivas'>('todas');
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [editStatus, setEditStatus] = useState(1);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editPreview, setEditPreview] = useState<string | null>(null);
@@ -42,6 +45,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
   const [toast, setToast] = useState<{ text: string; kind: 'ok' | 'warn' | 'trash' } | null>(null);
 
   const [draftName, setDraftName] = useState('');
+  const [draftDescription, setDraftDescription] = useState('');
   const [draftFile, setDraftFile] = useState<File | null>(null);
   const [draftPreview, setDraftPreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -69,11 +73,12 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
     try {
       const fd = new FormData();
       fd.append('name', name);
+      fd.append('description', draftDescription.trim());
       if (draftFile) fd.append('photo', draftFile);
       const r = await fetch('/api/admin/catalog/categories', { method: 'POST', body: fd });
       const d = await r.json().catch(() => null);
       if (!r.ok) throw new Error(d?.message ?? 'No se pudo crear');
-      setDraftName(''); setDraftFile(null); setDraftPreview(null);
+      setDraftName(''); setDraftDescription(''); setDraftFile(null); setDraftPreview(null);
       if (fileRef.current) fileRef.current.value = '';
       await reload();
       flash(`Categoría «${name}» creada`);
@@ -89,7 +94,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
   }
 
   function openEdit(c: CategoryRow) {
-    setEditing(c); setEditName(c.name); setEditStatus(c.status);
+    setEditing(c); setEditName(c.name); setEditDescription(c.description ?? ''); setEditStatus(c.status);
     setEditFile(null); setEditPreview(null); setConfirmId(null);
   }
   async function saveEdit() {
@@ -100,6 +105,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
     try {
       const fd = new FormData();
       fd.append('name', v);
+      fd.append('description', editDescription.trim());
       fd.append('status', String(editStatus));
       if (editFile) fd.append('photo', editFile);
       const r = await fetch(`/api/admin/catalog/categories/${editing.id}`, { method: 'PATCH', body: fd });
@@ -217,6 +223,11 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
           </div>
           <button type="button" onClick={create} disabled={creating} style={{ background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '0 26px', borderRadius: 11, cursor: creating ? 'default' : 'pointer', height: 46, opacity: creating ? 0.7 : 1, fontFamily: 'inherit' }}>{creating ? 'Creando…' : 'Crear'}</button>
         </div>
+        {/* Una línea bajo el nombre en las tarjetas del sitio (home y /categorias). */}
+        <label style={{ display: 'grid', gap: 7, marginTop: 14 }}>
+          <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Descripción <span style={{ color: C.dim, fontWeight: 400 }}>· una línea bajo el nombre, en las tarjetas del sitio</span></span>
+          <input value={draftDescription} onChange={(e) => setDraftDescription(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') create(); }} maxLength={300} placeholder="Ej. Arena, grava, base hidráulica y CNC" style={inputStyle} />
+        </label>
       </div>
 
       {/* Toolbar */}
@@ -254,6 +265,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
               {/* Nombre */}
               <div className="cat-c-name" style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                {c.description ? <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.description}</div> : null}
               </div>
               {/* Slug */}
               <div className="cat-c-slug" style={{ fontSize: 13.5, color: C.muted, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.slug}</div>
@@ -313,6 +325,11 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
             <label style={{ display: 'grid', gap: 7 }}>
               <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Nombre</span>
               <input value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); }} style={inputStyle} />
+            </label>
+            {/* Descripción: una línea bajo el nombre en las tarjetas del sitio */}
+            <label style={{ display: 'grid', gap: 7 }}>
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Descripción <span style={{ color: C.dim, fontWeight: 400 }}>· una línea bajo el nombre en el sitio</span></span>
+              <textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} maxLength={300} rows={2} placeholder="Ej. Arena, grava, base hidráulica y CNC" style={{ ...inputStyle, resize: 'vertical', lineHeight: 1.45 }} />
             </label>
             {/* Slug */}
             <label style={{ display: 'grid', gap: 7 }}>

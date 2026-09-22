@@ -33,6 +33,11 @@ export const UNIDADES: Record<string, UnidadServicio> = {
   tonelada: { clave: 'tonelada', singular: 'tonelada', plural: 'toneladas', decimales: 2 },
   m3: { clave: 'm3', singular: 'metro cúbico', plural: 'metros cúbicos', decimales: 2 },
   litro: { clave: 'litro', singular: 'litro', plural: 'litros', decimales: 0 },
+  // Materiales y asfalto (categorías del 2026-09-21): el block va por pieza, el
+  // cemento por bulto, la carpeta asfáltica por metro cuadrado.
+  pieza: { clave: 'pieza', singular: 'pieza', plural: 'piezas', decimales: 0 },
+  bulto: { clave: 'bulto', singular: 'bulto', plural: 'bultos', decimales: 0 },
+  m2: { clave: 'm2', singular: 'metro cuadrado', plural: 'metros cuadrados', decimales: 2 },
 };
 
 /**
@@ -40,16 +45,29 @@ export const UNIDADES: Record<string, UnidadServicio> = {
  * porque es la que se usa la mayor parte de las veces en ese giro.
  */
 export const UNIDADES_POR_CATEGORIA: Record<string, string[]> = {
+  // Las cinco líneas vigentes (2026-09-21). Equipo menor y plataformas ya van
+  // dentro de maquinaria pesada, y se cierran igual: por día.
   'maquinaria-pesada': ['dia', 'hora', 'semana', 'mes'],
-  'equipo-menor': ['dia', 'semana', 'mes', 'hora'],
-  'plataformas-de-elevacion': ['dia', 'semana', 'mes'],
-  // Una pipa se cobra por viaje casi siempre; la jornada es para obra grande
-  // donde la unidad se queda parada todo el día surtiendo.
-  'agua-en-pipas': ['viaje', 'jornada', 'litro'],
-  'volteos': ['viaje', 'jornada', 'm3'],
+  // Pipas y volteos en una sola línea. Los dos se cobran por viaje casi
+  // siempre; la jornada es para obra grande donde la unidad se queda parada
+  // todo el día surtiendo o acarreando.
+  'transporte-y-servicios-de-obra': ['viaje', 'jornada', 'm3', 'litro'],
   // El triturado se vende por peso; el metro cúbico se usa cuando el material
   // se mide en la caja del camión y no en báscula.
   'triturados': ['tonelada', 'm3', 'viaje'],
+  // Concreto por m³, acero por tonelada, block por pieza, cemento por bulto.
+  'materiales-para-construccion': ['m3', 'tonelada', 'pieza', 'bulto', 'viaje'],
+  // La carpeta se cierra por superficie colocada; por tonelada cuando solo es
+  // suministro de mezcla.
+  'soluciones-asfalticas': ['m2', 'tonelada', 'm3'],
+
+  // Líneas RETIRADAS (eran categorías hasta el 2026-09-21). Se conservan para
+  // poder cerrar en su unidad las solicitudes que ya estaban abiertas con ese
+  // `service_category`; nada nuevo entra con estos slugs.
+  'equipo-menor': ['dia', 'semana', 'mes', 'hora'],
+  'plataformas-de-elevacion': ['dia', 'semana', 'mes'],
+  'agua-en-pipas': ['viaje', 'jornada', 'litro'],
+  'volteos': ['viaje', 'jornada', 'm3'],
 };
 
 /** Si la categoría no está mapeada, el día es la unidad menos equivocada. */

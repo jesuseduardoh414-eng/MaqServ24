@@ -1,6 +1,8 @@
 /**
- * Genera las imágenes de las dos categorías que no tienen fotografía:
- * "Agua en pipas" y "Triturados".
+ * Genera las imágenes de las categorías que no tienen fotografía: "Agua en
+ * pipas" y "Triturados" (2026-08) y, desde el 2026-09-21, "Materiales para
+ * construcción" y "Soluciones asfálticas". (Transporte y servicios de obra
+ * heredó la foto real del camión de volteo.)
  *
  * NO son fotos. El manual pide fotografía de operación real (16 / FOTOGRAFÍA) y
  * no hay ninguna de pipas ni de triturados; inventar una con banco de imágenes
@@ -64,9 +66,40 @@ const TRITURADO = `
     <path d="M0 190 H460"/>
   </g>`;
 
+/** Materiales: bloques apilados (block) con un bulto de cemento al lado. */
+const MATERIALES = `
+  <g fill="none" stroke="${ACERO}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="20" y="120" width="120" height="70" rx="6"/>
+    <rect x="150" y="120" width="120" height="70" rx="6"/>
+    <rect x="85" y="50" width="120" height="70" rx="6"/>
+    <path d="M60 120 v70 M100 120 v70 M190 120 v70 M230 120 v70 M125 50 v70 M165 50 v70"/>
+  </g>
+  <g fill="none" stroke="${AZUL}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M310 190 V110 q0-26 26-26 h70 q26 0 26 26 v80 Z"/>
+    <path d="M320 84 q51-30 102 0"/>
+    <path d="M0 190 H460"/>
+  </g>`;
+
+/** Asfalto: compactador de rodillo sobre carpeta recién tendida. */
+const ASFALTO = `
+  <g fill="none" stroke="${ACERO}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M150 60 h140 l40 60 h-180 Z"/>
+    <path d="M170 120 v40 h150 v-40"/>
+    <rect x="210" y="22" width="60" height="38" rx="6"/>
+  </g>
+  <g fill="none" stroke="${AZUL}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="110" cy="160" r="40"/>
+    <circle cx="110" cy="160" r="12"/>
+    <circle cx="350" cy="170" r="30"/>
+    <path d="M0 200 H460"/>
+    <path d="M20 222 h60 M110 222 h60 M200 222 h60 M290 222 h60 M380 222 h60" opacity="0.7"/>
+  </g>`;
+
 const TILES = [
   { archivo: 'cat-agua-en-pipas.png', arte: PIPA, ancho: 430 },
   { archivo: 'cat-triturados.png', arte: TRITURADO, ancho: 470 },
+  { archivo: 'cat-materiales-para-construccion.png', arte: MATERIALES, ancho: 460 },
+  { archivo: 'cat-soluciones-asfalticas.png', arte: ASFALTO, ancho: 460 },
 ];
 
 function svg({ arte, ancho }) {

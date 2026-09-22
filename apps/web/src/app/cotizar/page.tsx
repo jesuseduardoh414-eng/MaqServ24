@@ -25,7 +25,8 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
     if (id) product = await getProduct(id).catch(() => null);
   }
 
-  // ?servicio= viene de las categorías SIN catálogo (agua en pipas, triturados).
+  // ?servicio= viene de las categorías SIN catálogo (transporte, triturados,
+  // materiales, asfalto).
   // No hay producto que enganchar, así que se resuelve el nombre de la categoría
   // y se deja escrito en la solicitud para que el cliente no tenga que
   // explicarlo. Se busca contra las categorías reales en vez de traducir el

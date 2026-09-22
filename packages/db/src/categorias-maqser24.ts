@@ -1,4 +1,10 @@
 /**
+ * SUPERADO el 2026-09-21: las seis líneas pasaron a CINCO (renta de maquinaria
+ * pesada, transporte y servicios de obra, triturados, materiales para
+ * construcción, soluciones asfálticas). Ese paso vive en
+ * `packages/db/sql/categorias-maqser24-v2.sql` y parte de lo que este script
+ * dejó, así que se conserva como historia y para poder revertirlo.
+ *
  * Fase 2 · Reestructura el catálogo a las SEIS categorías de servicio MAQSER24.
  *
  * EL PROBLEMA: el manual define seis categorías de servicio (03 / ECOSISTEMA DE

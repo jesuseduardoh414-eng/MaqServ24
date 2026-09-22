@@ -44,7 +44,7 @@ export class QuotesService {
 
   async create(input: QuoteRequestInput, userId: number | null): Promise<QuoteDetail> {
     // Una cotización necesita equipos O una categoría de servicio. Lo segundo
-    // es para agua en pipas y triturados: ahí no hay SKU que elegir — lo que
+    // es para transporte, triturados, materiales y asfalto: ahí no hay SKU que elegir — lo que
     // define el precio es volumen, origen, destino y fechas, y eso viene en el
     // texto de la solicitud. Todo lo de abajo ya tolera `items` vacío: los
     // totales dan cero y `cart_data` sale como un objeto vacío.

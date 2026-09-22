@@ -99,7 +99,10 @@ export async function Hero({ theme }: { theme: Theme }) {
               </>
             ) : null}
           </h1>
-          <p style={{ color: h.subtitleColor, fontSize: '17.5px', lineHeight: 1.62, maxWidth: 460, margin: '22px 0 0', fontWeight: 300 }}>
+          {/* `pre-line`: el texto del hero trae dos párrafos separados por una
+              línea en blanco (lo que se ofrece / qué decirnos). Sin esto se
+              pintaban pegados en un solo bloque. */}
+          <p style={{ color: h.subtitleColor, fontSize: '16.5px', lineHeight: 1.6, maxWidth: 520, margin: '22px 0 0', fontWeight: 300, whiteSpace: 'pre-line' }}>
             {subtitle}
           </p>
           <div style={{ display: 'flex', gap: 14, marginTop: 32, flexWrap: 'wrap' }}>
@@ -214,6 +217,10 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             {/* Nombre + conteo encima (abajo-izquierda) */}
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '16px 16px 15px', display: 'grid', gap: 4 }}>
               <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', textTransform: 'uppercase', letterSpacing: '-.01em', lineHeight: 1.12 }}>{c.name}</span>
+              {/* Qué entra en la categoría ("Arena, grava, base hidráulica y CNC"): se edita en Catálogo → Categorías. */}
+              {c.description ? (
+                <span style={{ color: 'rgba(255,255,255,.74)', fontSize: '12.5px', lineHeight: 1.35, fontWeight: 300, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.description}</span>
+              ) : null}
               <span style={{ color: accent, fontWeight: 700, fontSize: '12.5px' }}>{categoryCountLabel(c, unit, unitOne)}</span>
             </div>
           </Link>

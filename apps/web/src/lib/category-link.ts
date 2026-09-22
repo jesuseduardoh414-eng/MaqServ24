@@ -1,11 +1,12 @@
 /**
  * A dónde lleva la tarjeta de una categoría de servicio.
  *
- * Dos de las seis líneas del manual —agua en pipas y triturados— no tienen
- * inventario, y no es un descuido: no son SKUs. Una pipa se mide por viaje y un
- * triturado por tonelada, así que no viven en un catálogo. Mandarlas a
- * `/productos` enseñaría una parrilla vacía; van directo a cotizar con el
- * servicio ya indicado.
+ * Varias líneas de servicio —transporte y servicios de obra, triturados,
+ * materiales para construcción, soluciones asfálticas— no tienen inventario, y
+ * no es un descuido: no son SKUs. Una pipa se mide por viaje, un triturado por
+ * tonelada y el concreto por metro cúbico, así que no viven en un catálogo.
+ * Mandarlas a `/productos` enseñaría una parrilla vacía; van directo a cotizar
+ * con el servicio ya indicado.
  *
  * La regla es por conteo y no por una lista fija de slugs a propósito: si el
  * cliente da de alta una categoría nueva sin productos, se comporta igual sin
@@ -23,7 +24,8 @@ export function categoryCountLabel(
   unit: string,
   unitOne?: string,
 ): string {
-  if (c.productCount <= 0) return 'Cotizar servicio';
+  // Misma voz que el botón principal del hero ("Solicitar cotización").
+  if (c.productCount <= 0) return 'Solicitar cotización';
   // "1 equipos" se leía en la tarjeta de Volteos. El singular es un copy
   // aparte y no una regla: en español no basta con quitarle la "s" final
   // (mes/meses, camión/camiones), y además el cliente puede cambiar la

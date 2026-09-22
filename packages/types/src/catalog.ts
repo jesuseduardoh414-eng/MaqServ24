@@ -83,6 +83,8 @@ export interface Category {
   name: string;
   slug: string;
   image: string | null;
+  /** Una línea bajo el nombre ("Arena, grava, base hidráulica y CNC"). */
+  description: string | null;
   productCount: number;
 }
 

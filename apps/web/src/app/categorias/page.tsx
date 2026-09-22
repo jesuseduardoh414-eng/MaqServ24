@@ -44,7 +44,7 @@ export default async function CategoriasPage() {
   const featured = cv.featuredSlug ? categories.find((c) => c.slug === cv.featuredSlug) : null;
   const rest = featured ? categories.filter((c) => c.slug !== featured.slug) : categories;
 
-  type CatItem = { id: number; name: string; slug: string; image: string | null; productCount: number };
+  type CatItem = { id: number; name: string; slug: string; image: string | null; description: string | null; productCount: number };
 
   // Layout "parejo": las filas de tarjetas van completas (cv.columns). Si sobra
   // 1 tarjeta (fila coja), se muestra GRANDE (como la destacada); si sobran 2,
@@ -74,8 +74,10 @@ export default async function CategoriasPage() {
           <span style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 7, background: accent, color: 'var(--color-primary-fg)', borderRadius: 'var(--radius-sm)', padding: '5px 14px', fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em' }}><Icon name="star" size={12} fill /> Destacada</span>
         ) : null}
         <h2 style={{ margin: 0, fontSize: 'clamp(1.7rem, 3.4vw, 2.6rem)', textTransform: 'uppercase', color: titleColor, lineHeight: 1.03, letterSpacing: '-.01em' }}>{c.name}</h2>
+        {c.description ? <p style={{ margin: 0, color: 'var(--color-text)', fontSize: 16, lineHeight: 1.5, fontWeight: 300 }}>{c.description}</p> : null}
         <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 16, fontWeight: 300 }}>{categoryCountLabel(c, unit)}</p>
-        <span style={{ marginTop: '.5rem', justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, padding: '13px 24px', borderRadius: 'var(--radius-md)', fontSize: 15 }}>Ver equipos<Icon name="arrowRight" size={15} /></span>
+        {/* Sin equipos la tarjeta lleva a cotizar (categoryHref): el botón no puede prometer "Ver equipos". */}
+        <span style={{ marginTop: '.5rem', justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, padding: '13px 24px', borderRadius: 'var(--radius-md)', fontSize: 15 }}>{c.productCount > 0 ? 'Ver equipos' : 'Solicitar cotización'}<Icon name="arrowRight" size={15} /></span>
       </div>
     </Link>
   );
@@ -98,6 +100,7 @@ export default async function CategoriasPage() {
       <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, textTransform: 'uppercase', fontSize: '1.06rem', letterSpacing: '-.01em', lineHeight: 1.12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
+          {c.description ? <div style={{ color: 'var(--color-text)', fontSize: 13.5, marginTop: 5, lineHeight: 1.4, fontWeight: 300, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.description}</div> : null}
           <div style={{ color: 'var(--color-text-muted)', fontSize: 13.5, marginTop: 4, fontWeight: 400 }}>{categoryCountLabel(c, unit)}</div>
         </div>
         <span className="cat-arrow" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 'var(--radius-sm)', background: accent, color: 'var(--color-primary-fg)', display: 'grid', placeItems: 'center' }}><Icon name="arrowRight" size={17} /></span>

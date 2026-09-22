@@ -58,14 +58,19 @@ const TIPOS_DOC: Array<[string, string]> = [
   ['otro', 'Otro'],
 ];
 
-/** Las seis líneas de servicio del manual. */
+/**
+ * Las cinco líneas de servicio (desde el 2026-09-21; antes eran seis). Mismos
+ * slugs que `categories.cat_slug`: es lo que cruza `matching.service` contra
+ * `quotes.service_category`. Los aliados que tenían `equipo-menor`,
+ * `plataformas-de-elevacion`, `agua-en-pipas` o `volteos` se remapearon en la
+ * BD (ver `packages/db/sql/categorias-maqser24-v2.sql`).
+ */
 const LINEAS: Array<[string, string]> = [
-  ['maquinaria-pesada', 'Maquinaria pesada'],
-  ['equipo-menor', 'Equipo menor'],
-  ['plataformas-de-elevacion', 'Plataformas de elevación'],
-  ['agua-en-pipas', 'Agua en pipas'],
-  ['volteos', 'Volteos'],
+  ['maquinaria-pesada', 'Renta de maquinaria pesada'],
+  ['transporte-y-servicios-de-obra', 'Transporte y servicios de obra'],
   ['triturados', 'Triturados'],
+  ['materiales-para-construccion', 'Materiales para construcción'],
+  ['soluciones-asfalticas', 'Soluciones asfálticas'],
 ];
 
 const ETIQUETA_DOCS: Record<ProviderRow['docsStatus'], { texto: string; color: string }> = {

@@ -144,7 +144,7 @@ export default async function CotizadorHome() {
             ))}
           </ol>
           <p style={{ marginTop: 28, color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1.7, maxWidth: '70ch' }}>
-            ¿Necesitas algo que no está en el cotizador —plataformas de elevación, agua en pipas, volteos?{' '}
+            ¿Necesitas algo que no está en el cotizador —agua en pipas, volteos, concreto premezclado, acero, block, cemento o carpeta asfáltica?{' '}
             <Link href="/cotizar" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
               Mándanos tu requerimiento
             </Link>{' '}

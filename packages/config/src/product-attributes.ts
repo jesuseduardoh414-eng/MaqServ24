@@ -47,38 +47,38 @@ export interface AtributoProducto {
 }
 
 export const ATRIBUTOS_POR_CATEGORIA: Record<string, AtributoProducto[]> = {
+  // Cinco líneas desde el 2026-09-21. Equipo menor y plataformas de elevación
+  // ya son subcategorías de maquinaria pesada, así que sus atributos viven
+  // aquí: la altura de trabajo es el caso más claro del puente (la solicitud
+  // la pregunta como número, en metros y con el mismo nombre).
   'maquinaria-pesada': [
     { clave: 'capacidad', label: 'Capacidad o tonelaje', tipo: 'numero', unidad: 't', compara: 'alcanza', hint: 'Lo que la máquina mueve o pesa en operación.' },
+    { clave: 'altura', label: 'Altura de trabajo', tipo: 'numero', unidad: 'm', compara: 'alcanza', hint: 'Plataformas y grúas.' },
     { clave: 'potencia', label: 'Potencia', tipo: 'numero', unidad: 'HP' },
+    { clave: 'energia', label: 'Energía', tipo: 'opcion', opciones: ['Diésel', 'Eléctrica', 'Gasolina', 'Híbrida'], compara: 'igual' },
     { clave: 'año', label: 'Modelo', tipo: 'numero', hint: 'Año del equipo.' },
     { clave: 'implementos', label: 'Implementos que trae', tipo: 'texto', hint: 'Cucharón, martillo, rastrillo…' },
   ],
-  'equipo-menor': [
-    { clave: 'potencia', label: 'Potencia', tipo: 'numero', unidad: 'HP' },
-    { clave: 'peso', label: 'Peso', tipo: 'numero', unidad: 'kg' },
-    { clave: 'energia', label: 'Energía', tipo: 'opcion', opciones: ['Eléctrica', 'Gasolina', 'Diésel', 'Neumática'], compara: 'igual' },
-  ],
-  'plataformas-de-elevacion': [
-    // Estas tres son el caso más claro del puente: la solicitud las pregunta
-    // como números con la misma unidad y el mismo nombre.
-    { clave: 'altura', label: 'Altura de trabajo', tipo: 'numero', unidad: 'm', compara: 'alcanza' },
-    { clave: 'alcance', label: 'Alcance horizontal', tipo: 'numero', unidad: 'm', compara: 'alcanza' },
-    { clave: 'carga', label: 'Capacidad de carga', tipo: 'numero', unidad: 'kg', compara: 'alcanza' },
-    { clave: 'tipo_plataforma', label: 'Tipo', tipo: 'opcion', opciones: ['Tijera', 'Articulada', 'Telescópica', 'Mástil'], compara: 'igual' },
-    { clave: 'energia', label: 'Energía', tipo: 'opcion', opciones: ['Eléctrica', 'Diésel', 'Híbrida'], compara: 'igual' },
-  ],
-  'agua-en-pipas': [
+  'transporte-y-servicios-de-obra': [
     { clave: 'capacidad_pipa', label: 'Capacidad de la pipa', tipo: 'numero', unidad: 'L', compara: 'alcanza' },
     { clave: 'potabilidad', label: 'Tipo de agua', tipo: 'opcion', opciones: ['Potable', 'Tratada', 'Cruda'], compara: 'igual' },
-  ],
-  volteos: [
     { clave: 'capacidad_unidad', label: 'Capacidad de la caja', tipo: 'numero', unidad: 'm³', compara: 'alcanza' },
     { clave: 'tipo_caja', label: 'Tipo de caja', tipo: 'opcion', opciones: ['Sencillo', 'Torton', 'Full'] },
   ],
   triturados: [
-    { clave: 'material', label: 'Material', tipo: 'texto', hint: 'Base hidráulica, grava, arena…' },
+    { clave: 'material', label: 'Material', tipo: 'texto', hint: 'Arena, grava, base hidráulica, CNC…' },
     { clave: 'tamano', label: 'Tamaño', tipo: 'texto', hint: '3/4", 1 1/2", finos…' },
     { clave: 'banco', label: 'Banco de origen', tipo: 'texto' },
+  ],
+  'materiales-para-construccion': [
+    { clave: 'material', label: 'Material', tipo: 'opcion', opciones: ['Concreto premezclado', 'Acero de refuerzo', 'Block', 'Cemento'], compara: 'igual' },
+    { clave: 'especificacion', label: 'Especificación', tipo: 'texto', hint: "f'c 250, varilla 3/8\", block 15×20×40, CPC 30R…" },
+    { clave: 'presentacion', label: 'Presentación', tipo: 'texto', hint: 'Por m³, tonelada, pieza o bulto.' },
+  ],
+  'soluciones-asfalticas': [
+    { clave: 'tipo_mezcla', label: 'Tipo de mezcla', tipo: 'texto', hint: 'Caliente, tibia, en frío; granulometría.' },
+    { clave: 'espesor', label: 'Espesor', tipo: 'numero', unidad: 'cm', compara: 'alcanza' },
+    { clave: 'aplicacion', label: 'Aplicación', tipo: 'opcion', opciones: ['Solo suministro', 'Suministro y aplicación'] },
   ],
 };
 

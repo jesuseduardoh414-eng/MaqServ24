@@ -163,9 +163,12 @@ export const defaultTheme: Theme = {
       hero: {
         enabled: true,
         eyebrow: 'Categorías de servicio',
-        title: 'Seis categorías. Una sola marca.',
+        // Cinco líneas desde el 2026-09-21 (antes eran seis: equipo menor y
+        // plataformas pasaron a ser subcategorías de maquinaria pesada, y agua
+        // en pipas + volteos se unieron en transporte y servicios de obra).
+        title: 'Cinco categorías. Una sola marca.',
         subtitle:
-          'Maquinaria pesada, equipo menor, plataformas de elevación, agua en pipas, volteos y triturados. Una misma solicitud, una misma cotización.',
+          'Renta de maquinaria pesada, transporte y servicios de obra, triturados, materiales para construcción y soluciones asfálticas. Una misma solicitud, una misma cotización.',
         cta: 'Ver catálogo',
         ctaLink: '/productos',
         image: null,
@@ -428,13 +431,18 @@ export const defaultTheme: Theme = {
       // Mensaje de marca del manual (32 / MENSAJES DE MARCA).
       'home.hero.title': 'Encuentra maquinaria',
       'home.hero.titleAccent': 'disponible para tu obra',
+      // Texto del cliente (2026-09-21). Dos párrafos: qué se ofrece y qué
+      // decirnos. El hero lo pinta con `white-space: pre-line`, así que la
+      // línea en blanco entre ambos SÍ se ve; lo mismo aplica a
+      // `hero_sections.subtitle`, que es lo que manda cuando existe.
       'home.hero.subtitle':
-        'Maquinaria pesada, equipo menor, plataformas de elevación, agua en pipas, volteos y triturados. Consulta disponibilidad y recibe opciones de proveedores desde una sola plataforma.',
+        'En MAQSER24 conectamos tu obra con renta de maquinaria pesada, entrega de agua en pipas, acarreos en camiones de volteo y suministro de triturados como arena, grava, base hidráulica y CNC. También ofrecemos concreto premezclado, suministro y aplicación de carpeta asfáltica, además de venta de acero de refuerzo, block y cemento.\n\nDinos qué necesitas, cuánto requieres, dónde se ubica tu obra y para cuándo lo necesitas. Te presentaremos opciones con disponibilidad, condiciones de servicio y costos de entrega o traslado.',
       'home.hero.badge': 'Monterrey y zona metropolitana',
       'home.hero.cta': 'Contactar',
-      // 19 / BOTONES: etiquetas directas — COTIZAR, VER DISPONIBILIDAD,
-      // CONFIRMAR, CONTACTAR. Cotizar es el camino principal.
-      'home.hero.ctaPrimary': 'Cotizar',
+      // 19 / BOTONES: etiquetas directas. Cotizar es el camino principal; el
+      // cliente pidió (2026-09-21) que el botón diga SOLICITAR COTIZACIÓN, en
+      // mayúsculas, en vez de "Cotizar".
+      'home.hero.ctaPrimary': 'SOLICITAR COTIZACIÓN',
       'home.hero.ctaSecondary': 'Ver disponibilidad',
       // 18 / PRINCIPIOS DE PRODUCTO: toda pantalla responde qué hay disponible,
       // qué tan rápido se resuelve y quién lo suministra. Estos cuatro bloques
@@ -453,7 +461,7 @@ export const defaultTheme: Theme = {
       // Las cifras anteriores ("500+ equipos disponibles", "+5,000 proyectos")
       // no correspondían a nada: la plataforma tiene 27 productos activos. Se
       // sustituyen por datos verificables de la arquitectura de marca.
-      'home.hero.stat1.num': '6',
+      'home.hero.stat1.num': '5',
       'home.hero.stat1.label': 'categorías de servicio',
       'home.hero.stat2.num': 'MTY',
       'home.hero.stat2.label': 'y zona metropolitana',
@@ -473,7 +481,7 @@ export const defaultTheme: Theme = {
       'product.medical.ficha': 'Descargar ficha técnica (PDF)',
       'product.medical.dc3': 'Certificación DC-3',
       'home.categories.eyebrow': 'Ecosistema de servicios',
-      'home.categories.title': 'Seis categorías. Una sola marca.',
+      'home.categories.title': 'Cinco categorías. Una sola marca.',
       'home.categories.unit': 'equipos',
       // Singular aparte: "1 equipos" se leia en la tarjeta de Volteos.
       'home.categories.unit.one': 'equipo',

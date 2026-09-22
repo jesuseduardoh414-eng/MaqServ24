@@ -59,6 +59,8 @@ const productSchema = z.object({
 const categorySchema = z.object({
   name: z.string().min(2).max(100),
   status: z.coerce.number().int().min(0).max(1).optional(),
+  // Una línea bajo el nombre en las tarjetas del sitio. Vacío = sin línea.
+  description: z.string().max(300).optional(),
 });
 
 /** Gestión de catálogo (productos + categorías) — solo administradores. */
@@ -260,7 +262,7 @@ export class AdminCatalogController {
   @Get('categories')
   async categories() {
     const [cats, counts] = await Promise.all([
-      prisma.categories.findMany({ orderBy: { cat_name: 'asc' } }),
+      prisma.categories.findMany({ orderBy: [{ sort_order: 'asc' }, { cat_name: 'asc' }] }),
       prisma.products.groupBy({ by: ['category_id'], _count: { _all: true } }),
     ]);
     const countMap = new Map(counts.map((c) => [c.category_id, c._count._all]));
@@ -270,6 +272,7 @@ export class AdminCatalogController {
       slug: c.cat_slug,
       status: c.status,
       image: imageUrl(c.photo),
+      description: c.description ?? null,
       productCount: countMap.get(c.id) ?? 0,
     }));
   }
@@ -289,6 +292,7 @@ export class AdminCatalogController {
         cat_slug: slug,
         status: parsed.data.status ?? 1,
         photo: photo ? `uploads/${photo.filename}` : null,
+        description: parsed.data.description?.trim() || null,
       },
     });
     return { id: c.id, slug: c.cat_slug };
@@ -308,6 +312,7 @@ export class AdminCatalogController {
       data: {
         ...(parsed.data.name !== undefined ? { cat_name: parsed.data.name } : {}),
         ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
+        ...(parsed.data.description !== undefined ? { description: parsed.data.description.trim() || null } : {}),
         ...(photo ? { photo: `uploads/${photo.filename}` } : {}),
       },
     });

@@ -29,8 +29,10 @@ const DIR_RESPALDOS = join(process.cwd(), 'respaldos-tema');
 const HERO = {
   badge: 'Monterrey y zona metropolitana',
   title: 'Encuentra maquinaria disponible para tu obra',
+  // Texto del cliente (2026-09-21). Dos párrafos separados por línea en blanco;
+  // el hero los pinta con `white-space: pre-line`.
   subtitle:
-    'Maquinaria pesada, equipo menor, plataformas de elevación, agua en pipas, volteos y triturados. Dinos qué necesitas, dónde y para cuándo: te devolvemos opciones con disponibilidad, condiciones y costo de traslado.',
+    'En MAQSER24 conectamos tu obra con renta de maquinaria pesada, entrega de agua en pipas, acarreos en camiones de volteo y suministro de triturados como arena, grava, base hidráulica y CNC. También ofrecemos concreto premezclado, suministro y aplicación de carpeta asfáltica, además de venta de acero de refuerzo, block y cemento.\n\nDinos qué necesitas, cuánto requieres, dónde se ubica tu obra y para cuándo lo necesitas. Te presentaremos opciones con disponibilidad, condiciones de servicio y costos de entrega o traslado.',
   feature1: 'Cotización con condiciones a la vista',
   feature2: 'Proveedores con expediente verificado',
 };
@@ -51,7 +53,7 @@ const RAZONES: Record<string, [string, string]> = {
   ],
   'Procesos Seguros y Eficientes': [
     'Un solo proceso',
-    'La misma solicitud, cotización y seguimiento sirven para las seis categorías de servicio.',
+    'La misma solicitud, cotización y seguimiento sirven para las cinco categorías de servicio.',
   ],
   'Entrega en obra': [
     'Entrega en obra',

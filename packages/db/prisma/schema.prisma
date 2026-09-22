@@ -166,6 +166,13 @@ model categories {
   cat_slug String  @unique(map: "bloodgroups_slug_unique") @db.VarChar(191)
   status   Int     @default(1) @db.SmallInt
   photo    String? @db.Text
+  // Una línea bajo el nombre en las tarjetas del sitio ("Arena, grava, base
+  // hidráulica y CNC"). Editable desde el panel. Columna agregada 2026-09-21.
+  description String? @db.Text
+  // Orden en que el cliente presenta las líneas de servicio (1 = primera). El
+  // catálogo público y el panel ordenan por esto y luego por nombre; 0 = al
+  // final, en orden alfabético. Columna agregada 2026-09-21.
+  sort_order  Int     @default(0)
 
   @@index([id], map: "id")
 }
