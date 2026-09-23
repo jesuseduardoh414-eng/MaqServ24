@@ -73,6 +73,26 @@ export function AdminRowActions({
     void send({ status: off ? 0 : 1 });
   }
 
+  /**
+   * Eliminar de verdad. Solo se ofrece en cuentas ya desactivadas (la API lo
+   * exige igual): borrar es un paso más allá de desactivar, y pasar por el
+   * primero evita quitarle la cuenta a alguien que sí la usaba.
+   */
+  async function remove() {
+    if (!window.confirm(`¿Eliminar la cuenta de ${name}? Desaparece de esta lista y no se puede deshacer. Queda anotado en la bitácora.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/admins/${adminId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json())?.message ?? 'No se pudo eliminar');
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo eliminar');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
       <style>{`.ar-ghost:hover:not(:disabled){ background: rgba(255,255,255,0.06); color:#f5f5f4; }`}</style>
@@ -118,6 +138,19 @@ export function AdminRowActions({
       ) : (
         <span style={{ fontSize: 11.5, color: '#5C5C61' }}>Tu cuenta</span>
       )}
+
+      {/* Eliminar: solo cuentas desactivadas y nunca la propia. */}
+      {!isMe && status === 0 ? (
+        <button
+          type="button"
+          className="ar-ghost"
+          disabled={busy}
+          onClick={() => void remove()}
+          style={{ ...ghost, color: '#f55', borderColor: 'rgba(255,85,85,0.35)', opacity: busy ? 0.5 : 1 }}
+        >
+          Eliminar
+        </button>
+      ) : null}
 
       {asking ? (
         <div ref={box} style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50, width: 300, background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 12, padding: 16, boxShadow: '0 18px 44px -14px rgba(0,0,0,0.75)', textAlign: 'left' }}>

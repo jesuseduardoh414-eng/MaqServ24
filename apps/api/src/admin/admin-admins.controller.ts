@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Get, NotFoundException, Param,
+  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param,
   ParseIntPipe, Patch, Post, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -105,6 +105,33 @@ export class AdminAdminsController {
 
     await registrarAccion(req, 'admins', 'alta de administrador', email, ROLES_ADMIN[parsed.data.rol].nombre);
     return { id: a.id };
+  }
+
+  /**
+   * ELIMINAR una cuenta del panel (2026-09-23).
+   *
+   * Pedido del cliente: las cuentas del sistema viejo no solo se desactivan,
+   * desaparecen de la lista. Dos candados, además del de "no a ti mismo":
+   *
+   *  1. Solo se elimina una cuenta DESACTIVADA. Borrar es un paso más allá de
+   *     desactivar, y obligar a pasar por el primero evita que un clic quite
+   *     el acceso a alguien que sí lo usaba: desactivada, se nota; borrada, ya
+   *     no hay a quién reactivar.
+   *  2. Queda en la bitácora quién borró qué. El registro de la cuenta se va;
+   *     el rastro de la acción, no.
+   */
+  @Delete(':id')
+  async remove(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
+    if (id === req.adminId) throw new BadRequestException('No puedes eliminar tu propia cuenta');
+    const a = await prisma.admins.findUnique({ where: { id }, select: { email: true, status: true } });
+    if (!a) throw new NotFoundException('Administrador no encontrado');
+    if (a.status === 1) {
+      throw new BadRequestException('Desactívala primero. Solo se eliminan cuentas desactivadas.');
+    }
+    await prisma.admins.delete({ where: { id } });
+    forgetAdmin(id);
+    await registrarAccion(req, 'admins', 'eliminar cuenta', a.email);
+    return { ok: true };
   }
 
   @Patch(':id')

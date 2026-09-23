@@ -127,32 +127,33 @@ ALTER TABLE product_questions AUTO_INCREMENT = 1;
 ALTER TABLE comments AUTO_INCREMENT = 1;
 ALTER TABLE wishlists AUTO_INCREMENT = 1;
 
--- ── Administradores: solo MAQSER24 (la cuenta personal del dueño y la de
---    ventas de la empresa). Las demás se DESACTIVAN, no se borran: no pueden
---    entrar y se les corta la sesión, pero se reactivan con un clic desde
---    Administradores si algún día hacen falta.
+-- ── Los dos administradores del sistema viejo pasan a ser PROVEEDORES ──────
+-- Decisión del cliente: SFM (ventas@segaferreterias.com) y "hidden"
+-- (jm18.jhr@gmail.com) no son administradores; son aliados. Se dan de alta con
+-- nombre y correo, en nivel "registrado" y sin categorías: el resto (nivel,
+-- servicios que atienden, cobertura, papeles) se completa desde Red de aliados,
+-- y desde ahí mismo se les manda su enlace con "Su acceso". Idempotente: si ya
+-- existe un proveedor con ese correo, no se duplica. Va ANTES de borrar sus
+-- cuentas de administrador y con valores literales: no depende de que existan.
+INSERT INTO providers
+  (name, slug, level, contact_name, email, coverage, categories, status,
+   joined_at, created_at, updated_at, access_version)
+SELECT n.name, n.slug, 'registrado', n.name, n.email, '[]', '[]', 1, NOW(6), NOW(6), NOW(6), 1
+  FROM (
+    SELECT 'SFM' AS name, 'sfm' AS slug, 'ventas@segaferreterias.com' AS email
+    UNION ALL
+    SELECT 'hidden', 'hidden', 'jm18.jhr@gmail.com'
+  ) AS n
+ WHERE NOT EXISTS (SELECT 1 FROM providers p WHERE p.email = n.email);
+
+-- ── Administradores: solo MAQSER24 ─────────────────────────────────────────
+-- Quedan la cuenta personal del dueño y la de ventas de la empresa, como
+-- Dirección General. Las demás (sistema viejo y pruebas) se ELIMINAN: el
+-- cliente pidió que desaparezcan de la lista, no que queden desactivadas.
+-- Desde el panel también se puede: Desactivar y luego Eliminar, fila por fila.
 UPDATE admins
    SET role = 'direccion', status = 1
  WHERE email IN ('jesuseduardoh414@gmail.com', 'ventas@maqserv24.com');
 
-UPDATE admins
-   SET status = 0
+DELETE FROM admins
  WHERE email NOT IN ('jesuseduardoh414@gmail.com', 'ventas@maqserv24.com');
-
--- ── Los dos administradores del sistema viejo pasan a ser PROVEEDORES ──────
--- Decisión del cliente: SFM (ventas@segaferreterias.com) y "hidden"
--- (jm18.jhr@gmail.com) no son administradores; son aliados. Se dan de alta con
--- su nombre y correo, en nivel "registrado" y sin categorías: el resto (nivel,
--- servicios que atienden, cobertura, papeles) se completa desde Red de aliados,
--- y desde ahí mismo se les manda su enlace con "Su acceso". Idempotente: si ya
--- existe un proveedor con ese correo, no se duplica.
-INSERT INTO providers
-  (name, slug, level, contact_name, email, coverage, categories, status,
-   joined_at, created_at, updated_at, access_version)
-SELECT a.name,
-       LOWER(REPLACE(TRIM(a.name), ' ', '-')),
-       'registrado', a.name, a.email, '[]', '[]', 1,
-       NOW(6), NOW(6), NOW(6), 1
-  FROM admins a
- WHERE a.email IN ('ventas@segaferreterias.com', 'jm18.jhr@gmail.com')
-   AND NOT EXISTS (SELECT 1 FROM providers p WHERE p.email = a.email);
