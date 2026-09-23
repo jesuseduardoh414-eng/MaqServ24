@@ -16,8 +16,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const [theme, user, sp, proveedores] = await Promise.all([
     getTheme(), getSessionUser(), searchParams, getAuthProviders(),
   ]);
-  if (user) redirect('/');
-  const next = typeof sp.next === 'string' && sp.next.startsWith('/') ? sp.next : '/';
+  // Solo rutas internas y nunca `//otro-sitio` (ver destinoSeguro en google-auth).
+  const next = typeof sp.next === 'string' && sp.next.startsWith('/') && !sp.next.startsWith('//') ? sp.next : '/';
+  // Quien ya tiene sesión y llegó aquí con `next` (por ejemplo, desde el
+  // candado de cotizar) sigue a donde iba, no al inicio.
+  if (user) redirect(next);
 
   return (
     <>

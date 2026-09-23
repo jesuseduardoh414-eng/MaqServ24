@@ -1,7 +1,8 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, NotFoundException, Param, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { CatalogoCotizador } from '@maqserv/config';
-import { verifyAccessToken } from '../common/app-auth';
+import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
+import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { QuoterService } from './quoter.service';
 import { calcularSchema, partidasDe, primerError, solicitudSitioSchema, tipoDe } from './quoter.dto';
 
@@ -61,10 +62,15 @@ export class QuoterController {
    * Nace en estado `solicitada`, que es lo que cuenta el contador del panel:
    * una solicitud que nadie ve es peor que no tener el formulario, porque la
    * persona ya se fue creyendo que la contactarían.
+   *
+   * EXIGE CUENTA desde el 2026-09-23, igual que /quotes: ver y usar el tabulador
+   * sigue siendo público; ENVIAR la solicitud, no. Así la solicitud nace ligada
+   * a quien la pidió y su correo es el de la cuenta, no el que tecleó.
    */
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('request/:kind')
-  async solicitar(@Param('kind') kind: string, @Body() body: unknown, @Headers('authorization') auth?: string) {
+  @UseGuards(JwtGuard)
+  async solicitar(@Req() req: AuthedRequest, @Param('kind') kind: string, @Body() body: unknown) {
     const tipo = tipoDe(kind);
     const cat = await this.quoter.catalogo(tipo);
     if (!cat.publico.habilitado) throw new NotFoundException('Este cotizador no está disponible en el sitio.');
@@ -73,34 +79,29 @@ export class QuoterController {
     if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
     const datos = parsed.data;
 
-    // Si trae sesión, la solicitud queda ligada a la cuenta; si no, sigue como
-    // invitado (mismo criterio que el cotizador de catálogo en /quotes).
-    let userId: number | null = null;
-    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
-    if (token) {
-      try {
-        const claims = await verifyAccessToken(token);
-        userId = claims.app_metadata?.app_user_id ?? null;
-      } catch {
-        userId = null;
-      }
-    }
+    const userId = req.userId;
+    const cuenta = await datosDeCuenta(userId);
+    if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
 
     const cot = await this.quoter.crear(
       {
         tipo,
-        cliente: datos.cliente,
+        cliente: datos.cliente || cuenta.name,
         obra: datos.obra,
         atencion: datos.atencion,
         municipio: datos.municipio,
-        correo: datos.correo,
-        telefono: datos.telefono,
+        // El correo es el de la cuenta: es a donde va a entrar a ver el folio.
+        correo: cuenta.email,
+        telefono: datos.telefono || cuenta.phone,
         notas: datos.notas,
         opciones: datos.opciones,
         partidas: partidasDe(tipo, datos.partidas),
       },
       { origen: 'sitio', estado: 'solicitada', userId },
     );
+
+    // Primera vez que se conoce su teléfono: se guarda en la cuenta.
+    void completarTelefono(userId, datos.telefono);
 
     /**
      * Los avisos salen SIN esperar a propósito.

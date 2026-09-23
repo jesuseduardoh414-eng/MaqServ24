@@ -58,6 +58,20 @@ export interface DatosEnvio {
   partidas: PartidaCotizador[];
 }
 
+/**
+ * Lo capturado hasta el momento de pedirle la cuenta al visitante. Se guarda
+ * tal cual y se devuelve en `borrador` cuando vuelve, para que no repita los
+ * cinco pasos por haberse registrado.
+ */
+export interface BorradorCotizador {
+  paso: number;
+  ctx: ContextoCotizador;
+  lineas: LineaCotizador[];
+  modalidades: Modalidad[];
+  modoUnidad: 'horas' | 'dias';
+  conIva: boolean;
+}
+
 export interface CotizadorProps {
   catalogo: CatalogoCotizador;
   /** `panel` = lo arma un administrador; `sitio` = lo pide un visitante. */
@@ -67,6 +81,16 @@ export interface CotizadorProps {
   /** Logo para el documento (fondo claro). */
   logo?: string | null;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
+  /**
+   * Sitio: ¿quien captura puede ENVIAR? Desde el 2026-09-23 pedir cotización
+   * exige cuenta. Sin ella se puede armar todo y ver el costo, pero el último
+   * botón pide crear la cuenta y entrega lo capturado a `onRequiereCuenta`,
+   * que lo guarda y lo devuelve en `borrador` cuando la persona vuelve.
+   */
+  puedeEnviar?: boolean;
+  onRequiereCuenta?: (borrador: BorradorCotizador) => void;
+  /** Lo capturado antes de ir a crear la cuenta. Se restaura tal cual. */
+  borrador?: BorradorCotizador | null;
 }
 
 /**
@@ -88,7 +112,9 @@ export interface CotizadorProps {
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: CotizadorProps) {
+export function Cotizador({
+  catalogo, variante, inicial, logo, onEnviar, puedeEnviar = true, onRequiereCuenta, borrador,
+}: CotizadorProps) {
   const tipo = catalogo.tipo;
   const pasos = pasosDe(tipo);
   const esPanel = variante === 'panel';
@@ -113,12 +139,24 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
   /** Hay costo, pero se enseña al final: el sitio con tabulador público. */
   const preciosAlFinal = verPrecios && !preciosEnPasos;
 
-  const [paso, setPaso] = useState(0);
-  const [ctx, setCtx] = useState<ContextoCotizador>({ ...CONTEXTO_VACIO, ...inicial });
-  const [lineas, setLineas] = useState<LineaCotizador[]>([]);
-  const [modalidades, setModalidades] = useState<Modalidad[]>([]);
-  const [modoUnidad, setModoUnidad] = useState<'horas' | 'dias'>('horas');
-  const [conIva, setConIva] = useState(tipo === 'triturados' ? (catalogo as CatalogoTriturados).iva_por_defecto : true);
+  /**
+   * Con qué arranca. El borrador (lo que capturó antes de ir a crear su
+   * cuenta) manda sobre el vacío, y lo que la cuenta ya sabe —nombre, correo,
+   * teléfono— manda sobre el borrador: recién registrado, su correo es el de
+   * la cuenta, no el que tecleó como visitante. Solo pisan los valores llenos;
+   * un perfil sin teléfono no borra el que escribió.
+   */
+  const inicialLleno = Object.fromEntries(
+    Object.entries(inicial ?? {}).filter(([, v]) => typeof v === 'string' && v.trim() !== ''),
+  ) as Partial<ContextoCotizador>;
+  const [paso, setPaso] = useState(borrador?.paso ?? 0);
+  const [ctx, setCtx] = useState<ContextoCotizador>({ ...CONTEXTO_VACIO, ...borrador?.ctx, ...inicialLleno });
+  const [lineas, setLineas] = useState<LineaCotizador[]>(borrador?.lineas ?? []);
+  const [modalidades, setModalidades] = useState<Modalidad[]>(borrador?.modalidades ?? []);
+  const [modoUnidad, setModoUnidad] = useState<'horas' | 'dias'>(borrador?.modoUnidad ?? 'horas');
+  const [conIva, setConIva] = useState(
+    borrador?.conIva ?? (tipo === 'triturados' ? (catalogo as CatalogoTriturados).iva_por_defecto : true),
+  );
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tocado, setTocado] = useState(false);
@@ -258,6 +296,17 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
     } finally {
       setEnviando(false);
     }
+  }
+
+  /**
+   * El visitante sin cuenta llegó al final. Se valida igual que al enviar
+   * —no tiene sentido mandarlo a registrarse con una solicitud incompleta— y
+   * se entrega lo capturado para que la página lo guarde y lo traiga de vuelta.
+   */
+  function pedirCuenta() {
+    setTocado(true);
+    if (faltante) return;
+    onRequiereCuenta?.({ paso, ctx, lineas, modalidades, modoUnidad, conIva });
   }
 
   function reiniciar() {
@@ -483,6 +532,15 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
                 <div dangerouslySetInnerHTML={{ __html: `<style>${DOCUMENTO_CSS}</style>${documentoCuerpo(datosDoc('BORRADOR'))}` }} />
               </div>
 
+              {!esPanel && !puedeEnviar ? (
+                <div style={{ marginTop: 14 }}>
+                  <Aviso>
+                    Para enviar tu solicitud necesitas una cuenta. Solo pedimos correo y contraseña,
+                    y al crearla vuelves aquí con todo lo que capturaste.
+                  </Aviso>
+                </div>
+              ) : null}
+
               {error ? (
                 <div style={{ marginTop: 14 }}>
                   <Aviso tono="bad">{error}</Aviso>
@@ -502,9 +560,15 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               <ArrowLeft className="size-4" /> Atrás
             </ShButton>
             {esUltimo ? (
-              <ShButton onClick={enviar} disabled={enviando}>
-                {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Enviar solicitud'}
-              </ShButton>
+              !esPanel && !puedeEnviar ? (
+                <ShButton onClick={pedirCuenta}>
+                  Crear cuenta para enviar <ArrowRight className="size-4" />
+                </ShButton>
+              ) : (
+                <ShButton onClick={enviar} disabled={enviando}>
+                  {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Enviar solicitud'}
+                </ShButton>
+              )
             ) : (
               <ShButton onClick={avanzar}>
                 Continuar <ArrowRight className="size-4" />

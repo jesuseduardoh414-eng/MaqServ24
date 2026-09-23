@@ -65,7 +65,10 @@ interface PickedItem {
  *  - sin producto: una lista editable que arranca con lo que traiga el carrito
  *    y se completa con el buscador. Antes, sin producto y con el carrito vacío,
  *    la página era un callejón sin salida.
- * Funciona para invitados; si hay sesión se prellenan los datos.
+ * EXIGE SESIÓN (2026-09-23): la página pinta el candado en su lugar cuando no
+ * la hay. Nombre, correo y teléfono salen del perfil; el correo no se edita
+ * porque es la identidad de la cuenta (y la API lo impone igual), y el
+ * teléfono que se capture aquí por primera vez se guarda en la cuenta.
  */
 export function QuoteForm({
   product,
@@ -85,7 +88,7 @@ export function QuoteForm({
   /** Preguntas propias del servicio (documento, 8 a 13). Null si no hay definidas. */
   formulario?: RequestForm | null;
   categoriaServicio?: string | null;
-  user: AuthUser | null;
+  user: AuthUser;
   labels: {
     name: string;
     email: string;
@@ -101,6 +104,8 @@ export function QuoteForm({
     successTitle: string;
     successBody: string;
     numberLabel: string;
+    emailLocked: string;
+    phoneSaved: string;
   };
 }) {
   const cart = useCart();
@@ -268,6 +273,11 @@ export function QuoteForm({
     });
     const data = await res.json().catch(() => null);
     setLoading(false);
+    if (res.status === 401) {
+      // La sesión caducó mientras llenaba el formulario.
+      setError('Tu sesión terminó. Entra de nuevo y vuelve a enviar la solicitud.');
+      return;
+    }
     if (!res.ok || !data?.quoteNumber) {
       setError(typeof data?.message === 'string' ? data.message : 'No pudimos enviar tu solicitud');
       return;
@@ -506,11 +516,15 @@ export function QuoteForm({
         <div style={cardStyle}>
           <h2 style={legendStyle}>Tus datos</h2>
           <div style={{ display: 'grid', gap: 12 }}>
-            <input className="qf-field" name="name" required minLength={2} defaultValue={user?.name ?? ''} placeholder={labels.name} aria-label={labels.name} style={fieldStyle} />
+            <input className="qf-field" name="name" required minLength={2} defaultValue={user.name ?? ''} placeholder={labels.name} aria-label={labels.name} style={fieldStyle} />
             <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input className="qf-field" name="email" type="email" required defaultValue={user?.email ?? ''} placeholder={labels.email} aria-label={labels.email} style={fieldStyle} />
-              <input className="qf-field" name="phone" required minLength={7} defaultValue={user?.phone ?? ''} placeholder={labels.phone} aria-label={labels.phone} style={fieldStyle} />
+              {/* Solo lectura: es la identidad de la cuenta y la API lo impone igual. */}
+              <input className="qf-field" name="email" type="email" required readOnly defaultValue={user.email} placeholder={labels.email} aria-label={labels.email} title={labels.emailLocked} style={{ ...fieldStyle, opacity: 0.7, cursor: 'not-allowed' }} />
+              <input className="qf-field" name="phone" required minLength={7} defaultValue={user.phone ?? ''} placeholder={labels.phone} aria-label={labels.phone} style={fieldStyle} />
             </div>
+            <p style={{ margin: '-4px 0 0', fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+              {labels.emailLocked}{!user.phone ? ` ${labels.phoneSaved}` : ''}
+            </p>
             <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <input className="qf-field" name="company" placeholder={labels.company} aria-label={labels.company} style={fieldStyle} />
               <input className="qf-field" name="industry" placeholder={labels.industry} aria-label={labels.industry} style={fieldStyle} />

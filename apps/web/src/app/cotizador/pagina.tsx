@@ -68,6 +68,8 @@ export async function PaginaCotizador({ tipo }: { tipo: CotizadorTipo }) {
             <CotizadorPublico
               catalogo={catalogo}
               logo={logo}
+              // Sin cuenta se puede armar todo; enviar, no (ver CotizadorPublico).
+              sesion={Boolean(user)}
               inicial={{
                 cliente: user?.name ?? '',
                 correo: user?.email ?? '',

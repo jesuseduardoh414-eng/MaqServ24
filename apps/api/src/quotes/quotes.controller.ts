@@ -1,6 +1,5 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { verifyAccessToken } from '../common/app-auth';
 import { z } from 'zod';
 import { QuotesService } from './quotes.service';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
@@ -38,29 +37,29 @@ const quoteSchema = z.object({
 export class QuotesController {
   constructor(private readonly quotes: QuotesService) {}
 
-  /** Público: los invitados también pueden cotizar. Si viene Bearer, se liga al usuario. */
-  // Abierto a invitados y además cotiza flete (que sale a la API de Google, y esa se
-  // paga por petición): sin límite, es spam y factura ajena.
+  /**
+   * PEDIR COTIZACIÓN EXIGE CUENTA (decisión del 2026-09-23).
+   *
+   * Antes era público y el Bearer era opcional: los invitados cotizaban y la
+   * solicitud quedaba suelta. Se cerró porque el resto del camino ya exigía
+   * cuenta —ver, aceptar y seguir la cotización— y un invitado se quedaba con
+   * un folio que no podía abrir en ningún lado. Con cuenta, la solicitud nace
+   * ligada a quien la pidió y no vuelve a capturar sus datos.
+   *
+   * El candado va AQUÍ y no solo en la pantalla: si solo lo pusiera el sitio,
+   * cualquiera con curl seguiría entrando como invitado.
+   */
+  // Cotiza flete (sale a la API de Google, que se paga por petición): con o sin
+  // cuenta, sin límite es factura ajena.
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post()
-  async create(@Body() body: unknown, @Headers('authorization') auth?: string) {
+  @UseGuards(JwtGuard)
+  async create(@Req() req: AuthedRequest, @Body() body: unknown) {
     const parsed = quoteSchema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
     }
-
-    let userId: number | null = null;
-    const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null;
-    if (token) {
-      try {
-        const claims = await verifyAccessToken(token);
-        userId = claims.app_metadata?.app_user_id ?? null;
-      } catch {
-        userId = null; // token inválido → sigue como invitado
-      }
-    }
-
-    return this.quotes.create(parsed.data, userId);
+    return this.quotes.create(parsed.data, req.userId);
   }
 
   @Get('mine')

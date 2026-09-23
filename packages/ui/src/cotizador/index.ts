@@ -1,4 +1,4 @@
-export { Cotizador, type CotizadorProps, type DatosEnvio, type ResultadoEnvio } from './Cotizador';
+export { Cotizador, type BorradorCotizador, type CotizadorProps, type DatosEnvio, type ResultadoEnvio } from './Cotizador';
 export { VistaDocumento } from './VistaDocumento';
 export { IconoCotizador } from './iconos';
 export { COTIZADOR_CSS } from './estilos';

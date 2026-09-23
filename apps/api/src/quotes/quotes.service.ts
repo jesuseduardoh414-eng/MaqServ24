@@ -7,6 +7,7 @@ import { FreightService } from '../freight/freight.service';
 import { estadoCotizacion, sePuedeAceptar, diasParaVencer } from './quote-validity';
 import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './service-flow';
 import { resolverClienteYObra } from './client-resolver';
+import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 
 /** Formato legacy: COT- + 8 alfanuméricos mayúsculas. */
 function newQuoteNumber(): string {
@@ -42,7 +43,22 @@ export class QuotesService {
     };
   }
 
-  async create(input: QuoteRequestInput, userId: number | null): Promise<QuoteDetail> {
+  async create(input: QuoteRequestInput, userId: number): Promise<QuoteDetail> {
+    /**
+     * Pedir cotización exige cuenta (2026-09-23). El correo de la solicitud es
+     * SIEMPRE el de la cuenta: es con el que va a entrar a verla y aceptarla,
+     * y a donde salen los avisos. El nombre y el teléfono los manda el
+     * formulario, ya prellenados desde el perfil; si el nombre viniera vacío,
+     * se usa el de la cuenta.
+     */
+    const cuenta = await datosDeCuenta(userId);
+    if (!cuenta) throw new NotFoundException('La cuenta ya no existe');
+    const customer = {
+      ...input.customer,
+      name: input.customer.name?.trim() || cuenta.name,
+      email: cuenta.email,
+    };
+
     // Una cotización necesita equipos O una categoría de servicio. Lo segundo
     // es para transporte, triturados, materiales y asfalto: ahí no hay SKU que elegir — lo que
     // define el precio es volumen, origen, destino y fechas, y eso viene en el
@@ -115,12 +131,12 @@ export class QuotesService {
     const q = await prisma.quotes.create({
       data: {
         user_id: userId ?? null,
-        name: input.customer.name,
-        email: input.customer.email,
-        phone: input.customer.phone,
-        company_name: input.customer.company ?? null,
-        region: input.customer.region ?? null,
-        industry: input.customer.industry ?? null,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        company_name: customer.company ?? null,
+        region: customer.region ?? null,
+        industry: customer.industry ?? null,
         // Sin equipos, lo que el admin necesita ver en el listado es qué
         // servicio se pidió; si no, la fila sale en blanco.
         product_interested: (items.length ? items.map((i) => i.name).join(', ') : (input.service ?? '')).slice(0, 250),
@@ -149,13 +165,13 @@ export class QuotesService {
      * vacio y hay que reagrupar a mano.
      */
     const ligada = await resolverClienteYObra({
-      companyName: input.customer.company,
-      contactName: input.customer.name,
-      email: input.customer.email,
-      phone: input.customer.phone,
-      industry: input.customer.industry,
+      companyName: customer.company,
+      contactName: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      industry: customer.industry,
       address: input.address,
-      region: input.customer.region,
+      region: customer.region,
       userId,
       siteId: input.siteId ?? null,
     });
@@ -165,6 +181,10 @@ export class QuotesService {
         data: { client_id: ligada.clientId, site_id: ligada.siteId },
       });
     }
+
+    // El registro no pide teléfono: la primera solicitud es donde se conoce,
+    // y se guarda en la cuenta para no volver a preguntarlo.
+    void completarTelefono(userId, customer.phone);
 
     return {
       ...this.toSummary(q),

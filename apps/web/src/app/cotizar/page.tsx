@@ -6,6 +6,7 @@ import { getSessionUser } from '@/lib/session';
 import { getProduct, getCategories } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { QuoteForm } from './QuoteForm';
+import { QuoteGate } from './QuoteGate';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
@@ -17,6 +18,17 @@ type Search = { producto?: string; servicio?: string };
 export default async function QuotePage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
   const [theme, user] = await Promise.all([getTheme(), getSessionUser()]);
+
+  /**
+   * SIN CUENTA NO SE COTIZA (2026-09-23): el visitante ve el candado en lugar
+   * del formulario, y `next` trae esta misma URL con su equipo o servicio para
+   * que al entrar aterrice exactamente aquí. Ver QuoteGate.
+   */
+  const next = sp.producto
+    ? `/cotizar?producto=${encodeURIComponent(sp.producto)}`
+    : sp.servicio
+      ? `/cotizar?servicio=${encodeURIComponent(sp.servicio)}`
+      : '/cotizar';
 
   // ?producto= acepta id numérico o slug nombre-id
   let product: ProductCard | null = null;
@@ -59,29 +71,35 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
             <h1 className="qf-title" style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>{t(theme, 'quote.form.title')}</h1>
             <p style={{ color: 'var(--color-text-muted)', margin: '10px 0 0', fontSize: 15, lineHeight: 1.6 }}>{t(theme, 'quote.form.subtitle')}</p>
           </div>
-          <QuoteForm
-          product={product}
-          servicio={servicio}
-          formulario={requestFormFor(categoriaServicio ?? product?.categorySlug)}
-          categoriaServicio={categoriaServicio ?? product?.categorySlug ?? null}
-          user={user}
-          labels={{
-            name: t(theme, 'auth.field.name'),
-            email: t(theme, 'auth.field.email'),
-            phone: t(theme, 'checkout.field.phone'),
-            company: t(theme, 'quote.form.company'),
-            region: t(theme, 'quote.form.region'),
-            industry: t(theme, 'quote.form.industry'),
-            address: t(theme, 'quote.form.address'),
-            comments: t(theme, 'quote.form.comments'),
-            qty: t(theme, 'quote.form.qty'),
-            days: t(theme, 'quote.form.days'),
-            submit: t(theme, 'quote.form.submit'),
-            successTitle: t(theme, 'quote.form.success.title'),
-            successBody: t(theme, 'quote.form.success.body'),
-            numberLabel: t(theme, 'quote.form.number'),
-            }}
-          />
+          {!user ? (
+            <QuoteGate theme={theme} next={next} />
+          ) : (
+            <QuoteForm
+              product={product}
+              servicio={servicio}
+              formulario={requestFormFor(categoriaServicio ?? product?.categorySlug)}
+              categoriaServicio={categoriaServicio ?? product?.categorySlug ?? null}
+              user={user}
+              labels={{
+                name: t(theme, 'auth.field.name'),
+                email: t(theme, 'auth.field.email'),
+                phone: t(theme, 'checkout.field.phone'),
+                company: t(theme, 'quote.form.company'),
+                region: t(theme, 'quote.form.region'),
+                industry: t(theme, 'quote.form.industry'),
+                address: t(theme, 'quote.form.address'),
+                comments: t(theme, 'quote.form.comments'),
+                qty: t(theme, 'quote.form.qty'),
+                days: t(theme, 'quote.form.days'),
+                submit: t(theme, 'quote.form.submit'),
+                successTitle: t(theme, 'quote.form.success.title'),
+                successBody: t(theme, 'quote.form.success.body'),
+                numberLabel: t(theme, 'quote.form.number'),
+                emailLocked: t(theme, 'quote.form.emailLocked'),
+                phoneSaved: t(theme, 'quote.form.phoneSaved'),
+              }}
+            />
+          )}
         </main>
       </div>
       <SiteFooter theme={theme} />
