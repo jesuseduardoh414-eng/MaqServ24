@@ -2,8 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, REFRESH_COOKIE } from '@/lib/session';
 import { clientIpHeaders } from '@/lib/client-ip';
 import { ESTADO_GOOGLE_COOKIE, destinoSeguro, redirectUriGoogle } from '@/lib/google-auth';
+import { dominioCookie, origenPublico } from '@/lib/origen';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
+
+/**
+ * Borra la cookie de estado tal como se puso: con el mismo `domain`. Un
+ * delete sin dominio no toca una cookie que sí lo tiene, y la siguiente vuelta
+ * por Google encontraría un estado viejo.
+ */
+function sinEstado(res: NextResponse): NextResponse {
+  const domain = dominioCookie();
+  res.cookies.set(ESTADO_GOOGLE_COOKIE, '', { path: '/', maxAge: 0, ...(domain ? { domain } : {}) });
+  return res;
+}
 
 /**
  * Paso 2 de "entrar con Google": Google devuelve aquí con un `code`.
@@ -18,14 +30,14 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
  * al login con un motivo legible en vez de dejarla viendo un objeto.
  */
 export async function GET(req: NextRequest) {
-  const origen = req.nextUrl.origin;
+  // NUNCA `req.nextUrl.origin`: detrás del proxy de cPanel es
+  // `https://0.0.0.0:3000` y el navegador acababa en ERR_ADDRESS_INVALID.
+  const origen = origenPublico(req);
   const volverAlLogin = (motivo: string, next?: string) => {
     const url = new URL('/login', origen);
     url.searchParams.set('error', motivo);
     if (next && next !== '/') url.searchParams.set('next', next);
-    const res = NextResponse.redirect(url);
-    res.cookies.delete(ESTADO_GOOGLE_COOKIE);
-    return res;
+    return sinEstado(NextResponse.redirect(url));
   };
 
   const code = req.nextUrl.searchParams.get('code');
@@ -36,9 +48,7 @@ export async function GET(req: NextRequest) {
 
   // Cancelar en la pantalla de Google no es un error: se vuelve sin ruido.
   if (req.nextUrl.searchParams.get('error')) {
-    const res = NextResponse.redirect(new URL(next, origen));
-    res.cookies.delete(ESTADO_GOOGLE_COOKIE);
-    return res;
+    return sinEstado(NextResponse.redirect(new URL(next, origen)));
   }
 
   if (!code) return volverAlLogin('google_sin_codigo', next);
@@ -78,6 +88,5 @@ export async function GET(req: NextRequest) {
   };
   res.cookies.set(SESSION_COOKIE, data.token, opts);
   if (data.refresh_token) res.cookies.set(REFRESH_COOKIE, data.refresh_token, opts);
-  res.cookies.delete(ESTADO_GOOGLE_COOKIE);
-  return res;
+  return sinEstado(res);
 }

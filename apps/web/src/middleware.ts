@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, REFRESH_COOKIE, ALIADO_COOKIE } from '@/lib/cookies';
+import { hostPublico } from '@/lib/origen';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const WEEK = 60 * 60 * 24 * 7;
@@ -26,6 +27,31 @@ function jwtExp(token: string): number | null {
  * fresco en la misma petición.
  */
 export async function middleware(req: NextRequest) {
+  /**
+   * UN SOLO HOST: `www.` va al dominio de SITE_URL.
+   *
+   * El hosting sirve el sitio igual en `maqserv24.com` y en `www.maqserv24.com`,
+   * y las cookies son por host: quien entra en `www` no tiene sesión en el
+   * dominio principal, y al revés. Con "entrar con Google" era peor: la cookie
+   * de estado se ponía en `www`, Google regresaba al dominio registrado (sin
+   * `www`) y el callback contestaba `google_estado` (2026-09-23).
+   *
+   * Solo cuando SITE_URL está puesta y el host que ve el proxy es exactamente
+   * `www.` + ese dominio: detrás de Passenger el host puede venir como
+   * `0.0.0.0:3000`, y ahí no hay nada que redirigir. 308 conserva método y
+   * cuerpo, para que un fetch a /api desde `www` no se convierta en GET.
+   */
+  const apex = hostPublico();
+  if (apex && !apex.startsWith('www.')) {
+    const host = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '')
+      .toLowerCase()
+      .replace(/:\d+$/, '');
+    if (host === `www.${apex}`) {
+      const destino = new URL(req.nextUrl.pathname + req.nextUrl.search, process.env.SITE_URL);
+      return NextResponse.redirect(destino, 308);
+    }
+  }
+
   // El logout borra las cookies en su propio handler; no renovar aquí.
   if (req.nextUrl.pathname === '/api/auth/logout') return NextResponse.next();
 
