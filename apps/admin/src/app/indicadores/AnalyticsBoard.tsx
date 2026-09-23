@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -108,10 +109,14 @@ export function AnalyticsBoard({
             {t}
           </button>
         ))}
-        <select value={filtros.categoria} onChange={(e) => ir({ categoria: e.target.value })} style={{ ...input, cursor: 'pointer' }}>
-          <option value="">Todas las líneas</option>
-          {categorias.map((c) => <option key={c.slug} value={c.slug}>{c.name}</option>)}
-        </select>
+        <AdminSelect
+          size="sm"
+          className="w-auto min-w-[190px]"
+          ariaLabel="Línea de servicio"
+          value={filtros.categoria}
+          onChange={(v) => ir({ categoria: v })}
+          options={[{ value: '', label: 'Todas las líneas' }, ...categorias.map((c) => ({ value: c.slug, label: c.name }))]}
+        />
         <input
           value={zona}
           onChange={(e) => setZona(e.target.value)}

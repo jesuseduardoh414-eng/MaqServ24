@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { DocumentAlerts } from './DocumentAlerts';
 import { ProviderHistory } from './ProviderHistory';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
@@ -269,9 +270,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
             <div><span style={label}>Ciudad base</span><input style={input} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
             <div>
               <span style={label}>Nivel</span>
-              <select style={input} value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value })}>
-                {NIVELES.map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
+              <AdminSelect ariaLabel="Nivel" value={form.level} onChange={(v) => setForm({ ...form, level: v })} options={NIVELES.map((n) => ({ value: n, label: n }))} />
             </div>
             <div><span style={label}>Respuesta promedio (minutos)</span><input style={input} type="number" value={form.responseMinutes} onChange={(e) => setForm({ ...form, responseMinutes: e.target.value })} /></div>
             <div style={{ gridColumn: '1 / -1' }}>
@@ -331,13 +330,14 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
                   {p.verified ? 'CON SELLO' : 'SIN SELLO'}
                 </span>
                 <span style={{ fontSize: 12.5, color: d.color }}>Documentos: {d.texto}</span>
-                <select
+                <AdminSelect
+                  size="sm"
+                  className="w-auto min-w-[130px]"
+                  ariaLabel={`Nivel de ${p.name}`}
                   value={p.level}
-                  onChange={(e) => cambiarNivel(p, e.target.value)}
-                  style={{ ...input, width: 'auto', padding: '6px 10px', fontSize: 12.5 }}
-                >
-                  {NIVELES.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                  onChange={(v) => cambiarNivel(p, v)}
+                  options={NIVELES.map((n) => ({ value: n, label: n }))}
+                />
                 <button type="button" onClick={() => abrirExpediente(p)} style={{ marginLeft: 'auto', background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 9, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Expediente ({p.documentCount})
                 </button>
@@ -427,9 +427,7 @@ function ExpedienteModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <span style={label}>Tipo</span>
-              <select style={input} value={kind} onChange={(e) => setKind(e.target.value)}>
-                {TIPOS_DOC.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-              </select>
+              <AdminSelect ariaLabel="Tipo de documento" value={kind} onChange={setKind} options={TIPOS_DOC.map(([k, n]) => ({ value: k, label: n }))} />
             </div>
             <div>
               <span style={label}>Vence el (opcional)</span>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { ROLES_ADMIN, modulosDe, type RolAdmin } from '@maqserv/config';
 import { D } from '@/components/design-tokens';
@@ -104,11 +105,14 @@ export function AdminCreate() {
           </div>
           <div>
             <label style={labelStyle} htmlFor="ad-rol">Rol</label>
-            <select id="ad-rol" name="rol" value={rol} onChange={(e) => setRol(e.target.value as RolAdmin)} style={inputStyle}>
-              {ROLES.map((r) => (
-                <option key={r.clave} value={r.clave}>{r.nombre}</option>
-              ))}
-            </select>
+            <AdminSelect
+              id="ad-rol"
+              name="rol"
+              ariaLabel="Rol"
+              value={rol}
+              onChange={(v) => setRol(v as RolAdmin)}
+              options={ROLES.map((r) => ({ value: r.clave, label: r.nombre }))}
+            />
           </div>
         </div>
 

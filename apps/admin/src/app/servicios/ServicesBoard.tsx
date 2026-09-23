@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { Incidencias } from './Incidencias';
 import { useRouter } from 'next/navigation';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
@@ -426,11 +427,7 @@ function ModalCierre({
           </label>
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={{ fontSize: 12, color: C.muted }}>Unidad</span>
-            <select value={unidad} onChange={(e) => setUnidad(e.target.value)} style={input}>
-              {servicio.units.map((u) => (
-                <option key={u.clave} value={u.clave}>{u.label}</option>
-              ))}
-            </select>
+            <AdminSelect ariaLabel="Unidad" value={unidad} onChange={setUnidad} options={servicio.units.map((u) => ({ value: u.clave, label: u.label }))} />
           </label>
         </div>
 

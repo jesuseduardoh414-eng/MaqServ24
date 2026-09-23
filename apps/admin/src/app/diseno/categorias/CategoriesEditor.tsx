@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { CategoriesSettings, CategoriesView, CtaBlock, ThemeTokens } from '@maqserv/config';
@@ -295,10 +296,14 @@ export function CategoriesEditor({
               <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
                 <h3 style={h3Style}>Categoría destacada</h3>
                 <p style={{ margin: 0, fontSize: 12, color: D.muted }}>Se muestra grande arriba de la página. Deja «Ninguna» para solo el grid.</p>
-                <select value={cv.featuredSlug ?? ''} onChange={(e) => setV('featuredSlug', e.target.value || null)} style={{ ...inputStyle, maxWidth: 320, appearance: 'auto' as CSSProperties['appearance'], colorScheme: 'dark' }}>
-                  <option value="" style={{ background: '#1b1b1e', color: '#f5f5f4' }}>Ninguna</option>
-                  {categories.map((c) => <option key={c.id} value={c.slug} style={{ background: '#1b1b1e', color: '#f5f5f4' }}>{c.name}</option>)}
-                </select>
+                <div style={{ maxWidth: 320 }}>
+                  <AdminSelect
+                    ariaLabel="Categoría destacada"
+                    value={cv.featuredSlug ?? ''}
+                    onChange={(v) => setV('featuredSlug', v || null)}
+                    options={[{ value: '', label: 'Ninguna' }, ...categories.map((c) => ({ value: c.slug, label: c.name }))]}
+                  />
+                </div>
               </div>
               <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>
                 <h3 style={h3Style}>Colores de la página</h3>

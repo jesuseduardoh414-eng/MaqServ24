@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { ROLES_ADMIN, type RolAdmin } from '@maqserv/config';
 import { D } from '@/components/design-tokens';
@@ -104,17 +105,15 @@ export function AdminRowActions({
         En la propia cuenta no se ofrece — la API también lo rechaza.
       */}
       {!isMe ? (
-        <select
-          aria-label={`Rol de ${name}`}
+        <AdminSelect
+          size="sm"
+          className="w-auto min-w-[150px] max-w-[190px]"
+          ariaLabel={`Rol de ${name}`}
           value={rol}
           disabled={busy}
-          onChange={(e) => void send({ rol: e.target.value })}
-          style={{ ...ghost, padding: '6px 8px', cursor: busy ? 'wait' : 'pointer', maxWidth: 168 }}
-        >
-          {ROLES.map((r) => (
-            <option key={r.clave} value={r.clave}>{r.nombre}</option>
-          ))}
-        </select>
+          onChange={(v) => void send({ rol: v })}
+          options={ROLES.map((r) => ({ value: r.clave, label: r.nombre }))}
+        />
       ) : null}
 
       {/* Sin cuenta de acceso no hay contraseña que cambiar. */}

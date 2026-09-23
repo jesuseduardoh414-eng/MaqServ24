@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -209,29 +210,33 @@ export function Incidencias({
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 11 }}>
               <label style={{ display: 'grid', gap: 5 }}>
                 <span style={{ fontSize: 12, color: C.muted }}>Qué pasó</span>
-                <select value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })} style={input}>
-                  {tipos.map((t) => <option key={t.clave} value={t.clave}>{t.label}</option>)}
-                </select>
+                <AdminSelect ariaLabel="Qué pasó" value={f.kind} onChange={(v) => setF({ ...f, kind: v })} options={tipos.map((t) => ({ value: t.clave, label: t.label }))} />
               </label>
               <label style={{ display: 'grid', gap: 5 }}>
                 <span style={{ fontSize: 12, color: C.muted }}>Qué tan grave</span>
-                <select value={f.severity} onChange={(e) => setF({ ...f, severity: e.target.value })} style={input}>
-                  <option value="baja">Baja</option>
-                  <option value="media">Media</option>
-                  <option value="alta">Alta</option>
-                </select>
+                <AdminSelect
+                  ariaLabel="Qué tan grave"
+                  value={f.severity}
+                  onChange={(v) => setF({ ...f, severity: v })}
+                  options={[{ value: 'baja', label: 'Baja' }, { value: 'media', label: 'Media' }, { value: 'alta', label: 'Alta' }]}
+                />
               </label>
               <label style={{ display: 'grid', gap: 5 }}>
                 <span style={{ fontSize: 12, color: C.muted }}>De quién fue</span>
-                <select value={f.responsible} onChange={(e) => setF({ ...f, responsible: e.target.value })} style={input}>
-                  {/* "De nadie" primero y por defecto: muchas incidencias no son
-                      culpa de alguien, y obligar a señalar culpable haría que
-                      nadie quisiera levantarlas. */}
-                  <option value="nadie">De nadie / aún no se sabe</option>
-                  <option value="aliado">Del aliado</option>
-                  <option value="cliente">Del cliente</option>
-                  <option value="plataforma">Nuestra</option>
-                </select>
+                {/* "De nadie" primero y por defecto: muchas incidencias no son
+                    culpa de alguien, y obligar a señalar culpable haría que
+                    nadie quisiera levantarlas. */}
+                <AdminSelect
+                  ariaLabel="De quién fue"
+                  value={f.responsible}
+                  onChange={(v) => setF({ ...f, responsible: v })}
+                  options={[
+                    { value: 'nadie', label: 'De nadie / aún no se sabe' },
+                    { value: 'aliado', label: 'Del aliado' },
+                    { value: 'cliente', label: 'Del cliente' },
+                    { value: 'plataforma', label: 'Nuestra' },
+                  ]}
+                />
               </label>
             </div>
 

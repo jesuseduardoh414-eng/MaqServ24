@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { D, FONT } from '@/components/editor-kit';
 import { QuoteRespond } from './QuoteRespond';
 import { QuoteMatches } from './QuoteMatches';
@@ -155,15 +156,18 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
 
         <label style={{ ...toolbarBox, gap: 8 }}>
           <span style={{ color: '#6B6B71', fontSize: 12.5, fontWeight: 600 }}>Ordenar</span>
-          <select
+          <AdminSelect
+            size="sm"
+            className="w-auto min-w-[150px]"
+            ariaLabel="Ordenar"
             value={sort}
-            onChange={(e) => { setSort(e.target.value as Sort); setPage(1); }}
-            style={{ background: 'transparent', border: 'none', color: D.text, fontSize: 13.5, fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer', outline: 'none' }}
-          >
-            <option value="recent" style={{ background: D.card }}>Más recientes</option>
-            <option value="oldest" style={{ background: D.card }}>Más antiguas</option>
-            <option value="amount" style={{ background: D.card }}>Mayor monto</option>
-          </select>
+            onChange={(v) => { setSort(v as Sort); setPage(1); }}
+            options={[
+              { value: 'recent', label: 'Más recientes' },
+              { value: 'oldest', label: 'Más antiguas' },
+              { value: 'amount', label: 'Mayor monto' },
+            ]}
+          />
         </label>
       </div>
 

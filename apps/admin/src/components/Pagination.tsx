@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 
 /**
  * Paginación reutilizable para los módulos de listado del admin (productos,
@@ -69,13 +70,14 @@ export function Pagination({
         {pageSize != null && onPageSizeChange ? (
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: C.dim, fontWeight: 500 }}>
             Por página
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 9, padding: '7px 10px', fontSize: 13, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit', colorScheme: 'dark' }}
-            >
-              {pageSizeOptions.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <AdminSelect
+              size="sm"
+              className="w-auto min-w-[72px]"
+              ariaLabel="Filas por página"
+              value={String(pageSize)}
+              onChange={(v) => onPageSizeChange(Number(v))}
+              options={pageSizeOptions.map((n) => ({ value: String(n), label: String(n) }))}
+            />
           </label>
         ) : null}
       </div>

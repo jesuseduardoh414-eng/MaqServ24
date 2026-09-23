@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 
 export interface EquipoRow {
   id: number;
@@ -240,9 +241,7 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, alignItems: 'end' }}>
                     <div>
                       <span style={label}>Motivo del bloqueo</span>
-                      <select style={input} value={motivo} onChange={(ev) => setMotivo(ev.target.value)}>
-                        {MOTIVOS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
-                      </select>
+                      <AdminSelect ariaLabel="Motivo del bloqueo" value={motivo} onChange={setMotivo} options={MOTIVOS.map(([k, n]) => ({ value: k, label: n }))} />
                     </div>
                     <div><span style={label}>Desde</span><input style={input} type="date" value={desde} onChange={(ev) => setDesde(ev.target.value)} /></div>
                     <div><span style={label}>Hasta (opcional)</span><input style={input} type="date" value={hasta} onChange={(ev) => setHasta(ev.target.value)} /></div>

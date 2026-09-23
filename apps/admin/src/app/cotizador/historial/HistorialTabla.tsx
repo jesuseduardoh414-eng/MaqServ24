@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { COTIZADORES_META, COTIZADOR_TIPOS, type CotizadorTipo } from '@maqserv/config';
@@ -87,22 +88,28 @@ export function HistorialTabla({
   return (
     <div>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-        <select value={filtros.kind} onChange={(e) => navegar({ kind: e.target.value })} style={control}>
-          <option value="">Los dos cotizadores</option>
-          {COTIZADOR_TIPOS.map((t) => (
-            <option key={t} value={t}>
-              {COTIZADORES_META[t as CotizadorTipo].titulo}
-            </option>
-          ))}
-        </select>
-        <select value={filtros.state} onChange={(e) => navegar({ state: e.target.value })} style={control}>
-          <option value="">Cualquier estado</option>
-          {Object.entries(ESTADOS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v.texto}
-            </option>
-          ))}
-        </select>
+        <AdminSelect
+          size="sm"
+          className="w-auto min-w-[180px]"
+          ariaLabel="Cotizador"
+          value={filtros.kind}
+          onChange={(v) => navegar({ kind: v })}
+          options={[
+            { value: '', label: 'Los dos cotizadores' },
+            ...COTIZADOR_TIPOS.map((t) => ({ value: t, label: COTIZADORES_META[t as CotizadorTipo].titulo })),
+          ]}
+        />
+        <AdminSelect
+          size="sm"
+          className="w-auto min-w-[170px]"
+          ariaLabel="Estado"
+          value={filtros.state}
+          onChange={(v) => navegar({ state: v })}
+          options={[
+            { value: '', label: 'Cualquier estado' },
+            ...Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto })),
+          ]}
+        />
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -165,17 +172,15 @@ export function HistorialTabla({
                     <td style={{ ...td, fontWeight: 700, whiteSpace: 'nowrap' }}>{money(q.total)}</td>
                     <td style={{ ...td, color: D.muted2, whiteSpace: 'nowrap' }}>{fechaCorta(q.fecha)}</td>
                     <td style={td}>
-                      <select
+                      <AdminSelect
+                        size="sm"
+                        className="w-auto min-w-[140px]"
+                        ariaLabel={`Estado de ${q.folio}`}
                         value={q.estado}
-                        onChange={(e) => cambiarEstado(q.id, e.target.value)}
-                        style={{ ...control, height: 32, fontSize: 12.5, color: est.color, fontWeight: 700 }}
-                      >
-                        {Object.entries(ESTADOS).map(([k, v]) => (
-                          <option key={k} value={k}>
-                            {v.texto}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(v) => cambiarEstado(q.id, v)}
+                        style={{ color: est.color, fontWeight: 700 }}
+                        options={Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto }))}
+                      />
                     </td>
                     <td style={{ ...td, textAlign: 'right' }}>
                       <button

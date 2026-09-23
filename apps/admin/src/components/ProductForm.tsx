@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@maqserv/ui';
+import { AdminSelect } from '@/components/AdminSelect';
 
 export interface ProductFormData {
   id?: number;
@@ -82,15 +83,14 @@ export function ProductForm({
           <Input name="name" required minLength={2} defaultValue={initial.name ?? ''} style={full} />
         </label>
         <label style={label('')}>Categoría
-          <select
+          <AdminSelect
             name="categoryId"
             required
-            defaultValue={initial.categoryId ?? ''}
-            style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '.5em .8em' }}
-          >
-            <option value="" disabled>Selecciona…</option>
-            {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+            ariaLabel="Categoría"
+            placeholder="Selecciona…"
+            defaultValue={initial.categoryId ? String(initial.categoryId) : ''}
+            options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
+          />
         </label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '.8rem' }}>
           <label style={label('')}>Precio
@@ -143,16 +143,15 @@ export function ProductForm({
           tiene esta máquina, y él la ve en su portal para confirmar disponibilidad.
         </p>
         <label style={label('')}>Proveedor
-          <select
+          <AdminSelect
             name="providerId"
-            defaultValue={initial.providerId ?? ''}
-            style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '.5em .8em' }}
-          >
-            <option value="">MAQSER24 · equipo propio</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}{p.level ? ` · ${p.level}` : ''}</option>
-            ))}
-          </select>
+            ariaLabel="Proveedor"
+            defaultValue={initial.providerId ? String(initial.providerId) : ''}
+            options={[
+              { value: '', label: 'MAQSER24 · equipo propio' },
+              ...providers.map((p) => ({ value: String(p.id), label: `${p.name}${p.level ? ` · ${p.level}` : ''}` })),
+            ]}
+          />
         </label>
         {providers.length === 0 ? (
           <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 
 /**
@@ -115,21 +116,24 @@ export function AgendaView({
         <button type="button" onClick={() => mover(-1)} style={{ ...input, cursor: 'pointer' }}>‹ Semana anterior</button>
         <button type="button" onClick={() => router.push('/agenda')} style={{ ...input, cursor: 'pointer' }}>Hoy</button>
         <button type="button" onClick={() => mover(1)} style={{ ...input, cursor: 'pointer' }}>Semana siguiente ›</button>
-        <select
+        <AdminSelect
+          size="sm"
+          className="w-auto min-w-[130px]"
+          ariaLabel="Semanas a la vista"
           value={filtros.semanas}
-          onChange={(e) => {
+          onChange={(v) => {
             const qs = new URLSearchParams();
             if (filtros.desde) qs.set('desde', filtros.desde);
-            if (e.target.value !== '2') qs.set('semanas', e.target.value);
+            if (v !== '2') qs.set('semanas', v);
             router.push(`/agenda${qs.size ? `?${qs}` : ''}`);
           }}
-          style={{ ...input, cursor: 'pointer' }}
-        >
-          <option value="1">1 semana</option>
-          <option value="2">2 semanas</option>
-          <option value="4">4 semanas</option>
-          <option value="6">6 semanas</option>
-        </select>
+          options={[
+            { value: '1', label: '1 semana' },
+            { value: '2', label: '2 semanas' },
+            { value: '4', label: '4 semanas' },
+            { value: '6', label: '6 semanas' },
+          ]}
+        />
       </div>
 
       <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 16 }}>

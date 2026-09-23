@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { Button, Card, Input } from '@maqserv/ui';
 
@@ -29,23 +30,14 @@ export function ThemeDuplicate({ themes }: { themes: Array<{ id: number; name: s
     <Card style={{ display: 'grid', gap: '.6rem' }}>
       <strong>Duplicar tema (punto de partida para un sector nuevo)</strong>
       <form onSubmit={onSubmit} style={{ display: 'flex', gap: '.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <select
+        <AdminSelect
           name="fromId"
           required
-          style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 'var(--text-sm)',
-            padding: '.5em .8em',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text)',
-          }}
-        >
-          {themes.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
+          ariaLabel="Tema de origen"
+          className="w-auto min-w-[220px]"
+          defaultValue={themes[0] ? String(themes[0].id) : ''}
+          options={themes.map((t) => ({ value: String(t.id), label: t.name }))}
+        />
         <Input name="name" required minLength={2} placeholder="Nombre del tema nuevo" aria-label="Nombre del tema nuevo" style={{ flex: '1 1 200px' }} />
         <Button type="submit" disabled={loading}>Duplicar</Button>
       </form>

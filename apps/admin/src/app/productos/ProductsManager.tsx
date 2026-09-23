@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { unidadesDe, atributosDe } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
 
@@ -301,22 +302,35 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
           <i className="ph ph-magnifying-glass" style={{ color: C.dim, fontSize: 15 }} />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar producto o marca..." style={{ flex: 1, border: 'none', background: 'transparent', color: C.ink, fontSize: 13.5, outline: 'none', fontFamily: 'inherit' }} />
         </div>
-        <select value={catFilter} onChange={(e) => setCatFilter(e.target.value)} style={selStyle}>
-          <option value="todas">Todas las categorías</option>
-          {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
-        </select>
+        <AdminSelect
+          size="sm"
+          className="w-auto min-w-[190px]"
+          ariaLabel="Categoría"
+          value={catFilter}
+          onChange={setCatFilter}
+          options={[{ value: 'todas', label: 'Todas las categorías' }, ...categories.map((c) => ({ value: c.name, label: c.name }))]}
+        />
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={() => setFilter('todos')} style={chip(filter === 'todos')}>Todos</button>
           <button type="button" onClick={() => setFilter('activos')} style={chip(filter === 'activos')}>Activos</button>
           <button type="button" onClick={() => setFilter('destacados')} style={chip(filter === 'destacados')}>★ Destacados</button>
         </div>
-        <select value={sort} onChange={(e) => setSort(e.target.value)} style={{ ...selStyle, marginLeft: 'auto' }}>
-          <option value="rel">Ordenar: Relevancia</option>
-          <option value="asc">Precio: menor</option>
-          <option value="desc">Precio: mayor</option>
-          <option value="stock">Stock</option>
-          <option value="name">Nombre A-Z</option>
-        </select>
+        <div style={{ marginLeft: 'auto' }}>
+          <AdminSelect
+            size="sm"
+            className="w-auto min-w-[180px]"
+            ariaLabel="Ordenar"
+            value={sort}
+            onChange={setSort}
+            options={[
+              { value: 'rel', label: 'Ordenar: Relevancia' },
+              { value: 'asc', label: 'Precio: menor' },
+              { value: 'desc', label: 'Precio: mayor' },
+              { value: 'stock', label: 'Stock' },
+              { value: 'name', label: 'Nombre A-Z' },
+            ]}
+          />
+        </div>
       </div>
 
       {/* Tabla */}
@@ -440,7 +454,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
               {/* Marca + Categoría */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div><label style={labelStyle}>Marca</label><input value={form.brand} onChange={(e) => setF('brand', e.target.value)} placeholder="Ej. Caterpillar" style={inputStyle} /></div>
-                <div><label style={labelStyle}>Categoría</label><select value={form.categoryId} onChange={(e) => setF('categoryId', Number(e.target.value))} style={{ ...inputStyle, cursor: 'pointer', colorScheme: 'dark' }}>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                <div><label style={labelStyle}>Categoría</label><AdminSelect ariaLabel="Categoría" value={String(form.categoryId)} onChange={(v) => setF('categoryId', Number(v))} options={categories.map((c) => ({ value: String(c.id), label: c.name }))} /></div>
               </div>
               {/* Precio + Precio anterior */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -453,16 +467,17 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
                     pipas (viaje), volteos (viaje) y triturados (tonelada).
                     Las opciones salen de la categoria elegida.
                   */}
-                  <select
-                    value={form.priceUnit}
-                    onChange={(e) => setF('priceUnit', e.target.value)}
-                    style={{ ...inputStyle, marginTop: 8 }}
-                  >
-                    <option value="">Por pieza (venta)</option>
-                    {unidadesDe(categories.find((c) => c.id === form.categoryId)?.slug).map((u) => (
-                      <option key={u.clave} value={u.clave}>Por {u.singular}</option>
-                    ))}
-                  </select>
+                  <div style={{ marginTop: 8 }}>
+                    <AdminSelect
+                      ariaLabel="Unidad del precio"
+                      value={form.priceUnit}
+                      onChange={(v) => setF('priceUnit', v)}
+                      options={[
+                        { value: '', label: 'Por pieza (venta)' },
+                        ...unidadesDe(categories.find((c) => c.id === form.categoryId)?.slug).map((u) => ({ value: u.clave, label: `Por ${u.singular}` })),
+                      ]}
+                    />
+                  </div>
                 </div>
                 <div><label style={labelStyle}>Precio anterior (opcional)</label><input value={form.oldPrice} onChange={(e) => setF('oldPrice', e.target.value)} type="number" placeholder="Para mostrar descuento" style={inputStyle} /></div>
               </div>
@@ -495,14 +510,12 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
                             {a.compara ? <span style={{ color: C.amber }} title="Se compara contra lo que pide la solicitud"> ·</span> : null}
                           </label>
                           {a.tipo === 'opcion' ? (
-                            <select
+                            <AdminSelect
+                              ariaLabel={a.label}
                               value={form.attributes[a.clave] ?? ''}
-                              onChange={(e) => setF('attributes', { ...form.attributes, [a.clave]: e.target.value })}
-                              style={inputStyle}
-                            >
-                              <option value="">Sin especificar</option>
-                              {(a.opciones ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
-                            </select>
+                              onChange={(v) => setF('attributes', { ...form.attributes, [a.clave]: v })}
+                              options={[{ value: '', label: 'Sin especificar' }, ...(a.opciones ?? []).map((o) => ({ value: o, label: o }))]}
+                            />
                           ) : (
                             <input
                               type={a.tipo === 'numero' ? 'number' : 'text'}

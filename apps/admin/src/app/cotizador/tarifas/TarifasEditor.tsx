@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import {
   COTIZADORES_META,
   type CatalogoCotizador,
@@ -314,19 +315,16 @@ function EditorMaquinaria({
               />
             </Campo>
             <Campo etiqueta="Tipo de flete">
-              <select
-                style={input}
+              <AdminSelect
+                ariaLabel="Tipo de flete"
                 value={eq.flete_tipo}
-                onChange={(e) => {
+                onChange={(v) => {
                   const equipos = [...cat.equipos];
-                  equipos[i] = { ...eq, flete_tipo: e.target.value };
+                  equipos[i] = { ...eq, flete_tipo: v };
                   set({ equipos } as Partial<CatalogoCotizador>);
                 }}
-              >
-                {tiposFlete.map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
+                options={tiposFlete.map((k) => ({ value: k, label: k }))}
+              />
             </Campo>
             <CampoProveedor
               proveedores={proveedores}
@@ -417,19 +415,16 @@ function EditorMaquinaria({
               }}
             />
             <Campo etiqueta="Condición">
-              <select
-                style={input}
+              <AdminSelect
+                ariaLabel="Bloque de condiciones"
                 value={sv.cond}
-                onChange={(e) => {
+                onChange={(v) => {
                   const servicios = [...cat.servicios];
-                  servicios[i] = { ...sv, cond: e.target.value };
+                  servicios[i] = { ...sv, cond: v };
                   set({ servicios } as Partial<CatalogoCotizador>);
                 }}
-              >
-                {Object.keys(cat.condiciones).map((k) => (
-                  <option key={k} value={k}>{k}</option>
-                ))}
-              </select>
+                options={Object.keys(cat.condiciones).map((k) => ({ value: k, label: k }))}
+              />
             </Campo>
             <Campo etiqueta="Precios sugeridos (coma)" ancho>
               <input
@@ -632,19 +627,15 @@ function CampoProveedor({
             : 'Recibe el aviso cuando lo cotizan.'
       }
     >
-      <select
-        style={input}
-        value={valor ?? ''}
-        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
-      >
-        <option value="">Sin asignar</option>
-        {proveedores.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.nombre}
-            {p.conCorreo ? '' : ' (sin correo)'}
-          </option>
-        ))}
-      </select>
+      <AdminSelect
+        ariaLabel="Proveedor dueño"
+        value={valor === null || valor === undefined ? '' : String(valor)}
+        onChange={(v) => onChange(v ? Number(v) : null)}
+        options={[
+          { value: '', label: 'Sin asignar' },
+          ...proveedores.map((p) => ({ value: String(p.id), label: `${p.nombre}${p.conCorreo ? '' : ' (sin correo)'}` })),
+        ]}
+      />
     </Campo>
   );
 }

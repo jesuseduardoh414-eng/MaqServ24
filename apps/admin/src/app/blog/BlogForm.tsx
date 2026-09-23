@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle } from '@/components/editor-kit';
@@ -84,9 +85,7 @@ export function BlogForm({ initial }: { initial: BlogFormData }) {
             <Field label="Título"><input name="title" required minLength={2} defaultValue={initial.title ?? ''} placeholder="Título de la entrada" style={inputStyle} /></Field>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }} className="blog-form-row">
               <Field label="Categoría">
-                <select name="category" defaultValue={initial.category ?? 'General'} style={selectStyle}>
-                  {BLOG_CATEGORIES.map((c) => <option key={c} value={c} style={{ background: D.card }}>{c}</option>)}
-                </select>
+                <AdminSelect name="category" ariaLabel="Categoría" defaultValue={initial.category ?? 'General'} options={BLOG_CATEGORIES.map((c) => ({ value: c, label: c }))} />
               </Field>
               <Field label="Autor (opcional)"><input name="source" defaultValue={initial.source ?? ''} placeholder="Ej. Ing. Ramón Salas" style={inputStyle} /></Field>
             </div>

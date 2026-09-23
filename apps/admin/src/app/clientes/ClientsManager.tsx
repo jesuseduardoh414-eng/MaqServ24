@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { SiteEditor, type Obra } from './SiteEditor';
 
@@ -257,22 +258,22 @@ function FichaCliente({ clientId }: { clientId: number }) {
                 <span style={{ color: C.muted }}>{q.category ?? 'sin línea'}</span>
                 <span style={{ color: C.ink }}>{money(q.total)}</span>
                 {ficha.sites.length > 0 ? (
-                  <select
-                    defaultValue=""
-                    onChange={async (e) => {
-                      if (!e.target.value) return;
+                  <AdminSelect
+                    size="sm"
+                    className="w-auto min-w-[170px]"
+                    ariaLabel="Mover a una obra"
+                    value=""
+                    onChange={async (v) => {
+                      if (!v) return;
                       await fetch(`/api/admin/clients/quotes/${q.id}/site`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ siteId: Number(e.target.value) }),
+                        body: JSON.stringify({ siteId: Number(v) }),
                       });
                       recargar();
                     }}
-                    style={{ ...input, width: 'auto', padding: '4px 8px', fontSize: 12 }}
-                  >
-                    <option value="">Mover a una obra…</option>
-                    {ficha.sites.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                  </select>
+                    options={[{ value: '', label: 'Mover a una obra…' }, ...ficha.sites.map((s) => ({ value: String(s.id), label: s.name }))]}
+                  />
                 ) : null}
               </div>
             ))}
