@@ -127,16 +127,32 @@ ALTER TABLE product_questions AUTO_INCREMENT = 1;
 ALTER TABLE comments AUTO_INCREMENT = 1;
 ALTER TABLE wishlists AUTO_INCREMENT = 1;
 
--- ── Administradores: UNO SOLO, el dueño del sistema (MAQSER24) ─────────────
--- Decisión del cliente: por ahora solo existe el administrador dueño. Las
--- demás cuentas (las del sistema viejo y las de prueba) se DESACTIVAN, no se
--- borran: una cuenta desactivada no puede entrar y su sesión abierta se corta,
--- pero queda el rastro y se reactiva con un clic desde Administradores si
--- algún día hace falta. Cambia el correo si el dueño entra con otro.
+-- ── Administradores: solo MAQSER24 (la cuenta personal del dueño y la de
+--    ventas de la empresa). Las demás se DESACTIVAN, no se borran: no pueden
+--    entrar y se les corta la sesión, pero se reactivan con un clic desde
+--    Administradores si algún día hacen falta.
 UPDATE admins
    SET role = 'direccion', status = 1
- WHERE email = 'jesuseduardoh414@gmail.com';
+ WHERE email IN ('jesuseduardoh414@gmail.com', 'ventas@maqserv24.com');
 
 UPDATE admins
    SET status = 0
- WHERE email <> 'jesuseduardoh414@gmail.com';
+ WHERE email NOT IN ('jesuseduardoh414@gmail.com', 'ventas@maqserv24.com');
+
+-- ── Los dos administradores del sistema viejo pasan a ser PROVEEDORES ──────
+-- Decisión del cliente: SFM (ventas@segaferreterias.com) y "hidden"
+-- (jm18.jhr@gmail.com) no son administradores; son aliados. Se dan de alta con
+-- su nombre y correo, en nivel "registrado" y sin categorías: el resto (nivel,
+-- servicios que atienden, cobertura, papeles) se completa desde Red de aliados,
+-- y desde ahí mismo se les manda su enlace con "Su acceso". Idempotente: si ya
+-- existe un proveedor con ese correo, no se duplica.
+INSERT INTO providers
+  (name, slug, level, contact_name, email, coverage, categories, status,
+   joined_at, created_at, updated_at, access_version)
+SELECT a.name,
+       LOWER(REPLACE(TRIM(a.name), ' ', '-')),
+       'registrado', a.name, a.email, '[]', '[]', 1,
+       NOW(6), NOW(6), NOW(6), 1
+  FROM admins a
+ WHERE a.email IN ('ventas@segaferreterias.com', 'jm18.jhr@gmail.com')
+   AND NOT EXISTS (SELECT 1 FROM providers p WHERE p.email = a.email);
