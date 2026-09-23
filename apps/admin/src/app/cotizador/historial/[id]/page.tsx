@@ -6,6 +6,7 @@ import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D } from '@/components/design-tokens';
 import { DocumentoGuardado } from './DocumentoGuardado';
+import { BotonEnviarCliente } from './BotonEnviarCliente';
 
 interface CotizacionDetalle {
   id: number;
@@ -78,6 +79,7 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
             calc: cot.documento.calc,
             mostrarPrecios: true,
           }}
+          acciones={<BotonEnviarCliente id={cot.id} correo={cot.correo} estado={cot.estado} />}
         />
       </div>
     </AdminShell>

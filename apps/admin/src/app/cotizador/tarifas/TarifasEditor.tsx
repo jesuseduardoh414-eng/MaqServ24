@@ -23,7 +23,21 @@ import { D } from '@/components/design-tokens';
  * condiciones), y con parches sueltos dos personas editando a la vez dejarían
  * una mezcla que ninguna de las dos escribió.
  */
-export function TarifasEditor({ inicial }: { inicial: Record<CotizadorTipo, CatalogoCotizador> }) {
+/** Un proveedor como lo ve este selector: lo justo para elegirlo. */
+export interface ProveedorOpcion {
+  id: number;
+  nombre: string;
+  /** Sin correo, asignarlo se ve igual en pantalla y no avisa a nadie. */
+  conCorreo: boolean;
+}
+
+export function TarifasEditor({
+  inicial,
+  proveedores,
+}: {
+  inicial: Record<CotizadorTipo, CatalogoCotizador>;
+  proveedores: ProveedorOpcion[];
+}) {
   const [tipo, setTipo] = useState<CotizadorTipo>('maquinaria');
   const [cats, setCats] = useState(inicial);
   const [guardando, setGuardando] = useState(false);
@@ -149,7 +163,11 @@ export function TarifasEditor({ inicial }: { inicial: Record<CotizadorTipo, Cata
         </Rejilla>
       </Bloque>
 
-      {cat.tipo === 'maquinaria' ? <EditorMaquinaria cat={cat} set={set} /> : <EditorTriturados cat={cat} set={set} />}
+      {cat.tipo === 'maquinaria' ? (
+        <EditorMaquinaria cat={cat} set={set} proveedores={proveedores} />
+      ) : (
+        <EditorTriturados cat={cat} set={set} proveedores={proveedores} />
+      )}
 
       <Bloque titulo="Condiciones comerciales" ayuda="Se imprimen al pie, y solo los bloques que apliquen a las partidas de esa cotización. Un punto por renglón.">
         {Object.entries(cat.condiciones).map(([clave, bloque]) => (
@@ -210,7 +228,15 @@ export function TarifasEditor({ inicial }: { inicial: Record<CotizadorTipo, Cata
 
 // ---------------------------------------------------------------------------
 
-function EditorMaquinaria({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Partial<CatalogoCotizador>) => void }) {
+function EditorMaquinaria({
+  cat,
+  set,
+  proveedores,
+}: {
+  cat: CatalogoMaquinaria;
+  set: (p: Partial<CatalogoCotizador>) => void;
+  proveedores: ProveedorOpcion[];
+}) {
   const tiposFlete = Object.keys(cat.fletes);
   return (
     <>
@@ -267,7 +293,10 @@ function EditorMaquinaria({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Part
         </Rejilla>
       </Bloque>
 
-      <Bloque titulo="Equipos" ayuda="Tarifa por día en cada tramo. El costo por hora sale de dividir entre la jornada.">
+      <Bloque
+        titulo="Equipos"
+        ayuda="Tarifa por día en cada tramo. El costo por hora sale de dividir entre la jornada. El proveedor es quien recibe el aviso cuando alguien cotiza ese equipo desde el sitio."
+      >
         {cat.equipos.map((eq, i) => (
           <Renglon
             key={eq.id}
@@ -299,6 +328,15 @@ function EditorMaquinaria({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Part
                 ))}
               </select>
             </Campo>
+            <CampoProveedor
+              proveedores={proveedores}
+              valor={eq.proveedor_id ?? null}
+              onChange={(v) => {
+                const equipos = [...cat.equipos];
+                equipos[i] = { ...eq, proveedor_id: v };
+                set({ equipos } as Partial<CatalogoCotizador>);
+              }}
+            />
             {(['dia', 'semana', 'mes'] as const).map((k) => (
               <Campo key={k} etiqueta={`Tarifa ${k}`}>
                 <input
@@ -322,7 +360,9 @@ function EditorMaquinaria({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Part
             set({
               equipos: [
                 ...cat.equipos,
-                { id: `eq_${Date.now()}`, nombre: 'Equipo nuevo', icono: 'excavadora', flete_tipo: tiposFlete[0] ?? 'Excavadora', tarifas: { dia: 0, semana: 0, mes: 0 } },
+                // Nace sin dueño a propósito: adivinarlo mandaría el aviso a
+                // quien no le toca, y eso es peor que no mandarlo.
+                { id: `eq_${Date.now()}`, nombre: 'Equipo nuevo', icono: 'excavadora', flete_tipo: tiposFlete[0] ?? 'Excavadora', tarifas: { dia: 0, semana: 0, mes: 0 }, proveedor_id: null },
               ],
             } as Partial<CatalogoCotizador>)
           }
@@ -367,6 +407,15 @@ function EditorMaquinaria({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Part
                 }}
               />
             </Campo>
+            <CampoProveedor
+              proveedores={proveedores}
+              valor={sv.proveedor_id ?? null}
+              onChange={(v) => {
+                const servicios = [...cat.servicios];
+                servicios[i] = { ...sv, proveedor_id: v };
+                set({ servicios } as Partial<CatalogoCotizador>);
+              }}
+            />
             <Campo etiqueta="Condición">
               <select
                 style={input}
@@ -411,7 +460,15 @@ function EditorMaquinaria({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Part
   );
 }
 
-function EditorTriturados({ cat, set }: { cat: CatalogoTriturados; set: (p: Partial<CatalogoCotizador>) => void }) {
+function EditorTriturados({
+  cat,
+  set,
+  proveedores,
+}: {
+  cat: CatalogoTriturados;
+  set: (p: Partial<CatalogoCotizador>) => void;
+  proveedores: ProveedorOpcion[];
+}) {
   return (
     <>
       <Bloque titulo="Materiales" ayuda="Precio por tonelada, cargado en planta.">
@@ -441,6 +498,15 @@ function EditorTriturados({ cat, set }: { cat: CatalogoTriturados; set: (p: Part
                 }}
               />
             </Campo>
+            <CampoProveedor
+              proveedores={proveedores}
+              valor={p.proveedor_id ?? null}
+              onChange={(v) => {
+                const productos = [...cat.productos];
+                productos[i] = { ...p, proveedor_id: v };
+                set({ productos } as Partial<CatalogoCotizador>);
+              }}
+            />
           </Renglon>
         ))}
         <BotonAgregar
@@ -514,6 +580,11 @@ function EditorTriturados({ cat, set }: { cat: CatalogoTriturados; set: (p: Part
           <Campo etiqueta="m³ del camión">
             <input style={input} type="number" min="0" value={cat.material_banco.camion_m3} onChange={(e) => set({ material_banco: { ...cat.material_banco, camion_m3: Number(e.target.value) } } as Partial<CatalogoCotizador>)} />
           </Campo>
+          <CampoProveedor
+            proveedores={proveedores}
+            valor={cat.material_banco.proveedor_id ?? null}
+            onChange={(v) => set({ material_banco: { ...cat.material_banco, proveedor_id: v } } as Partial<CatalogoCotizador>)}
+          />
         </Rejilla>
         <div style={{ height: 14 }} />
         <Interruptor
@@ -528,6 +599,55 @@ function EditorTriturados({ cat, set }: { cat: CatalogoTriturados; set: (p: Part
 }
 
 // ---- piezas ----
+
+/**
+ * DE QUIÉN ES ESTA PARTIDA.
+ *
+ * El dueño decide a quién le llega el correo cuando alguien la cotiza desde el
+ * sitio. "Sin asignar" es una opción legítima y es como nacen las partidas
+ * nuevas: adivinar el proveedor mandaría trabajo a quien no le toca.
+ *
+ * A los que no tienen correo capturado se les avisa en la propia opción. Sin
+ * eso, asignarlos se ve idéntico a asignar a cualquier otro y el aviso
+ * simplemente no sale, sin que nadie se entere.
+ */
+function CampoProveedor({
+  proveedores,
+  valor,
+  onChange,
+}: {
+  proveedores: ProveedorOpcion[];
+  valor: number | null;
+  onChange: (v: number | null) => void;
+}) {
+  const elegido = proveedores.find((p) => p.id === valor);
+  return (
+    <Campo
+      etiqueta="Proveedor"
+      nota={
+        proveedores.length === 0
+          ? 'No hay proveedores activos todavía.'
+          : elegido && !elegido.conCorreo
+            ? 'Sin correo capturado: no recibirá el aviso.'
+            : 'Recibe el aviso cuando lo cotizan.'
+      }
+    >
+      <select
+        style={input}
+        value={valor ?? ''}
+        onChange={(e) => onChange(e.target.value ? Number(e.target.value) : null)}
+      >
+        <option value="">Sin asignar</option>
+        {proveedores.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.nombre}
+            {p.conCorreo ? '' : ' (sin correo)'}
+          </option>
+        ))}
+      </select>
+    </Campo>
+  );
+}
 
 function Bloque({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: ReactNode }) {
   return (

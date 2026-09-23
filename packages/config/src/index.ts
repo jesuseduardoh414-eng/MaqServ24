@@ -70,6 +70,7 @@ export {
   opcionesCotizadorSchema,
   esCotizadorTipo,
   pasosDe,
+  partidasPorProveedor,
   tierDe,
   equipoDe,
   servicioDe,

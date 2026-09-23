@@ -69,6 +69,24 @@ const publicoSchema = z.object({
   mostrarPrecios: z.boolean(),
 });
 
+/**
+ * DE QUÉ PROVEEDOR ES ESTA PARTIDA.
+ *
+ * El tabulador nació como una lista de precios sin dueño: MAQSER24 cotizaba y
+ * ya. Pero quien atiende la renta es el proveedor que publica la máquina, y
+ * sin este campo una solicitud del sitio no tenía a quién avisarle — llegaba
+ * al panel y ahí se quedaba hasta que una persona la viera.
+ *
+ * Es `id` de la tabla `providers`, no un correo: el proveedor cambia su
+ * correo desde su portal (/aliado) y el aviso tiene que seguirlo sin que nadie
+ * toque el tabulador.
+ *
+ * Opcional y nulable A PROPÓSITO: los catálogos que ya existen no lo traen, y
+ * una partida sin dueño tiene que seguir cotizándose igual — simplemente su
+ * aviso se queda en el interno.
+ */
+const proveedorDe = () => z.number().int().positive().nullable().optional();
+
 const tierSchema = z.object({
   id: z.string().max(30),
   label: z.string().max(60),
@@ -81,6 +99,7 @@ const equipoSchema = z.object({
   nombre: z.string().min(1).max(120),
   icono: z.string().max(40),
   flete_tipo: z.string().min(1).max(60),
+  proveedor_id: proveedorDe(),
   tarifas: z.object({ dia: z.number().min(0), semana: z.number().min(0), mes: z.number().min(0) }),
 });
 
@@ -92,6 +111,7 @@ const servicioSchema = z.object({
   precio: z.number().min(0),
   presets: z.array(z.number().min(0)).max(20),
   cond: z.string().max(40),
+  proveedor_id: proveedorDe(),
 });
 
 export const catalogoMaquinariaSchema = z.object({
@@ -116,6 +136,7 @@ const productoSchema = z.object({
   id: z.string().min(1).max(40),
   nombre: z.string().min(1).max(120),
   precio_ton: z.number().min(0),
+  proveedor_id: proveedorDe(),
 });
 
 const zonaSchema = z.object({
@@ -144,6 +165,7 @@ export const catalogoTrituradosSchema = z.object({
     unidad: z.string().max(10),
     precio_m3_default: z.number().min(0),
     camion_m3: z.number().min(0),
+    proveedor_id: proveedorDe(),
   }),
   unidad_zona: z.string().max(20),
   nota_zona: z.string().max(160),
@@ -623,6 +645,68 @@ export const PASOS_TRITURADOS: PasoCotizador[] = [
   { clave: 'entrega', titulo: 'Entrega y factura', ayuda: 'Flete por tonelada, zona de entrega y si lleva IVA.' },
   { clave: 'resumen', titulo: 'Resumen', ayuda: 'Revisa el documento antes de guardarlo o enviarlo.' },
 ];
+
+/**
+ * A QUIÉN LE TOCA CADA PARTIDA.
+ *
+ * Agrupa lo que el cliente pidió por proveedor dueño (`proveedor_id` del
+ * tabulador) para que a cada uno le llegue UN correo con lo suyo, y no uno por
+ * renglón: pedir tres equipos del mismo proveedor es un solo trabajo para él.
+ *
+ * Las partidas SIN dueño no salen en la lista. No es un olvido: mientras nadie
+ * las haya asignado en Tarifas, el único aviso posible es el interno, y
+ * fabricar un destinatario sería mandarle trabajo a quien no le toca.
+ *
+ * Devuelve los conceptos en texto, ya con cantidades, porque es lo que va en el
+ * correo: el proveedor necesita saber qué le piden, no los ids internos.
+ */
+export function partidasPorProveedor(
+  cat: CatalogoCotizador,
+  partidas: PartidaCotizador[],
+): Array<{ proveedorId: number; conceptos: string[] }> {
+  const mapa = new Map<number, string[]>();
+  const sumar = (id: number | null | undefined, concepto: string) => {
+    if (!id) return;
+    const ya = mapa.get(id) ?? [];
+    ya.push(concepto);
+    mapa.set(id, ya);
+  };
+
+  for (const p of partidas) {
+    if (p.tipo === 'equipo' && cat.tipo === 'maquinaria') {
+      const eq = cat.equipos.find((e) => e.id === p.id);
+      if (!eq) continue;
+      const tiempo = [
+        p.dias ? `${p.dias} ${p.dias === 1 ? 'día' : 'días'}` : '',
+        p.horas ? `${p.horas} h` : '',
+      ]
+        .filter(Boolean)
+        .join(' y ');
+      const unidades = (p.cantidad ?? 1) > 1 ? ` × ${p.cantidad}` : '';
+      sumar(eq.proveedor_id, `${eq.nombre}${unidades}${tiempo ? ` · ${tiempo}` : ''}`);
+    } else if (p.tipo === 'servicio' && cat.tipo === 'maquinaria') {
+      const sv = cat.servicios.find((x) => x.id === p.id);
+      if (!sv) continue;
+      sumar(sv.proveedor_id, `${sv.nombre} · ${p.cantidad ?? 1} ${sv.unidad}(s)`);
+    } else if (p.tipo === 'material' && cat.tipo === 'triturados') {
+      const prod = cat.productos.find((x) => x.id === p.id);
+      const nombre = prod?.nombre ?? p.nombre ?? 'Material';
+      sumar(prod?.proveedor_id, `${nombre} · ${p.toneladas ?? 0} ton`);
+    } else if (p.tipo === 'zona' && cat.tipo === 'triturados') {
+      const prod = cat.productos.find((x) => x.id === p.producto_id);
+      const zona = cat.zonas.find((z) => z.id === p.zona_id);
+      if (!prod) continue;
+      sumar(
+        prod.proveedor_id,
+        `${prod.nombre} · ${p.viajes ?? 1} viaje(s)${zona ? ` · ${zona.nombre}` : ''}`,
+      );
+    } else if (p.tipo === 'banco' && cat.tipo === 'triturados') {
+      sumar(cat.material_banco.proveedor_id, `${cat.material_banco.nombre} · ${p.m3 ?? 0} m³`);
+    }
+  }
+
+  return [...mapa].map(([proveedorId, conceptos]) => ({ proveedorId, conceptos }));
+}
 
 export function pasosDe(tipo: CotizadorTipo): PasoCotizador[] {
   return tipo === 'maquinaria' ? PASOS_MAQUINARIA : PASOS_TRITURADOS;

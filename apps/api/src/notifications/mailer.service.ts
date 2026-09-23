@@ -43,6 +43,12 @@ export type TipoCorreo =
   | 'provider_access'     // al aliado: tu enlace para entrar
   | 'availability_reminder' // al aliado: confirma que sigue libre
   | 'password_reset'      // al cliente: enlace para restablecer su contraseña
+  // Cotizador con tabulador (maquinaria y triturados). Los tres primeros salen
+  // solos al recibir una solicitud del sitio; el último lo dispara una persona.
+  | 'quoter_request_provider'  // al proveedor: te pidieron lo que publicas
+  | 'quoter_request_internal'  // a MAQSER24: entró una solicitud
+  | 'quoter_request_ack'       // al visitante: la recibimos, este es tu folio
+  | 'quoter_quote_sent'        // al cliente: aquí está tu cotización
   | 'prueba';
 
 export interface CorreoParaEnviar {

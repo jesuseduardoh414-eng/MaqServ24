@@ -35,7 +35,10 @@ export class QuoterController {
     const tipo = tipoDe(kind);
     const cat = await this.quoter.catalogo(tipo);
     if (!cat.publico.habilitado) throw new NotFoundException('Este cotizador no está disponible en el sitio.');
-    return cat.publico.mostrarPrecios ? cat : sinPrecios(cat);
+    // `sinDueños` SIEMPRE, con precios o sin ellos: de qué proveedor es cada
+    // equipo es información de la operación, no del catálogo. Publicarla
+    // entrega la red de aliados a cualquiera que abra la pestaña de red.
+    return sinDueños(cat.publico.mostrarPrecios ? cat : sinPrecios(cat));
   }
 
   /** Vista previa de totales. Solo si el tabulador es público. */
@@ -99,6 +102,16 @@ export class QuoterController {
       { origen: 'sitio', estado: 'solicitada', userId },
     );
 
+    /**
+     * Los avisos salen SIN esperar a propósito.
+     *
+     * Son tres correos —proveedor, equipo, visitante— y el SMTP de cPanel
+     * tarda lo suyo: encadenarlos aquí dejaría al visitante mirando el botón
+     * "Enviando…" varios segundos por algo que no cambia su solicitud, que ya
+     * está guardada. Si fallan, quedan en el registro de correo.
+     */
+    void this.quoter.avisarSolicitud(cot.id);
+
     // Con precios ocultos, la respuesta tampoco los trae: el acuse dice que se
     // recibió y quién dará seguimiento, no cuánto cuesta.
     return cat.publico.mostrarPrecios
@@ -114,6 +127,29 @@ export class QuoterController {
  * poder decir "quiero una excavadora 10 días en Apodaca" con precisión. Lo
  * único que desaparece es cuánto cuesta.
  */
+/**
+ * El mismo tabulador sin decir de quién es cada partida.
+ *
+ * `proveedor_id` existe para saber a quién avisarle cuando alguien cotiza; en
+ * el navegador no pinta nada y sí dice quién surte qué, que es media lista de
+ * proveedores de la competencia.
+ */
+function sinDueños(cat: CatalogoCotizador): CatalogoCotizador {
+  if (cat.tipo === 'maquinaria') {
+    return {
+      ...cat,
+      equipos: cat.equipos.map(({ proveedor_id: _p, ...e }) => e),
+      servicios: cat.servicios.map(({ proveedor_id: _p, ...s }) => s),
+    };
+  }
+  const { proveedor_id: _b, ...banco } = cat.material_banco;
+  return {
+    ...cat,
+    productos: cat.productos.map(({ proveedor_id: _p, ...p }) => p),
+    material_banco: banco,
+  };
+}
+
 function sinPrecios(cat: CatalogoCotizador): CatalogoCotizador {
   if (cat.tipo === 'maquinaria') {
     return {

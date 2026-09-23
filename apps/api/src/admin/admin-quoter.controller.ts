@@ -57,6 +57,19 @@ export class AdminQuoterController {
     return cat;
   }
 
+  /**
+   * La lista de proveedores para poner dueño a cada partida.
+   *
+   * Vive bajo el módulo `cotizador` y no en /admin/providers a propósito:
+   * quien pone precios no tiene por qué tener también el módulo de
+   * proveedores, y pedirle los dos permisos para elegir un nombre de un
+   * desplegable sería abrirle el expediente entero de los aliados.
+   */
+  @Get('providers')
+  proveedores() {
+    return this.quoter.proveedoresParaTabulador();
+  }
+
   // ---- Cotizar ----
 
   @Post('calculate/:kind')
@@ -119,6 +132,25 @@ export class AdminQuoterController {
   async cambiarEstado(@Param('id') id: string, @Body() body: { estado?: string }, @Req() req: AdminRequest) {
     const r = await this.quoter.cambiarEstado(Number(id), String(body?.estado ?? ''));
     await registrarAccion(req, 'cotizador', 'cotizacion.estado', `#${id}`, r.estado);
+    return r;
+  }
+
+  /**
+   * Mandarle la cotización al cliente por correo.
+   *
+   * Es un BOTÓN y no un efecto de guardar: una cotización se captura, se
+   * revisa en pantalla y luego se manda. Si saliera sola al guardar, cualquier
+   * error de captura —o una cotización hecha solo para dejar registro— ya
+   * estaría en el buzón del cliente.
+   *
+   * Va a la bitácora porque es una comunicación con el cliente a nombre de la
+   * empresa: quién la mandó y a dónde tiene que poderse reconstruir.
+   */
+  @Post('quotes/:id/enviar')
+  async enviarAlCliente(@Param('id') id: string, @Req() req: AdminRequest) {
+    const r = await this.quoter.enviarAlCliente(Number(id));
+    const cot = await this.quoter.obtener(Number(id));
+    await registrarAccion(req, 'cotizador', 'cotizacion.enviar', cot.folio, `por correo a ${r.correo}`);
     return r;
   }
 

@@ -2,8 +2,10 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import { Prisma, prisma } from '@maqserv/db';
 import {
   CATALOGOS_DEFAULT,
+  COTIZADORES_META,
   calcularCotizacion,
   catalogoCotizadorSchema,
+  partidasPorProveedor,
   tieneImporte,
   type CalculoCotizacion,
   type CatalogoCotizador,
@@ -11,6 +13,13 @@ import {
   type OpcionesCotizador,
   type PartidaCotizador,
 } from '@maqserv/config';
+import { MailerService } from '../notifications/mailer.service';
+import {
+  correoAcuseSolicitud,
+  correoCotizacionDelPanel,
+  correoSolicitudAProveedor,
+  correoSolicitudInterna,
+} from '../notifications/email-templates';
 
 /**
  * COTIZADORES INTERNOS · la verdad del precio.
@@ -24,6 +33,8 @@ import {
 @Injectable()
 export class QuoterService {
   private readonly log = new Logger('Quoter');
+
+  constructor(private readonly mailer: MailerService) {}
 
   /**
    * Caché corta del tabulador.
@@ -285,6 +296,202 @@ export class QuoterService {
       admin: q.admin_name,
       fecha: q.created_at,
     };
+  }
+
+
+  /**
+   * Los proveedores, para el selector de dueño del tabulador.
+   *
+   * Devuelve lo MÍNIMO: id, nombre y si tiene correo. Quien edita tarifas
+   * necesita elegir un nombre de una lista, no el expediente del aliado — y
+   * `conCorreo` está porque es lo único que decide si el aviso podrá salir:
+   * asignar un dueño sin correo se ve igual de bien en la pantalla y no avisa
+   * a nadie.
+   */
+  async proveedoresParaTabulador() {
+    const provs = await prisma.providers.findMany({
+      where: { status: 1 },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, email: true },
+    });
+    return provs.map((p) => ({ id: p.id, nombre: p.name, conCorreo: Boolean(p.email?.trim()) }));
+  }
+
+  // ─────────────────────────── Avisos por correo ───────────────────────────
+
+  /**
+   * LO QUE PASA CUANDO ENTRA UNA SOLICITUD DEL SITIO.
+   *
+   * Tres correos, y ninguno es decorativo:
+   *
+   *  - Al PROVEEDOR dueño de cada partida. Es lo que convierte el cotizador en
+   *    algo que el proveedor usa: publica su máquina y se entera de que se la
+   *    pidieron. Uno por proveedor, no por renglón — pedirle tres equipos es un
+   *    solo trabajo para él.
+   *  - Al equipo de MAQSER24. Antes, la promesa del acuse —"un asesor se
+   *    pondrá en contacto"— dependía de que alguien abriera el panel por su
+   *    cuenta, y una solicitud podía dormir días sin que nadie lo supiera.
+   *  - Al visitante, con su folio, que hasta ahora solo vivía en la pantalla.
+   *
+   * NUNCA tumba la solicitud: se llama sin esperar desde el controlador y
+   * atrapa todo. Si el servidor de correo está caído, la cotización ya quedó
+   * guardada y el panel la enseña igual — el correo avisa de lo que pasó, no es
+   * la cosa que pasó.
+   */
+  async avisarSolicitud(id: number): Promise<void> {
+    try {
+      const q = await prisma.quoter_quotes.findUnique({ where: { id } });
+      if (!q) return;
+
+      const tipo = q.kind as CotizadorTipo;
+      const cat = await this.catalogo(tipo);
+      const partidas = q.items as unknown as PartidaCotizador[];
+      const cotizador = COTIZADORES_META[tipo].titulo.toLowerCase();
+      const calc = (q.snapshot as unknown as { calc: CalculoCotizacion }).calc;
+      const conceptos = (calc?.renglones ?? [])
+        .filter((r) => r.clase !== 'flete')
+        .map((r) => `${r.concepto} · ${r.cantidad} ${r.unidad}`);
+
+      // 1. A cada proveedor, lo suyo.
+      const avisados: string[] = [];
+      const reparto = partidasPorProveedor(cat, partidas);
+      if (reparto.length > 0) {
+        const provs = await prisma.providers.findMany({
+          where: { id: { in: reparto.map((r) => r.proveedorId) } },
+          select: { id: true, name: true, email: true, contact_name: true },
+        });
+        for (const { proveedorId, conceptos: suyos } of reparto) {
+          const p = provs.find((x) => x.id === proveedorId);
+          // Un proveedor sin correo no detiene nada: el aviso interno dirá a
+          // quién sí se le avisó, y de ahí se ve quién falta por capturar.
+          if (!p?.email) continue;
+          await this.mailer.enviar({
+            kind: 'quoter_request_provider',
+            to: p.email,
+            toName: p.contact_name,
+            providerId: p.id,
+            ...correoSolicitudAProveedor({
+              contacto: p.contact_name,
+              folio: q.folio,
+              cotizador,
+              municipio: q.municipality,
+              obra: q.work,
+              conceptos: suyos,
+            }),
+          });
+          avisados.push(p.name);
+        }
+      }
+
+      // 2. Al equipo. Va al buzón desde el que sale el correo de la plataforma:
+      //    es el único que se sabe que existe — el publicado en el sitio no.
+      const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;
+      if (interno) {
+        const panel = (process.env.ADMIN_URL ?? '').replace(/\/+$/, '');
+        await this.mailer.enviar({
+          kind: 'quoter_request_internal',
+          to: interno,
+          ...correoSolicitudInterna({
+            folio: q.folio,
+            cotizador,
+            cliente: q.client_name,
+            correo: q.email,
+            telefono: q.phone,
+            municipio: q.municipality,
+            obra: q.work,
+            total: Number(q.total),
+            conceptos,
+            proveedoresAvisados: avisados,
+            url: `${panel}/cotizador/historial/${q.id}`,
+          }),
+        });
+      }
+
+      // 3. Al visitante.
+      if (q.email) {
+        await this.mailer.enviar({
+          kind: 'quoter_request_ack',
+          to: q.email,
+          toName: q.client_name,
+          ...correoAcuseSolicitud({ nombre: q.client_name, folio: q.folio, cotizador }),
+        });
+      }
+    } catch (e) {
+      this.log.error(`No se pudieron mandar los avisos de la solicitud ${id}: ${(e as Error).message}`);
+    }
+  }
+
+  /**
+   * MANDARLE LA COTIZACIÓN AL CLIENTE, desde el panel.
+   *
+   * Sale del `snapshot`, no del tabulador de hoy: lo que reciba tiene que ser
+   * exactamente lo que se revisó en pantalla antes de apretar el botón.
+   *
+   * Aquí SÍ se espera el resultado y sí se avisa si falló, al revés que en
+   * `avisarSolicitud`: alguien apretó un botón que dice "enviar" y necesita
+   * saber si salió.
+   *
+   * Y solo pasa a `enviada` cuando el correo salió DE VERDAD. Marcarla enviada
+   * con el correo apagado o rebotado es la clase de mentira que se descubre
+   * cuando el cliente llama preguntando por algo que nunca recibió.
+   */
+  async enviarAlCliente(id: number): Promise<{ ok: true; estado: string; correo: string }> {
+    const q = await prisma.quoter_quotes.findUnique({ where: { id } });
+    if (!q) throw new NotFoundException('Cotización no encontrada');
+    if (!q.email?.trim()) {
+      throw new BadRequestException('Esta cotización no tiene correo del cliente. Captúralo y vuelve a intentar.');
+    }
+
+    const doc = q.snapshot as unknown as {
+      calc: CalculoCotizacion;
+      firma: CatalogoCotizador['firma'];
+      saludo: string;
+    };
+    const calc = doc.calc;
+
+    const envio = await this.mailer.enviar({
+      kind: 'quoter_quote_sent',
+      to: q.email,
+      toName: q.client_name,
+      ...correoCotizacionDelPanel({
+        nombre: q.client_name,
+        folio: q.folio,
+        cotizador: COTIZADORES_META[q.kind as CotizadorTipo].titulo.toLowerCase(),
+        obra: q.work,
+        saludo: doc.saludo ?? '',
+        renglones: calc.renglones.map((r) => ({
+          clase: r.clase,
+          concepto: r.concepto,
+          unidad: r.unidad,
+          cantidad: r.cantidad,
+          pu: r.pu,
+          importe: r.importe,
+        })),
+        subtotal: calc.subtotal,
+        iva: calc.con_iva ? calc.iva : null,
+        total: calc.total,
+        condiciones: calc.condiciones ?? [],
+        notas: q.notes,
+        firma: doc.firma?.nombre ? doc.firma : null,
+      }),
+    });
+
+    if (envio !== 'enviado') {
+      throw new BadRequestException(
+        envio === 'omitido'
+          ? `El correo "${q.email}" no es válido. Corrígelo en la cotización y vuelve a intentar.`
+          : envio === 'simulado'
+            ? 'El correo está apagado (MAIL_ENABLED). Quedó registrado el intento, pero no salió nada.'
+            : 'El correo no salió. El motivo está en Configuración → Correo.',
+      );
+    }
+
+    await prisma.quoter_quotes.update({
+      where: { id },
+      data: { state: 'enviada', updated_at: new Date() },
+    });
+
+    return { ok: true, estado: 'enviada', correo: q.email };
   }
 
   private static readonly ESTADOS = ['solicitada', 'borrador', 'enviada', 'aceptada', 'cancelada'];

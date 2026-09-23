@@ -9,7 +9,7 @@ import {
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D } from '@/components/design-tokens';
-import { TarifasEditor } from './TarifasEditor';
+import { TarifasEditor, type ProveedorOpcion } from './TarifasEditor';
 
 export const metadata = { title: 'Tarifas del cotizador' };
 
@@ -18,9 +18,12 @@ export default async function TarifasCotizador() {
   if (!admin) redirect('/login');
   exigirModulo(admin, 'cotizador');
 
-  const [maquinaria, triturados] = await Promise.all([
+  const [maquinaria, triturados, proveedores] = await Promise.all([
     adminFetch<CatalogoCotizador>('/admin/quoter/catalog/maquinaria'),
     adminFetch<CatalogoCotizador>('/admin/quoter/catalog/triturados'),
+    // Para poner dueño a cada partida: es quien recibe el aviso cuando alguien
+    // cotiza eso desde el sitio.
+    adminFetch<ProveedorOpcion[]>('/admin/quoter/providers'),
   ]);
 
   const inicial: Record<CotizadorTipo, CatalogoCotizador> = {
@@ -48,7 +51,7 @@ export default async function TarifasCotizador() {
           ) : null}
         </header>
 
-        <TarifasEditor inicial={inicial} />
+        <TarifasEditor inicial={inicial} proveedores={proveedores ?? []} />
       </div>
     </AdminShell>
   );

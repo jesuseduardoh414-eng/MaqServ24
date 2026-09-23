@@ -354,3 +354,256 @@ export function correoRestablecerContrasena(d: { nombre: string; url: string; mi
     ),
   };
 }
+
+// ─────────────────── Cotizador con tabulador (maquinaria y triturados) ───────────────────
+
+/**
+ * Cantidad de un renglón, igual que en el documento impreso: toneladas, m³ y
+ * jornadas se venden fraccionados y llevan decimales; horas y viajes son
+ * enteros y ponerles ".00" solo hace ruido.
+ */
+const cant = (valor: number, unidad: string): string =>
+  unidad === 'TON' || unidad === 'M3' || unidad === 'JOR'
+    ? Number(valor).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : Number(valor).toLocaleString('es-MX');
+
+/** Un renglón de la cotización, tal como sale del cálculo congelado. */
+export interface RenglonCorreo {
+  clase: string;
+  concepto: string;
+  unidad: string;
+  cantidad: number;
+  pu: number;
+  importe: number;
+}
+
+/**
+ * La cotización completa, en tabla de correo.
+ *
+ * NO se reutiliza el generador del documento impreso (`documentoCuerpo`, en
+ * `@maqserv/ui`) aunque sería lo primero que uno intenta: ese documento se
+ * apoya en un bloque `<style>` con clases, y Gmail lo recorta — el cliente
+ * recibiría el desglose como texto amontonado. Aquí va el mismo contenido con
+ * estilos en línea, que es la regla de todo este archivo. Es la misma decisión
+ * que ya está tomada arriba, aplicada al caso más largo.
+ *
+ * Los renglones de flete van sin numerar, igual que en el papel: el flete no es
+ * una partida que el cliente pidió, es lo que cuesta llevarle la que sí.
+ */
+function tablaCotizacion(renglones: RenglonCorreo[]): string {
+  let n = 0;
+  const filas = renglones
+    .map((r) => {
+      const num = r.clase === 'flete' ? '' : String(++n);
+      const tono = r.clase === 'flete' ? `color:${GRIS};font-size:12px;` : `color:${TINTA2};font-size:13px;`;
+      const celda = `padding:8px 10px;border-top:1px solid ${BORDE};${tono}`;
+      return `<tr>
+        <td style="${celda}">${num}</td>
+        <td style="${celda}">${esc(r.concepto)}</td>
+        <td style="${celda}text-align:right;white-space:nowrap;">${esc(cant(r.cantidad, r.unidad))} ${esc(r.unidad)}</td>
+        <td style="${celda}text-align:right;white-space:nowrap;">${esc(money(r.pu))}</td>
+        <td style="${celda}text-align:right;white-space:nowrap;font-weight:bold;">${esc(money(r.importe))}</td>
+      </tr>`;
+    })
+    .join('');
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;border:1px solid ${BORDE};border-collapse:collapse;">
+    <tr>
+      ${['No.', 'Concepto', 'Cant.', 'P.U.', 'Importe']
+        .map(
+          (h, i) =>
+            `<th style="padding:8px 10px;background:${TINTA};color:#FFFFFF;font-size:11px;letter-spacing:1px;text-transform:uppercase;text-align:${i >= 2 ? 'right' : 'left'};">${h}</th>`,
+        )
+        .join('')}
+    </tr>
+    ${filas}
+  </table>`;
+}
+
+/** Quita las filas vacías de un bloque etiqueta/valor. */
+function filas(pares: Array<[string, string | null | undefined]>): Array<[string, string]> {
+  return pares.filter((p): p is [string, string] => Boolean(p[1]?.toString().trim()));
+}
+
+/**
+ * AL PROVEEDOR: alguien pidió lo que él publica.
+ *
+ * Lleva QUÉ le piden y DÓNDE — y a propósito NO lleva el teléfono ni el correo
+ * del cliente. MAQSER24 es quien coordina la renta; si el contacto viajara en
+ * este correo, el proveedor podría cerrar por fuera y la plataforma se quedaría
+ * fuera de su propia operación. Compartirlo es una decisión de una persona,
+ * desde el panel.
+ */
+export function correoSolicitudAProveedor(d: {
+  contacto: string | null;
+  folio: string;
+  cotizador: string;
+  municipio: string | null;
+  obra: string | null;
+  conceptos: string[];
+}): { subject: string; html: string } {
+  const lista = d.conceptos
+    .map((c) => `<li style="margin:0 0 6px;color:${TINTA};font-size:14px;">${esc(c)}</li>`)
+    .join('');
+
+  return {
+    subject: `Te solicitaron equipo · ${d.folio}`,
+    html: marco(
+      `${titulo('Te solicitaron un servicio')}
+      <p style="margin:0 0 4px;">Hola${d.contacto ? ` ${esc(d.contacto)}` : ''},</p>
+      <p style="margin:0;">Entró una solicitud en el cotizador de ${esc(d.cotizador)} que incluye equipo tuyo. Folio <strong style="color:${TINTA};">${esc(d.folio)}</strong>.</p>
+      <p style="margin:16px 0 8px;font-weight:bold;color:${TINTA};">Lo que te toca:</p>
+      <ul style="margin:0;padding-left:20px;">${lista}</ul>
+      ${datos(filas([['Obra', d.obra], ['Entrega en', d.municipio]]))}
+      <p style="margin:14px 0 0;">Un coordinador de MAQSER24 te contactará para confirmar disponibilidad y fechas. Si ya sabes que <strong style="color:${TINTA};">no</strong> puedes atenderlo, contesta este correo cuanto antes: así se le ofrece a otro aliado sin que el cliente espere.</p>`,
+      'Recibes este aviso porque tienes equipo asignado en el tabulador de MAQSER24. Tu correo lo administras desde tu portal de aliado.',
+    ),
+  };
+}
+
+/**
+ * AL EQUIPO DE MAQSER24: entró una solicitud del sitio.
+ *
+ * Existe porque sin él la promesa del acuse —"un asesor se pondrá en
+ * contacto"— dependía de que alguien abriera el panel por su cuenta. Lleva el
+ * contacto completo del cliente y el enlace directo a la cotización: el punto
+ * es poder atenderla sin buscarla.
+ */
+export function correoSolicitudInterna(d: {
+  folio: string;
+  cotizador: string;
+  cliente: string;
+  correo: string | null;
+  telefono: string | null;
+  municipio: string | null;
+  obra: string | null;
+  total: number;
+  conceptos: string[];
+  proveedoresAvisados: string[];
+  url: string;
+}): { subject: string; html: string } {
+  const lista = d.conceptos
+    .map((c) => `<li style="margin:0 0 5px;color:${TINTA2};font-size:13px;">${esc(c)}</li>`)
+    .join('');
+
+  const avisados = d.proveedoresAvisados.length
+    ? `<p style="margin:14px 0 0;font-size:13px;color:${GRIS};">Ya se le avisó a: ${esc(d.proveedoresAvisados.join(', '))}.</p>`
+    : // Decirlo importa: una partida sin dueño en el tabulador no avisa a nadie,
+      // y ese silencio es idéntico al de un correo que no salió.
+      `<p style="margin:14px 0 0;font-size:13px;color:${GRIS};">No se avisó a ningún proveedor: las partidas de esta solicitud no tienen dueño asignado en Cotizador → Tarifas.</p>`;
+
+  return {
+    subject: `Nueva solicitud ${d.folio} · ${d.cliente}`,
+    html: marco(
+      `${titulo('Entró una solicitud del sitio')}
+      <p style="margin:0;">Cotizador de ${esc(d.cotizador)}, folio <strong style="color:${TINTA};">${esc(d.folio)}</strong>.</p>
+      ${datos(
+        filas([
+          ['Cliente', d.cliente],
+          ['Obra', d.obra],
+          ['Teléfono', d.telefono],
+          ['Correo', d.correo],
+          ['Municipio', d.municipio],
+          ['Total cotizado', money(d.total)],
+        ]),
+      )}
+      <p style="margin:6px 0 8px;font-weight:bold;color:${TINTA};">Pidió:</p>
+      <ul style="margin:0;padding-left:20px;">${lista}</ul>
+      ${boton('Abrir en el panel', d.url)}
+      ${avisados}`,
+    ),
+  };
+}
+
+/**
+ * AL VISITANTE: acuse de que se recibió.
+ *
+ * El folio solo vivía en la pantalla: quien cerraba la pestaña se quedaba sin
+ * manera de referirse a lo que pidió. No lleva importes aunque el sitio los
+ * muestre — la cotización formal la manda una persona desde el panel, y dos
+ * documentos con el mismo folio y distinto número es justo lo que hay que
+ * evitar.
+ */
+export function correoAcuseSolicitud(d: {
+  nombre: string;
+  folio: string;
+  cotizador: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `Recibimos tu solicitud ${d.folio}`,
+    html: marco(
+      `${titulo('Recibimos tu solicitud')}
+      <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
+      <p style="margin:0;">Ya tenemos tu solicitud del cotizador de ${esc(d.cotizador)}. Guarda este folio para darle seguimiento:</p>
+      ${datos([['Folio', d.folio]])}
+      <p style="margin:0;">Un asesor la revisa y te manda la cotización formal, con precios y vigencia. Si algo cambió —fechas, cantidades, la dirección de la obra— contesta este correo y lo ajustamos antes de cotizar.</p>`,
+    ),
+  };
+}
+
+/**
+ * AL CLIENTE: la cotización formal, armada desde el panel.
+ *
+ * Sale cuando una persona aprieta "Enviar al cliente", no al guardar: una
+ * cotización se captura, se revisa y luego se manda. Automatizar el envío
+ * convertiría cualquier error de captura en un correo ya entregado.
+ */
+export function correoCotizacionDelPanel(d: {
+  nombre: string;
+  folio: string;
+  cotizador: string;
+  obra: string | null;
+  saludo: string;
+  renglones: RenglonCorreo[];
+  subtotal: number;
+  iva: number | null;
+  total: number;
+  condiciones: Array<{ titulo: string; puntos: string[] }>;
+  notas: string | null;
+  firma: { nombre: string; puesto: string; telefono: string } | null;
+}): { subject: string; html: string } {
+  const totales = datos(
+    filas([
+      ['Subtotal', money(d.subtotal)],
+      ['I.V.A.', d.iva === null ? null : money(d.iva)],
+      ['Total', money(d.total)],
+    ]),
+  );
+
+  const condiciones = d.condiciones
+    .map(
+      (b) => `<p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:${AZUL};text-transform:uppercase;letter-spacing:1px;">${esc(b.titulo)}</p>
+        <ul style="margin:0;padding-left:20px;">${b.puntos
+          .map((p) => `<li style="margin:0 0 4px;color:${TINTA2};font-size:12.5px;line-height:1.5;">${esc(p)}</li>`)
+          .join('')}</ul>`,
+    )
+    .join('');
+
+  const notas = d.notas?.trim()
+    ? `<p style="margin:16px 0 0;padding:10px 14px;background:${FONDO};border-left:3px solid ${AZUL};color:${TINTA2};font-size:13px;"><strong style="color:${TINTA};">Notas:</strong> ${esc(d.notas)}</p>`
+    : '';
+
+  const firma = d.firma?.nombre
+    ? `<p style="margin:22px 0 0;padding-top:14px;border-top:1px solid ${BORDE};color:${TINTA};font-size:14px;">
+        <strong>${esc(d.firma.nombre)}</strong><br>
+        <span style="color:${GRIS};font-size:12.5px;">${esc([d.firma.puesto, d.firma.telefono].filter(Boolean).join(' · '))}</span>
+      </p>`
+    : '';
+
+  return {
+    subject: `Tu cotización ${d.folio} · MAQSER24`,
+    html: marco(
+      `${titulo(`Cotización ${d.folio}`)}
+      <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
+      <p style="margin:0;">${esc(d.saludo)}</p>
+      ${d.obra ? `<p style="margin:10px 0 0;font-size:13px;color:${GRIS};">Obra: ${esc(d.obra)}</p>` : ''}
+      ${tablaCotizacion(d.renglones)}
+      ${totales}
+      ${notas}
+      ${condiciones}
+      ${firma}
+      <p style="margin:18px 0 0;font-size:13px;color:${GRIS};">¿Algo no cuadra? Contesta este correo y lo ajustamos.</p>`,
+      `Cotización ${esc(d.folio)} del cotizador de ${esc(d.cotizador)}. Los precios son los del tabulador vigente el día en que se emitió.`,
+    ),
+  };
+}
