@@ -1,9 +1,10 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Logger, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { CatalogoCotizador } from '@maqserv/config';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { QuoterService } from './quoter.service';
+import { QuoterServicio, type ServicioAbierto } from './quoter-servicio';
 import { calcularSchema, partidasDe, primerError, solicitudSitioSchema, tipoDe } from './quoter.dto';
 
 /**
@@ -21,7 +22,12 @@ import { calcularSchema, partidasDe, primerError, solicitudSitioSchema, tipoDe }
  */
 @Controller('quoter')
 export class QuoterController {
-  constructor(private readonly quoter: QuoterService) {}
+  private readonly log = new Logger('Quoter');
+
+  constructor(
+    private readonly quoter: QuoterService,
+    private readonly servicio: QuoterServicio,
+  ) {}
 
   /**
    * El tabulador tal como lo puede ver un desconocido.
@@ -57,15 +63,14 @@ export class QuoterController {
   }
 
   /**
-   * El visitante envía su requerimiento.
+   * El cliente SOLICITA EL SERVICIO con la cotización que armó.
    *
-   * Nace en estado `solicitada`, que es lo que cuenta el contador del panel:
-   * una solicitud que nadie ve es peor que no tener el formulario, porque la
-   * persona ya se fue creyendo que la contactarían.
-   *
-   * EXIGE CUENTA desde el 2026-09-23, igual que /quotes: ver y usar el tabulador
-   * sigue siendo público; ENVIAR la solicitud, no. Así la solicitud nace ligada
-   * a quien la pidió y su correo es el de la cuenta, no el que tecleó.
+   * Desde el 2026-09-23 esto exige cuenta (ver `QuoterServicio` para el porqué
+   * del flujo): el documento del cotizador se guarda congelado y, acto seguido,
+   * se abre el servicio y se le ofrece al proveedor dueño del equipo. Si ese
+   * segundo paso falla, el documento se queda en `solicitada` —que es lo que
+   * cuenta el contador del panel— y alguien lo atiende a mano: el cliente
+   * nunca se queda sin folio ni sin nadie que se entere.
    */
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('request/:kind')
@@ -83,10 +88,12 @@ export class QuoterController {
     const cuenta = await datosDeCuenta(userId);
     if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
 
+    const partidas = partidasDe(tipo, datos.partidas);
+    const cliente = datos.cliente || cuenta.name;
     const cot = await this.quoter.crear(
       {
         tipo,
-        cliente: datos.cliente || cuenta.name,
+        cliente,
         obra: datos.obra,
         atencion: datos.atencion,
         municipio: datos.municipio,
@@ -95,7 +102,7 @@ export class QuoterController {
         telefono: datos.telefono || cuenta.phone,
         notas: datos.notas,
         opciones: datos.opciones,
-        partidas: partidasDe(tipo, datos.partidas),
+        partidas,
       },
       { origen: 'sitio', estado: 'solicitada', userId },
     );
@@ -103,21 +110,39 @@ export class QuoterController {
     // Primera vez que se conoce su teléfono: se guarda en la cuenta.
     void completarTelefono(userId, datos.telefono);
 
+    // Abrir el servicio y ofrecérselo al proveedor. Si falla, el documento se
+    // queda en `solicitada` y el equipo lo atiende a mano (ver arriba).
+    let servicio: ServicioAbierto | null = null;
+    try {
+      servicio = await this.servicio.abrir({
+        cotizacion: cot,
+        catalogo: cat,
+        partidas,
+        cuenta,
+        cliente,
+        userId,
+      });
+    } catch (e) {
+      this.log.error(`No se pudo abrir el servicio de ${cot.folio}: ${(e as Error).message}`);
+    }
+
     /**
      * Los avisos salen SIN esperar a propósito.
      *
-     * Son tres correos —proveedor, equipo, visitante— y el SMTP de cPanel
-     * tarda lo suyo: encadenarlos aquí dejaría al visitante mirando el botón
-     * "Enviando…" varios segundos por algo que no cambia su solicitud, que ya
-     * está guardada. Si fallan, quedan en el registro de correo.
+     * El SMTP de cPanel tarda lo suyo: encadenarlos aquí dejaría al cliente
+     * mirando el botón "Enviando…" varios segundos por algo que no cambia su
+     * solicitud, que ya está guardada. Si fallan, quedan en el registro de
+     * correo. A los proveedores ya les escribió `ofrecer`, con su enlace.
      */
-    void this.quoter.avisarSolicitud(cot.id);
+    void this.quoter.avisarSolicitud(cot.id, servicio);
 
     // Con precios ocultos, la respuesta tampoco los trae: el acuse dice que se
     // recibió y quién dará seguimiento, no cuánto cuesta.
-    return cat.publico.mostrarPrecios
-      ? { folio: cot.folio, total: Number(cot.total) }
-      : { folio: cot.folio };
+    return {
+      folio: cot.folio,
+      ...(cat.publico.mostrarPrecios ? { total: Number(cot.total) } : {}),
+      ...(servicio ? { quoteNumber: servicio.quoteNumber, url: servicio.url } : {}),
+    };
   }
 }
 

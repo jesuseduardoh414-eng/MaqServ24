@@ -4,6 +4,7 @@ import { getTheme, t } from '@/lib/theme';
 import { getQuoterCatalog } from '@/lib/api';
 import { getSessionUser } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { QuoteGate } from '../cotizar/QuoteGate';
 import { CotizadorPublico } from './CotizadorPublico';
 
 /**
@@ -41,7 +42,13 @@ export async function PaginaCotizador({ tipo }: { tipo: CotizadorTipo }) {
             {meta.resumen}
           </p>
 
-          {catalogo === null ? (
+          {/* SIN CUENTA NO SE COTIZA (2026-09-23): el candado va ANTES de usar el
+              cotizador, no al final. Quien llega aquí ya viene a pedir un
+              servicio con precio, y el registro es lo que permite mandárselo al
+              proveedor y seguirlo desde su cuenta. Ver QuoteGate. */}
+          {!user ? (
+            <QuoteGate theme={theme} next={meta.ruta} />
+          ) : catalogo === null ? (
             <div
               style={{
                 border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
@@ -68,8 +75,6 @@ export async function PaginaCotizador({ tipo }: { tipo: CotizadorTipo }) {
             <CotizadorPublico
               catalogo={catalogo}
               logo={logo}
-              // Sin cuenta se puede armar todo; enviar, no (ver CotizadorPublico).
-              sesion={Boolean(user)}
               inicial={{
                 cliente: user?.name ?? '',
                 correo: user?.email ?? '',

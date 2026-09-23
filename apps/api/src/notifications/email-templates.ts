@@ -178,10 +178,15 @@ export function correoOfertaAAliado(d: {
   zona: string | null;
   folio: string;
   detalle: string | null;
+  /** Importe que el cliente ya vio y aceptó (solicitudes del cotizador). */
+  total?: number | null;
+  /** Enlace firmado a su portal, donde acepta o rechaza. */
+  url?: string | null;
 }): { subject: string; html: string } {
   const filas: Array<[string, string]> = [];
   if (d.categoria) filas.push(['Servicio', d.categoria]);
   if (d.zona) filas.push(['Dónde', d.zona]);
+  if (d.total != null && d.total > 0) filas.push(['Importe cotizado', money(d.total)]);
   filas.push(['Folio', d.folio]);
 
   return {
@@ -189,11 +194,12 @@ export function correoOfertaAAliado(d: {
     html: marco(
       `${titulo('Tenemos una solicitud para ustedes')}
       <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : `Hola,`}</p>
-      <p style="margin:0;">Nos entró un trabajo que corresponde a lo que ustedes atienden.</p>
+      <p style="margin:0;">Nos entró un trabajo que corresponde a lo que ustedes atienden.${d.total != null && d.total > 0 ? ' El cliente ya vio el precio y lo aceptó: revisa que todo cuadre.' : ''}</p>
       ${datos(filas)}
       ${d.detalle ? `<p style="margin:12px 0 0;color:${TINTA2};">${esc(d.detalle)}</p>` : ''}
-      <p style="margin:16px 0 0;"><strong style="color:${TINTA};">Contéstanos si pueden tomarlo.</strong> Si no pueden, dinos por qué — nos sirve para saber qué le falta a la red y no volver a molestarlos con lo mismo.</p>
-      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Responde este correo o márcanos. Mientras no contesten, la solicitud sigue abierta para otro aliado.</p>`,
+      <p style="margin:16px 0 0;"><strong style="color:${TINTA};">Dinos si pueden tomarlo.</strong> Si no pueden, dinos por qué — nos sirve para saber qué le falta a la red y no volver a molestarlos con lo mismo.</p>
+      ${d.url ? boton('Aceptar o rechazar en mi portal', d.url) : ''}
+      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">${d.url ? 'El botón abre tu portal de aliado sin contraseña; el enlace es personal, no lo compartas.' : 'Responde este correo o márcanos.'} Mientras no contesten, la solicitud sigue abierta para otro aliado.</p>`,
       'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
     ),
   };
@@ -528,15 +534,29 @@ export function correoAcuseSolicitud(d: {
   nombre: string;
   folio: string;
   cotizador: string;
+  /** Importe cotizado, si el cliente lo vio. */
+  total?: number | null;
+  /** Aliados que ya tienen la solicitud para revisarla. */
+  proveedores?: string[];
+  /** Enlace absoluto para seguirla desde su cuenta. */
+  url?: string | null;
 }): { subject: string; html: string } {
+  const filas: Array<[string, string]> = [['Folio', d.folio]];
+  if (d.total != null && d.total > 0) filas.push(['Importe cotizado', money(d.total)]);
+  const quien = d.proveedores?.length
+    ? `Ya la tiene <strong style="color:${TINTA};">${esc(d.proveedores.join(' y '))}</strong> para revisarla. En cuanto la acepte te avisamos por correo y en tu cuenta.`
+    : 'Estamos buscando al proveedor que la atienda. En cuanto esté asignado te avisamos por correo y en tu cuenta.';
+
   return {
-    subject: `Recibimos tu solicitud ${d.folio}`,
+    subject: `Recibimos tu solicitud de servicio ${d.folio}`,
     html: marco(
-      `${titulo('Recibimos tu solicitud')}
+      `${titulo('Recibimos tu solicitud de servicio')}
       <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
-      <p style="margin:0;">Ya tenemos tu solicitud del cotizador de ${esc(d.cotizador)}. Guarda este folio para darle seguimiento:</p>
-      ${datos([['Folio', d.folio]])}
-      <p style="margin:0;">Un asesor la revisa y te manda la cotización formal, con precios y vigencia. Si algo cambió —fechas, cantidades, la dirección de la obra— contesta este correo y lo ajustamos antes de cotizar.</p>`,
+      <p style="margin:0;">Ya tenemos tu solicitud del cotizador de ${esc(d.cotizador)}, con la cotización que armaste. Guarda este folio para darle seguimiento:</p>
+      ${datos(filas)}
+      <p style="margin:0;">${quien}</p>
+      ${d.url ? boton('Seguir mi solicitud', d.url) : ''}
+      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Si algo cambió —fechas, cantidades, la dirección de la obra— contesta este correo y lo ajustamos antes de que salga la unidad.</p>`,
     ),
   };
 }

@@ -1,9 +1,10 @@
 import { lista } from '../common/json-list';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { formatearCantidad, unidadPorDefectoDe } from '@maqserv/config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
+import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { correoServicioAvanzo, correoOfertaAAliado, correoAsignacionAAliado } from '../notifications/email-templates';
 import {
   PASOS, esEstado, estadoInicial, puedeCerrar, sePuedeMover,
@@ -21,6 +22,8 @@ import {
  */
 @Injectable()
 export class ServiceService {
+  private readonly log = new Logger(ServiceService.name);
+
   constructor(
     private readonly notifications: NotificationsService,
     private readonly mailer: MailerService,
@@ -135,8 +138,13 @@ export class ServiceService {
      * NO se avisa de `asignado`: al cliente no le importa que internamente ya
      * haya aliado, le importa cuándo sale la unidad. Un correo por cada paso
      * interno entrena a la gente a ignorar los correos.
+     *
+     * EXCEPTO cuando el servicio lo pidió el cliente desde el cotizador: ahí
+     * él mismo le mandó la cotización al proveedor para que la revisara, y
+     * "la aceptó" ES la respuesta que está esperando.
      */
-    if (hacia !== 'asignado') {
+    const delCotizador = (q.requirements as { origen?: string } | null)?.origen === 'cotizador';
+    if (hacia !== 'asignado' || delCotizador) {
       const aliados = await prisma.service_assignments.findMany({
         where: { quote_id: quoteId, state: 'aceptado' },
         include: { providers: { select: { name: true } } },
@@ -168,7 +176,16 @@ export class ServiceService {
    * documento distingue las dos cosas, y confundirlas hace que el tablero diga
    * que algo está resuelto cuando nadie ha dicho que sí.
    */
-  async ofrecer(quoteId: number, providerId: number, opts: { scope?: string | null; adminId?: number | null } = {}) {
+  async ofrecer(
+    quoteId: number,
+    providerId: number,
+    opts: {
+      scope?: string | null;
+      adminId?: number | null;
+      /** Importe cotizado, cuando el cliente ya lo vio (cotizador). Va en el correo. */
+      total?: number | null;
+    } = {},
+  ) {
     const [q, p] = await Promise.all([
       prisma.quotes.findUnique({ where: { id: quoteId }, select: { id: true } }),
       prisma.providers.findUnique({ where: { id: providerId }, select: { id: true, name: true } }),
@@ -213,9 +230,19 @@ export class ServiceService {
     });
     const contacto = await prisma.providers.findUnique({
       where: { id: providerId },
-      select: { email: true, contact_name: true },
+      select: { email: true, contact_name: true, access_version: true },
     });
     if (contacto?.email && datos) {
+      // El correo trae su ENLACE al portal, no una instrucción: "contesta este
+      // correo" era una tarea; un botón que abre directo su solicitud es un clic.
+      // Si no se puede firmar (falta PROVIDER_LINK_SECRET), el correo sale igual
+      // sin botón: la propuesta ya existe y el aliado tiene que enterarse.
+      let url: string | null = null;
+      try {
+        url = urlDeAcceso(await firmarAcceso(providerId, contacto.access_version ?? 1));
+      } catch (e) {
+        this.log.warn(`Oferta ${datos.quote_number} sin enlace al portal: ${(e as Error).message}`);
+      }
       const plantilla = correoOfertaAAliado({
         aliado: p.name,
         contacto: contacto.contact_name,
@@ -223,6 +250,8 @@ export class ServiceService {
         zona: datos.address,
         folio: datos.quote_number,
         detalle: opts.scope?.trim() || datos.comments,
+        total: opts.total ?? null,
+        url,
       });
       await this.mailer.enviar({
         kind: 'provider_offer',

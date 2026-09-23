@@ -9,8 +9,8 @@ import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './s
 import { resolverClienteYObra } from './client-resolver';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 
-/** Formato legacy: COT- + 8 alfanuméricos mayúsculas. */
-function newQuoteNumber(): string {
+/** Formato legacy: COT- + 8 alfanuméricos mayúsculas. Lo usa también el puente del cotizador. */
+export function newQuoteNumber(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let s = '';
   for (let i = 0; i < 8; i++) s += chars[Math.floor(Math.random() * chars.length)];

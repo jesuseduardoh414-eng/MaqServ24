@@ -338,7 +338,16 @@ export class QuoterService {
    * guardada y el panel la enseña igual — el correo avisa de lo que pasó, no es
    * la cosa que pasó.
    */
-  async avisarSolicitud(id: number): Promise<void> {
+  /**
+   * @param servicio Si la solicitud ya se convirtió en servicio (ver
+   *   `QuoterServicio`), a los proveedores ya les escribió `ofrecer` con su
+   *   enlace del portal: aquí NO se les vuelve a escribir. Dos correos el
+   *   mismo minuto por lo mismo enseñan a archivar sin leer.
+   */
+  async avisarSolicitud(
+    id: number,
+    servicio?: { quoteNumber: string; proveedores: string[]; url: string } | null,
+  ): Promise<void> {
     try {
       const q = await prisma.quoter_quotes.findUnique({ where: { id } });
       if (!q) return;
@@ -352,9 +361,9 @@ export class QuoterService {
         .filter((r) => r.clase !== 'flete')
         .map((r) => `${r.concepto} · ${r.cantidad} ${r.unidad}`);
 
-      // 1. A cada proveedor, lo suyo.
-      const avisados: string[] = [];
-      const reparto = partidasPorProveedor(cat, partidas);
+      // 1. A cada proveedor, lo suyo (solo si NO se le ofreció ya como servicio).
+      const avisados: string[] = servicio ? [...servicio.proveedores] : [];
+      const reparto = servicio ? [] : partidasPorProveedor(cat, partidas);
       if (reparto.length > 0) {
         const provs = await prisma.providers.findMany({
           where: { id: { in: reparto.map((r) => r.proveedorId) } },
@@ -407,13 +416,21 @@ export class QuoterService {
         });
       }
 
-      // 3. Al visitante.
+      // 3. Al cliente: qué pasó con su solicitud y dónde seguirla.
       if (q.email) {
+        const sitio = (process.env.SITE_URL ?? 'https://maqserv24.com').replace(/\/+$/, '');
         await this.mailer.enviar({
           kind: 'quoter_request_ack',
           to: q.email,
           toName: q.client_name,
-          ...correoAcuseSolicitud({ nombre: q.client_name, folio: q.folio, cotizador }),
+          ...correoAcuseSolicitud({
+            nombre: q.client_name,
+            folio: q.folio,
+            cotizador,
+            total: cat.publico.mostrarPrecios ? Number(q.total) : null,
+            proveedores: servicio?.proveedores ?? [],
+            url: servicio ? `${sitio}${servicio.url}` : null,
+          }),
         });
       }
     } catch (e) {
