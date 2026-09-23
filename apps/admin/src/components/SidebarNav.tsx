@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
+import { NEWSLETTER_ACTIVO, modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 
 /**
  * `useLayoutEffect` en cliente y `useEffect` en el servidor.
@@ -118,7 +118,11 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
       // Quien escribió por el formulario de Contacto y espera respuesta. Lleva
       // contador porque un mensaje sin contestar es un cliente perdiéndose.
       { modulo: 'comunidad', href: '/mensajes', label: 'Mensajes', icon: 'ph-chat-centered-text', badge: 'messages' },
-      { modulo: 'comunidad', href: '/suscriptores', label: 'Suscriptores', icon: 'ph-envelope-simple' },
+      // El boletín no está en el modelo MAQSER24: apagado, no se ofrece (ver
+      // newsletter.ts en @maqserv/config). Los correos guardados siguen en la tabla.
+      ...(NEWSLETTER_ACTIVO
+        ? [{ modulo: 'comunidad' as const, href: '/suscriptores', label: 'Suscriptores', icon: 'ph-envelope-simple' }]
+        : []),
     ],
   },
   {

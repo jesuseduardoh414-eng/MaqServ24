@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { NEWSLETTER_ACTIVO } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
@@ -38,6 +39,7 @@ export default async function AdminSubscribers({
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'comunidad');
+  if (!NEWSLETTER_ACTIVO) redirect('/'); // boletín apagado: la pantalla no existe
   const sp = await searchParams;
   const q = sp.q ?? '';
 

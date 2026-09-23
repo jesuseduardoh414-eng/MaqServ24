@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { MARKETPLACE_ACTIVO, defaultTheme, type Theme } from '@maqserv/config';
+import { MARKETPLACE_ACTIVO, NEWSLETTER_ACTIVO, defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { getSiteSettings } from '@/lib/api';
 import { HeaderActions } from '@/components/HeaderActions';
@@ -224,7 +224,9 @@ export function SiteFooter({ theme }: { theme: Theme }) {
   return (
     <footer style={{ background: 'var(--band)', color: 'rgba(255,255,255,.66)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
       <div style={{ ...CONTAINER, paddingTop: 64 }}>
-        {f.showNewsletter ? (
+        {/* El boletín no está en el modelo MAQSER24: apagado por código aunque
+            el tema lo tenga encendido (ver newsletter.ts en @maqserv/config). */}
+        {f.showNewsletter && NEWSLETTER_ACTIVO ? (
           <FooterNewsletter
             labels={{
               title: f.newsletterTitle,

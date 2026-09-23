@@ -1,5 +1,6 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { NEWSLETTER_ACTIVO } from '@maqserv/config';
 import { ContentService } from './content.service';
 
 @Controller('content')
@@ -52,6 +53,8 @@ export class ContentController {
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('subscribe')
   subscribe(@Body() body: { email?: string }) {
+    // Boletín apagado (ver newsletter.ts en @maqserv/config): no existe.
+    if (!NEWSLETTER_ACTIVO) throw new NotFoundException('El boletín no está activo.');
     const email = String(body?.email ?? '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 190) {
       throw new BadRequestException('Correo inválido');

@@ -1,5 +1,6 @@
-import { Controller, Delete, Get, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, NotFoundException, Param, ParseIntPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
+import { NEWSLETTER_ACTIVO } from '@maqserv/config';
 import { AdminGuard, Modulo } from './admin-auth';
 import { PerfexService } from '../integrations/integrations.module';
 
@@ -22,8 +23,14 @@ const PAGE_SIZE = 30;
 export class AdminSubscribersController {
   constructor(private readonly perfex: PerfexService) {}
 
+  /** Boletín apagado (ver newsletter.ts en @maqserv/config): esta pantalla no existe. */
+  private activo(): void {
+    if (!NEWSLETTER_ACTIVO) throw new NotFoundException('El boletín no está activo.');
+  }
+
   @Get()
   async list(@Query('page') page?: string, @Query('search') search?: string) {
+    this.activo();
     const p = Math.max(1, Number(page ?? 1) || 1);
     const term = search?.trim();
     // Sin `mode`: en MySQL la colación utf8mb4_unicode_ci ya ignora mayúsculas y acentos (en Postgres hacía falta `mode: 'insensitive'`, que MySQL no admite).
@@ -67,6 +74,7 @@ export class AdminSubscribersController {
    */
   @Get('export')
   async export() {
+    this.activo();
     const rows = await prisma.subscribers.findMany({ orderBy: { id: 'desc' } });
     return rows.map((s) => ({ email: s.email, createdAt: s.created_at ? s.created_at.toISOString() : null }));
   }
@@ -78,6 +86,7 @@ export class AdminSubscribersController {
    */
   @Post('sync')
   async sync() {
+    this.activo();
     if (!this.perfex.enabled) {
       return { ok: false, sent: 0, total: 0, message: 'Perfex no está configurado (faltan PERFEX_URL y PERFEX_TOKEN).' };
     }
@@ -91,6 +100,7 @@ export class AdminSubscribersController {
 
   @Delete(':id')
   async remove(@Param('id', ParseIntPipe) id: number) {
+    this.activo();
     await prisma.subscribers.delete({ where: { id } });
     return { ok: true };
   }

@@ -38,6 +38,7 @@ export {
   type Desajuste,
 } from './product-attributes';
 export { MARKETPLACE_ACTIVO } from './marketplace';
+export { NEWSLETTER_ACTIVO, CRM_ACTIVO } from './newsletter';
 export {
   MODULOS_ADMIN,
   MODULOS_VISIBLES,

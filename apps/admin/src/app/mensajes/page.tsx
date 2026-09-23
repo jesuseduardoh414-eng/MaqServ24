@@ -4,6 +4,7 @@ import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
 import { MessagesSearch } from './MessagesSearch';
+import { CRM_ACTIVO } from '@maqserv/config';
 import { ContactTools, MessageState } from './MessageActions';
 
 interface MsgRow {
@@ -123,7 +124,8 @@ export default async function AdminMessages({
         {/* Los mensajes ya NO se pierden aunque el CRM esté apagado: se guardan
             aquí. El aviso dice justo eso, para que nadie crea que hay que
             configurar Perfex antes de poder contestar. */}
-        {data && !data.perfexEnabled ? (
+        {/* Sin CRM en el modelo, Mensajes es una bandeja de entrada: nada de Perfex. */}
+        {CRM_ACTIVO && data && !data.perfexEnabled ? (
           <div style={{ marginTop: 20, display: 'flex', alignItems: 'flex-start', gap: 11, background: `color-mix(in srgb, ${D.amber} 7%, ${D.card})`, border: `1px solid color-mix(in srgb, ${D.amber} 30%, transparent)`, borderRadius: 12, padding: '13px 17px' }}>
             <i className="ph ph-warning" style={{ color: D.amber, fontSize: 16, marginTop: 1 }} />
             <div style={{ fontSize: 13, color: '#D4D4D8', lineHeight: 1.55 }}>
@@ -136,7 +138,7 @@ export default async function AdminMessages({
 
         <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', justifyContent: 'space-between' }}>
           <MessagesSearch initial={q} />
-          <ContactTools perfexEnabled={data?.perfexEnabled ?? false} pendientes={c.sinSubir} />
+          {CRM_ACTIVO ? <ContactTools perfexEnabled={data?.perfexEnabled ?? false} pendientes={c.sinSubir} /> : null}
         </div>
 
         {/* Filtros por estado */}
@@ -189,7 +191,7 @@ export default async function AdminMessages({
                       <span style={{ fontSize: 11, fontWeight: 700, color: '#B4B4B9', border: `1px solid ${D.inputBorder}`, borderRadius: 5, padding: '2px 8px' }}>{m.need}</span>
                     ) : null}
                     {/* Sin subir al CRM: se dice, no se esconde. */}
-                    {!m.crmPushed && data?.perfexEnabled ? (
+                    {CRM_ACTIVO && !m.crmPushed && data?.perfexEnabled ? (
                       <span title="Todavía no se subió al CRM" style={{ fontSize: 10.5, fontWeight: 700, color: D.amber }}>sin subir al CRM</span>
                     ) : null}
                   </div>
