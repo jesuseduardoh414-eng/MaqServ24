@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import type { Paginated, ProductCard as ProductCardDto, VendorPublic } from '@maqserv/types';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { ProductCard } from '@/components/ProductCard';
@@ -35,6 +36,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 }
 
 export default async function StorePage({ params, searchParams }: { params: Promise<Params>; searchParams: Promise<Search> }) {
+  if (!MARKETPLACE_ACTIVO) notFound(); // marketplace apagado
   const { id } = await params;
   const sp = await searchParams;
   const page = Number(sp.page ?? 1) || 1;

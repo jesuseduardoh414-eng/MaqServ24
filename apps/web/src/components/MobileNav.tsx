@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ShButton } from '@maqserv/ui';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import type { NavItem } from '@/components/MainNav';
 import { Icon, type IconName } from '@/components/Icon';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
@@ -339,7 +340,10 @@ export function MobileNav({
                   <Link href="/cuenta/favoritos" className={ACCESO}><Icon name="heart" size={15} />{labels.wishlist}</Link>
                 )}
                 <Link href="/rastreo" className={ACCESO}><Icon name="truck" size={15} />{labels.track}</Link>
-                <Link href="/vendedor" className={ACCESO}><Icon name="shield" size={15} />{labels.sell}</Link>
+                {/* "Vender" es del marketplace heredado; apagado no se ofrece. */}
+                {MARKETPLACE_ACTIVO ? (
+                  <Link href="/vendedor" className={ACCESO}><Icon name="shield" size={15} />{labels.sell}</Link>
+                ) : null}
               </nav>
             </div>
 

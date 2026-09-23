@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
+import { notFound } from 'next/navigation';
 import type { VendorPublic } from '@maqserv/types';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { pedirOr } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -15,6 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function VendorsPage() {
+  if (!MARKETPLACE_ACTIVO) notFound(); // marketplace apagado
   const [theme, vendors] = await Promise.all([
     getTheme(),
     pedirOr<VendorPublic[]>(`${API_URL}/vendors`, { next: { revalidate: 60 } }, [], Array.isArray),

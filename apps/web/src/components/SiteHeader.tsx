@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { defaultTheme, type Theme } from '@maqserv/config';
+import { MARKETPLACE_ACTIVO, defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { getSiteSettings } from '@/lib/api';
 import { HeaderActions } from '@/components/HeaderActions';
@@ -78,8 +78,13 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
           <div className="tb-right" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <Link href="/rastreo" style={{ color: 'rgba(255,255,255,.66)' }}>{t(theme, 'topbar.track')}</Link>
             <span style={{ opacity: 0.25 }}>|</span>
-            <Link href="/vendedor" style={{ color: 'rgba(255,255,255,.66)' }}>{t(theme, 'topbar.sell')}</Link>
-            <span style={{ opacity: 0.25 }}>|</span>
+            {/* "Vender" es del marketplace heredado; apagado no se ofrece. */}
+            {MARKETPLACE_ACTIVO ? (
+              <>
+                <Link href="/vendedor" style={{ color: 'rgba(255,255,255,.66)' }}>{t(theme, 'topbar.sell')}</Link>
+                <span style={{ opacity: 0.25 }}>|</span>
+              </>
+            ) : null}
             <span style={{ opacity: 0.7 }}>{t(theme, 'topbar.locale')}</span>
           </div>
         </div>

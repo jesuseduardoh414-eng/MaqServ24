@@ -1,11 +1,13 @@
-import { Controller, Get, NotFoundException, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import type { VendorPublic } from '@maqserv/types';
 import { imageUrl } from '../catalog/images';
 import { ProductsService } from '../catalog/products.service';
+import { MarketplaceGuard } from './marketplace.guard';
 
-/** Marketplace público: directorio de vendedores y su tienda. */
+/** Marketplace público: directorio de vendedores y su tienda. Apagado, 404 (ver el guard). */
 @Controller('vendors')
+@UseGuards(MarketplaceGuard)
 export class VendorsController {
   constructor(private readonly products: ProductsService) {}
 

@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { VendorOrderRow } from '@maqserv/types';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -17,6 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function VendorOrdersPage() {
+  if (!MARKETPLACE_ACTIVO) notFound(); // marketplace apagado
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login');

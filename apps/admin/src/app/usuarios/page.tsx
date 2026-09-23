@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { VENDOR_STATES, type VendorState } from '@maqserv/types';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
@@ -33,7 +34,8 @@ const GRID = '1.7fr 1.8fr 0.8fr 1fr 0.9fr';
 const TABS: Array<{ key: string; label: string }> = [
   { key: '', label: 'Todos' },
   { key: 'compradores', label: 'Han comprado' },
-  { key: 'vendedores', label: 'Vendedores' },
+  // Marketplace heredado: apagado, no hay vendedores que filtrar.
+  ...(MARKETPLACE_ACTIVO ? [{ key: 'vendedores', label: 'Vendedores' }] : []),
 ];
 
 const VENDOR_TONE: Record<'warn' | 'ok' | 'bad', string> = { warn: D.amber, ok: BLUE, bad: '#f55' };
@@ -154,7 +156,7 @@ export default async function AdminUsers({
                     </Link>
                     {/* El estado real del vendedor, no solo "es vendedor": un solicitante
                         pendiente también hay que verlo. */}
-                    {vs && vColor ? (
+                    {MARKETPLACE_ACTIVO && vs && vColor ? (
                       <div style={{ marginTop: 5 }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, color: vColor, background: `color-mix(in srgb, ${vColor} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${vColor} 26%, transparent)`, borderRadius: 20, padding: '2px 8px' }}>
                           Vendedor · {vs.label.toLowerCase()}

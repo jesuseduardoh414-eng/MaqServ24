@@ -1,3 +1,5 @@
+import { MARKETPLACE_ACTIVO } from './marketplace';
+
 /**
  * ROLES Y PERMISOS DEL PANEL (documento institucional, sección 24 · Organización
  * interna recomendada; sección 30 · Riesgos y controles).
@@ -57,6 +59,21 @@ export const MODULOS_ADMIN = [
 ] as const;
 
 export type ModuloAdmin = (typeof MODULOS_ADMIN)[number];
+
+/**
+ * MÓDULOS APAGADOS.
+ *
+ * Existen en el código pero nadie los alcanza: ni el menú, ni Permisos, ni el
+ * guard de la API, ni Dirección. Hoy es el marketplace heredado (vendedores y
+ * retiros), que el modelo MAQSER24 no tiene (ver `marketplace.ts`). Se filtra
+ * en un solo sitio —aquí— para que el menú y la API no puedan divergir.
+ */
+const MODULOS_OCULTOS: readonly ModuloAdmin[] = MARKETPLACE_ACTIVO ? [] : ['marketplace'];
+
+export const esModuloOculto = (m: ModuloAdmin): boolean => MODULOS_OCULTOS.includes(m);
+
+/** Los módulos que sí existen para las personas: la lista de arriba sin los apagados. */
+export const MODULOS_VISIBLES: readonly ModuloAdmin[] = MODULOS_ADMIN.filter((m) => !esModuloOculto(m));
 
 /**
  * Cómo se llama cada módulo en pantalla. La clave es para el código; esto es
@@ -150,16 +167,17 @@ export function rolDeAdmin(valor: string | null | undefined): RolAdmin {
   return ROL_POR_DEFECTO;
 }
 
-/** ¿Este rol puede entrar a este módulo? */
+/** ¿Este rol puede entrar a este módulo? Un módulo apagado, nadie. */
 export function puedeVer(rol: RolAdmin, modulo: ModuloAdmin): boolean {
+  if (esModuloOculto(modulo)) return false;
   const def = ROLES_ADMIN[rol];
   if (!def) return false;
   return def.modulos === null || def.modulos.includes(modulo);
 }
 
-/** Los módulos de un rol, ya resueltos (Dirección incluida). */
+/** Los módulos de un rol, ya resueltos (Dirección incluida), sin los apagados. */
 export function modulosDe(rol: RolAdmin): readonly ModuloAdmin[] {
-  return ROLES_ADMIN[rol]?.modulos ?? MODULOS_ADMIN;
+  return (ROLES_ADMIN[rol]?.modulos ?? MODULOS_ADMIN).filter((m) => !esModuloOculto(m));
 }
 
 /* ============================================================
@@ -201,7 +219,8 @@ export function normalizarModulos(lista: readonly string[]): ModuloAdmin[] {
     lista.filter((m): m is ModuloAdmin => (MODULOS_ADMIN as readonly string[]).includes(m)),
   );
   for (const m of MODULOS_OBLIGATORIOS) set.add(m);
-  return MODULOS_ADMIN.filter((m) => set.has(m));
+  // Un módulo apagado no se concede aunque venga guardado de cuando existía.
+  return MODULOS_VISIBLES.filter((m) => set.has(m));
 }
 
 /** Los módulos de un rol AHORA: lo guardado si existe, si no su lista por defecto. */
@@ -209,7 +228,7 @@ export function modulosEfectivos(
   rol: RolAdmin,
   overrides?: PermisosOverride | null,
 ): readonly ModuloAdmin[] {
-  if (esRolFijo(rol)) return MODULOS_ADMIN;
+  if (esRolFijo(rol)) return MODULOS_VISIBLES;
   const guardado = overrides?.[rol];
   return guardado ? normalizarModulos(guardado) : modulosDe(rol);
 }

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { VendorMe } from '@maqserv/types';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -19,6 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function VendorPanelPage() {
+  // Marketplace apagado: para el sitio esta página no existe.
+  if (!MARKETPLACE_ACTIVO) notFound();
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login');

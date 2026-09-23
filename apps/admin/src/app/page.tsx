@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { adminFetch, getAdmin } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
@@ -49,8 +50,13 @@ export default async function AdminHome() {
       { n: d.toPrepare, label: 'Por preparar', sub: 'Pagadas, esperando que salgan', href: '/ordenes?state=pagado', icon: 'ph-package', color: D.accent },
       { n: d.pendingQuotes, label: 'Cotizaciones sin responder', sub: 'El cliente espera precio', href: '/cotizaciones', icon: 'ph-file-text', color: D.accent },
       { n: d.docsExpiring, label: 'Papeles por vencer', sub: 'Dentro de los proximos 30 dias', href: '/proveedores', icon: 'ph-clock-countdown', color: D.accent },
-      { n: d.withdrawsPending, label: 'Retiros por pagar', sub: d.withdrawsAmount > 0 ? `${money(d.withdrawsAmount)} en total` : 'Dinero de vendedores', href: '/retiros', icon: 'ph-hand-coins', color: D.accent },
-      { n: d.vendorsPending, label: 'Vendedores por aprobar', sub: 'Solicitudes nuevas', href: '/vendedores?state=pendiente', icon: 'ph-storefront', color: D.accent },
+      // Marketplace heredado: solo si está encendido (ver marketplace.ts en config).
+      ...(MARKETPLACE_ACTIVO
+        ? [
+          { n: d.withdrawsPending, label: 'Retiros por pagar', sub: d.withdrawsAmount > 0 ? `${money(d.withdrawsAmount)} en total` : 'Dinero de vendedores', href: '/retiros', icon: 'ph-hand-coins', color: D.accent },
+          { n: d.vendorsPending, label: 'Vendedores por aprobar', sub: 'Solicitudes nuevas', href: '/vendedores?state=pendiente', icon: 'ph-storefront', color: D.accent },
+        ]
+        : []),
       { n: d.unansweredQuestions, label: 'Preguntas sin responder', sub: 'Dudas sobre productos', href: '/preguntas', icon: 'ph-chat-circle', color: BLUE },
       { n: d.pendingReviews, label: 'Reseñas por moderar', sub: 'Esperan aprobación', href: '/resenas', icon: 'ph-star', color: BLUE },
       { n: d.shipped, label: 'En camino', sub: 'Pendientes de entregar', href: '/ordenes?state=enviado', icon: 'ph-truck', color: BLUE },

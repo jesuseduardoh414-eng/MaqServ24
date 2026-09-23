@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { VendorMe, WithdrawRow } from '@maqserv/types';
 import { WITHDRAW_STATES, toWithdrawState } from '@maqserv/types';
+import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -21,6 +22,7 @@ const day = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(iso)) : '—';
 
 export default async function VendorWithdrawsPage() {
+  if (!MARKETPLACE_ACTIVO) notFound(); // marketplace apagado: retiros no debe haber
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) redirect('/login');

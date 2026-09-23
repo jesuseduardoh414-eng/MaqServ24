@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, Put, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import {
-  MODULOS_ADMIN, MODULOS_META, MODULOS_OBLIGATORIOS, ROLES_ADMIN,
+  MODULOS_ADMIN, MODULOS_VISIBLES, MODULOS_META, MODULOS_OBLIGATORIOS, ROLES_ADMIN,
   esRolFijo, modulosEfectivos, type RolAdmin,
 } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
@@ -32,7 +32,9 @@ export class AdminRolesController {
   async listar() {
     const overrides = await permisosVigentes();
     return {
-      modulos: MODULOS_ADMIN.map((clave) => ({
+      // Solo los módulos que existen para las personas: un módulo apagado
+      // (marketplace) no se ofrece en la matriz, y aunque se mandara, no se concede.
+      modulos: MODULOS_VISIBLES.map((clave) => ({
         clave,
         ...MODULOS_META[clave],
         obligatorio: MODULOS_OBLIGATORIOS.includes(clave),

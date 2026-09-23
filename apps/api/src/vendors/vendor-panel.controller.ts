@@ -11,6 +11,7 @@ import { prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
 import type { VendorMe, VendorOrderRow, VendorProductRow, WithdrawRow } from '@maqserv/types';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
+import { MarketplaceGuard } from './marketplace.guard';
 import { sanitizeUserHtml } from '../common/sanitize';
 import { imageUrl } from '../catalog/images';
 
@@ -57,7 +58,8 @@ const withdrawSchema = z.object({
 });
 
 @Controller('vendor')
-@UseGuards(JwtGuard)
+// El marketplace primero: apagado, nada de esto existe (404), con o sin sesión.
+@UseGuards(MarketplaceGuard, JwtGuard)
 export class VendorPanelController {
   /** Estado 2 (aprobado) requerido para operar; lanza 403 si no. */
   private async requireVendor(userId: number) {

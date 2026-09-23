@@ -37,12 +37,15 @@ export {
   type AtributoProducto,
   type Desajuste,
 } from './product-attributes';
+export { MARKETPLACE_ACTIVO } from './marketplace';
 export {
   MODULOS_ADMIN,
+  MODULOS_VISIBLES,
   MODULOS_META,
   ROLES_ADMIN,
   ROL_POR_DEFECTO,
   rolDeAdmin,
+  esModuloOculto,
   puedeVer,
   modulosDe,
   // Permisos editables desde el panel (overrides guardados en BD).
