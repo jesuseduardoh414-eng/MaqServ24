@@ -21,15 +21,20 @@ export interface ProductFormData {
   lote?: string | null;
   caducidad?: string | null;
   image?: string | null;
+  /** De qué aliado es el equipo. Null = equipo propio de MAQSER24. */
+  providerId?: number | null;
 }
 
 /** Formulario completo de producto (crear/editar) — multipart con foto. */
 export function ProductForm({
   initial,
   categories,
+  providers = [],
 }: {
   initial: ProductFormData;
   categories: Array<{ id: number; name: string }>;
+  /** Aliados activos para el selector "de quién es". */
+  providers?: Array<{ id: number; name: string; level?: string }>;
 }) {
   const router = useRouter();
   const isEdit = Boolean(initial.id);
@@ -128,6 +133,31 @@ export function ProductForm({
           <label style={label('')}>Tarifa de flete por km
             <Input name="rentalFreight" type="number" step="0.01" min={0} defaultValue={initial.rentalFreight ?? ''} style={full} />
           </label>
+        ) : null}
+      </Card>
+
+      <Card style={{ display: 'grid', gap: '.8rem' }}>
+        <strong>De quién es el equipo</strong>
+        <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)', lineHeight: 1.5 }}>
+          Sin proveedor es equipo propio de MAQSER24. Con proveedor, el emparejamiento sabe que ese aliado
+          tiene esta máquina, y él la ve en su portal para confirmar disponibilidad.
+        </p>
+        <label style={label('')}>Proveedor
+          <select
+            name="providerId"
+            defaultValue={initial.providerId ?? ''}
+            style={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-base)', color: 'var(--color-text)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '.5em .8em' }}
+          >
+            <option value="">MAQSER24 · equipo propio</option>
+            {providers.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}{p.level ? ` · ${p.level}` : ''}</option>
+            ))}
+          </select>
+        </label>
+        {providers.length === 0 ? (
+          <p style={{ margin: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
+            Todavía no hay aliados dados de alta. Se registran en Red de aliados → Proveedores.
+          </p>
         ) : null}
       </Card>
 

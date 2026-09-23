@@ -54,7 +54,31 @@ const productSchema = z.object({
   caducidad: z.string().optional(), // ISO date
   short: z.string().max(5000).optional(), // Corto (resumen)
   specs: z.string().max(20000).optional(), // JSON [{label,value}]
+  /**
+   * De qué proveedor (aliado) es el equipo. Llega como texto porque el alta es
+   * multipart: '' = sin proveedor (equipo propio de MAQSER24). Es lo que usa
+   * el emparejamiento para saber qué equipos tiene cada aliado; antes solo se
+   * podía poner por SQL (2026-09-23).
+   */
+  providerId: z.string().max(20).optional(),
 });
+
+/** '' → null (equipo propio); '12' → 12; cualquier otra cosa → error. */
+function leerProveedor(v: string | undefined): number | null | undefined {
+  if (v === undefined) return undefined;
+  const t = v.trim();
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isInteger(n) || n <= 0) throw new BadRequestException('Proveedor inválido');
+  return n;
+}
+
+/** El proveedor tiene que existir y estar activo: un id suelto no se guarda. */
+async function exigirProveedor(id: number | null | undefined): Promise<void> {
+  if (!id) return;
+  const p = await prisma.providers.findUnique({ where: { id }, select: { status: true } });
+  if (!p || p.status !== 1) throw new BadRequestException('Ese proveedor no existe o está dado de baja');
+}
 
 const categorySchema = z.object({
   name: z.string().min(2).max(100),
@@ -142,7 +166,22 @@ export class AdminCatalogController {
       short: p.Corto ?? null,
       specs: (() => { try { const a = JSON.parse(p.specs ?? '[]'); return Array.isArray(a) ? a : []; } catch { return []; } })(),
       image: imageUrl(p.photo),
+      providerId: p.provider_id ?? null,
     };
+  }
+
+  /**
+   * Los aliados activos, para el selector "de quién es el equipo" de la ficha.
+   * Va en el módulo de catálogo (y no en el de proveedores) para que quien
+   * puede editar la ficha pueda asignarla sin tener el módulo entero de la red.
+   */
+  @Get('providers')
+  async providersForSelect() {
+    return prisma.providers.findMany({
+      where: { status: 1 },
+      select: { id: true, name: true, level: true },
+      orderBy: { name: 'asc' },
+    });
   }
 
   @Post('products')
@@ -152,9 +191,12 @@ export class AdminCatalogController {
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
     if (photo && !IMAGE_TYPES.test(photo.mimetype)) throw new BadRequestException('Foto inválida');
     const d = parsed.data;
+    const providerId = leerProveedor(d.providerId) ?? null;
+    await exigirProveedor(providerId);
     const created = await prisma.products.create({
       data: {
         user_id: 0, // producto de la casa
+        provider_id: providerId,
         category_id: d.categoryId,
         name: d.name,
         description: d.description,
@@ -193,9 +235,12 @@ export class AdminCatalogController {
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
     if (photo && !IMAGE_TYPES.test(photo.mimetype)) throw new BadRequestException('Foto inválida');
     const d = parsed.data;
+    const providerId = leerProveedor(d.providerId);
+    await exigirProveedor(providerId);
     await prisma.products.update({
       where: { id },
       data: {
+        ...(providerId !== undefined ? { provider_id: providerId } : {}),
         ...(d.name !== undefined ? { name: d.name } : {}),
         ...(d.categoryId !== undefined ? { category_id: d.categoryId } : {}),
         ...(d.price !== undefined ? { cprice: d.price } : {}),

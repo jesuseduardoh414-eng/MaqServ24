@@ -7,12 +7,15 @@ export default async function NewProductPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'catalogo');
-  const categories = (await adminFetch<Array<{ id: number; name: string }>>('/admin/catalog/categories')) ?? [];
+  const [categories, providers] = await Promise.all([
+    adminFetch<Array<{ id: number; name: string }>>('/admin/catalog/categories').then((c) => c ?? []),
+    adminFetch<Array<{ id: number; name: string; level?: string }>>('/admin/catalog/providers').then((p) => p ?? []),
+  ]);
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: '1.2rem' }}>Nuevo producto</h1>
-      <ProductForm initial={{}} categories={categories} />
+      <ProductForm initial={{}} categories={categories} providers={providers} />
     </AdminShell>
   );
 }
