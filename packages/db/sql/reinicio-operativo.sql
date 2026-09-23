@@ -127,11 +127,16 @@ ALTER TABLE product_questions AUTO_INCREMENT = 1;
 ALTER TABLE comments AUTO_INCREMENT = 1;
 ALTER TABLE wishlists AUTO_INCREMENT = 1;
 
--- ── Administradores: SE CONSERVAN ──────────────────────────────────────────
--- Borrarlos todos dejaría el panel sin nadie que pueda entrar. Los que sobren
--- del sistema viejo se desactivan o borran desde Administradores en el panel.
--- Si prefieres hacerlo aquí, descomenta y ajusta la lista (NUNCA borres el
--- correo con el que entras tú):
--- DELETE FROM admins
---  WHERE email IN ('ventas@segaferreterias.com', 'jm18.jhr@gmail.com',
---                  '20221115@uthh.edu.mx', 'admin-test@servmaq.mx', 'segundo@servmaq.mx');
+-- ── Administradores: UNO SOLO, el dueño del sistema (MAQSER24) ─────────────
+-- Decisión del cliente: por ahora solo existe el administrador dueño. Las
+-- demás cuentas (las del sistema viejo y las de prueba) se DESACTIVAN, no se
+-- borran: una cuenta desactivada no puede entrar y su sesión abierta se corta,
+-- pero queda el rastro y se reactiva con un clic desde Administradores si
+-- algún día hace falta. Cambia el correo si el dueño entra con otro.
+UPDATE admins
+   SET role = 'direccion', status = 1
+ WHERE email = 'jesuseduardoh414@gmail.com';
+
+UPDATE admins
+   SET status = 0
+ WHERE email <> 'jesuseduardoh414@gmail.com';
