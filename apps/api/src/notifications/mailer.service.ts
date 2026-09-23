@@ -43,6 +43,8 @@ export type TipoCorreo =
   | 'provider_access'     // al aliado: tu enlace para entrar
   | 'availability_reminder' // al aliado: confirma que sigue libre
   | 'password_reset'      // al cliente: enlace para restablecer su contraseña
+  | 'email_verification'  // al cliente: confirma tu correo (registro con contraseña)
+  | 'welcome'             // al cliente: tu cuenta está lista (creada con Google)
   // Cotizador con tabulador (maquinaria y triturados). Los tres primeros salen
   // solos al recibir una solicitud del sitio; el último lo dispara una persona.
   | 'quoter_request_provider'  // al proveedor: te pidieron lo que publicas

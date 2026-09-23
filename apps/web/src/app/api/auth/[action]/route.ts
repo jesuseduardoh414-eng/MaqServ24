@@ -75,6 +75,23 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
     }
   }
 
+  // Reenviar el correo de confirmación. Siempre ok (anti-enumeración).
+  if (action === 'resend') {
+    const body = await req.json().catch(() => null);
+    try {
+      const apiRes = await fetch(`${API_URL}/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
+        body: JSON.stringify({ email: body?.email, next: body?.next }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = await apiRes.json().catch(() => ({ ok: true }));
+      return NextResponse.json(data, { status: apiRes.ok ? 200 : apiRes.status });
+    } catch {
+      return NextResponse.json({ ok: true });
+    }
+  }
+
   if (action !== 'login' && action !== 'register') {
     return NextResponse.json({ message: 'Acción inválida' }, { status: 404 });
   }
@@ -108,6 +125,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
 
   if (!apiRes.ok) {
     return NextResponse.json(data, { status: apiRes.status });
+  }
+
+  /**
+   * Registro con contraseña: la API ya NO devuelve sesión, devuelve "confirma
+   * tu correo" (2026-09-23). Sin esto, `data.token` sería undefined y se
+   * escribiría una cookie basura que el middleware tomaría por sesión.
+   */
+  if (data?.verificar) {
+    return NextResponse.json({ verificar: true, email: data.email });
   }
 
   const res = NextResponse.json({ user: data.user });

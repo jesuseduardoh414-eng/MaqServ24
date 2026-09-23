@@ -361,6 +361,44 @@ export function correoRestablecerContrasena(d: { nombre: string; url: string; mi
   };
 }
 
+/**
+ * CONFIRMAR EL CORREO al registrarse (2026-09-23).
+ *
+ * Pedido del cliente: el registro con contraseña no entra hasta confirmar el
+ * correo. Es el mismo enlace de siempre —un botón que abre el sitio—, y al
+ * abrirlo la cuenta queda confirmada Y con sesión iniciada, de vuelta en el
+ * punto desde el que se registró (cotizar, por ejemplo).
+ */
+export function correoConfirmarCuenta(d: { nombre: string; url: string; horas: number }): { subject: string; html: string } {
+  return {
+    subject: 'Confirma tu cuenta · MAQSER24',
+    html: marco(
+      `${titulo(`Hola, ${esc(d.nombre)}`)}
+      <p style="margin:0;">Ya casi está tu cuenta en MAQSER24. Solo falta confirmar que este correo es tuyo:</p>
+      ${boton('Confirmar mi cuenta', d.url)}
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">Al confirmar entras directo a tu cuenta. El enlace caduca en ${d.horas} horas; si ya venció, entra con tu correo y pide uno nuevo. Si no creaste esta cuenta, ignora este correo.</p>`,
+      'Si el botón no abre, copia esta dirección en tu navegador: ' + esc(d.url),
+    ),
+  };
+}
+
+/**
+ * BIENVENIDA al crear la cuenta con Google. Google ya confirmó el correo, así
+ * que no hay nada que verificar; pero el cliente pidió que la persona se
+ * entere de que su cuenta existe y desde dónde la usa.
+ */
+export function correoBienvenida(d: { nombre: string; url: string }): { subject: string; html: string } {
+  return {
+    subject: 'Tu cuenta en MAQSER24 está lista',
+    html: marco(
+      `${titulo(`Bienvenido, ${esc(d.nombre)}`)}
+      <p style="margin:0;">Tu cuenta quedó creada con tu acceso de Google. Desde ella puedes pedir cotizaciones, solicitar servicios y seguirlos paso a paso.</p>
+      ${boton('Ir a mi cuenta', d.url)}
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">Si no fuiste tú quien la creó, escríbenos respondiendo este correo.</p>`,
+    ),
+  };
+}
+
 // ─────────────────── Cotizador con tabulador (maquinaria y triturados) ───────────────────
 
 /**

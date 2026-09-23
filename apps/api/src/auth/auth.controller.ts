@@ -21,6 +21,13 @@ const registerSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email().max(190),
   password: z.string().min(8).max(100),
+  /** A dónde volver al confirmar el correo (ruta interna). */
+  next: z.string().max(300).optional(),
+});
+
+const resendSchema = z.object({
+  email: z.string().email().max(190),
+  next: z.string().max(300).optional(),
 });
 
 const loginSchema = z.object({
@@ -80,6 +87,27 @@ export class AuthController {
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
     return this.auth.register(parsed.data);
+  }
+
+  /**
+   * Confirmar el correo: el token viene del enlace del correo y devuelve la
+   * sesión. Mismo límite que el login: es una puerta de entrada.
+   */
+  @Throttle(AUTH_LIMIT)
+  @Post('verify')
+  verify(@Body() body: unknown) {
+    const parsed = z.object({ token: z.string().min(32).max(2048) }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Enlace inválido');
+    return this.auth.verificarCorreo(parsed.data.token);
+  }
+
+  // Cada intento manda un correo: mismo freno que "olvidé mi contraseña".
+  @Throttle({ default: { ttl: 60_000, limit: 3 } })
+  @Post('resend-verification')
+  resendVerification(@Body() body: unknown) {
+    const parsed = resendSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Correo inválido');
+    return this.auth.reenviarVerificacion(parsed.data.email, parsed.data.next);
   }
 
   @Throttle(AUTH_LIMIT)

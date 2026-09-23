@@ -9,7 +9,7 @@ import { Icon } from '@/components/Icon';
 const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
 
-type View = 'login' | 'register' | 'forgot' | 'success';
+type View = 'login' | 'register' | 'forgot' | 'success' | 'verificar';
 
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 function strength(p: string): number {
@@ -37,7 +37,11 @@ const ERRORES: Record<string, string> = {
   google_estado: 'La sesión con Google caducó. Vuelve a intentarlo.',
   google_cuenta_existente: 'Ya existe una cuenta con ese correo. Entra con tu contraseña.',
   servidor: 'El servidor no respondió. Espera unos segundos e inténtalo de nuevo.',
+  verificacion: 'Ese enlace de confirmación ya no sirve. Entra con tu correo y contraseña y te mandamos uno nuevo.',
 };
+
+/** Con qué contesta la API cuando la cuenta existe pero no ha confirmado su correo. */
+const CODIGO_NO_VERIFICADO = 'email_no_verificado';
 
 const errStyle: React.CSSProperties = { fontSize: 12.5, color: 'var(--color-error)', marginTop: 6 };
 
@@ -142,13 +146,32 @@ export function AuthCard({
   const termsErr = touched && view === 'register' && !terms;
   const st = strength(password);
 
+  /**
+   * La cuenta existe pero no ha confirmado su correo: el login lo dice y aquí
+   * se ofrece reenviar el enlace sin salir de la tarjeta.
+   */
+  const [sinVerificar, setSinVerificar] = useState(false);
+  const [reenviado, setReenviado] = useState(false);
+
+  async function reenviar() {
+    setReenviado(false);
+    try {
+      await fetch('/api/auth/resend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), next: redirectTo || '/' }) });
+    } catch { /* siempre "ok": anti-enumeración */ }
+    setReenviado(true);
+  }
+
   async function submitLogin() {
-    setTouched(true); setServerErr(null);
+    setTouched(true); setServerErr(null); setSinVerificar(false);
     if (!emailOk(email.trim()) || password.length < 1) return;
     setLoading(true);
     try {
       const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), password, remember }) });
-      if (!r.ok) { const d = await r.json().catch(() => null); throw new Error(d?.message ?? 'Correo o contraseña incorrectos'); }
+      if (!r.ok) {
+        const d = await r.json().catch(() => null);
+        if (d?.code === CODIGO_NO_VERIFICADO) setSinVerificar(true);
+        throw new Error(d?.message ?? 'Correo o contraseña incorrectos');
+      }
       router.push(redirectTo || '/');
       router.refresh();
     } catch (e) { setServerErr((e as Error).message); setLoading(false); }
@@ -159,8 +182,16 @@ export function AuthCard({
     if (!name.trim() || !emailOk(email.trim()) || password.length < 8 || !terms) return;
     setLoading(true);
     try {
-      const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), email: email.trim(), password }) });
-      if (!r.ok) { const d = await r.json().catch(() => null); throw new Error(d?.message ?? 'No se pudo crear la cuenta'); }
+      // `next` viaja en el enlace del correo: al confirmar vuelve a donde iba.
+      const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), email: email.trim(), password, next: redirectTo || '/' }) });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(d?.message ?? 'No se pudo crear la cuenta');
+      if (d?.verificar) {
+        // Sin sesión todavía: la cuenta se activa desde el correo.
+        setLoading(false);
+        setView('verificar');
+        return;
+      }
       router.push(redirectTo || '/');
       router.refresh();
     } catch (e) { setServerErr((e as Error).message); setLoading(false); }
@@ -234,7 +265,22 @@ export function AuthCard({
       <span style={{ color: 'var(--color-error)', flexShrink: 0, marginTop: 1 }}>
         <Icon name="warning" size={15} />
       </span>
-      {serverErr}
+      <span>
+        {serverErr}
+        {/* Cuenta sin confirmar: reenviar el enlace desde aquí mismo. */}
+        {sinVerificar ? (
+          <>
+            {' '}
+            <button
+              type="button"
+              onClick={() => void reenviar()}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              {reenviado ? 'Enlace reenviado, revisa tu correo.' : 'Reenviar el enlace'}
+            </button>
+          </>
+        ) : null}
+      </span>
     </div>
   ) : null;
 
@@ -395,6 +441,23 @@ export function AuthCard({
       ) : null}
 
       {/* SUCCESS (forgot) */}
+      {/* Registro hecho: la cuenta se activa desde el correo (2026-09-23). */}
+      {view === 'verificar' ? (
+        <div style={{ textAlign: 'center', padding: '12px 0' }}>
+          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}><Icon name="check" size={30} /></div>
+          <h2 style={{ ...heading, marginBottom: 12 }}>Confirma tu correo</h2>
+          <p style={{ margin: '0 0 8px', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
+            Te mandamos un enlace a <strong style={{ color: 'var(--color-text)' }}>{email.trim()}</strong>. Ábrelo para activar tu cuenta: entras directo y sigues donde ibas.
+          </p>
+          <p style={{ margin: '0 0 22px', fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
+            Si no lo ves en unos minutos, revisa la carpeta de no deseados.
+          </p>
+          <ShButton variant="outline" onClick={() => void reenviar()} className="h-12 w-full text-[15px]">
+            {reenviado ? 'Enlace reenviado' : 'Reenviar el enlace'}
+          </ShButton>
+        </div>
+      ) : null}
+
       {view === 'success' ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}><Icon name="check" size={30} /></div>

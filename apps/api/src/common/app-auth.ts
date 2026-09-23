@@ -277,3 +277,49 @@ export async function leerRestablecimientoAdmin(token: string): Promise<LecturaR
     return (e as { code?: string })?.code === 'ERR_JWT_EXPIRED' ? { ok: false, motivo: 'caducado' } : ajeno;
   }
 }
+
+/* ============================================================
+   CONFIRMAR EL CORREO DE UN CLIENTE (2026-09-23)
+   ------------------------------------------------------------
+   El registro con contraseña ya no entra hasta que el correo se confirma.
+   Mismo mecanismo que el restablecimiento del panel: un token FIRMADO, sin
+   tabla ni columna nueva. Lleva el correo con el que se registró (si lo
+   cambia antes de confirmar, el enlace viejo deja de valer) y `next`, a
+   dónde iba la persona, para devolverla ahí con la sesión ya iniciada.
+
+   `typ: 'verify-email'` y sin `audience`: no sirve para entrar ni para
+   renovar, solo para esto.
+   ============================================================ */
+
+export const VERIFICACION_HORAS = 24;
+
+export async function firmarVerificacionCorreo(userId: number, email: string, next: string): Promise<string> {
+  return new SignJWT({ typ: 'verify-email', email: email.trim().toLowerCase(), next })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer(EMISOR)
+    .setSubject(`user:${userId}`)
+    .setIssuedAt()
+    .setExpirationTime(`${VERIFICACION_HORAS}h`)
+    .sign(llave());
+}
+
+export type LecturaVerificacionCorreo =
+  | { ok: true; userId: number; email: string; next: string }
+  | { ok: false; motivo: 'caducado' | 'ajeno' };
+
+export async function leerVerificacionCorreo(token: string): Promise<LecturaVerificacionCorreo> {
+  const ajeno = { ok: false, motivo: 'ajeno' } as const;
+  if (!token) return ajeno;
+  try {
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    if (payload.typ !== 'verify-email' || typeof payload.sub !== 'string' || !payload.sub.startsWith('user:')) {
+      return ajeno;
+    }
+    const userId = Number(payload.sub.slice('user:'.length));
+    if (!Number.isInteger(userId) || typeof payload.email !== 'string') return ajeno;
+    const next = typeof payload.next === 'string' && payload.next.startsWith('/') && !payload.next.startsWith('//') ? payload.next : '/';
+    return { ok: true, userId, email: payload.email, next };
+  } catch (e) {
+    return (e as { code?: string })?.code === 'ERR_JWT_EXPIRED' ? { ok: false, motivo: 'caducado' } : ajeno;
+  }
+}
