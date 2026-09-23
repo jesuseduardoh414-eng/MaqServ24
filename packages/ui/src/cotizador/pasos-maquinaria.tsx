@@ -58,7 +58,13 @@ function sugerencias(cat: CatalogoMaquinaria): number[] {
   return [...bordes].sort((a, b) => a - b).slice(0, 6);
 }
 
-/** PASO 3 · cuánto tiempo. Aquí se resuelve la tarifa (día/semana/mes). */
+/**
+ * PASO 3 · cuánto tiempo. Aquí se resuelve la tarifa (día/semana/mes).
+ *
+ * La insignia del tramo se enseña SIEMPRE, también cuando los importes no
+ * acompañan la captura: "Tarifa semana" no es un precio, es la razón de ser de
+ * este paso, y sin ella los días se teclean a ciegas.
+ */
 export function PasoDuracion({
   cat,
   lineas,
@@ -95,7 +101,7 @@ export function PasoDuracion({
             icono={c.eq.icono}
             titulo={c.eq.nombre}
             nota={`Flete ${c.eq.flete_tipo} · operador y diésel incluidos`}
-            insignia={mostrarPrecios ? c.tier.label : null}
+            insignia={c.tier.label}
             onQuitar={() => quitar(l.uid)}
             dinero={
               mostrarPrecios ? (

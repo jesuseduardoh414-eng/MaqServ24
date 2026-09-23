@@ -227,6 +227,30 @@ export const COTIZADOR_CSS = `
   padding:11px 14px; border-radius:0 10px 10px 0; font-size:12.5px; color:var(--cz-text); }
 .cz-note.bad{ border-left-color:var(--cz-bad); background:color-mix(in srgb, var(--cz-bad) 12%, transparent); }
 
+/* ---- Ajustes del total (último paso) ----
+   Solo aparece cuando los importes NO acompañan los pasos: el flete y la
+   factura se piden aquí, junto al documento. Va en punteado y sobre la
+   superficie 2 para leerse como un apartado DENTRO de la tarjeta del resumen
+   y no como otra tarjeta suelta. */
+.cz-ajuste{ display:grid; gap:13px; margin:16px 0 0; padding:15px 16px;
+  border:1px dashed var(--cz-border); border-radius:var(--cz-radius); background:var(--cz-surface-2); }
+.cz-ajuste > header{ display:grid; gap:3px; }
+.cz-ajuste h3{ margin:0; font-size:13.5px; font-weight:700; font-family:var(--font-heading, inherit); }
+.cz-ajuste header p{ margin:0; font-size:12px; color:var(--cz-muted); }
+
+/* ---- El costo, al final ----
+   Solo en el sitio: cierra el último paso con el número que la persona vino a
+   buscar, antes del documento. Va sobre el acento —no en gris como el resto
+   del desglose— porque es la respuesta, no un dato más. */
+.cz-total{ display:flex; align-items:flex-end; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  margin-top:16px; padding:15px 17px; border-radius:var(--cz-radius);
+  border:1px solid var(--cz-accent); background:var(--cz-accent-soft); }
+.cz-total .n{ display:grid; gap:3px; }
+.cz-total .n > span{ font-size:11.5px; font-weight:700; letter-spacing:.02em; color:var(--cz-muted); }
+.cz-total .n b{ font-size:clamp(26px,6vw,32px); font-weight:800; letter-spacing:-0.03em; line-height:1; }
+.cz-total .d{ margin:0; font-size:12px; color:var(--cz-muted); text-align:right; }
+@media (max-width:560px){ .cz-total .d{ text-align:left; } }
+
 /* ---- Vista previa del documento ---- */
 .cz-preview{ border:1px solid var(--cz-border); border-radius:var(--cz-radius); overflow:auto; background:#fff; }
 .cz-preview .czdoc{ min-width:620px; }

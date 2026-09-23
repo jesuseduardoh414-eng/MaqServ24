@@ -38,7 +38,14 @@ import {
   type LineaTriturados,
 } from './estado';
 import { PasoDuracion, PasoEquipos, PasoServicios } from './pasos-maquinaria';
-import { MODALIDADES, PasoEntrega, PasoMateriales, PasoModalidad, type Modalidad } from './pasos-triturados';
+import {
+  AjustesDelTotal,
+  MODALIDADES,
+  PasoEntrega,
+  PasoMateriales,
+  PasoModalidad,
+  type Modalidad,
+} from './pasos-triturados';
 
 export interface ResultadoEnvio {
   folio: string;
@@ -85,10 +92,26 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
   const tipo = catalogo.tipo;
   const pasos = pasosDe(tipo);
   const esPanel = variante === 'panel';
-  // En el panel siempre hay precios; en el sitio manda el tabulador (y cuando
-  // dice que no, la API ya mandó el catálogo en ceros: aquí no hay nada que
-  // esconder porque nunca llegó).
+
+  /**
+   * DOS PREGUNTAS DISTINTAS, que antes eran una sola.
+   *
+   * `verPrecios` — si esta cotización LLEVA importes. En el panel siempre; en
+   * el sitio manda el tabulador (y cuando dice que no, la API ya mandó el
+   * catálogo en ceros: aquí no hay nada que esconder porque nunca llegó).
+   *
+   * `preciosEnPasos` — si esos importes acompañan la CAPTURA. Solo en el
+   * panel, que es la herramienta con la que se fija y se negocia la tarifa. En
+   * el sitio el visitante elige equipo, tiempo y cantidades SIN ver un peso, y
+   * el costo aparece de una sola vez en el último paso, sobre el documento: se
+   * lee como una propuesta y no como un carrito que se va sumando. De paso
+   * desaparecen del navegador los campos de precio negociado, que ahí nunca
+   * debieron poder tocarse.
+   */
   const verPrecios = esPanel || catalogo.publico.mostrarPrecios;
+  const preciosEnPasos = esPanel;
+  /** Hay costo, pero se enseña al final: el sitio con tabulador público. */
+  const preciosAlFinal = verPrecios && !preciosEnPasos;
 
   const [paso, setPaso] = useState(0);
   const [ctx, setCtx] = useState<ContextoCotizador>({ ...CONTEXTO_VACIO, ...inicial });
@@ -168,6 +191,21 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
 
   // ---- validación por paso ----
   const clave = pasos[paso]?.clave ?? '';
+
+  /**
+   * La ayuda del paso, corregida cuando el costo va al final: el paso de
+   * entrega ya no elige flete ni factura —son un precio y se mudaron al
+   * resumen— y anunciarlos aquí mandaría a buscar algo que no está.
+   */
+  const ayuda =
+    preciosAlFinal && clave === 'entrega'
+      ? 'Dónde se entrega el material. El flete y la factura se eligen al final, junto con el costo.'
+      : preciosAlFinal && clave === 'resumen'
+        ? 'Aquí aparece el costo. Revísalo antes de enviar tu solicitud.'
+        : (pasos[paso]?.ayuda ?? '');
+
+  /** El desglose lateral, solo cuando el costo ya está a la vista. */
+  const importesALaVista = verPrecios && (preciosEnPasos || clave === 'resumen');
   const faltante = useMemo(() => validar(clave, { ctx, lineas, modalidades, esPanel, calc }), [clave, ctx, lineas, modalidades, esPanel, calc]);
   const puedeAvanzar = faltante === null;
 
@@ -298,7 +336,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
       {/* La ayuda del paso va FUERA de la rejilla, a todo el ancho. Dentro de
           la columna izquierda empujaba esa columna hacia abajo y las dos
           tarjetas —la del paso y el resumen— arrancaban a alturas distintas. */}
-      <p className="cz-sub cz-ayuda">{pasos[paso]?.ayuda}</p>
+      <p className="cz-sub cz-ayuda">{ayuda}</p>
 
       <div className="cz-grid">
         <div>
@@ -310,7 +348,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
             <PasoEquipos
               cat={catalogo as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
-              mostrarPrecios={verPrecios}
+              mostrarPrecios={preciosEnPasos}
               alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
               agregarOtra={(id) => agregar(lineaDeEquipo(id))}
             />
@@ -320,7 +358,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
             <PasoDuracion
               cat={catalogo as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
-              mostrarPrecios={verPrecios}
+              mostrarPrecios={preciosEnPasos}
               actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaEquipo>)}
               quitar={quitar}
             />
@@ -330,7 +368,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
             <PasoServicios
               cat={catalogo as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
-              mostrarPrecios={verPrecios}
+              mostrarPrecios={preciosEnPasos}
               alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
               actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
               quitar={quitar}
@@ -346,7 +384,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               cat={catalogo as CatalogoTriturados}
               lineas={lineas as LineaTriturados[]}
               modalidades={modalidades}
-              mostrarPrecios={verPrecios}
+              mostrarPrecios={preciosEnPasos}
               alternarMaterial={(id) => alternar(esMaterial(id), () => lineaDeMaterial(catalogo as CatalogoTriturados, id))}
               agregarZona={() => agregar(lineaDeZona(catalogo as CatalogoTriturados))}
               agregarBanco={() => agregar(lineaDeBanco(catalogo as CatalogoTriturados))}
@@ -359,7 +397,8 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
             <PasoEntrega
               cat={catalogo as CatalogoTriturados}
               lineas={lineas as LineaTriturados[]}
-              mostrarPrecios={verPrecios}
+              mostrarPrecios={preciosEnPasos}
+              preciosAlFinal={preciosAlFinal}
               actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaMaterial>)}
               conIva={conIva}
               setConIva={setConIva}
@@ -372,7 +411,9 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               <p className="cz-card-s">
                 {esPanel
                   ? 'Revísalo antes de guardarlo. Al guardar se congela: aunque mañana suba una tarifa, esta cotización seguirá diciendo lo mismo.'
-                  : 'Revisa que todo esté correcto antes de enviar tu solicitud.'}
+                  : preciosAlFinal
+                    ? 'Este es el costo de lo que armaste. Revísalo y, si todo está bien, envía tu solicitud.'
+                    : 'Revisa que todo esté correcto antes de enviar tu solicitud.'}
               </p>
 
               {tipo === 'maquinaria' && verPrecios ? (
@@ -389,6 +430,37 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
                     </ShSelect>
                   )}
                 </Campo>
+              ) : null}
+
+              {tipo === 'triturados' && preciosAlFinal ? (
+                <AjustesDelTotal
+                  cat={catalogo as CatalogoTriturados}
+                  lineas={lineas as LineaTriturados[]}
+                  actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaMaterial>)}
+                  conIva={conIva}
+                  setConIva={setConIva}
+                />
+              ) : null}
+
+              {/* EL COSTO, DICHO EN GRANDE Y UNA SOLA VEZ.
+                  El documento de abajo ya lo trae, pero va dentro de una hoja
+                  que en un teléfono se lee con scroll horizontal: el número por
+                  el que la persona hizo los cinco pasos no puede depender de
+                  que lo encuentre. En el panel no hace falta — ahí el total
+                  acompañó toda la captura desde el resumen lateral. */}
+              {preciosAlFinal ? (
+                <div className="cz-total">
+                  <span className="n">
+                    <span>
+                      Total {calc.con_iva ? `con IVA ${Math.round(calc.iva_tasa * 100)}%` : 'sin IVA · remisionado'}
+                    </span>
+                    <b>{money(calc.total)}</b>
+                  </span>
+                  <p className="d">
+                    Subtotal {money(calc.subtotal)}
+                    {calc.con_iva ? ` · IVA ${money(calc.iva)}` : ''}
+                  </p>
+                </div>
               ) : null}
 
               <div style={{ marginTop: 14 }}>
@@ -444,7 +516,8 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
         <ResumenLateral
           calc={calc}
           tipo={tipo}
-          verPrecios={verPrecios}
+          importes={importesALaVista}
+          pie={verPrecios ? 'El costo aparece en el último paso' : 'Un asesor te enviará el precio'}
           partidas={partidas.length}
         />
       </div>
@@ -532,23 +605,34 @@ function PasoObra({
   );
 }
 
-/** Resumen en vivo. Acompaña todos los pasos: el total nunca es una sorpresa. */
+/**
+ * Resumen en vivo. Acompaña todos los pasos.
+ *
+ * Enseña IMPORTES solo cuando el costo ya está a la vista; el resto del tiempo
+ * lista lo pedido en cantidades, que es lo que hay que revisar mientras se
+ * arma, y dice DÓNDE va a aparecer el total: un resumen que se calla el precio
+ * sin explicar por qué se lee como una pantalla rota.
+ */
 function ResumenLateral({
   calc,
   tipo,
-  verPrecios,
+  importes,
+  pie,
   partidas,
 }: {
   calc: ReturnType<typeof calcularCotizacion>;
   tipo: 'maquinaria' | 'triturados';
-  verPrecios: boolean;
+  /** Si toca enseñar el desglose de dinero o solo las cantidades. */
+  importes: boolean;
+  /** Qué decir en lugar del total mientras no hay importes. */
+  pie: string;
   partidas: number;
 }) {
   const vacio = calc.renglones.length === 0;
   return (
     <aside className="cz-side">
       <div className="cz-side-h">
-        <h3>{verPrecios ? 'Resumen' : 'Tu solicitud'}</h3>
+        <h3>{importes ? 'Resumen' : 'Tu solicitud'}</h3>
         <span>{partidas === 1 ? '1 partida' : `${partidas} partidas`}</span>
       </div>
       {vacio ? (
@@ -556,11 +640,13 @@ function ResumenLateral({
           <span className="ico">
             <IconoCotizador nombre="documento" size={38} />
           </span>
-          Todavía no hay partidas. Conforme agregues, el total aparece aquí.
+          {importes
+            ? 'Todavía no hay partidas. Conforme agregues, el total aparece aquí.'
+            : 'Todavía no hay partidas. Conforme agregues, aparecen aquí.'}
         </div>
       ) : (
         <div className="cz-side-b">
-          {verPrecios ? (
+          {importes ? (
             <>
               {tipo === 'maquinaria' ? (
                 <>
@@ -620,7 +706,7 @@ function ResumenLateral({
                   </div>
                 ))}
               <div className="cz-fr total" style={{ fontSize: 13 }}>
-                <span>Un asesor te enviará el precio</span>
+                <span>{pie}</span>
               </div>
             </>
           )}

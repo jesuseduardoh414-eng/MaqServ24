@@ -345,6 +345,7 @@ export function PasoEntrega({
   conIva,
   setConIva,
   mostrarPrecios,
+  preciosAlFinal,
 }: {
   cat: CatalogoTriturados;
   lineas: LineaTriturados[];
@@ -352,6 +353,13 @@ export function PasoEntrega({
   conIva: boolean;
   setConIva: (v: boolean) => void;
   mostrarPrecios: boolean;
+  /**
+   * Hay costo, pero se enseña al final (el sitio). Cambia lo que este paso
+   * promete: aquí solo se dice a dónde iría el material, y el flete —que es
+   * elegir una tarifa de una lista— se escoge en el resumen, junto al total.
+   * Ver `AjustesDelTotal`.
+   */
+  preciosAlFinal?: boolean;
 }) {
   const materiales = lineas.filter((l): l is LineaMaterial => l.tipo === 'material');
   const hayIncluido = lineas.some((l) => l.tipo === 'zona' || l.tipo === 'banco');
@@ -362,8 +370,12 @@ export function PasoEntrega({
         <div className="cz-card">
           <h2 className="cz-card-h">Flete del material por tonelada</h2>
           <p className="cz-card-s">
-            El material por tonelada sale cargado en planta. Si MAQSER24 lo lleva a obra, agrega el flete:
-            se cobra por tonelada, según el área de entrega.
+            El material por tonelada sale cargado en planta.{' '}
+            {mostrarPrecios
+              ? 'Si MAQSER24 lo lleva a obra, agrega el flete: se cobra por tonelada, según el área de entrega.'
+              : preciosAlFinal
+                ? 'Si quieres que MAQSER24 lo lleve a obra, dinos a qué área: el flete se cobra por tonelada y se elige en el último paso, junto con el costo.'
+                : 'Si quieres que MAQSER24 lo lleve a obra, dinos a qué área y un asesor te cotiza el flete, que se cobra por tonelada.'}
           </p>
           {materiales.map((l) => {
             const ton = num(l.toneladas);
@@ -378,7 +390,7 @@ export function PasoEntrega({
                   l.fleteTon > 0 && mostrarPrecios ? (
                     <Renglon texto={`Flete · ${ton.toLocaleString('es-MX')} ton a ${money2(l.fleteTon)}`} valor={money(l.fleteTon * ton)} fuerte />
                   ) : (
-                    <Renglon texto={l.fleteTon > 0 ? 'Con flete a obra' : 'Sin flete · recoge el cliente'} valor="" fuerte />
+                    <Renglon texto={estadoDelFlete(l.fleteTon > 0, mostrarPrecios, preciosAlFinal)} valor="" fuerte />
                   )
                 }
               >
@@ -393,16 +405,7 @@ export function PasoEntrega({
                 {mostrarPrecios ? (
                   <div className="cz-qty wide">
                     <span className="cz-lbl">Flete por tonelada</span>
-                    <div className="cz-chips">
-                      <Chip on={l.fleteTon === 0} onClick={() => actualizar(l.uid, { fleteTon: 0 })}>
-                        Sin flete
-                      </Chip>
-                      {cat.fletes_ton.map((v) => (
-                        <Chip key={v} on={l.fleteTon === v} onClick={() => actualizar(l.uid, { fleteTon: v })}>
-                          {money(v)}
-                        </Chip>
-                      ))}
-                    </div>
+                    <ChipsFlete cat={cat} l={l} actualizar={actualizar} />
                   </div>
                 ) : null}
               </Linea>
@@ -426,16 +429,116 @@ export function PasoEntrega({
           <p className="cz-card-s">
             Cambia el total y también el texto de las condiciones del documento.
           </p>
-          <div className="cz-chips">
-            <Chip on={conIva} onClick={() => setConIva(true)}>
-              Con factura · IVA {Math.round(cat.iva * 100)}%
-            </Chip>
-            <Chip on={!conIva} onClick={() => setConIva(false)}>
-              Remisionado · sin IVA
-            </Chip>
-          </div>
+          <ChipsFactura cat={cat} conIva={conIva} setConIva={setConIva} />
         </div>
       ) : null}
     </>
+  );
+}
+
+/**
+ * Qué decir del flete cuando su importe no está a la vista.
+ *
+ * "Sin flete · recoge el cliente" solo es verdad cuando ya se pudo elegir. Si
+ * el flete todavía no se ha podido escoger porque su tarifa vive en el último
+ * paso, decirlo sería afirmar una decisión que nadie ha tomado.
+ */
+function estadoDelFlete(elegido: boolean, mostrarPrecios: boolean, preciosAlFinal?: boolean): string {
+  if (elegido) return 'Con flete a obra';
+  if (preciosAlFinal && !mostrarPrecios) return 'El flete se elige en el último paso';
+  return 'Sin flete · recoge el cliente';
+}
+
+/** Las tarifas de flete por tonelada, más la opción de no llevarlo. */
+function ChipsFlete({
+  cat,
+  l,
+  actualizar,
+}: {
+  cat: CatalogoTriturados;
+  l: LineaMaterial;
+  actualizar: (uid: number, patch: Partial<LineaMaterial>) => void;
+}) {
+  return (
+    <div className="cz-chips">
+      <Chip on={l.fleteTon === 0} onClick={() => actualizar(l.uid, { fleteTon: 0 })}>
+        Sin flete
+      </Chip>
+      {cat.fletes_ton.map((v) => (
+        <Chip key={v} on={l.fleteTon === v} onClick={() => actualizar(l.uid, { fleteTon: v })}>
+          {money(v)}
+        </Chip>
+      ))}
+    </div>
+  );
+}
+
+/** Con o sin factura: cambia el total y las condiciones del documento. */
+function ChipsFactura({
+  cat,
+  conIva,
+  setConIva,
+}: {
+  cat: CatalogoTriturados;
+  conIva: boolean;
+  setConIva: (v: boolean) => void;
+}) {
+  return (
+    <div className="cz-chips">
+      <Chip on={conIva} onClick={() => setConIva(true)}>
+        Con factura · IVA {Math.round(cat.iva * 100)}%
+      </Chip>
+      <Chip on={!conIva} onClick={() => setConIva(false)}>
+        Remisionado · sin IVA
+      </Chip>
+    </div>
+  );
+}
+
+/**
+ * LO QUE MUEVE EL TOTAL, EN EL ÚLTIMO PASO.
+ *
+ * El flete por tonelada y la factura son las dos decisiones de triturados que
+ * SON, ellas mismas, un precio: el flete se escoge de una lista de tarifas y
+ * el IVA cambia el total. Cuando los importes no acompañan la captura —el
+ * sitio— no pueden quedarse en el paso de entrega, porque ahí se elegirían a
+ * ciegas; y quitarlas sin más dejaría al visitante sin manera de pedir que se
+ * lo lleven a obra. Se piden aquí, pegadas al documento, donde el costo ya
+ * está a la vista y cada toque se ve reflejado abajo.
+ */
+export function AjustesDelTotal({
+  cat,
+  lineas,
+  actualizar,
+  conIva,
+  setConIva,
+}: {
+  cat: CatalogoTriturados;
+  lineas: LineaTriturados[];
+  actualizar: (uid: number, patch: Partial<LineaMaterial>) => void;
+  conIva: boolean;
+  setConIva: (v: boolean) => void;
+}) {
+  const materiales = lineas.filter((l): l is LineaMaterial => l.tipo === 'material');
+  return (
+    <div className="cz-ajuste">
+      <header>
+        <h3>Flete y facturación</h3>
+        <p>Es lo último que mueve el total. Cámbialo aquí y el documento de abajo se actualiza solo.</p>
+      </header>
+      {materiales.map((l) => (
+        <div className="cz-qty wide" key={l.uid}>
+          <span className="cz-lbl">
+            Flete de {l.nombre || 'material'} · {num(l.toneladas).toLocaleString('es-MX')} ton
+            {l.fleteZona ? ` · ${l.fleteZona}` : ''}
+          </span>
+          <ChipsFlete cat={cat} l={l} actualizar={actualizar} />
+        </div>
+      ))}
+      <div className="cz-qty wide">
+        <span className="cz-lbl">Facturación</span>
+        <ChipsFactura cat={cat} conIva={conIva} setConIva={setConIva} />
+      </div>
+    </div>
   );
 }
