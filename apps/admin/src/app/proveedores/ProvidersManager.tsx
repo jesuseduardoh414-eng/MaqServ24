@@ -30,7 +30,36 @@ export interface ProviderRow {
   monthsInNetwork: number | null;
   documentCount: number;
   productCount: number;
+  /** Nombres legibles de sus líneas de servicio. */
+  categoryLabels?: string[];
+  /** Lo que ofrece: sus máquinas del catálogo. */
+  equipment?: EquipoRow[];
 }
+
+interface EquipoRow {
+  id: number;
+  name: string;
+  brand: string | null;
+  category: string | null;
+  rental: boolean;
+  specs: Array<{ label: string; valor: string }>;
+  image: string | null;
+  availability: string;
+  location: string | null;
+  confirmedAt: string | null;
+}
+
+/** Cómo se lee la disponibilidad de un equipo en una línea. */
+const DISP: Record<string, { texto: string; color: string }> = {
+  disponible: { texto: 'Disponible', color: '#3fbf8f' },
+  limitada: { texto: 'Disponible', color: '#3fbf8f' },
+  'por-confirmar': { texto: 'Por confirmar', color: '#e0a23a' },
+  reservado: { texto: 'Reservado', color: '#5b9dff' },
+  'en-traslado': { texto: 'En traslado', color: '#5b9dff' },
+  'en-servicio': { texto: 'En servicio', color: '#5b9dff' },
+  mantenimiento: { texto: 'Mantenimiento', color: '#e0a23a' },
+  inactivo: { texto: 'Inactivo', color: '#f55' },
+};
 
 interface DocRow {
   id: number;
@@ -371,8 +400,28 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
                   p.coverage.length ? `Cubre: ${p.coverage.join(', ')}` : null,
                   p.responseMinutes !== null ? `Responde en ~${p.responseMinutes} min` : null,
                   p.monthsInNetwork !== null ? `${p.monthsInNetwork} meses en la red` : null,
-                  `${p.productCount} equipo(s)`,
                 ].filter(Boolean).join(' · ')}
+              </div>
+
+              {/* Qué ofrece, a la vista: líneas y máquinas (tipo y marca). */}
+              <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {(p.categoryLabels ?? p.categories).map((c) => (
+                  <span key={c} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{c}</span>
+                ))}
+                {(p.categoryLabels ?? p.categories).length === 0 ? (
+                  <span style={{ fontSize: 12.5, color: C.bad }}>Sin líneas de servicio marcadas</span>
+                ) : null}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+                {p.equipment && p.equipment.length > 0 ? (
+                  <>
+                    <strong style={{ color: C.ink }}>{p.equipment.length} equipo{p.equipment.length === 1 ? '' : 's'}:</strong>{' '}
+                    {p.equipment.slice(0, 4).map((e) => `${e.name}${e.brand ? ` (${e.brand})` : ''}`).join(' · ')}
+                    {p.equipment.length > 4 ? ` · y ${p.equipment.length - 4} más` : ''}
+                  </>
+                ) : (
+                  <span>Sin equipos registrados. Agrégaselos desde su expediente.</span>
+                )}
               </div>
             </div>
           );
@@ -419,6 +468,62 @@ function ExpedienteModal({
           <h2 style={{ margin: 0, fontSize: 19 }}>Expediente · {p.name}</h2>
           <button type="button" onClick={onCerrar} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 22, cursor: 'pointer' }}>×</button>
         </div>
+        {/* ── Qué ofrece ── Sus máquinas del catálogo con lo que las define:
+            tipo, marca, ficha técnica y si están libres. Se agregan y editan
+            en el catálogo, ya ligadas a este aliado. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '14px 0 10px' }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Qué ofrece</h3>
+          <a href={`/productos/nuevo?proveedor=${p.id}`} style={{ background: C.accent, color: C.accentInk, borderRadius: 9, padding: '7px 13px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+            + Agregar equipo
+          </a>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {(p.categoryLabels ?? p.categories).map((c) => (
+            <span key={c} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{c}</span>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gap: 10, marginBottom: 22 }}>
+          {(p.equipment ?? []).length === 0 ? (
+            <div style={{ color: C.dim, fontSize: 13.5, lineHeight: 1.6 }}>
+              Todavía no tiene equipos. Con "Agregar equipo" creas la ficha de su máquina (tipo, marca, capacidad,
+              fotos) ya a su nombre. Si la máquina ya existe en el catálogo, ábrela y en "De quién es el equipo" elígelo a él.
+            </div>
+          ) : null}
+          {(p.equipment ?? []).map((e) => {
+            const disp = DISP[e.availability] ?? { texto: e.availability, color: C.muted };
+            return (
+              <div key={e.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12 }}>
+                {e.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.image} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, flexShrink: 0, background: '#0b0b0d' }} />
+                ) : (
+                  <div style={{ width: 64, height: 64, borderRadius: 8, flexShrink: 0, background: '#0b0b0d', display: 'grid', placeItems: 'center', color: C.dim, fontSize: 11 }}>Sin foto</div>
+                )}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: 14 }}>{e.name}</strong>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: disp.color }}>● {disp.texto}</span>
+                  </div>
+                  <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+                    {[e.category, e.brand ? `Marca ${e.brand}` : 'Sin marca', e.rental ? 'Renta' : 'Venta', e.location].filter(Boolean).join(' · ')}
+                  </div>
+                  {e.specs.length > 0 ? (
+                    <div style={{ fontSize: 12.5, color: C.ink, marginTop: 4, lineHeight: 1.5 }}>
+                      {e.specs.map((s) => `${s.label}: ${s.valor}`).join(' · ')}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#e0a23a', marginTop: 4 }}>Ficha técnica vacía: agrega capacidad, modelo e implementos.</div>
+                  )}
+                </div>
+                <a href={`/productos/editar/${e.id}`} style={{ border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 8, padding: '6px 12px', fontSize: 12.5, textDecoration: 'none', flexShrink: 0 }}>
+                  Editar
+                </a>
+              </div>
+            );
+          })}
+        </div>
+
+        <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700 }}>Papeles</h3>
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 18px', lineHeight: 1.6 }}>
           Un documento vencido le quita el sello al aliado aunque su nivel sea alto.
         </p>

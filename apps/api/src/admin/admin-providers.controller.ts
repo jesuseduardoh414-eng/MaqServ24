@@ -12,7 +12,9 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { slugify } from '@maqserv/config';
+import { fichaDe, slugify } from '@maqserv/config';
+import { disponibilidadDe } from '../catalog/availability';
+import { lista } from '../common/json-list';
 import { z } from 'zod';
 import { AdminGuard, Modulo } from './admin-auth';
 import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
@@ -201,16 +203,54 @@ export class AdminProvidersController {
       include: { provider_documents: { select: { expires_at: true } } },
     });
 
-    // Cuántos equipos tiene cada aliado, en UNA consulta y no una por aliado.
-    const conteos = await prisma.products.groupBy({
-      by: ['provider_id'],
-      where: { status: 1, provider_id: { not: null } },
-      _count: { _all: true },
-    });
-    const equipos = new Map(conteos.map((c) => [c.provider_id, c._count._all]));
+    /**
+     * QUÉ OFRECE CADA ALIADO (2026-09-24): sus máquinas con tipo, marca, ficha
+     * técnica, foto y disponibilidad. Antes solo había un "N equipo(s)" y para
+     * saber qué tenía había que buscarlo en el catálogo. Dos consultas para
+     * todos los aliados, no una por aliado.
+     */
+    const [productos, categorias] = await Promise.all([
+      prisma.products.findMany({
+        where: { status: 1, provider_id: { not: null } },
+        select: {
+          id: true, name: true, Marca: true, category_id: true, attributes: true, photo: true,
+          stock: true, location: true, availability_confirmed_at: true, provider_id: true,
+          is_rental: true, price_unit: true,
+        },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.categories.findMany({ select: { id: true, cat_slug: true, cat_name: true } }),
+    ]);
+    const catPorId = new Map(categorias.map((c) => [c.id, c]));
+    const nombreDeSlug = new Map(categorias.map((c) => [c.cat_slug, c.cat_name]));
+    const hoy = new Date();
+    const equiposPor = new Map<number, Array<Record<string, unknown>>>();
+    for (const e of productos) {
+      const c = catPorId.get(e.category_id);
+      const disp = disponibilidadDe(
+        { stock: e.stock, location: e.location, confirmedAt: e.availability_confirmed_at, blocks: [] },
+        hoy,
+      );
+      const fila = {
+        id: e.id,
+        name: e.name,
+        brand: e.Marca?.trim() || null,
+        category: c?.cat_name ?? null,
+        rental: e.is_rental,
+        // Capacidad, modelo, implementos… lo que la ficha técnica tenga lleno.
+        specs: fichaDe(c?.cat_slug, (e.attributes ?? null) as Record<string, unknown> | null),
+        image: imageUrl(e.photo),
+        availability: disp.state,
+        location: disp.location,
+        confirmedAt: e.availability_confirmed_at,
+      };
+      const k = e.provider_id as number;
+      equiposPor.set(k, [...(equiposPor.get(k) ?? []), fila]);
+    }
 
     return provs.map((p) => {
       const docs = estadoDocumentos(p.provider_documents);
+      const suyos = equiposPor.get(p.id) ?? [];
       return {
         id: p.id,
         name: p.name,
@@ -234,7 +274,10 @@ export class AdminProvidersController {
         verified: estaVerificado(p.level, docs),
         monthsInNetwork: mesesEnRed(p.joined_at),
         documentCount: p.provider_documents.length,
-        productCount: equipos.get(p.id) ?? 0,
+        productCount: suyos.length,
+        // Nombres legibles de sus líneas ("Renta de maquinaria pesada", no el slug).
+        categoryLabels: lista(p.categories).map((s) => nombreDeSlug.get(s) ?? s),
+        equipment: suyos,
       };
     });
   }
