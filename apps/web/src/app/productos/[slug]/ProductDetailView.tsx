@@ -279,7 +279,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     obligaba a llamar de vuelta. El cotizador pregunta lo que hace falta
                     segun el servicio, y ademas la plataforma se centra en cotizar. */}
                 <Link
-                  href={`/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion"
+                  href={`/cotizador?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion"
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-text)', padding: '14px 20px', borderRadius: 'var(--radius-button)', textDecoration: 'none', boxSizing: 'border-box' }}
                 >
                   Cotizar este equipo
@@ -288,7 +288,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
               </>
             ) : (
               <div style={{ display: 'flex', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
-                <Link href={`/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 'var(--radius-button)' }}>Solicitar cotización<Icon name="arrowRight" size={16} /></Link>
+                <Link href={`/cotizador?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 'var(--radius-button)' }}>Solicitar cotización<Icon name="arrowRight" size={16} /></Link>
                 <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-button)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
               </div>
             )}

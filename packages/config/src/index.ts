@@ -37,6 +37,23 @@ export {
   type AtributoProducto,
   type Desajuste,
 } from './product-attributes';
+export {
+  horarioSchema,
+  HORARIO_DEFAULT,
+  DIAS_SEMANA,
+  horarioDe,
+  textoHorario,
+  atiendeEn,
+  tarifasSchema,
+  tarifasDe,
+  unidadesDeTarifa,
+  precioConMargen,
+  tarifasPropuestas,
+  margenDe,
+  importeMaquina,
+  type Horario,
+  type Tarifas,
+} from './ficha-maquina';
 export { MARKETPLACE_ACTIVO } from './marketplace';
 export { NEWSLETTER_ACTIVO, CRM_ACTIVO } from './newsletter';
 export {

@@ -3,7 +3,7 @@ import {
   Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { atributosDe } from '@maqserv/config';
+import { atributosDe, horarioSchema, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
 import { MailerService } from '../notifications/mailer.service';
 import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
@@ -82,6 +82,14 @@ const ofertaSchema = z.object({
   ubicacion: z.string().trim().max(160).optional(),
   modalidad: z.enum(['renta', 'venta']).default('renta'),
   atributos: z.string().max(4000).optional(),
+  /** Lo que cobra por unidad, JSON {"dia": 5000, "semana": 28000}. */
+  costos: z.string().max(2000).optional(),
+  /** Unidad principal (la que se enseña en el sitio). */
+  unidad: z.string().max(20).optional(),
+  minimo: z.coerce.number().int().min(0).max(100000).optional(),
+  unidades: z.coerce.number().int().min(1).max(999).optional(),
+  /** JSON {"dias":[1,2,3,4,5,6],"desde":"08:00","hasta":"18:00"}. */
+  horario: z.string().max(400).optional(),
 });
 const MAX_FOTOS_OFERTA = 6;
 
@@ -517,6 +525,23 @@ export class ProviderPortalController {
       throw new BadRequestException('La ficha técnica llegó incompleta. Intenta otra vez.');
     }
 
+    // Costo por unidad: solo unidades válidas para su línea y modalidad.
+    const permitidas = new Set(unidadesDeTarifa(d.categoria, d.modalidad).map((u) => u.clave));
+    let costos: Record<string, number> = {};
+    try {
+      const crudo = tarifasSchema.parse(d.costos ? JSON.parse(d.costos) : {});
+      costos = Object.fromEntries(Object.entries(crudo).filter(([k]) => permitidas.has(k)));
+    } catch {
+      throw new BadRequestException('Revisa los precios: deben ser números.');
+    }
+    const unidad = d.unidad && permitidas.has(d.unidad) ? d.unidad : Object.keys(costos)[0] ?? null;
+    let horario: unknown = null;
+    if (d.horario) {
+      const h = horarioSchema.safeParse(JSON.parse(d.horario));
+      if (!h.success) throw new BadRequestException('Revisa el horario: elige días y horas.');
+      horario = h.data;
+    }
+
     const rutas = (fotos ?? []).map((f) => `uploads/${f.filename}`);
     const ahora = new Date();
     const creado = await prisma.products.create({
@@ -532,6 +557,12 @@ export class ProviderPortalController {
         is_rental: d.modalidad === 'renta',
         attributes: (atributos ?? undefined) as never,
         location: d.ubicacion || null,
+        // Lo que cobra él. El precio al público lo fija MAQSER24 al publicar.
+        costo_aliado: (Object.keys(costos).length ? costos : undefined) as never,
+        price_unit: unidad,
+        minimo: d.minimo ?? null,
+        stock: d.unidades ?? 1,
+        horario: (horario ?? undefined) as never,
         photo: rutas[0] ?? null,
         status: ESTADO_POR_REVISAR,
         featured: 0,

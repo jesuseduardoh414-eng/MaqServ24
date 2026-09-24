@@ -1,25 +1,6 @@
-import type { Metadata } from 'next';
-import { paginaSeo } from '@/lib/seo';
-import { getTheme, t } from '@/lib/theme';
-import { PaginaCotizador } from '../pagina';
+import { permanentRedirect } from 'next/navigation';
 
-/**
- * Siempre en servidor, nunca horneada.
- *
- * El tabulador se lee con `no-store` para que apagar el cotizador o mover una
- * tarifa desde el panel se vea al recargar. Next ya deduce que la ruta es
- * dinámica por eso, pero la deducción pasa por un error que `pedirOr` atrapa
- * —ahí está para que un 500 no tumbe el build—, así que se deja escrito: si
- * algún día la dedujera mal, la página saldría horneada con el catálogo del
- * día del build, o peor, con el 'no disponible' del respaldo.
- */
-export const dynamic = 'force-dynamic';
-
-export async function generateMetadata(): Promise<Metadata> {
-  const theme = await getTheme();
-  return paginaSeo(theme, { ruta: '/cotizador/maquinaria', titulo: t(theme, 'seo.quoter.machinery.title'), descripcion: t(theme, 'seo.quoter.machinery.description') });
-}
-
+/** El cotizador por tipo se volvió guiado (2026-09-25): esta ruta solo redirige. */
 export default function CotizadorMaquinariaPage() {
-  return <PaginaCotizador tipo="maquinaria" />;
+  permanentRedirect('/cotizador?linea=maquinaria-pesada');
 }

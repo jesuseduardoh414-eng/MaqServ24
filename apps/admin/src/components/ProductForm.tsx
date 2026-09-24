@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { atributosDe, unidadesDe } from '@maqserv/config';
+import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, horarioDe, margenDe, precioConMargen, unidadesDeTarifa, type Horario } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { D } from '@/components/design-tokens';
 
@@ -31,12 +31,15 @@ export interface ProductFormData {
   location?: string | null;
   /** Unidad del precio (`UNIDADES`): día, mes, viaje, tonelada… '' = precio total / por pieza. */
   priceUnit?: string | null;
+  /** Precio al público por unidad. */
+  tarifas?: Record<string, number> | null;
+  /** Lo que cobra el aliado por unidad. */
+  costoAliado?: Record<string, number> | null;
+  minimo?: number | null;
+  horario?: Horario | null;
 }
 
 interface Categoria { id: number; name: string; slug?: string; status?: number }
-
-/** Unidades de tiempo: sirven para rentar, no para vender. */
-const DE_TIEMPO = new Set(['hora', 'jornada', 'dia', 'semana', 'mes']);
 
 interface Proveedor { id: number; name: string; level?: string }
 interface Renglon { tipo: string; id: string; nombre: string; linea: string; productos: number[] }
@@ -90,18 +93,44 @@ export function ProductForm({
   // Solo líneas activas; la actual se conserva aunque esté apagada, para no perderla al guardar.
   const lineas = categories.filter((c) => c.status === undefined || c.status === 1 || String(c.id) === String(initial.categoryId ?? ''));
 
-  // Unidad del precio: al rentar, las de la línea (día, mes, viaje…); al vender,
-  // pieza o las que no son de tiempo (tonelada, m³…).
-  const opcionesUnidad = useMemo(() => {
-    const deLinea = unidadesDe(slug);
-    if (isRental) return deLinea.map((u) => ({ value: u.clave, label: u.singular }));
-    return [{ value: '', label: 'pieza (precio total)' }, ...deLinea.filter((u) => !DE_TIEMPO.has(u.clave)).map((u) => ({ value: u.clave, label: u.singular }))];
-  }, [slug, isRental]);
+  /**
+   * PRECIOS POR UNIDAD (2026-09-25). La máquina es la unidad de cotización:
+   * cada ficha trae lo que cobra el aliado y el precio al público por día,
+   * semana, mes (o viaje, tonelada…). `unidad` es la principal: la que sale en
+   * el catálogo y la que manda a `cprice`.
+   */
+  const unidadesPrecio = useMemo(() => unidadesDeTarifa(slug, isRental ? 'renta' : 'venta'), [slug, isRental]);
+  const aTexto = (t?: Record<string, number> | null) => Object.fromEntries(Object.entries(t ?? {}).map(([k, v]) => [k, String(v)]));
+  const [costo, setCosto] = useState<Record<string, string>>(() => aTexto(initial.costoAliado));
+  const [publico, setPublico] = useState<Record<string, string>>(() => aTexto(initial.tarifas));
   const [unidad, setUnidad] = useState(initial.priceUnit ?? '');
+  const [margenPct, setMargenPct] = useState<number | null>(null);
   useEffect(() => {
-    // Si la unidad elegida no aplica a la línea o a la modalidad, la primera que sí.
-    if (!opcionesUnidad.some((o) => o.value === unidad)) setUnidad(opcionesUnidad[0]?.value ?? '');
-  }, [opcionesUnidad, unidad]);
+    void fetch('/api/admin/catalog/ajustes').then((r) => (r.ok ? r.json() : null)).then((d) => { if (typeof d?.margenPct === 'number') setMargenPct(d.margenPct); }).catch(() => undefined);
+  }, []);
+  const numeros = (t: Record<string, string>) =>
+    Object.fromEntries(unidadesPrecio.map((u) => [u.clave, Number(t[u.clave])]).filter(([, n]) => Number.isFinite(n) && (n as number) > 0)) as Record<string, number>;
+  const tarifasNum = numeros(publico);
+  const costoNum = numeros(costo);
+  useEffect(() => {
+    // La unidad principal tiene que tener precio; si no, la primera que lo tenga.
+    if (!tarifasNum[unidad]) setUnidad(Object.keys(tarifasNum)[0] ?? unidadesPrecio[0]?.clave ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publico, unidadesPrecio]);
+  /** Propone el precio al público con el margen: costo × (1 + m). Solo llena lo vacío… o todo si se pide. */
+  function proponer(todo: boolean) {
+    if (margenPct === null) return;
+    setPublico((p) => {
+      const n = { ...p };
+      for (const u of unidadesPrecio) {
+        const c = Number(costo[u.clave]);
+        if (Number.isFinite(c) && c > 0 && (todo || !Number(n[u.clave]))) n[u.clave] = String(precioConMargen(c, margenPct));
+      }
+      return n;
+    });
+  }
+  const [minimo, setMinimo] = useState(initial.minimo != null ? String(initial.minimo) : '');
+  const [horario, setHorario] = useState<Horario | null>(initial.horario ? horarioDe(initial.horario) : null);
 
   // ---- Revisión: renglones del cotizador + rechazo ----
   const [renglones, setRenglones] = useState<Renglon[]>([]);
@@ -159,6 +188,7 @@ export function ProductForm({
     const ficha = Object.fromEntries(campos.map((c) => [c.clave, (attrs[c.clave] ?? '').trim()]).filter(([, v]) => v));
     fd.set('attributes', Object.keys(ficha).length ? JSON.stringify(ficha) : '');
     for (const k of ['oldPrice', 'stock', 'rentalFreight']) if (fd.get(k) === '') fd.delete(k);
+    fd.delete('_principal');
     const res = await fetch(isEdit ? `/api/admin/catalog/products/${initial.id}` : '/api/admin/catalog/products', {
       method: isEdit ? 'PATCH' : 'POST',
       body: fd,
@@ -330,16 +360,94 @@ export function ProductForm({
             titulo={isRental ? 'Renta y disponibilidad' : 'Venta y disponibilidad'}
             icono="ph-tag"
             ayuda={isRental
-              ? 'Tarifa de referencia por periodo. En 0 el sitio dice “precio bajo cotización” y el precio lo pone el cotizador.'
-              : 'Precio de venta. En 0 el sitio dice “precio bajo cotización”.'}
+              ? 'Con estos precios cotiza el sitio: el cliente elige esta máquina y ve el importe al momento. Sin precio, el sitio dice “precio bajo cotización”.'
+              : 'Con estos precios cotiza el sitio. Sin precio, el sitio dice “precio bajo cotización”.'}
           >
             <input type="hidden" name="priceUnit" value={unidad} />
+            <input type="hidden" name="price" value={tarifasNum[unidad] ?? 0} />
+            <input type="hidden" name="tarifas" value={JSON.stringify(tarifasNum)} />
+            <input type="hidden" name="costoAliado" value={JSON.stringify(costoNum)} />
+            <input type="hidden" name="minimo" value={Math.max(0, Number(minimo) || 0)} />
+            <input type="hidden" name="horario" value={horario ? JSON.stringify(horario) : ''} />
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+                <thead>
+                  <tr style={{ color: D.muted2, fontSize: 12, textAlign: 'left' }}>
+                    <th style={{ padding: '4px 6px 8px 0', fontWeight: 700 }}>Por</th>
+                    {proveedor ? <th style={{ padding: '4px 6px 8px', fontWeight: 700 }}>Cobra el aliado</th> : null}
+                    <th style={{ padding: '4px 6px 8px', fontWeight: 700 }}>Precio al cliente</th>
+                    {proveedor ? <th style={{ padding: '4px 0 8px 6px', fontWeight: 700 }}>Margen</th> : null}
+                    <th style={{ padding: '4px 0 8px 6px', fontWeight: 700, whiteSpace: 'nowrap' }}>Principal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {unidadesPrecio.map((u) => {
+                    const m = margenDe(tarifasNum[u.clave], costoNum[u.clave]);
+                    return (
+                      <tr key={u.clave} style={{ borderTop: `1px solid ${D.cardBorder}` }}>
+                        <td style={{ padding: '8px 6px 8px 0', color: D.text, whiteSpace: 'nowrap' }}>{u.singular}</td>
+                        {proveedor ? (
+                          <td style={{ padding: '6px' }}>
+                            <input type="number" min={0} step="1" value={costo[u.clave] ?? ''} onChange={(e) => setCosto({ ...costo, [u.clave]: e.target.value })} placeholder="—" style={{ ...input, padding: '8px 10px', width: 120 }} />
+                          </td>
+                        ) : null}
+                        <td style={{ padding: '6px' }}>
+                          <input type="number" min={0} step="1" value={publico[u.clave] ?? ''} onChange={(e) => setPublico({ ...publico, [u.clave]: e.target.value })} placeholder="—" style={{ ...input, padding: '8px 10px', width: 130 }} />
+                        </td>
+                        {proveedor ? (
+                          <td style={{ padding: '6px 0 6px 6px', color: m === null ? D.muted2 : m < 0 ? D.bad : m < 10 ? D.warn : D.ok, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                            {m === null ? '—' : `${m} %`}
+                          </td>
+                        ) : null}
+                        <td style={{ padding: '6px 0 6px 6px', textAlign: 'center' }}>
+                          <input type="radio" name="_principal" checked={unidad === u.clave} disabled={!tarifasNum[u.clave]} onChange={() => setUnidad(u.clave)} style={{ accentColor: 'var(--color-primary)' }} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {proveedor ? (
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => proponer(true)} disabled={margenPct === null || Object.keys(costoNum).length === 0} style={{ ...botonSec, padding: '8px 12px', fontSize: 13 }}>
+                  Proponer con margen{margenPct !== null ? ` de ${margenPct} %` : ''}
+                </button>
+                <span style={{ fontSize: 12, color: D.muted2 }}>
+                  El cliente ve solo el precio al cliente. El margen se cambia en Cotizador → Tarifas.
+                </span>
+              </div>
+            ) : null}
             <div className="pf-2">
-              <Campo etiqueta={isRental ? 'Tarifa de renta' : 'Precio de venta'}>
-                <input name="price" type="number" step="0.01" min={0} required defaultValue={initial.price ?? 0} style={input} />
+              <Campo etiqueta="Mínimo" nota={unidad ? `En ${unidadesPrecio.find((u) => u.clave === unidad)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}>
+                <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={input} />
               </Campo>
-              <Campo etiqueta={isRental ? 'Por' : 'Se vende por'}>
-                <AdminSelect ariaLabel="Unidad del precio" value={unidad} onChange={setUnidad} options={opcionesUnidad} />
+              <Campo etiqueta="Horario en que atiende" nota="Solo se recomienda para trabajos dentro de este horario.">
+                {horario ? (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {DIAS_SEMANA.map((d, i) => {
+                        const on = horario.dias.includes(i);
+                        return (
+                          <button key={d} type="button" aria-pressed={on} onClick={() => setHorario({ ...horario, dias: on ? horario.dias.filter((x) => x !== i) : [...horario.dias, i].sort() })}
+                            style={{ ...botonSec, padding: '5px 8px', fontSize: 12, borderColor: on ? D.accent : D.inputBorder, background: on ? D.accentSoft : 'transparent' }}>
+                            {d}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="time" value={horario.desde} onChange={(e) => setHorario({ ...horario, desde: e.target.value })} style={{ ...input, padding: '7px 9px', width: 110 }} />
+                      <span style={{ color: D.muted2 }}>a</span>
+                      <input type="time" value={horario.hasta} onChange={(e) => setHorario({ ...horario, hasta: e.target.value })} style={{ ...input, padding: '7px 9px', width: 110 }} />
+                      <button type="button" onClick={() => setHorario(null)} style={{ ...botonSec, padding: '6px 9px', fontSize: 12 }}>Quitar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setHorario(HORARIO_DEFAULT)} style={{ ...botonSec, padding: '9px 12px', fontSize: 13, textAlign: 'left' }}>
+                    Sin horario: atiende siempre. Definir uno…
+                  </button>
+                )}
               </Campo>
             </div>
             <div className="pf-2">

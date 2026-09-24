@@ -1,13 +1,13 @@
 import {
   BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, Query, UploadedFile, UseGuards, UseInterceptors,
+  ParseIntPipe, Patch, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { mediaStorage } from '../common/media-multer';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
-import { prisma } from '@maqserv/db';
+import { Prisma, prisma } from '@maqserv/db';
 import { productSlug, slugify } from '@maqserv/config';
 
 /**
@@ -25,7 +25,9 @@ function leerAtributos(v: string | undefined): object | null {
     return null;
   }
 }
-import { AdminGuard, Modulo } from './admin-auth';
+import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
+import { horarioSchema, tarifasDe } from '@maqserv/config';
+import { AJUSTE_MARGEN, guardarAjuste, margenAliadoPct } from '../common/platform-settings';
 import { imageUrl } from '../catalog/images';
 
 const photoStorage = mediaStorage();
@@ -71,7 +73,30 @@ const productSchema = z.object({
   providerId: z.string().max(20).optional(),
   /** Dónde está el equipo (patio, ciudad). Lo captura el aliado al ofrecerlo. */
   location: z.string().max(160).optional(),
+  /** Precio al público por unidad, JSON {"dia": 6500}. Al guardarlo, `cprice` = la tarifa de `priceUnit`. */
+  tarifas: z.string().max(2000).optional(),
+  /** Lo que cobra el aliado por unidad, JSON. Editable por si se negoció. */
+  costoAliado: z.string().max(2000).optional(),
+  minimo: z.coerce.number().int().min(0).max(100000).optional(),
+  /** JSON del horario; vacío = sin horario (atiende siempre). */
+  horario: z.string().max(400).optional(),
 });
+
+/** JSON de tarifas del formulario (texto) → objeto limpio; '' → {} (quitar precios). */
+function leerTarifas(v: string | undefined): Record<string, number> | undefined {
+  if (v === undefined) return undefined;
+  if (!v.trim()) return {};
+  try { return tarifasDe(JSON.parse(v)); } catch { throw new BadRequestException('Tarifas inválidas'); }
+}
+function leerHorario(v: string | undefined): object | null | undefined {
+  if (v === undefined) return undefined;
+  if (!v.trim()) return null;
+  try {
+    const h = horarioSchema.safeParse(JSON.parse(v));
+    if (!h.success) throw new Error();
+    return h.data;
+  } catch { throw new BadRequestException('Horario inválido'); }
+}
 
 /** '' → null (equipo propio); '12' → 12; cualquier otra cosa → error. */
 function leerProveedor(v: string | undefined): number | null | undefined {
@@ -178,7 +203,25 @@ export class AdminCatalogController {
       image: imageUrl(p.photo),
       providerId: p.provider_id ?? null,
       location: p.location ?? null,
+      tarifas: tarifasDe(p.tarifas),
+      costoAliado: tarifasDe(p.costo_aliado),
+      minimo: p.minimo ?? null,
+      horario: p.horario ?? null,
     };
+  }
+
+  /** Ajustes del catálogo: hoy, el margen de MAQSER24 sobre el costo del aliado. */
+  @Get('ajustes')
+  async ajustes() {
+    return { margenPct: await margenAliadoPct() };
+  }
+
+  @Patch('ajustes')
+  async guardarAjustes(@Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({ margenPct: z.coerce.number().min(0).max(300) }).safeParse(body);
+    if (!p.success) throw new BadRequestException('Margen inválido (0 a 300 %)');
+    await guardarAjuste(AJUSTE_MARGEN, p.data.margenPct, req.adminEmail);
+    return { margenPct: p.data.margenPct };
   }
 
   /**
@@ -204,6 +247,9 @@ export class AdminCatalogController {
     const d = parsed.data;
     const providerId = leerProveedor(d.providerId) ?? null;
     await exigirProveedor(providerId);
+    const tarifas = leerTarifas(d.tarifas);
+    const costo = leerTarifas(d.costoAliado);
+    const horario = leerHorario(d.horario);
     const created = await prisma.products.create({
       data: {
         user_id: 0, // producto de la casa
@@ -211,9 +257,14 @@ export class AdminCatalogController {
         category_id: d.categoryId,
         name: d.name,
         description: d.description,
-        cprice: d.price,
+        // Con tarifas, el precio mostrado es el de la unidad principal.
+        cprice: tarifas && d.priceUnit ? (tarifas[d.priceUnit] ?? 0) : d.price,
         pprice: d.oldPrice ?? null,
         stock: d.stock ?? null,
+        tarifas: (tarifas ?? undefined) as never,
+        costo_aliado: (costo ?? undefined) as never,
+        minimo: d.minimo ?? null,
+        horario: (horario ?? undefined) as never,
         Marca: d.brand ?? null,
         is_rental: d.isRental ?? false,
         price_unit: d.priceUnit?.trim() || null,
@@ -249,13 +300,24 @@ export class AdminCatalogController {
     const d = parsed.data;
     const providerId = leerProveedor(d.providerId);
     await exigirProveedor(providerId);
+    const tarifas = leerTarifas(d.tarifas);
+    const costo = leerTarifas(d.costoAliado);
+    const horario = leerHorario(d.horario);
+    // La unidad principal que quedará: la nueva o la que ya tenía.
+    const unidadFinal = d.priceUnit !== undefined ? d.priceUnit.trim() || null : exists.price_unit;
     await prisma.products.update({
       where: { id },
       data: {
         ...(providerId !== undefined ? { provider_id: providerId } : {}),
         ...(d.name !== undefined ? { name: d.name } : {}),
         ...(d.categoryId !== undefined ? { category_id: d.categoryId } : {}),
-        ...(d.price !== undefined ? { cprice: d.price } : {}),
+        ...(tarifas !== undefined
+          ? { cprice: unidadFinal ? (tarifas[unidadFinal] ?? 0) : (d.price ?? exists.cprice) }
+          : d.price !== undefined ? { cprice: d.price } : {}),
+        ...(tarifas !== undefined ? { tarifas: tarifas as never } : {}),
+        ...(costo !== undefined ? { costo_aliado: costo as never } : {}),
+        ...(d.minimo !== undefined ? { minimo: d.minimo } : {}),
+        ...(horario !== undefined ? { horario: (horario ?? Prisma.JsonNull) as never } : {}),
         ...(d.oldPrice !== undefined ? { pprice: d.oldPrice } : {}),
         ...(d.description !== undefined ? { description: d.description } : {}),
         ...(d.stock !== undefined ? { stock: d.stock } : {}),

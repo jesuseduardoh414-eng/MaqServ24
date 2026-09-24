@@ -6,6 +6,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { correoServicioAvanzo, correoOfertaAAliado, correoAsignacionAAliado } from '../notifications/email-templates';
+import { liberarReserva } from './reservas';
 import {
   PASOS, esEstado, estadoInicial, puedeCerrar, sePuedeMover,
   type EstadoServicio,
@@ -91,6 +92,9 @@ export class ServiceService {
       hacia === 'en_curso' && !q.service_started_at ? { service_started_at: ahora }
         : hacia === 'cerrado' ? { service_closed_at: ahora }
           : {};
+
+    // Un servicio cancelado suelta la máquina que tenía apartada.
+    if (hacia === 'cancelado') await liberarReserva(quoteId);
 
     await prisma.quotes.update({
       where: { id: quoteId },
@@ -319,6 +323,9 @@ export class ServiceService {
             : `${a.providers.name} ${estado === 'rechazado' ? 'rechazó' : 'se retiró'}${opts.reason ? `: ${opts.reason.trim()}` : ''}`,
       },
     });
+
+    // Si no la toma, la máquina vuelve a estar libre para otros.
+    if (estado !== 'aceptado') await liberarReserva(quoteId);
 
     if (estado === 'aceptado') {
       /**

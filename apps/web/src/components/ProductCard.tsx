@@ -88,7 +88,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
   const modo = p.isRental ? t(theme, 'product.mode.rental') : t(theme, 'product.mode.sale');
   const disp = estadoDeProducto(p);
   // Cotizar SIEMPRE es posible desde la card: lleva al cotizador con este equipo cargado.
-  const quoteHref = `/cotizar?producto=${p.slug}`;
+  const quoteHref = `/cotizador?producto=${p.slug}`;
   const quoteOnly = quoteMode || p.price === null; // sin precio público: cotizar es la acción principal
 
   function add() {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import {
   COTIZADORES_META,
@@ -150,6 +150,8 @@ export function TarifasEditor({
           onChange={(v) => set({ publico: { ...cat.publico, mostrarPrecios: v } } as Partial<CatalogoCotizador>)}
         />
       </Bloque>
+
+      <MargenAliado />
 
       <Bloque titulo="Datos del documento" ayuda="Lo que sale impreso en el encabezado y el pie de la cotización. Los campos vacíos sencillamente no se imprimen.">
         <Rejilla>
@@ -763,6 +765,45 @@ function CampoEquipos({
         <CampoProveedor proveedores={ligas.proveedores} valor={proveedorId} onChange={(v) => onChange({ proveedor_id: v })} />
       ) : null}
     </>
+  );
+}
+
+/**
+ * MARGEN DE MAQSER24 SOBRE EL COSTO DEL ALIADO (2026-09-25).
+ *
+ * Desde que la máquina es la unidad de cotización, el precio al cliente se
+ * propone como costo del aliado + este porcentaje. Se guarda en
+ * `platform_settings` (no en el tema, que es público) y se puede ajustar por
+ * máquina al publicarla.
+ */
+function MargenAliado() {
+  const [margen, setMargen] = useState<string>('');
+  const [estado, setEstado] = useState<'cargando' | 'listo' | 'guardando' | 'ok' | 'error'>('cargando');
+  useEffect(() => {
+    void fetch('/api/admin/catalog/ajustes')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (typeof d?.margenPct === 'number') { setMargen(String(d.margenPct)); setEstado('listo'); } else setEstado('error'); })
+      .catch(() => setEstado('error'));
+  }, []);
+  async function guardar() {
+    setEstado('guardando');
+    const r = await fetch('/api/admin/catalog/ajustes', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ margenPct: Number(margen) }) });
+    setEstado(r.ok ? 'ok' : 'error');
+  }
+  return (
+    <Bloque titulo="Margen sobre el costo del aliado" ayuda="Cada máquina trae lo que cobra su aliado. Al publicarla, el precio al cliente se propone como ese costo más este porcentaje; se puede ajustar máquina por máquina.">
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', width: 140 }}>
+          <input style={{ ...input, paddingRight: 30 }} type="number" min={0} max={300} step="1" value={margen} disabled={estado === 'cargando'} onChange={(e) => { setMargen(e.target.value); setEstado('listo'); }} />
+          <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: D.muted2, fontSize: 13 }}>%</span>
+        </div>
+        <button type="button" onClick={() => void guardar()} disabled={estado === 'cargando' || estado === 'guardando' || margen === ''} style={boton}>
+          {estado === 'guardando' ? 'Guardando…' : 'Guardar margen'}
+        </button>
+        {estado === 'ok' ? <span style={{ fontSize: 13, color: D.ok }}>Guardado.</span> : null}
+        {estado === 'error' ? <span style={{ fontSize: 13, color: D.bad }}>No se pudo leer o guardar (¿falta correr el SQL de platform_settings?).</span> : null}
+      </div>
+    </Bloque>
   );
 }
 

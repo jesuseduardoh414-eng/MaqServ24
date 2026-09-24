@@ -37,6 +37,8 @@ const ALLOWLIST = [
    * ligada a su cuenta sin que el navegador toque el token.
    */
   /^quoter\/(catalog|calculate|request)\/(maquinaria|triturados)$/,
+  /** Cotizador guiado por máquina (2026-09-25): tipos, recomendaciones y solicitud. */
+  /^maquinas\/(tipos|recomendar|solicitar)$/,
 ];
 
 /** Rutas cuya credencial la manda el navegador, no la cookie de sesión. */

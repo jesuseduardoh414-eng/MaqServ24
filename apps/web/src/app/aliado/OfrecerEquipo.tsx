@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { atributosDe } from '@maqserv/config';
+import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, textoHorario, unidadesDeTarifa, type Horario } from '@maqserv/config';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
 
@@ -46,7 +46,13 @@ const EJEMPLO: Record<string, { nombre: string; modalidad: 'renta' | 'venta' }> 
   'soluciones-asfalticas': { nombre: 'Carpeta asfáltica en caliente, bacheo…', modalidad: 'venta' },
 };
 
-const PASOS = ['Línea', 'Qué es', 'Ficha técnica', 'Dónde está', 'Fotos', 'Enviar'] as const;
+/**
+ * Siete pasos (2026-09-25): se agregan "cuánto cobras" y el horario. Son los
+ * datos que el cotizador usa para recomendar la máquina: sin precio no se
+ * puede cotizar, y sin horario no se sabe si atiende el viernes a las 12.
+ */
+const PASOS = ['Línea', 'Qué es', 'Ficha técnica', 'Dónde y cuándo', 'Cuánto cobras', 'Fotos', 'Enviar'] as const;
+const P = { linea: 0, queEs: 1, ficha: 2, donde: 3, precios: 4, fotos: 5, enviar: 6 } as const;
 
 export function OfrecerEquipo({
   lineas,
@@ -57,7 +63,7 @@ export function OfrecerEquipo({
   onCerrar: () => void;
   onEnviado: (nombre: string) => void;
 }) {
-  const [paso, setPaso] = useState(lineas.length === 1 ? 1 : 0);
+  const [paso, setPaso] = useState<number>(lineas.length === 1 ? P.queEs : P.linea);
   const [linea, setLinea] = useState(lineas.length === 1 ? lineas[0].slug : '');
   const [nombre, setNombre] = useState('');
   const [marca, setMarca] = useState('');
@@ -66,10 +72,22 @@ export function OfrecerEquipo({
   const [ubicacion, setUbicacion] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [fotos, setFotos] = useState<File[]>([]);
+  // Cuánto cobra por unidad (texto mientras escribe), unidad principal, mínimo y cuántas iguales.
+  const [costos, setCostos] = useState<Record<string, string>>({});
+  const [unidadPrincipal, setUnidadPrincipal] = useState('');
+  const [minimo, setMinimo] = useState('1');
+  const [unidades, setUnidades] = useState('1');
+  const [horario, setHorario] = useState<Horario>(HORARIO_DEFAULT);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const preguntas = useMemo(() => atributosDe(linea), [linea]);
+  const unidadesPrecio = useMemo(() => unidadesDeTarifa(linea, modalidad), [linea, modalidad]);
+  const costosNumericos = useMemo(
+    () => Object.fromEntries(Object.entries(costos).map(([k, v]) => [k, Number(v)]).filter(([, n]) => Number.isFinite(n) && (n as number) > 0)) as Record<string, number>,
+    [costos],
+  );
+  const unidadElegida = unidadPrincipal && costosNumericos[unidadPrincipal] ? unidadPrincipal : Object.keys(costosNumericos)[0] ?? '';
   const lineaLabel = lineas.find((l) => l.slug === linea)?.label ?? '';
   const previews = useMemo(() => fotos.map((f) => URL.createObjectURL(f)), [fotos]);
 
@@ -81,9 +99,12 @@ export function OfrecerEquipo({
 
   /** Qué falta para pasar de este paso. Null = puede seguir. */
   function falta(): string | null {
-    if (paso === 0 && !linea) return 'Elige la línea de servicio.';
-    if (paso === 1 && nombre.trim().length < 3) return 'Escribe qué equipo o producto es.';
-    if (paso === 4 && fotos.length === 0) return 'Sube al menos una foto: es lo primero que revisa el cliente.';
+    if (paso === P.linea && !linea) return 'Elige la línea de servicio.';
+    if (paso === P.queEs && nombre.trim().length < 3) return 'Escribe qué equipo o producto es.';
+    if (paso === P.donde && horario.dias.length === 0) return 'Marca al menos un día en que atiendes.';
+    if (paso === P.donde && horario.desde >= horario.hasta) return 'La hora de cierre debe ser después de la de apertura.';
+    if (paso === P.precios && Object.keys(costosNumericos).length === 0) return 'Escribe al menos un precio: sin él no se puede cotizar tu equipo.';
+    if (paso === P.fotos && fotos.length === 0) return 'Sube al menos una foto: es lo primero que revisa el cliente.';
     return null;
   }
 
@@ -104,6 +125,11 @@ export function OfrecerEquipo({
     if (ubicacion.trim()) fd.set('ubicacion', ubicacion.trim());
     if (descripcion.trim()) fd.set('descripcion', descripcion.trim());
     fd.set('atributos', JSON.stringify(atributos));
+    fd.set('costos', JSON.stringify(costosNumericos));
+    fd.set('unidad', unidadElegida);
+    fd.set('minimo', String(Math.max(0, Number(minimo) || 0)));
+    fd.set('unidades', String(Math.max(1, Number(unidades) || 1)));
+    fd.set('horario', JSON.stringify(horario));
     fotos.forEach((f) => fd.append('fotos', f));
     const r = await fetch('/api/proxy/aliado/equipos', { method: 'POST', body: fd });
     setEnviando(false);
@@ -144,7 +170,7 @@ export function OfrecerEquipo({
       </ol>
 
       <div style={{ display: 'grid', gap: 14 }}>
-        {paso === 0 ? (
+        {paso === P.linea ? (
           <>
             <span style={etiqueta}>¿En qué línea de servicio va?</span>
             <div style={{ display: 'grid', gap: 8 }}>
@@ -162,7 +188,7 @@ export function OfrecerEquipo({
           </>
         ) : null}
 
-        {paso === 1 ? (
+        {paso === P.queEs ? (
           <>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiqueta}>¿Qué es?</span>
@@ -186,7 +212,7 @@ export function OfrecerEquipo({
           </>
         ) : null}
 
-        {paso === 2 ? (
+        {paso === P.ficha ? (
           preguntas.length === 0 ? (
             <p style={{ margin: 0, ...ayuda, fontSize: 14 }}>Esta línea no tiene ficha técnica. Sigue al siguiente paso.</p>
           ) : (
@@ -220,7 +246,7 @@ export function OfrecerEquipo({
           )
         ) : null}
 
-        {paso === 3 ? (
+        {paso === P.donde ? (
           <>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiqueta}>¿Dónde está?</span>
@@ -228,12 +254,91 @@ export function OfrecerEquipo({
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiqueta}>Algo más que el cliente deba saber <span style={ayuda}>(opcional)</span></span>
-              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={4} placeholder="Incluye operador y diésel, horario, condiciones…" style={{ ...campo, resize: 'vertical' }} />
+              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} placeholder="Incluye operador y diésel, condiciones…" style={{ ...campo, resize: 'vertical' }} />
             </label>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <span style={etiqueta}>¿Qué días atiendes?</span>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {DIAS_SEMANA.map((d, i) => {
+                  const on = horario.dias.includes(i);
+                  return (
+                    <button
+                      key={d}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setHorario((h) => ({ ...h, dias: on ? h.dias.filter((x) => x !== i) : [...h.dias, i].sort() }))}
+                      style={{ ...btnSec, padding: '9px 12px', fontSize: 13.5, borderColor: on ? 'var(--color-primary)' : 'var(--color-border)', background: on ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}
+                    >
+                      {d}
+                    </button>
+                  );
+                })}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={etiqueta}>Desde</span>
+                  <input type="time" value={horario.desde} onChange={(e) => setHorario((h) => ({ ...h, desde: e.target.value }))} style={campo} />
+                </label>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={etiqueta}>Hasta</span>
+                  <input type="time" value={horario.hasta} onChange={(e) => setHorario((h) => ({ ...h, hasta: e.target.value }))} style={campo} />
+                </label>
+              </div>
+              <span style={ayuda}>Solo te proponemos trabajos que caigan en este horario.</span>
+            </div>
           </>
         ) : null}
 
-        {paso === 4 ? (
+        {paso === P.precios ? (
+          <>
+            <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>
+              Lo que cobras por {modalidad === 'renta' ? 'rentarlo' : 'venderlo'}. Con eso MAQSER24 arma el precio al cliente. Llena las unidades que manejes.
+            </p>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {unidadesPrecio.map((u) => (
+                <label key={u.clave} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+                  <span style={etiqueta}>Por {u.singular}</span>
+                  <div style={{ position: 'relative', width: 170 }}>
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>$</span>
+                    <input
+                      type="number" min={0} step="1" inputMode="decimal"
+                      value={costos[u.clave] ?? ''}
+                      onChange={(e) => setCostos((c) => ({ ...c, [u.clave]: e.target.value }))}
+                      placeholder="0"
+                      style={{ ...campo, paddingLeft: 26 }}
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
+            {Object.keys(costosNumericos).length > 1 ? (
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={etiqueta}>¿Cuál es la unidad principal?</span>
+                <ShSelect value={unidadElegida} onValueChange={setUnidadPrincipal}>
+                  <ShSelectTrigger aria-label="Unidad principal"><ShSelectValue /></ShSelectTrigger>
+                  <ShSelectContent>
+                    {unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => <ShSelectItem key={u.clave} value={u.clave}>Por {u.singular}</ShSelectItem>)}
+                  </ShSelectContent>
+                </ShSelect>
+                <span style={ayuda}>Es la que se enseña en el catálogo.</span>
+              </label>
+            ) : null}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={etiqueta}>Mínimo</span>
+                <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={campo} />
+                <span style={ayuda}>{unidadElegida ? `En ${unidadesPrecio.find((u) => u.clave === unidadElegida)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}</span>
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={etiqueta}>¿Cuántas iguales tienes?</span>
+                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} style={campo} />
+                <span style={ayuda}>Para saber cuántas se pueden apartar a la vez.</span>
+              </label>
+            </div>
+          </>
+        ) : null}
+
+        {paso === P.fotos ? (
           <>
             <span style={etiqueta}>Fotos <span style={ayuda}>(hasta 6; la primera es la principal)</span></span>
             <input
@@ -254,7 +359,7 @@ export function OfrecerEquipo({
           </>
         ) : null}
 
-        {paso === 5 ? (
+        {paso === P.enviar ? (
           <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
             <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>Revisa y envía. MAQSER24 lo revisa y, al publicarlo, te avisamos por correo.</p>
             {[
@@ -264,6 +369,10 @@ export function OfrecerEquipo({
               ['Modalidad', modalidad === 'renta' ? 'Renta' : 'Venta'],
               ...preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).map((q) => [q.label, `${atributos[q.clave]}${q.unidad ? ` ${q.unidad}` : ''}`]),
               ['Dónde está', ubicacion || '—'],
+              ['Horario', textoHorario(horario)],
+              ...unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => [`Cobras por ${u.singular}`, `${costosNumericos[u.clave].toLocaleString('es-MX')}`]),
+              ['Mínimo', Number(minimo) > 0 ? `${minimo} ${unidadesPrecio.find((u) => u.clave === unidadElegida)?.plural ?? ''}` : 'Sin mínimo'],
+              ['Unidades iguales', unidades],
               ['Fotos', String(fotos.length)],
             ].map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
@@ -277,7 +386,7 @@ export function OfrecerEquipo({
         {error ? <div role="alert" style={{ fontSize: 13.5, color: 'var(--color-error)' }}>{error}</div> : null}
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
-          {paso > (lineas.length === 1 ? 1 : 0) ? (
+          {paso > (lineas.length === 1 ? P.queEs : P.linea) ? (
             <button type="button" style={btnSec} onClick={() => { setError(null); setPaso((p) => p - 1); }}>Atrás</button>
           ) : null}
           {paso < PASOS.length - 1 ? (

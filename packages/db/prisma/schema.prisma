@@ -1011,6 +1011,14 @@ model products {
   availability_confirmed_at DateTime? @db.DateTime(6)
   price_unit                String?   @db.VarChar(20)
   attributes                Json?
+  /// Precio al público por unidad (claves de UNIDADES): {"dia": 6500, "semana": 36000}.
+  tarifas                   Json?
+  /// Lo que cobra el aliado por unidad. Nunca sale al cliente.
+  costo_aliado              Json?
+  /// Mínimo de unidades en price_unit: 1 día, 1 viaje…
+  minimo                    Int?
+  /// Cuándo atiende: {"dias": [1,2,3,4,5,6], "desde": "08:00", "hasta": "18:00"}.
+  horario                   Json?
 
   @@index([provider_id], map: "products_provider_idx")
   @@index([status, category_id], map: "products_status_category_idx")
@@ -1781,6 +1789,14 @@ model quoter_catalogs {
 /// abría, así que subir una tarifa cambiaba en silencio cotizaciones que el
 /// cliente ya tenía en la mano. Aquí el documento dice lo que decía el día que
 /// se emitió, pase lo que pase con el tabulador.
+/// Ajustes de plataforma (margen sobre el costo del aliado, interruptores). Ver sql/catalogo-guiado.sql.
+model platform_settings {
+  key        String   @id @db.VarChar(80)
+  value      Json
+  updated_by String?  @db.VarChar(190)
+  updated_at DateTime @default(now()) @db.DateTime(0)
+}
+
 model quoter_quotes {
   id           Int      @id @default(autoincrement())
   kind         String   @db.VarChar(20)
