@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
 import { Icon, type IconName } from '@/components/Icon';
+import { OfrecerEquipo } from './OfrecerEquipo';
 
 /**
  * EL PANEL DEL ALIADO (rediseño 2026-09-24).
@@ -86,6 +87,8 @@ export interface DatosPortal {
     lista: Array<{ id: number; kind: string; kindLabel: string; name: string | null; expiresAt: string | null }>;
     tipos: Array<{ clave: string; label: string }>;
   };
+  /** Lo que ofreció desde aquí y MAQSER24 aún no publica. */
+  propuestas?: Array<{ id: number; name: string; brand: string | null; image: string | null; createdAt: string | null }>;
   recientes?: Array<{
     quoteNumber: string;
     category: string | null;
@@ -257,9 +260,13 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   const [respondiendo, setRespondiendo] = useState<{ id: number; modo: 'aceptar' | 'rechazar' } | null>(null);
   const [llegada, setLlegada] = useState(mananaOcho());
   const [motivo, setMotivo] = useState('');
+  /** Formulario guiado para ofrecer un equipo. */
+  const [ofreciendo, setOfreciendo] = useState(false);
 
   const { aliado, porContestar, enCurso, equipos, documentos, cumplimiento } = datos;
   const recientes = datos.recientes ?? [];
+  const propuestas = datos.propuestas ?? [];
+  const lineasOferta = aliado.categories.map((slug, i) => ({ slug, label: aliado.categoryLabels?.[i] ?? slug }));
   const lineas = aliado.categoryLabels?.length ? aliado.categoryLabels : aliado.categories;
   const API = '/api/proxy';
 
@@ -357,7 +364,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
     { hecho: Boolean(aliado.phone && aliado.email && aliado.coverage.length), texto: 'Tus datos y tu cobertura', ayuda: 'Teléfono, correo y los municipios a los que llegas.' },
     { hecho: documentos.lista.length > 0, texto: 'Entregar tus papeles', ayuda: 'Póliza de seguro, constancia fiscal y DC-3 de tus operadores.' },
     { hecho: aliado.verified, texto: 'Sello de verificado', ayuda: 'Lo da MAQSER24 al revisar tus papeles vigentes.' },
-    { hecho: equipos.length > 0, texto: 'Equipos asignados', ayuda: 'MAQSER24 registra tus máquinas a tu nombre.' },
+    { hecho: equipos.length > 0, texto: 'Ofrecer tus equipos', ayuda: propuestas.length ? 'Ya enviaste equipos: MAQSER24 los está revisando para publicarlos.' : 'Toca "Ofrecer un equipo" y responde las preguntas: MAQSER24 lo revisa y lo publica.' },
     { hecho: equipos.length > 0 && equiposConfirmados === equipos.length, texto: 'Disponibilidad confirmada', ayuda: 'Toca "Sigue libre" en cada equipo al menos cada 14 días.' },
   ];
   const listos = pasos.filter((p) => p.hecho).length;
@@ -615,11 +622,55 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
 
       {/* ── Equipos ── */}
       <section id="equipos" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
-        <Titulo icono="box">Tus equipos</Titulo>
+        <Titulo
+          icono="box"
+          extra={!ofreciendo && lineasOferta.length > 0 ? (
+            <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13.5 }} onClick={() => { setOfreciendo(true); setMsg(null); }}>
+              + Ofrecer un equipo
+            </button>
+          ) : null}
+        >
+          Tus equipos
+        </Titulo>
+
+        {ofreciendo ? (
+          <div style={{ marginBottom: 14 }}>
+            <OfrecerEquipo
+              lineas={lineasOferta}
+              onCerrar={() => setOfreciendo(false)}
+              onEnviado={(nombre) => {
+                setOfreciendo(false);
+                avisar(`Recibimos "${nombre}". MAQSER24 lo revisa y te avisamos por correo cuando esté publicado.`);
+                router.refresh();
+              }}
+            />
+          </div>
+        ) : null}
+
+        {propuestas.length > 0 ? (
+          <div style={{ ...card, marginBottom: 12, padding: 0, overflow: 'hidden', borderColor: AMBAR }}>
+            <div style={{ padding: '11px 18px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: AMBAR }}>
+              En revisión por MAQSER24
+            </div>
+            {propuestas.map((e) => (
+              <div key={e.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 18px', borderTop: '1px solid var(--color-border)' }}>
+                {e.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={e.image} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8 }} />
+                ) : null}
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600 }}>{e.name}</div>
+                  <div style={{ fontSize: 12.5, ...muted }}>{e.brand ? `${e.brand} · ` : ''}enviado {hace(e.createdAt)}</div>
+                </div>
+                <Chip color={AMBAR}>Por revisar</Chip>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {equipos.length === 0 ? (
           <div style={{ ...card, fontSize: 14, lineHeight: 1.6, ...muted }}>
-            Todavía no hay máquinas registradas a tu nombre. MAQSER24 las da de alta con los datos que nos
-            compartas; en cuanto estén, aparecen aquí para que confirmes si siguen libres.
+            Todavía no tienes equipos publicados. Toca <strong style={{ color: 'var(--color-text)' }}>"Ofrecer un equipo"</strong>,
+            responde las preguntas y sube fotos: MAQSER24 lo revisa y, al publicarlo, aparece aquí para que confirmes si sigue libre.
           </div>
         ) : (
           <>
@@ -852,7 +903,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           <Titulo icono="chat">¿Dudas? Estamos para ayudarte</Titulo>
           <div style={{ ...card, display: 'grid', gap: 12 }}>
             <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, ...muted }}>
-              Para registrar un equipo nuevo, cambiar tus líneas de servicio o aclarar una solicitud, contacta a MAQSER24.
+              Para cambiar tus líneas de servicio, corregir un equipo publicado o aclarar una solicitud, contacta a MAQSER24.
             </p>
             {contacto?.phone ? (
               <a href={`tel:${contacto.phone.replace(/\s+/g, '')}`} style={{ ...btn, textDecoration: 'none' }}>

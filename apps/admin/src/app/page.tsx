@@ -15,6 +15,8 @@ interface Dashboard {
   docsExpired: number;
   /** Aliados con papeles que vencen dentro de 30 dias. */
   docsExpiring: number;
+  /** Equipos que ofrecieron aliados desde su portal y esperan revisión. */
+  pendingOffers?: number;
   withdrawsPending: number;
   withdrawsAmount: number;
   unansweredQuestions: number;
@@ -49,6 +51,7 @@ export default async function AdminHome() {
       { n: d.docsExpired, label: 'Aliados con papeles vencidos', sub: 'Perdieron el sello de verificado', href: '/proveedores', icon: 'ph-warning-circle', color: RED },
       { n: d.toPrepare, label: 'Por preparar', sub: 'Pagadas, esperando que salgan', href: '/ordenes?state=pagado', icon: 'ph-package', color: D.accent },
       { n: d.pendingQuotes, label: 'Cotizaciones sin responder', sub: 'El cliente espera precio', href: '/cotizaciones', icon: 'ph-file-text', color: D.accent },
+      { n: d.pendingOffers ?? 0, label: 'Equipos por revisar', sub: 'Los ofrecieron aliados desde su portal', href: '/proveedores', icon: 'ph-package', color: D.accent },
       { n: d.docsExpiring, label: 'Papeles por vencer', sub: 'Dentro de los proximos 30 dias', href: '/proveedores', icon: 'ph-clock-countdown', color: D.accent },
       // Marketplace heredado: solo si está encendido (ver marketplace.ts en config).
       ...(MARKETPLACE_ACTIVO

@@ -399,6 +399,55 @@ export function correoBienvenida(d: { nombre: string; url: string }): { subject:
   };
 }
 
+// ─────────────────── Equipos que ofrece el aliado (2026-09-24) ───────────────────
+
+/** A MAQSER24: un aliado ofreció un equipo desde su portal. */
+export function correoEquipoPropuesto(d: {
+  aliado: string;
+  equipo: string;
+  marca: string | null;
+  linea: string;
+  fotos: number;
+  url: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `Equipo por revisar · ${d.aliado}`,
+    html: marco(
+      `${titulo('Un aliado ofreció un equipo')}
+      <p style="margin:0;"><strong style="color:${TINTA};">${esc(d.aliado)}</strong> registró un equipo desde su portal. Está por revisar: no sale en el sitio hasta que lo publiques.</p>
+      ${datos(filas([['Equipo', d.equipo], ['Marca', d.marca], ['Línea', d.linea], ['Fotos', String(d.fotos)]]))}
+      ${d.url ? boton('Revisarlo en Red de aliados', d.url) : ''}`,
+    ),
+  };
+}
+
+/** Al aliado: su equipo ya está publicado. */
+export function correoEquipoPublicado(d: { contacto: string | null; equipo: string }): { subject: string; html: string } {
+  return {
+    subject: `Tu equipo ya está publicado · ${d.equipo}`,
+    html: marco(
+      `${titulo('Tu equipo ya está en MAQSER24')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
+      <p style="margin:0;">Revisamos y publicamos <strong style="color:${TINTA};">${esc(d.equipo)}</strong>. Desde hoy los clientes pueden pedirlo y, cuando lo hagan, te llega la solicitud a tu portal.</p>
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">Confirma en tu portal que sigue libre al menos cada 14 días: solo proponemos lo que sabemos que está disponible.</p>`,
+    ),
+  };
+}
+
+/** Al aliado: su equipo no se publicó, con el motivo. */
+export function correoEquipoRechazado(d: { contacto: string | null; equipo: string; motivo: string }): { subject: string; html: string } {
+  return {
+    subject: `Revisamos tu equipo · ${d.equipo}`,
+    html: marco(
+      `${titulo('Tu equipo necesita cambios')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
+      <p style="margin:0;">Revisamos <strong style="color:${TINTA};">${esc(d.equipo)}</strong> y por ahora no lo publicamos:</p>
+      <p style="margin:12px 0 0;padding:12px 14px;border-left:3px solid ${TINTA2};color:${TINTA};">${esc(d.motivo)}</p>
+      <p style="margin:12px 0 0;">Puedes volver a ofrecerlo desde tu portal con los cambios, o contestar este correo si tienes dudas.</p>`,
+    ),
+  };
+}
+
 // ─────────────────── Cotizador con tabulador (maquinaria y triturados) ───────────────────
 
 /**

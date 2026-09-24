@@ -371,10 +371,16 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
               </div>
               {/* Estado */}
               <div className="pr-state">
-                <button type="button" onClick={() => toggleStatus(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  <Switch on={p.status === 1} />
-                  <span style={{ fontSize: 12, fontWeight: 700, color: p.status === 1 ? C.green : C.dim }}>{p.status === 1 ? 'Activo' : 'Inactivo'}</span>
-                </button>
+                {/* status 2 = lo ofreció un aliado desde su portal: se publica
+                    desde su expediente (le avisa), no con el interruptor. */}
+                {p.status === 2 ? (
+                  <a href="/proveedores" style={{ fontSize: 12, fontWeight: 700, color: '#e0a23a', textDecoration: 'none' }}>● Por revisar</a>
+                ) : (
+                  <button type="button" onClick={() => toggleStatus(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <Switch on={p.status === 1} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: p.status === 1 ? C.green : C.dim }}>{p.status === 1 ? 'Activo' : 'Inactivo'}</span>
+                  </button>
+                )}
               </div>
               {/* Acciones */}
               <div className="pr-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>

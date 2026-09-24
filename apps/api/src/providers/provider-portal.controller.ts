@@ -1,8 +1,11 @@
 import {
   BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Patch, Post,
-  Req, UploadedFile, UseGuards, UseInterceptors,
+  Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { atributosDe } from '@maqserv/config';
+import { MailerService } from '../notifications/mailer.service';
+import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
 import { mediaStorage } from '../common/media-multer';
@@ -17,6 +20,7 @@ import { ServiceService } from '../quotes/service.service';
 import { PASOS, avance, esEstado } from '../quotes/service-flow';
 import { lista } from '../common/json-list';
 import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
+import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 
 /**
  * EL PORTAL DEL ALIADO (documento institucional, sección 20).
@@ -66,6 +70,21 @@ const documentoSchema = z.object({
 /** Foto del papel: en campo se le toma foto a la póliza, no se escanea. */
 const docStorage = mediaStorage();
 
+/**
+ * Lo que manda el aliado al ofrecer un equipo. Llega en multipart (trae
+ * fotos), así que todo es texto: `atributos` viaja como JSON.
+ */
+const ofertaSchema = z.object({
+  categoria: z.string().min(2).max(120),
+  nombre: z.string().trim().min(3, 'Escribe qué equipo es').max(200),
+  marca: z.string().trim().max(120).optional(),
+  descripcion: z.string().trim().max(4000).optional(),
+  ubicacion: z.string().trim().max(160).optional(),
+  modalidad: z.enum(['renta', 'venta']).default('renta'),
+  atributos: z.string().max(4000).optional(),
+});
+const MAX_FOTOS_OFERTA = 6;
+
 /** `'2027-03-01'` → Date; vacío → null (un input date sin llenar manda ''). */
 const fecha = (v: string | null | undefined): Date | null =>
   v && v.trim() ? new Date(`${v}T00:00:00Z`) : null;
@@ -73,7 +92,10 @@ const fecha = (v: string | null | undefined): Date | null =>
 @Controller('aliado')
 @UseGuards(ProviderLinkGuard)
 export class ProviderPortalController {
-  constructor(private readonly services: ServiceService) {}
+  constructor(
+    private readonly services: ServiceService,
+    private readonly mailer: MailerService,
+  ) {}
 
   /** Todo lo que el aliado ve al abrir su enlace. */
   @Get()
@@ -231,6 +253,18 @@ export class ProviderPortalController {
        * periódica y marca de antigüedad": aquí es donde el aliado la ejerce sin
        * que nadie le llame.
        */
+      /**
+       * Lo que ofreció y MAQSER24 todavía no revisa (`status = 2`). Se le
+       * enseña para que sepa que llegó y no lo mande dos veces.
+       */
+      propuestas: (
+        await prisma.products.findMany({
+          where: { provider_id: id, status: ESTADO_POR_REVISAR },
+          select: { id: true, name: true, Marca: true, photo: true, created_at: true, category_id: true },
+          orderBy: { id: 'desc' },
+        })
+      ).map((e) => ({ id: e.id, name: e.name, brand: e.Marca, image: imageUrl(e.photo), createdAt: e.created_at })),
+
       equipos: equipos.map((e) => {
         const d = disponibilidadDe(
           { stock: e.stock, location: e.location, confirmedAt: e.availability_confirmed_at, blocks: porEquipo.get(e.id) ?? [] },
@@ -443,6 +477,99 @@ export class ProviderPortalController {
    * El sello de verificado se recalcula solo (`estadoDocumentos`), así que subir
    * la renovación devuelve el sello sin que nadie tenga que aprobarlo a mano.
    */
+  /**
+   * OFRECER UN EQUIPO (2026-09-24). Nace "por revisar": ya está a su nombre y
+   * lo ve en su portal, pero no sale en el sitio hasta que MAQSER24 lo publica.
+   * Ver `catalog/ofertas.ts`.
+   */
+  @Post('equipos')
+  @UseInterceptors(FilesInterceptor('fotos', MAX_FOTOS_OFERTA, { storage: docStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
+  async ofrecerEquipo(
+    @Req() req: AliadoRequest,
+    @Body() body: unknown,
+    @UploadedFiles() fotos?: Express.Multer.File[],
+  ) {
+    const parsed = ofertaSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Revisa los datos del equipo.');
+    const d = parsed.data;
+
+    const p = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { id: true, name: true, categories: true } });
+    if (!p) throw new BadRequestException('Aliado no encontrado');
+    // Solo en sus líneas: son las que MAQSER24 le validó.
+    if (!lista(p.categories).includes(d.categoria)) {
+      throw new BadRequestException('Esa línea de servicio no está en tu expediente. Escríbenos para agregarla.');
+    }
+    const categoria = await prisma.categories.findUnique({ where: { cat_slug: d.categoria }, select: { id: true, cat_name: true } });
+    if (!categoria) throw new BadRequestException('Línea de servicio desconocida.');
+
+    // Solo las preguntas de su línea, y solo con valor: lo demás no se guarda.
+    let atributos: Record<string, string> | null = null;
+    try {
+      const crudo = d.atributos ? (JSON.parse(d.atributos) as Record<string, unknown>) : {};
+      const validas = new Set(atributosDe(d.categoria).map((a) => a.clave));
+      const limpio = Object.fromEntries(
+        Object.entries(crudo)
+          .filter(([k, v]) => validas.has(k) && v !== null && String(v).trim() !== '')
+          .map(([k, v]) => [k, String(v).trim().slice(0, 200)]),
+      );
+      atributos = Object.keys(limpio).length ? limpio : null;
+    } catch {
+      throw new BadRequestException('La ficha técnica llegó incompleta. Intenta otra vez.');
+    }
+
+    const rutas = (fotos ?? []).map((f) => `uploads/${f.filename}`);
+    const ahora = new Date();
+    const creado = await prisma.products.create({
+      data: {
+        user_id: 0,
+        provider_id: p.id,
+        category_id: categoria.id,
+        name: d.nombre,
+        Marca: d.marca || null,
+        description: d.descripcion || d.nombre,
+        // El precio lo pone MAQSER24 al publicar; en 0 el sitio dice "precio bajo cotización".
+        cprice: 0,
+        is_rental: d.modalidad === 'renta',
+        attributes: (atributos ?? undefined) as never,
+        location: d.ubicacion || null,
+        photo: rutas[0] ?? null,
+        status: ESTADO_POR_REVISAR,
+        featured: 0,
+        created_at: ahora,
+        updated_at: ahora,
+      },
+      select: { id: true, name: true },
+    });
+    if (rutas.length > 1) {
+      await prisma.galleries.createMany({
+        data: rutas.slice(1).map((photo) => ({ product_id: creado.id, photo, created_at: ahora, updated_at: ahora })),
+      });
+    }
+
+    // Avisar al equipo de MAQSER24; nunca tumba la propuesta, que ya quedó guardada.
+    const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;
+    if (interno) {
+      const panel = (process.env.ADMIN_URL ?? '').replace(/\/+$/, '');
+      void this.mailer
+        .enviar({
+          kind: 'provider_offer_review',
+          to: interno,
+          providerId: p.id,
+          ...correoEquipoPropuesto({
+            aliado: p.name,
+            equipo: creado.name,
+            marca: d.marca || null,
+            linea: categoria.cat_name,
+            fotos: rutas.length,
+            url: `${panel}/proveedores`,
+          }),
+        })
+        .catch(() => undefined);
+    }
+
+    return { ok: true, id: creado.id };
+  }
+
   @Post('documentos')
   @UseInterceptors(FileInterceptor('file', { storage: docStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
   async subirDocumento(

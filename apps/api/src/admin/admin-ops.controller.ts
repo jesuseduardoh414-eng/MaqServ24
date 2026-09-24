@@ -13,6 +13,7 @@ import { MailerService } from '../notifications/mailer.service';
 import { correoCotizacionRespondida } from '../notifications/email-templates';
 import { FulfillmentService, toShipping } from '../orders/fulfillment.service';
 import { DIAS_AVISO } from '../catalog/provider-trust';
+import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 
 const PAID_STATES = new Set(['approved', 'completed', 'paid']);
 
@@ -56,7 +57,7 @@ export class AdminOpsController {
       products, orders, unpaid, toPrepare, shipped, quotes, pendingQuotes,
       vendorsPending, withdrawsPending, withdrawsAmount, unansweredQuestions,
       pendingReviews, sold, customers, docsExpired, docsExpiring, pendingMessages,
-      pendingQuoterRequests,
+      pendingQuoterRequests, pendingOffers,
     ] = await Promise.all([
       prisma.products.count({ where: { status: 1 } }),
       prisma.orders.count(),
@@ -98,12 +99,14 @@ export class AdminOpsController {
       // Cotizaciones que un visitante pidio desde el sitio y nadie ha tocado.
       // Mismo criterio que los mensajes de contacto: alguien esperando.
       prisma.quoter_quotes.count({ where: { state: 'solicitada' } }),
+      // Equipos que un aliado ofreció desde su portal y esperan revisión.
+      prisma.products.count({ where: { status: ESTADO_POR_REVISAR } }),
     ]);
 
     return {
       // Por atender
       toPrepare, shipped, unpaid, pendingQuotes, vendorsPending,
-      docsExpired, docsExpiring, pendingMessages, pendingQuoterRequests,
+      docsExpired, docsExpiring, pendingMessages, pendingQuoterRequests, pendingOffers,
       withdrawsPending, withdrawsAmount: withdrawsAmount._sum.amount ?? 0,
       unansweredQuestions, pendingReviews,
       // Negocio

@@ -30,6 +30,8 @@ export interface ProviderRow {
   monthsInNetwork: number | null;
   documentCount: number;
   productCount: number;
+  /** Equipos que ofreció desde su portal y esperan revisión. */
+  pendingCount?: number;
   /** Nombres legibles de sus líneas de servicio. */
   categoryLabels?: string[];
   /** Lo que ofrece: sus máquinas del catálogo. */
@@ -47,6 +49,8 @@ interface EquipoRow {
   availability: string;
   location: string | null;
   confirmedAt: string | null;
+  /** Lo ofreció el aliado desde su portal y espera revisión. */
+  pending?: boolean;
 }
 
 /** Cómo se lee la disponibilidad de un equipo en una línea. */
@@ -413,15 +417,23 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
                 ) : null}
               </div>
               <div style={{ marginTop: 8, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-                {p.equipment && p.equipment.length > 0 ? (
-                  <>
-                    <strong style={{ color: C.ink }}>{p.equipment.length} equipo{p.equipment.length === 1 ? '' : 's'}:</strong>{' '}
-                    {p.equipment.slice(0, 4).map((e) => `${e.name}${e.brand ? ` (${e.brand})` : ''}`).join(' · ')}
-                    {p.equipment.length > 4 ? ` · y ${p.equipment.length - 4} más` : ''}
-                  </>
-                ) : (
-                  <span>Sin equipos registrados. Agrégaselos desde su expediente.</span>
-                )}
+                {(() => {
+                  const publicados = (p.equipment ?? []).filter((e) => !e.pending);
+                  return publicados.length > 0 ? (
+                    <>
+                      <strong style={{ color: C.ink }}>{publicados.length} equipo{publicados.length === 1 ? '' : 's'}:</strong>{' '}
+                      {publicados.slice(0, 4).map((e) => `${e.name}${e.brand ? ` (${e.brand})` : ''}`).join(' · ')}
+                      {publicados.length > 4 ? ` · y ${publicados.length - 4} más` : ''}
+                    </>
+                  ) : (
+                    <span>Sin equipos publicados.</span>
+                  );
+                })()}
+                {p.pendingCount ? (
+                  <button type="button" onClick={() => abrirExpediente(p)} style={{ marginLeft: 10, fontSize: 12, fontWeight: 700, color: C.warn, background: 'none', border: `1px solid color-mix(in srgb, ${C.warn} 45%, transparent)`, borderRadius: 999, padding: '2px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {p.pendingCount} por revisar
+                  </button>
+                ) : null}
               </div>
             </div>
           );
@@ -435,6 +447,15 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           onCerrar={() => setExpediente(null)}
           onAgregar={agregarDoc}
           onBorrar={borrarDoc}
+          onRevisado={async (texto) => {
+            setMsg(texto);
+            const r = await fetch('/api/admin/providers');
+            if (r.ok) {
+              const nuevos = (await r.json()) as ProviderRow[];
+              setProvs(nuevos);
+              setExpediente(nuevos.find((x) => x.id === expediente.id) ?? null);
+            }
+          }}
         />
       ) : null}
     </div>
@@ -442,14 +463,38 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 }
 
 function ExpedienteModal({
-  p, docs, onCerrar, onAgregar, onBorrar,
+  p, docs, onCerrar, onAgregar, onBorrar, onRevisado,
 }: {
   p: ProviderRow;
   docs: DocRow[];
   onCerrar: () => void;
   onAgregar: (kind: string, nombre: string, vence: string) => void;
   onBorrar: (id: number) => void;
+  /** Tras publicar o rechazar: mensaje y recarga. */
+  onRevisado: (texto: string) => void;
 }) {
+  const [ocupado, setOcupado] = useState<number | null>(null);
+  const [rechazando, setRechazando] = useState<number | null>(null);
+  const [motivo, setMotivo] = useState('');
+  const pendientes = (p.equipment ?? []).filter((e) => e.pending);
+  const publicados = (p.equipment ?? []).filter((e) => !e.pending);
+
+  async function revisar(e: EquipoRow, accion: 'publicar' | 'rechazar') {
+    if (accion === 'rechazar' && motivo.trim().length < 4) return;
+    setOcupado(e.id);
+    const r = await fetch(`/api/admin/providers/equipos/${e.id}/${accion}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(accion === 'rechazar' ? { motivo: motivo.trim() } : {}),
+    });
+    setOcupado(null);
+    const d = await r.json().catch(() => null);
+    if (!r.ok) { window.alert(d?.message ?? 'No se pudo completar.'); return; }
+    setRechazando(null); setMotivo('');
+    onRevisado(accion === 'publicar'
+      ? `"${e.name}" quedó publicado y ya aparece en el sitio. Le avisamos al aliado.`
+      : `"${e.name}" no se publicó. Le mandamos el motivo al aliado.`);
+  }
   const [kind, setKind] = useState('fiscal');
   const [nombre, setNombre] = useState('');
   const [vence, setVence] = useState('');
@@ -482,14 +527,56 @@ function ExpedienteModal({
             <span key={c} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{c}</span>
           ))}
         </div>
+        {pendientes.length > 0 ? (
+          <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.warn }}>
+              Por revisar ({pendientes.length}) · lo ofreció desde su portal. Revísalo, corrígelo si hace falta y publícalo.
+            </div>
+            {pendientes.map((e) => (
+              <div key={e.id} style={{ background: C.panel2, border: `1px solid color-mix(in srgb, ${C.warn} 45%, transparent)`, borderRadius: 10, padding: 12 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                  {e.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={e.image} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+                  ) : null}
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <strong style={{ fontSize: 14 }}>{e.name}</strong>
+                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
+                      {[e.category, e.brand ? `Marca ${e.brand}` : 'Sin marca', e.rental ? 'Renta' : 'Venta', e.location].filter(Boolean).join(' · ')}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: C.ink, marginTop: 4 }}>
+                      {e.specs.length ? e.specs.map((x) => `${x.label}: ${x.valor}`).join(' · ') : 'Sin ficha técnica'}
+                    </div>
+                  </div>
+                </div>
+                {rechazando === e.id ? (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+                    <textarea value={motivo} onChange={(ev) => setMotivo(ev.target.value)} rows={2} placeholder="Qué le falta o por qué no se publica (le llega por correo)" style={{ ...input, resize: 'vertical' }} />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button type="button" disabled={ocupado === e.id || motivo.trim().length < 4} onClick={() => void revisar(e, 'rechazar')} style={{ ...boton, background: C.bad, opacity: motivo.trim().length < 4 ? 0.5 : 1 }}>Rechazar y avisarle</button>
+                      <button type="button" onClick={() => { setRechazando(null); setMotivo(''); }} style={botonSec}>Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                    <a href={`/productos/editar/${e.id}`} style={{ ...botonSec, textDecoration: 'none', padding: '8px 14px', fontSize: 13 }}>Revisar y corregir</a>
+                    <button type="button" disabled={ocupado === e.id} onClick={() => void revisar(e, 'publicar')} style={{ ...boton, padding: '8px 14px', fontSize: 13, opacity: ocupado === e.id ? 0.6 : 1 }}>Publicar</button>
+                    <button type="button" onClick={() => setRechazando(e.id)} style={{ ...botonSec, padding: '8px 14px', fontSize: 13, color: C.bad }}>Rechazar</button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         <div style={{ display: 'grid', gap: 10, marginBottom: 22 }}>
-          {(p.equipment ?? []).length === 0 ? (
+          {publicados.length === 0 ? (
             <div style={{ color: C.dim, fontSize: 13.5, lineHeight: 1.6 }}>
               Todavía no tiene equipos. Con "Agregar equipo" creas la ficha de su máquina (tipo, marca, capacidad,
               fotos) ya a su nombre. Si la máquina ya existe en el catálogo, ábrela y en "De quién es el equipo" elígelo a él.
             </div>
           ) : null}
-          {(p.equipment ?? []).map((e) => {
+          {publicados.map((e) => {
             const disp = DISP[e.availability] ?? { texto: e.availability, color: C.muted };
             return (
               <div key={e.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12 }}>

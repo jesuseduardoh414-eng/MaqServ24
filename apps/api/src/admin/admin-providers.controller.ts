@@ -22,7 +22,8 @@ import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../
 import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { MailerService } from '../notifications/mailer.service';
-import { correoAccesoAliado } from '../notifications/email-templates';
+import { correoAccesoAliado, correoEquipoPublicado, correoEquipoRechazado } from '../notifications/email-templates';
+import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { FreightService } from '../freight/freight.service';
 import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incidents';
 import { imageUrl } from '../catalog/images';
@@ -211,9 +212,10 @@ export class AdminProvidersController {
      */
     const [productos, categorias] = await Promise.all([
       prisma.products.findMany({
-        where: { status: 1, provider_id: { not: null } },
+        // Activos y los que el aliado ofreció desde su portal y esperan revisión.
+        where: { status: { in: [1, ESTADO_POR_REVISAR] }, provider_id: { not: null } },
         select: {
-          id: true, name: true, Marca: true, category_id: true, attributes: true, photo: true,
+          id: true, name: true, Marca: true, category_id: true, attributes: true, photo: true, status: true,
           stock: true, location: true, availability_confirmed_at: true, provider_id: true,
           is_rental: true, price_unit: true,
         },
@@ -243,6 +245,8 @@ export class AdminProvidersController {
         availability: disp.state,
         location: disp.location,
         confirmedAt: e.availability_confirmed_at,
+        // Lo ofreció el aliado desde su portal y aún no se publica.
+        pending: e.status === ESTADO_POR_REVISAR,
       };
       const k = e.provider_id as number;
       equiposPor.set(k, [...(equiposPor.get(k) ?? []), fila]);
@@ -274,7 +278,8 @@ export class AdminProvidersController {
         verified: estaVerificado(p.level, docs),
         monthsInNetwork: mesesEnRed(p.joined_at),
         documentCount: p.provider_documents.length,
-        productCount: suyos.length,
+        productCount: suyos.filter((e) => !e.pending).length,
+        pendingCount: suyos.filter((e) => e.pending).length,
         // Nombres legibles de sus líneas ("Renta de maquinaria pesada", no el slug).
         categoryLabels: lista(p.categories).map((s) => nombreDeSlug.get(s) ?? s),
         equipment: suyos,
@@ -570,6 +575,53 @@ export class AdminProvidersController {
       select: { id: true },
     });
     return doc;
+  }
+
+  /**
+   * PUBLICAR un equipo que el aliado ofreció desde su portal: pasa a activo y
+   * sale en el sitio. Se revisa (y se corrige en su ficha) antes de pulsar.
+   * La disponibilidad queda confirmada hoy: el aliado la acaba de declarar.
+   */
+  @Post('equipos/:productId/publicar')
+  async publicarEquipo(@Param('productId', ParseIntPipe) productId: number) {
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { id: true, name: true, status: true, provider_id: true } });
+    if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
+    await prisma.products.update({
+      where: { id: productId },
+      data: { status: 1, availability_confirmed_at: new Date(), updated_at: new Date() },
+    });
+    if (e.provider_id) {
+      const p = await prisma.providers.findUnique({ where: { id: e.provider_id }, select: { email: true, contact_name: true } });
+      if (p?.email) {
+        void this.mailer
+          .enviar({ kind: 'provider_offer_published', to: p.email, toName: p.contact_name, providerId: e.provider_id, ...correoEquipoPublicado({ contacto: p.contact_name, equipo: e.name }) })
+          .catch(() => undefined);
+      }
+    }
+    return { ok: true };
+  }
+
+  /**
+   * RECHAZAR con motivo: se le avisa al aliado por correo y la propuesta se
+   * borra (con su galería). Puede volver a ofrecerlo corregido.
+   */
+  @Post('equipos/:productId/rechazar')
+  async rechazarEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown) {
+    const motivo = z.object({ motivo: z.string().trim().min(4, 'Escribe el motivo: el aliado lo recibe por correo.').max(1000) }).safeParse(body);
+    if (!motivo.success) throw new BadRequestException(motivo.error.issues[0]?.message ?? 'Falta el motivo');
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { id: true, name: true, status: true, provider_id: true } });
+    if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
+    await prisma.galleries.deleteMany({ where: { product_id: productId } });
+    await prisma.products.delete({ where: { id: productId } });
+    if (e.provider_id) {
+      const p = await prisma.providers.findUnique({ where: { id: e.provider_id }, select: { email: true, contact_name: true } });
+      if (p?.email) {
+        void this.mailer
+          .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: e.provider_id, ...correoEquipoRechazado({ contacto: p.contact_name, equipo: e.name, motivo: motivo.data.motivo }) })
+          .catch(() => undefined);
+      }
+    }
+    return { ok: true };
   }
 
   @Delete('documents/:docId')

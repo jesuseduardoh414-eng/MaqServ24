@@ -45,6 +45,9 @@ export type TipoCorreo =
   | 'password_reset'      // al cliente: enlace para restablecer su contraseña
   | 'email_verification'  // al cliente: confirma tu correo (registro con contraseña)
   | 'welcome'             // al cliente: tu cuenta está lista (creada con Google)
+  | 'provider_offer_review'    // a MAQSER24: un aliado ofreció un equipo
+  | 'provider_offer_published' // al aliado: tu equipo ya está publicado
+  | 'provider_offer_rejected'  // al aliado: tu equipo no se publicó (con motivo)
   // Cotizador con tabulador (maquinaria y triturados). Los tres primeros salen
   // solos al recibir una solicitud del sitio; el último lo dispara una persona.
   | 'quoter_request_provider'  // al proveedor: te pidieron lo que publicas
