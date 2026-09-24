@@ -75,10 +75,10 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
     { id: 'vibro', nombre: 'Vibrocompactador 10 t', icono: 'vibro', flete_tipo: 'Vibrocompactador', tarifas: { dia: 6400, semana: 6000, mes: 5600 } },
   ],
   servicios: [
-    { id: 'pipa', nombre: 'Pipa de agua 10 m³', icono: 'pipa', unidad: 'viaje', precio: 3000, presets: [3000], cond: 'pipa' },
-    { id: 'agua', nombre: 'Entrega de agua 20 m³', icono: 'agua', unidad: 'viaje', precio: 5000, presets: [5000], cond: 'pipa' },
-    { id: 'retiro', nombre: 'Retiro de material 14 m³', icono: 'retiro', unidad: 'viaje', precio: 3500, presets: [2000, 2500, 3000, 3500, 4000, 4500], cond: 'retiro' },
-    { id: 'retiro_28', nombre: 'Retiro de material 28 m³', icono: 'retiro', unidad: 'viaje', precio: 5000, presets: [3000, 4000, 5000, 6000, 7000, 8000], cond: 'retiro' },
+    { id: 'pipa', nombre: 'Pipa de agua 10 m³', icono: 'pipa', unidad: 'viaje', precio: 3000, presets: [3000], cond: 'pipa', linea: 'transporte-y-servicios-de-obra' },
+    { id: 'agua', nombre: 'Entrega de agua 20 m³', icono: 'agua', unidad: 'viaje', precio: 5000, presets: [5000], cond: 'pipa', linea: 'transporte-y-servicios-de-obra' },
+    { id: 'retiro', nombre: 'Retiro de material 14 m³', icono: 'retiro', unidad: 'viaje', precio: 3500, presets: [2000, 2500, 3000, 3500, 4000, 4500], cond: 'retiro', linea: 'transporte-y-servicios-de-obra' },
+    { id: 'retiro_28', nombre: 'Retiro de material 28 m³', icono: 'retiro', unidad: 'viaje', precio: 5000, presets: [3000, 4000, 5000, 6000, 7000, 8000], cond: 'retiro', linea: 'transporte-y-servicios-de-obra' },
   ],
   condiciones: {
     renta: {

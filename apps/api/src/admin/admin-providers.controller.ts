@@ -9,14 +9,17 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { fichaDe, slugify } from '@maqserv/config';
+import { COTIZADOR_TIPOS, fichaDe, ligarProducto, renglonesDe, slugify } from '@maqserv/config';
 import { disponibilidadDe } from '../catalog/availability';
 import { lista } from '../common/json-list';
 import { z } from 'zod';
-import { AdminGuard, Modulo } from './admin-auth';
+import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
+import { QuoterService } from '../quoter/quoter.service';
+import { registrarAccion } from './audit';
 import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
@@ -79,7 +82,20 @@ export class AdminProvidersController {
   constructor(
     private readonly mailer: MailerService,
     private readonly freight: FreightService,
+    private readonly quoter: QuoterService,
   ) {}
+
+  /**
+   * Los renglones de los dos cotizadores, para decir "este equipo cuenta como
+   * tal renglón" al publicar. Trae la línea de cada uno: el panel solo ofrece
+   * los de la línea del equipo.
+   */
+  @Get('cotizador/renglones')
+  async renglonesCotizador() {
+    const out = [];
+    for (const tipo of COTIZADOR_TIPOS) out.push(...renglonesDe(await this.quoter.catalogo(tipo)));
+    return out;
+  }
 
   /**
    * AVISOS DE EXPEDIENTE (documento institucional, sección 23).
@@ -238,6 +254,7 @@ export class AdminProvidersController {
         name: e.name,
         brand: e.Marca?.trim() || null,
         category: c?.cat_name ?? null,
+        categorySlug: c?.cat_slug ?? null,
         rental: e.is_rental,
         // Capacidad, modelo, implementos… lo que la ficha técnica tenga lleno.
         specs: fichaDe(c?.cat_slug, (e.attributes ?? null) as Record<string, unknown> | null),
@@ -583,9 +600,23 @@ export class AdminProvidersController {
    * La disponibilidad queda confirmada hoy: el aliado la acaba de declarar.
    */
   @Post('equipos/:productId/publicar')
-  async publicarEquipo(@Param('productId', ParseIntPipe) productId: number) {
+  async publicarEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
     const e = await prisma.products.findUnique({ where: { id: productId }, select: { id: true, name: true, status: true, provider_id: true } });
     if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
+
+    // Opcional: a qué renglón del cotizador pertenece. Así, cuando un cliente
+    // lo cotice, la solicitud le llega a este aliado sin capturar nada más.
+    const r = z
+      .object({ renglon: z.object({ tipo: z.enum(COTIZADOR_TIPOS), id: z.string().min(1).max(80) }).nullable().optional() })
+      .safeParse(body ?? {});
+    if (!r.success) throw new BadRequestException('Renglón del cotizador inválido');
+    if (r.data.renglon) {
+      const { tipo, id } = r.data.renglon;
+      const nuevo = ligarProducto(await this.quoter.catalogo(tipo), id, productId);
+      if (!nuevo) throw new BadRequestException('Ese renglón ya no existe en el cotizador.');
+      await this.quoter.guardarCatalogo(tipo, nuevo, req.adminEmail);
+      void registrarAccion(req, 'cotizador', 'ligar equipo a renglón', `${tipo}:${id}`, `producto ${productId}`);
+    }
     await prisma.products.update({
       where: { id: productId },
       data: { status: 1, availability_confirmed_at: new Date(), updated_at: new Date() },

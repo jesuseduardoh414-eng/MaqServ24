@@ -87,6 +87,17 @@ const publicoSchema = z.object({
  */
 const proveedorDe = () => z.number().int().positive().nullable().optional();
 
+/**
+ * QUÉ PRODUCTOS DEL CATÁLOGO CUENTAN COMO ESTE RENGLÓN (2026-09-24).
+ *
+ * El tabulador y el catálogo eran dos listas sueltas: "Excavadora 20 t c/
+ * cucharón" del cotizador no era el producto "Excavadora 20 t" de nadie, y al
+ * dueño había que capturarlo dos veces. Ahora el renglón apunta a productos
+ * (ids de `products`) y el proveedor sale de quién los tiene publicados.
+ * `proveedor_id` se queda como respaldo para los tabuladores viejos.
+ */
+const productosDe = () => z.array(z.number().int().positive()).max(60).optional();
+
 const tierSchema = z.object({
   id: z.string().max(30),
   label: z.string().max(60),
@@ -100,6 +111,7 @@ const equipoSchema = z.object({
   icono: z.string().max(40),
   flete_tipo: z.string().min(1).max(60),
   proveedor_id: proveedorDe(),
+  productos: productosDe(),
   tarifas: z.object({ dia: z.number().min(0), semana: z.number().min(0), mes: z.number().min(0) }),
 });
 
@@ -112,6 +124,14 @@ const servicioSchema = z.object({
   presets: z.array(z.number().min(0)).max(20),
   cond: z.string().max(40),
   proveedor_id: proveedorDe(),
+  productos: productosDe(),
+  /**
+   * Línea de servicio (slug de `categories`). Pipa y retiro viven en el
+   * cotizador de maquinaria pero son de "transporte y servicios de obra":
+   * sin esto la solicitud se registraba como maquinaria y se le ofrecía a
+   * quien no le tocaba.
+   */
+  linea: z.string().max(80).optional(),
 });
 
 export const catalogoMaquinariaSchema = z.object({
@@ -137,6 +157,7 @@ const productoSchema = z.object({
   nombre: z.string().min(1).max(120),
   precio_ton: z.number().min(0),
   proveedor_id: proveedorDe(),
+  productos: productosDe(),
 });
 
 const zonaSchema = z.object({
@@ -166,6 +187,7 @@ export const catalogoTrituradosSchema = z.object({
     precio_m3_default: z.number().min(0),
     camion_m3: z.number().min(0),
     proveedor_id: proveedorDe(),
+    productos: productosDe(),
   }),
   unidad_zona: z.string().max(20),
   nota_zona: z.string().max(160),
@@ -706,6 +728,113 @@ export function partidasPorProveedor(
   }
 
   return [...mapa].map(([proveedorId, conceptos]) => ({ proveedorId, conceptos }));
+}
+
+// ---------------------------------------------------------------------------
+// Relación tabulador ↔ líneas ↔ catálogo (2026-09-24)
+// ---------------------------------------------------------------------------
+
+export const LINEA_MAQUINARIA = 'maquinaria-pesada';
+export const LINEA_TRANSPORTE = 'transporte-y-servicios-de-obra';
+export const LINEA_TRITURADOS = 'triturados';
+
+/** Línea de un servicio del cotizador de maquinaria (con respaldo por su bloque de condiciones). */
+export function lineaDeServicio(sv: { linea?: string; cond: string }): string {
+  if (sv.linea) return sv.linea;
+  return sv.cond === 'pipa' || sv.cond === 'retiro' ? LINEA_TRANSPORTE : LINEA_MAQUINARIA;
+}
+
+/** Un renglón del tabulador visto como parte del catálogo: su línea y sus productos. */
+export interface RenglonTabulador {
+  tipo: CotizadorTipo;
+  id: string;
+  nombre: string;
+  linea: string;
+  productos: number[];
+  proveedorId: number | null;
+}
+
+/** Todos los renglones de un tabulador que se pueden ligar a productos. */
+export function renglonesDe(cat: CatalogoCotizador): RenglonTabulador[] {
+  if (cat.tipo === 'maquinaria') {
+    return [
+      ...cat.equipos.map((e) => ({ tipo: cat.tipo, id: e.id, nombre: e.nombre, linea: LINEA_MAQUINARIA, productos: e.productos ?? [], proveedorId: e.proveedor_id ?? null })),
+      ...cat.servicios.map((s) => ({ tipo: cat.tipo, id: s.id, nombre: s.nombre, linea: lineaDeServicio(s), productos: s.productos ?? [], proveedorId: s.proveedor_id ?? null })),
+    ];
+  }
+  return [
+    ...cat.productos.map((p) => ({ tipo: cat.tipo, id: p.id, nombre: p.nombre, linea: LINEA_TRITURADOS, productos: p.productos ?? [], proveedorId: p.proveedor_id ?? null })),
+    { tipo: cat.tipo, id: 'banco', nombre: cat.material_banco.nombre, linea: LINEA_TRITURADOS, productos: cat.material_banco.productos ?? [], proveedorId: cat.material_banco.proveedor_id ?? null },
+  ];
+}
+
+/**
+ * Liga un producto del catálogo a un renglón (lo quita de cualquier otro
+ * renglón del mismo tabulador: un producto cuenta como UNA cosa). Devuelve
+ * el tabulador nuevo; null si el renglón no existe.
+ */
+export function ligarProducto(cat: CatalogoCotizador, renglonId: string, productId: number): CatalogoCotizador | null {
+  const sin = (l?: number[]) => (l ?? []).filter((x) => x !== productId);
+  const con = (l?: number[]) => [...sin(l), productId];
+  if (cat.tipo === 'maquinaria') {
+    const existe = cat.equipos.some((e) => e.id === renglonId) || cat.servicios.some((s) => s.id === renglonId);
+    if (!existe) return null;
+    return {
+      ...cat,
+      equipos: cat.equipos.map((e) => ({ ...e, productos: e.id === renglonId ? con(e.productos) : sin(e.productos) })),
+      servicios: cat.servicios.map((s) => ({ ...s, productos: s.id === renglonId ? con(s.productos) : sin(s.productos) })),
+    };
+  }
+  const existe = renglonId === 'banco' || cat.productos.some((p) => p.id === renglonId);
+  if (!existe) return null;
+  return {
+    ...cat,
+    productos: cat.productos.map((p) => ({ ...p, productos: p.id === renglonId ? con(p.productos) : sin(p.productos) })),
+    material_banco: { ...cat.material_banco, productos: renglonId === 'banco' ? con(cat.material_banco.productos) : sin(cat.material_banco.productos) },
+  };
+}
+
+/** Qué pidió el cliente en un renglón, en texto (para el correo y el alcance). */
+export interface PartidaAnalizada {
+  partida: PartidaCotizador;
+  linea: string;
+  concepto: string;
+  /** Productos del catálogo ligados al renglón. */
+  productos: number[];
+  /** Respaldo de los tabuladores viejos: el dueño capturado a mano. */
+  proveedorId: number | null;
+}
+
+/**
+ * Cada partida con su línea, su texto y sus productos. Es la base para
+ * partir una solicitud por línea y ofrecer cada parte a quien le toca.
+ */
+export function analizarPartidas(cat: CatalogoCotizador, partidas: PartidaCotizador[]): PartidaAnalizada[] {
+  const out: PartidaAnalizada[] = [];
+  for (const p of partidas) {
+    if (p.tipo === 'equipo' && cat.tipo === 'maquinaria') {
+      const eq = cat.equipos.find((e) => e.id === p.id);
+      if (!eq) continue;
+      const tiempo = [p.dias ? `${p.dias} ${p.dias === 1 ? 'día' : 'días'}` : '', p.horas ? `${p.horas} h` : ''].filter(Boolean).join(' y ');
+      const unidades = (p.cantidad ?? 1) > 1 ? ` × ${p.cantidad}` : '';
+      out.push({ partida: p, linea: LINEA_MAQUINARIA, concepto: `${eq.nombre}${unidades}${tiempo ? ` · ${tiempo}` : ''}`, productos: eq.productos ?? [], proveedorId: eq.proveedor_id ?? null });
+    } else if (p.tipo === 'servicio' && cat.tipo === 'maquinaria') {
+      const sv = cat.servicios.find((x) => x.id === p.id);
+      if (!sv) continue;
+      out.push({ partida: p, linea: lineaDeServicio(sv), concepto: `${sv.nombre} · ${p.cantidad ?? 1} ${sv.unidad}(s)`, productos: sv.productos ?? [], proveedorId: sv.proveedor_id ?? null });
+    } else if (p.tipo === 'material' && cat.tipo === 'triturados') {
+      const prod = cat.productos.find((x) => x.id === p.id);
+      out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${prod?.nombre ?? p.nombre ?? 'Material'} · ${p.toneladas ?? 0} ton`, productos: prod?.productos ?? [], proveedorId: prod?.proveedor_id ?? null });
+    } else if (p.tipo === 'zona' && cat.tipo === 'triturados') {
+      const prod = cat.productos.find((x) => x.id === p.producto_id);
+      const zona = cat.zonas.find((z) => z.id === p.zona_id);
+      if (!prod) continue;
+      out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${prod.nombre} · ${p.viajes ?? 1} viaje(s)${zona ? ` · ${zona.nombre}` : ''}`, productos: prod.productos ?? [], proveedorId: prod.proveedor_id ?? null });
+    } else if (p.tipo === 'banco' && cat.tipo === 'triturados') {
+      out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${cat.material_banco.nombre} · ${p.m3 ?? 0} m³`, productos: cat.material_banco.productos ?? [], proveedorId: cat.material_banco.proveedor_id ?? null });
+    }
+  }
+  return out;
 }
 
 export function pasosDe(tipo: CotizadorTipo): PasoCotizador[] {

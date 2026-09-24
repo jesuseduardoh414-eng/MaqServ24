@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { DocumentAlerts } from './DocumentAlerts';
 import { ProviderHistory } from './ProviderHistory';
@@ -43,6 +43,8 @@ interface EquipoRow {
   name: string;
   brand: string | null;
   category: string | null;
+  /** Slug de su línea: decide qué renglones del cotizador se le ofrecen. */
+  categorySlug?: string | null;
   rental: boolean;
   specs: Array<{ label: string; valor: string }>;
   image: string | null;
@@ -51,6 +53,15 @@ interface EquipoRow {
   confirmedAt: string | null;
   /** Lo ofreció el aliado desde su portal y espera revisión. */
   pending?: boolean;
+}
+
+/** Un renglón del tabulador de un cotizador (ver `renglonesDe`). */
+interface Renglon {
+  tipo: string;
+  id: string;
+  nombre: string;
+  linea: string;
+  productos: number[];
 }
 
 /** Cómo se lee la disponibilidad de un equipo en una línea. */
@@ -479,13 +490,27 @@ function ExpedienteModal({
   const pendientes = (p.equipment ?? []).filter((e) => e.pending);
   const publicados = (p.equipment ?? []).filter((e) => !e.pending);
 
+  // Renglones del cotizador: al publicar, el equipo puede "contar como" uno.
+  // Así, cuando un cliente lo cotiza, la solicitud le llega a este aliado.
+  const [renglones, setRenglones] = useState<Renglon[]>([]);
+  const [cuentaComo, setCuentaComo] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (pendientes.length === 0) return;
+    void fetch('/api/admin/providers/cotizador/renglones')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: Renglon[]) => setRenglones(Array.isArray(d) ? d : []))
+      .catch(() => undefined);
+  }, [pendientes.length]);
+
   async function revisar(e: EquipoRow, accion: 'publicar' | 'rechazar') {
     if (accion === 'rechazar' && motivo.trim().length < 4) return;
     setOcupado(e.id);
+    const elegido = cuentaComo[e.id];
+    const renglon = elegido ? { tipo: elegido.split(':')[0], id: elegido.split(':').slice(1).join(':') } : null;
     const r = await fetch(`/api/admin/providers/equipos/${e.id}/${accion}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(accion === 'rechazar' ? { motivo: motivo.trim() } : {}),
+      body: JSON.stringify(accion === 'rechazar' ? { motivo: motivo.trim() } : { renglon }),
     });
     setOcupado(null);
     const d = await r.json().catch(() => null);
@@ -558,11 +583,37 @@ function ExpedienteModal({
                     </div>
                   </div>
                 ) : (
+                  <>
+                  {(() => {
+                    const suyos = renglones.filter((x) => !e.categorySlug || x.linea === e.categorySlug);
+                    if (suyos.length === 0) return null;
+                    return (
+                      <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>Cuenta como en el cotizador</span>
+                        <AdminSelect
+                          ariaLabel="Renglón del cotizador"
+                          value={cuentaComo[e.id] ?? ''}
+                          onChange={(v) => setCuentaComo({ ...cuentaComo, [e.id]: v })}
+                          options={[
+                            { value: '', label: 'No está en el cotizador' },
+                            ...suyos.map((x) => ({
+                              value: `${x.tipo}:${x.id}`,
+                              label: `${x.nombre}${x.productos.length ? ` · ya lo tienen ${x.productos.length}` : ''}`,
+                            })),
+                          ]}
+                        />
+                        <span style={{ fontSize: 11.5, color: C.dim }}>
+                          Cuando un cliente cotice ese renglón, la solicitud le llega a este aliado.
+                        </span>
+                      </div>
+                    );
+                  })()}
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     <a href={`/productos/editar/${e.id}`} style={{ ...botonSec, textDecoration: 'none', padding: '8px 14px', fontSize: 13 }}>Revisar y corregir</a>
                     <button type="button" disabled={ocupado === e.id} onClick={() => void revisar(e, 'publicar')} style={{ ...boton, padding: '8px 14px', fontSize: 13, opacity: ocupado === e.id ? 0.6 : 1 }}>Publicar</button>
                     <button type="button" onClick={() => setRechazando(e.id)} style={{ ...botonSec, padding: '8px 14px', fontSize: 13, color: C.bad }}>Rechazar</button>
                   </div>
+                  </>
                 )}
               </div>
             ))}

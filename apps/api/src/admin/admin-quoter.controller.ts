@@ -3,6 +3,7 @@ import { catalogoCotizadorSchema, esCotizadorTipo } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
 import { QuoterService } from '../quoter/quoter.service';
+import { prisma } from '@maqserv/db';
 import { calcularSchema, cotizacionPanelSchema, partidasDe, primerError, tipoDe } from '../quoter/quoter.dto';
 
 /**
@@ -19,6 +20,33 @@ export class AdminQuoterController {
   constructor(private readonly quoter: QuoterService) {}
 
   // ---- Tabulador ----
+
+  /**
+   * Lo que se puede ligar a un renglón: los equipos publicados que tienen
+   * dueño. El dueño de cada renglón sale de aquí (ver `QuoterServicio`).
+   */
+  @Get('ligables')
+  async ligables() {
+    const productos = await prisma.products.findMany({
+      where: { status: 1, provider_id: { not: null } },
+      select: { id: true, name: true, category_id: true, provider_id: true },
+      orderBy: { name: 'asc' },
+      take: 2000,
+    });
+    const [cats, provs] = await Promise.all([
+      prisma.categories.findMany({ where: { id: { in: [...new Set(productos.map((p) => p.category_id))] } }, select: { id: true, cat_slug: true } }),
+      prisma.providers.findMany({ where: { id: { in: [...new Set(productos.map((p) => p.provider_id as number))] } }, select: { id: true, name: true } }),
+    ]);
+    const slug = new Map(cats.map((c) => [c.id, c.cat_slug]));
+    const nombre = new Map(provs.map((p) => [p.id, p.name]));
+    return productos.map((p) => ({
+      id: p.id,
+      name: p.name,
+      linea: slug.get(p.category_id) ?? null,
+      providerId: p.provider_id,
+      provider: nombre.get(p.provider_id as number) ?? null,
+    }));
+  }
 
   @Get('catalog/:kind')
   catalogo(@Param('kind') kind: string) {
