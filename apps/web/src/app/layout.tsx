@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react';
+import type { Metadata, Viewport } from 'next';
 import { googleFontsHrefs, themeToCss } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { CartProvider } from '@/components/CartProvider';
 import { DevAutoRefresh } from '@/components/DevAutoRefresh';
+import { Pwa } from '@/components/Pwa';
 import './globals.css';
 import { RecortarEspacios } from '@maqserv/ui';
 
@@ -24,9 +26,37 @@ import { RecortarEspacios } from '@maqserv/ui';
  */
 export const revalidate = 60;
 
-export async function generateMetadata() {
+export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: t(theme, 'site.name') };
+  const nombre = t(theme, 'site.name');
+  const b = theme.tokens.branding ?? {};
+  return {
+    title: nombre,
+    // PWA: manifiesto + cómo se comporta al "Agregar a inicio" en iOS (que no
+    // lee el manifiesto). Los iconos del panel (Diseño → Identidad) mandan;
+    // si no hay, los de marca del repo.
+    manifest: '/manifest.webmanifest',
+    appleWebApp: { capable: true, title: nombre, statusBarStyle: 'black' },
+    icons: {
+      icon: b.favicon || '/brand/favicon.png',
+      apple: b.icon || '/pwa/apple-touch-icon.png',
+    },
+  };
+}
+
+/**
+ * `theme-color` pinta la barra del sistema en la app instalada. Sale del fondo
+ * del modo por defecto del tema; el componente <Pwa> lo va actualizando cuando
+ * el visitante alterna claro/oscuro.
+ */
+export async function generateViewport(): Promise<Viewport> {
+  const theme = await getTheme();
+  const modo = theme.tokens.defaultMode === 'light' ? 'light' : 'dark';
+  return {
+    width: 'device-width',
+    initialScale: 1,
+    themeColor: theme.tokens.colors[modo].background,
+  };
 }
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -48,8 +78,6 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {googleFontsHrefs(fontSans, [fontHeading, fontDisplay]).map((href) => (
           <link key={href} rel="stylesheet" href={href} />
         ))}
-        {theme.tokens.branding?.favicon ? <link rel="icon" href={theme.tokens.branding.favicon} /> : null}
-        {theme.tokens.branding?.icon ? <link rel="apple-touch-icon" href={theme.tokens.branding.icon} /> : null}
         <style
           id="theme-tokens"
           dangerouslySetInnerHTML={{ __html: themeToCss(theme.tokens) }}
@@ -59,6 +87,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* Un espacio pegado sin querer no debe costar un "datos incorrectos". */}
         <RecortarEspacios />
         <CartProvider>{children}</CartProvider>
+        <Pwa
+          labels={{
+            brand: t(theme, 'site.name'),
+            title: t(theme, 'pwa.install.title'),
+            text: t(theme, 'pwa.install.text'),
+            cta: t(theme, 'pwa.install.cta'),
+            later: t(theme, 'pwa.install.later'),
+          }}
+        />
         <DevAutoRefresh />
       </body>
     </html>

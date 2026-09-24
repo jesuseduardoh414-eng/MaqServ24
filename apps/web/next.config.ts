@@ -22,6 +22,13 @@ const standalone = process.env.BUILD_STANDALONE === '1';
 
 const nextConfig: NextConfig = {
   ...(standalone ? { output: 'standalone' as const, outputFileTracingRoot: repoRoot } : {}),
+  /**
+   * Marca de la compilación, incrustada en el service worker (/sw.js). Cada
+   * `next build` produce un valor distinto → el navegador ve un worker nuevo →
+   * instala el nuevo y borra las cachés de la versión anterior. Sin esto, una
+   * PWA instalada podría quedarse con activos de un despliegue viejo.
+   */
+  env: { BUILD_STAMP: new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 12) },
   // @maqserv/ui se consume como fuente TS; Next lo transpila
   transpilePackages: ['@maqserv/ui'],
   images: {

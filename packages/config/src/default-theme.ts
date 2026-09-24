@@ -741,6 +741,15 @@ export const defaultTheme: Theme = {
       'newsletter.submit': 'Suscribirme',
       'newsletter.success': '¡Listo! Te avisaremos de las novedades.',
       'newsletter.error': 'No pudimos registrar tu correo.',
+      // PWA: aviso de instalación (aparece solo cuando el navegador lo permite)
+      // y página que se muestra cuando el visitante se queda sin conexión.
+      'pwa.install.title': 'Instala MAQSER24 en tu pantalla de inicio',
+      'pwa.install.text': 'Se abre como una app, sin pasar por la tienda de aplicaciones.',
+      'pwa.install.cta': 'Instalar',
+      'pwa.install.later': 'Ahora no',
+      'pwa.offline.title': 'Sin conexión',
+      'pwa.offline.text': 'No pudimos conectar con MAQSER24. Revisa tu red y vuelve a intentarlo; lo que ya tenías abierto sigue disponible.',
+      'pwa.offline.retry': 'Reintentar',
       'nav.about': 'Quiénes somos',
       'nav.vendors': 'Vendedores',
       'track.title': 'Rastrear pedido',
