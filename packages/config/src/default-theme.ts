@@ -750,6 +750,13 @@ export const defaultTheme: Theme = {
       'pwa.offline.title': 'Sin conexión',
       'pwa.offline.text': 'No pudimos conectar con MAQSER24. Revisa tu red y vuelve a intentarlo; lo que ya tenías abierto sigue disponible.',
       'pwa.offline.retry': 'Reintentar',
+      // Aviso de cookies (solo aparece si hay Google Tag Manager configurado).
+      'cookies.title': 'Cookies y medición',
+      'cookies.text': 'Usamos cookies de analítica de Google para saber cómo se usa el sitio y mejorarlo. No se activan hasta que aceptes.',
+      'cookies.accept': 'Aceptar',
+      'cookies.reject': 'Rechazar',
+      'cookies.link': 'Aviso de privacidad',
+      'cookies.preferences': 'Cookies',
       // SEO: título (sin el " — MAQSER24", que se agrega solo; 40-48 caracteres
       // para que el total quede en 50-60) y descripción (140-160) de cada
       // página pública. Las fichas de producto y los artículos usan su propio

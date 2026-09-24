@@ -156,6 +156,8 @@ dos problemas que tiene compilar en Windows** (symlinks y el binario de `sharp`)
 
    - `SITE_URL` → `https://maqserv24.com`
    - `API_URL` → `https://api.maqserv24.com`
+   - `NEXT_PUBLIC_GTM_ID` → `GTM-XXXXXXX` (opcional: Google Tag Manager del
+     sitio; sin ella la analítica y el aviso de cookies quedan apagados)
 
 2. Pestaña **Actions** → **Empaquetar para cPanel** → **Run workflow**.
 3. Al terminar, baja el artefacto `cpanel` del resumen: trae `web.tar.gz`,

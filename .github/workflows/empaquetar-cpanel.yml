@@ -43,6 +43,8 @@ jobs:
       SITE_URL: ${{ vars.SITE_URL }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # Google Tag Manager del sitio. Sin la variable del repo, queda apagado.
+      NEXT_PUBLIC_GTM_ID: ${{ vars.NEXT_PUBLIC_GTM_ID }}
       # El build no toca la base; Prisma solo necesita que la variable exista
       # para generar el cliente (y que sea mysql://, como el esquema).
       DATABASE_URL: 'mysql://build:build@localhost:3306/build'

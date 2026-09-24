@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ANALITICA_ACTIVA, EVENTO_CONSENTIMIENTO, leerConsentimiento } from '@/lib/analitica';
 
 /** `beforeinstallprompt` no está tipado en lib.dom. */
 type PromptInstalar = Event & {
@@ -58,6 +59,17 @@ export function Pwa({ labels }: { labels: Labels }) {
     };
   }, []);
 
+  // Con analítica, el aviso de cookies va primero: los dos viven abajo y se
+  // taparían. La tarjeta de instalar espera a que el visitante decida.
+  const [cookiesDecididas, setCookiesDecididas] = useState(!ANALITICA_ACTIVA);
+  useEffect(() => {
+    if (!ANALITICA_ACTIVA) return;
+    const leer = () => setCookiesDecididas(leerConsentimiento() !== null);
+    leer();
+    window.addEventListener(EVENTO_CONSENTIMIENTO, leer);
+    return () => window.removeEventListener(EVENTO_CONSENTIMIENTO, leer);
+  }, []);
+
   useEffect(() => {
     if (window.matchMedia('(display-mode: standalone)').matches) return; // ya instalada
     try {
@@ -77,7 +89,7 @@ export function Pwa({ labels }: { labels: Labels }) {
     };
   }, []);
 
-  if (!evento) return null;
+  if (!evento || !cookiesDecididas) return null;
 
   const descartar = () => {
     try { localStorage.setItem(DESCARTE_KEY, String(Date.now())); } catch { /* ignora */ }

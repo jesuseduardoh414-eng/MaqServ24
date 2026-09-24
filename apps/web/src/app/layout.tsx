@@ -1,5 +1,8 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
+import { Analitica } from '@/components/Analitica';
+import { AvisoCookies } from '@/components/AvisoCookies';
+import { ANALITICA_ACTIVA, SCRIPT_CONSENTIMIENTO_DEFAULT } from '@/lib/analitica';
 import { googleFontsHrefs, themeToCss } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { CartProvider } from '@/components/CartProvider';
@@ -81,6 +84,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
     <html lang="es" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />
+        {/* Consent Mode v2 con todo denegado, ANTES de cualquier etiqueta. GTM
+            no se carga hasta que el visitante acepta (ver <Analitica>). */}
+        {ANALITICA_ACTIVA ? <script dangerouslySetInnerHTML={{ __html: SCRIPT_CONSENTIMIENTO_DEFAULT }} /> : null}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {googleFontsHrefs(fontSans, [fontHeading, fontDisplay]).map((href) => (
@@ -104,6 +110,22 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             later: t(theme, 'pwa.install.later'),
           }}
         />
+        {ANALITICA_ACTIVA ? (
+          <>
+            <Suspense fallback={null}>
+              <Analitica />
+            </Suspense>
+            <AvisoCookies
+              labels={{
+                title: t(theme, 'cookies.title'),
+                text: t(theme, 'cookies.text'),
+                accept: t(theme, 'cookies.accept'),
+                reject: t(theme, 'cookies.reject'),
+                link: t(theme, 'cookies.link'),
+              }}
+            />
+          </>
+        ) : null}
         <DevAutoRefresh />
       </body>
     </html>

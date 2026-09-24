@@ -2,6 +2,7 @@
 
 import { Cotizador, type DatosEnvio, type ResultadoEnvio } from '@maqserv/ui';
 import type { CatalogoCotizador } from '@maqserv/config';
+import { evento } from '@/lib/analitica';
 
 /**
  * El cotizador en el sitio público.
@@ -47,6 +48,7 @@ export function CotizadorPublico({
       throw new Error('Tu sesión terminó. Entra de nuevo y vuelve a solicitar el servicio.');
     }
     if (!res.ok) throw new Error(body?.message ?? 'No se pudo enviar la solicitud. Inténtalo de nuevo.');
+    evento('cotizador_solicitado', { tipo: catalogo.tipo, partidas: datos.partidas.length });
     return {
       folio: body.folio as string,
       enlace: typeof body.url === 'string' ? { href: body.url, label: 'Seguir mi solicitud en mi cuenta' } : undefined,

@@ -1,5 +1,6 @@
 'use client';
 
+import { evento } from '@/lib/analitica';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -186,6 +187,7 @@ export function AuthCard({
       const r = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), email: email.trim(), password, next: redirectTo || '/' }) });
       const d = await r.json().catch(() => null);
       if (!r.ok) throw new Error(d?.message ?? 'No se pudo crear la cuenta');
+      evento('registro_completado', { metodo: 'correo' });
       if (d?.verificar) {
         // Sin sesión todavía: la cuenta se activa desde el correo.
         setLoading(false);

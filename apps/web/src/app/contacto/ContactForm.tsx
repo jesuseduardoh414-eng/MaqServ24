@@ -1,5 +1,6 @@
 'use client';
 
+import { evento } from '@/lib/analitica';
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 
@@ -52,6 +53,7 @@ export function ContactForm({ needs }: { needs: string[] }) {
         throw new Error(typeof d?.message === 'string' ? d.message : 'No se pudo enviar');
       }
       setDone(true);
+      evento('contacto_enviado', { motivo: need }); // solo la categoría, nunca los datos del formulario
       try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch { /* noop */ }
     } catch (e) {
       setServerErr((e as Error).message);

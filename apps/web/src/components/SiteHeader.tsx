@@ -7,6 +7,7 @@ import { MainNav } from '@/components/MainNav';
 import { MobileNav } from '@/components/MobileNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { FooterNewsletter } from '@/components/FooterNewsletter';
+import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
@@ -303,6 +304,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
           <span style={{ display: 'flex', gap: 20 }}>
             <Link href="/terminos" style={{ color: 'rgba(255,255,255,.55)' }}>{t(theme, 'footer.terms')}</Link>
             <Link href="/privacidad" style={{ color: 'rgba(255,255,255,.55)' }}>{t(theme, 'footer.privacy')}</Link>
+            <CookiesPreferencias label={t(theme, 'cookies.preferences')} />
           </span>
         </div>
       </div>

@@ -160,17 +160,17 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
           </div>
           <div className="prod-card-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5, flexShrink: 0 }}>
             {quoteOnly ? (
-              <Link href={quoteHref} style={addBtn}>{t(theme, 'product.card.quote')}</Link>
+              <Link href={quoteHref} data-evento="producto_cotizar" style={addBtn}>{t(theme, 'product.card.quote')}</Link>
             ) : (
               <>
                 {canAdd ? (
-                  <button type="button" onClick={add} style={addBtn}>
+                  <button type="button" onClick={add} style={addBtn} data-evento="producto_agregar">
                     {added ? <><Icon name="check" size={14} />{t(theme, 'product.card.added')}</> : <><span style={{ fontSize: '14px', marginTop: -1 }}>+</span>{t(theme, 'product.card.add')}</>}
                   </button>
                 ) : (
                   <Link href={`/productos/${p.slug}`} style={addBtn}>{t(theme, 'product.card.view')}</Link>
                 )}
-                <Link href={quoteHref} style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'product.card.quote')}<Icon name="arrowRight" size={11.5} /></Link>
+                <Link href={quoteHref} data-evento="producto_cotizar" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'product.card.quote')}<Icon name="arrowRight" size={11.5} /></Link>
               </>
             )}
           </div>

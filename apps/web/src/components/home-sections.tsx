@@ -106,10 +106,10 @@ export async function Hero({ theme }: { theme: Theme }) {
             {subtitle}
           </p>
           <div style={{ display: 'flex', gap: 14, marginTop: 32, flexWrap: 'wrap' }}>
-            <Link href={h.primaryLink} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: h.primaryBg, color: h.primaryText, fontWeight: 700, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: `0 18px 34px -16px color-mix(in srgb, ${h.primaryBg} 60%, transparent)` }}>
+            <Link href={h.primaryLink} data-evento="cta_hero_primario" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: h.primaryBg, color: h.primaryText, fontWeight: 700, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: `0 18px 34px -16px color-mix(in srgb, ${h.primaryBg} 60%, transparent)` }}>
               {t(theme, 'home.hero.ctaPrimary')} <Icon name="arrowRight" size={17} />
             </Link>
-            <Link href={h.secondaryLink} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'transparent', color: '#fff', border: `1.5px solid ${h.secondaryBorder}`, fontWeight: 600, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
+            <Link href={h.secondaryLink} data-evento="cta_hero_secundario" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'transparent', color: '#fff', border: `1.5px solid ${h.secondaryBorder}`, fontWeight: 600, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
               {t(theme, 'home.hero.ctaSecondary')}
             </Link>
           </div>

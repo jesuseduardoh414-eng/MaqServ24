@@ -1,5 +1,6 @@
 'use client';
 
+import { evento } from '@/lib/analitica';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -217,6 +218,8 @@ export function CheckoutForm({
     }
     // Solo salen del carrito las líneas COMPRADAS: lo deseleccionado se queda.
     cart.removeLines(items.map(cartLineKey));
+    // El pago se mide aparte (pago_completado, en la página del pedido) cuando lo confirma la pasarela.
+    evento('pedido_creado', { pago_en_linea: !!data.redirectUrl, lineas: items.length });
     if (data.redirectUrl) {
       window.location.href = data.redirectUrl; // MercadoPago Checkout Pro
       return;

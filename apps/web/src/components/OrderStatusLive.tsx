@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { paymentStatusLabel, toneColors } from '@/lib/order-status';
+import { evento } from '@/lib/analitica';
 
 const MONO = 'var(--font-sans)';
 
@@ -8,6 +9,8 @@ const MONO = 'var(--font-sans)';
 const CADA_MS = 15_000;
 /** Estados que ya no cambian: cuando se llega a uno, se deja de preguntar. */
 const FINALES = new Set(['paid', 'approved', 'completed', 'cancelled', 'canceled', 'refunded', 'rejected']);
+/** Los finales que significan dinero cobrado. */
+const PAGADOS = new Set(['paid', 'approved', 'completed']);
 
 /**
  * Muestra el estado de pago del pedido y lo mantiene al día consultando la API
@@ -26,6 +29,18 @@ export function OrderStatusLive({
 }) {
   const [paymentStatus, setPaymentStatus] = useState(initialPaymentStatus);
   const [live, setLive] = useState(false);
+
+  // pago_completado: una vez por pedido y pestaña, en cuanto el estado llega a
+  // pagado (ya sea al volver de la pasarela o cuando el webhook lo confirma).
+  useEffect(() => {
+    if (!PAGADOS.has(paymentStatus.toLowerCase())) return;
+    const clave = `pago-medido-${orderNumber}`;
+    try {
+      if (sessionStorage.getItem(clave)) return;
+      sessionStorage.setItem(clave, '1');
+    } catch { /* sin storage: se mide igual */ }
+    evento('pago_completado', { estado: paymentStatus.toLowerCase() });
+  }, [orderNumber, paymentStatus]);
 
   useEffect(() => {
     if (FINALES.has(paymentStatus.toLowerCase())) { setLive(false); return; }
