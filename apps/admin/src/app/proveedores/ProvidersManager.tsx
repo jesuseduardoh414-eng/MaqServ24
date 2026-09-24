@@ -38,6 +38,8 @@ interface DocRow {
   name: string | null;
   issuedAt: string | null;
   expiresAt: string | null;
+  /** Foto del papel que subió el aliado (null si lo registró la oficina sin foto). */
+  fileUrl?: string | null;
 }
 
 const C = {
@@ -433,8 +435,16 @@ function ExpedienteModal({
                   <div style={{ fontSize: 14 }}>{d.name || TIPOS_DOC.find(([k]) => k === d.kind)?.[1] || d.kind}</div>
                   <div style={{ fontSize: 12, color: vencido ? C.bad : C.muted, marginTop: 2 }}>
                     {d.expiresAt ? (vencido ? `Venció el ${d.expiresAt}` : `Vigente hasta ${d.expiresAt}`) : 'Sin vencimiento'}
+                    {d.fileUrl ? '' : ' · sin foto'}
                   </div>
                 </div>
+                {/* La foto que subió el aliado: es lo que se revisa antes de
+                    subirlo a "validado". Abre en otra pestaña. */}
+                {d.fileUrl ? (
+                  <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" style={{ background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 8, padding: '6px 12px', fontSize: 12.5, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    Ver foto
+                  </a>
+                ) : null}
                 <button type="button" onClick={() => onBorrar(d.id)} style={{ background: 'none', border: `1px solid ${C.line2}`, color: C.muted, borderRadius: 8, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Quitar
                 </button>

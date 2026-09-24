@@ -23,6 +23,7 @@ import { MailerService } from '../notifications/mailer.service';
 import { correoAccesoAliado } from '../notifications/email-templates';
 import { FreightService } from '../freight/freight.service';
 import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incidents';
+import { imageUrl } from '../catalog/images';
 
 /**
  * RED DE ALIADOS — alta y expediente de proveedores.
@@ -408,6 +409,9 @@ export class AdminProvidersController {
       kind: d.kind,
       name: d.name,
       file: d.file,
+      // La foto que subió el aliado desde su portal, lista para abrirse: es lo
+      // que se revisa antes de subirlo a "validado".
+      fileUrl: imageUrl(d.file),
       issuedAt: d.issued_at ? d.issued_at.toISOString().slice(0, 10) : null,
       expiresAt: d.expires_at ? d.expires_at.toISOString().slice(0, 10) : null,
     }));
