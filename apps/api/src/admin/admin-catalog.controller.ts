@@ -31,6 +31,14 @@ import { imageUrl } from '../catalog/images';
 const photoStorage = mediaStorage();
 const IMAGE_TYPES = /^image\/(png|jpe?g|webp|avif)$/;
 
+/**
+ * Booleano que llega por multipart (todo es texto). OJO: `z.coerce.boolean`
+ * convierte "false" en true (cualquier texto no vacío es verdadero), y así
+ * guardar cualquier ficha la marcaba como destacada. Aquí "false"/"0"/"" = false.
+ */
+const boolTexto = () =>
+  z.preprocess((v) => (typeof v === 'string' ? ['true', '1', 'on', 'si', 'sí'].includes(v.trim().toLowerCase()) : v), z.boolean());
+
 const productSchema = z.object({
   name: z.string().min(2).max(250),
   categoryId: z.coerce.number().int().positive(),
@@ -39,7 +47,7 @@ const productSchema = z.object({
   description: z.string().min(1).max(20000),
   stock: z.coerce.number().int().min(0).optional(),
   brand: z.string().max(190).optional(),
-  isRental: z.coerce.boolean().optional(),
+  isRental: boolTexto().optional(),
   rentalFreight: z.coerce.number().min(0).optional(),
   /** Unidad del precio. Cadena vacia = por pieza, y hay que poder guardarla. */
   priceUnit: z.string().max(20).optional(),
@@ -48,7 +56,7 @@ const productSchema = z.object({
    * porque el alta usa multipart (sube la foto) y ahi todo es texto.
    */
   attributes: z.string().max(4000).optional(),
-  featured: z.coerce.boolean().optional(),
+  featured: boolTexto().optional(),
   status: z.coerce.number().int().min(0).max(1).optional(),
   lote: z.string().max(190).optional(),
   caducidad: z.string().optional(), // ISO date
@@ -61,6 +69,8 @@ const productSchema = z.object({
    * podía poner por SQL (2026-09-23).
    */
   providerId: z.string().max(20).optional(),
+  /** Dónde está el equipo (patio, ciudad). Lo captura el aliado al ofrecerlo. */
+  location: z.string().max(160).optional(),
 });
 
 /** '' → null (equipo propio); '12' → 12; cualquier otra cosa → error. */
@@ -167,6 +177,7 @@ export class AdminCatalogController {
       specs: (() => { try { const a = JSON.parse(p.specs ?? '[]'); return Array.isArray(a) ? a : []; } catch { return []; } })(),
       image: imageUrl(p.photo),
       providerId: p.provider_id ?? null,
+      location: p.location ?? null,
     };
   }
 
@@ -214,6 +225,7 @@ export class AdminCatalogController {
         caducidad: d.caducidad ? new Date(d.caducidad) : null,
         Corto: d.short ?? null,
         specs: d.specs ?? null,
+        location: d.location?.trim() || null,
         photo: photo ? `uploads/${photo.filename}` : null,
         created_at: new Date(),
         updated_at: new Date(),
@@ -260,6 +272,7 @@ export class AdminCatalogController {
         ...(d.caducidad !== undefined ? { caducidad: d.caducidad ? new Date(d.caducidad) : null } : {}),
         ...(d.short !== undefined ? { Corto: d.short } : {}),
         ...(d.specs !== undefined ? { specs: d.specs } : {}),
+        ...(d.location !== undefined ? { location: d.location.trim() || null } : {}),
         ...(photo ? { photo: `uploads/${photo.filename}` } : {}),
         updated_at: new Date(),
       },
