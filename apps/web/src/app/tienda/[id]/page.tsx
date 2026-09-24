@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import { notFound } from 'next/navigation';
 import type { Paginated, ProductCard as ProductCardDto, VendorPublic } from '@maqserv/types';
 import { MARKETPLACE_ACTIVO } from '@maqserv/config';
@@ -29,6 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { id } = await params;
   const [theme, store] = await Promise.all([getTheme(), fetchStore(id, 1)]);
   return {
+    robots: NOINDEX,
     title: store
       ? `${store.vendor.shopName} — ${t(theme, 'site.name')}`
       : t(theme, 'site.name'),

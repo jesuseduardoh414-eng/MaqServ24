@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
@@ -26,7 +27,7 @@ const rowStyle: React.CSSProperties = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'account.quotes.title')} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'account.quotes.title')} — ${t(theme, 'site.name')}` };
 }
 
 function fmtDate(iso: string | null): string {

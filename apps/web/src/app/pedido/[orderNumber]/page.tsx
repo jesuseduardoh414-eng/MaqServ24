@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
@@ -38,7 +39,7 @@ async function fetchOrder(orderNumber: string): Promise<OrderDetail | null | 'un
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const theme = await getTheme();
   const { orderNumber } = await params;
-  return { title: `${t(theme, 'order.title')} ${orderNumber} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'order.title')} ${orderNumber} — ${t(theme, 'site.name')}` };
 }
 
 const cardStyle: React.CSSProperties = {

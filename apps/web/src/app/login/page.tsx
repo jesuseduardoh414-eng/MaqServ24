@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import { redirect } from 'next/navigation';
 import { getTheme, t } from '@/lib/theme';
 import { getSessionUser } from '@/lib/session';
@@ -9,7 +10,7 @@ import { getAuthProviders } from '@/lib/auth-providers';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'auth.login.title')} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'auth.login.title')} — ${t(theme, 'site.name')}` };
 }
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {

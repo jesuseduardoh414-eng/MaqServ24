@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import type { ProductCard } from '@maqserv/types';
 import { parseProductSlug, requestFormFor } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
@@ -10,7 +11,7 @@ import { QuoteGate } from './QuoteGate';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'quote.form.title')} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'quote.form.title')} — ${t(theme, 'site.name')}` };
 }
 
 type Search = { producto?: string; servicio?: string };

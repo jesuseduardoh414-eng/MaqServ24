@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { VendorMe, WithdrawRow } from '@maqserv/types';
@@ -15,7 +16,7 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'vendor.panel.withdraws')} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'vendor.panel.withdraws')} — ${t(theme, 'site.name')}` };
 }
 
 const day = (iso: string | null) =>

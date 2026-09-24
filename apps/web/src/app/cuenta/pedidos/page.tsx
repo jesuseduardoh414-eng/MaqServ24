@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
@@ -18,7 +19,7 @@ const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'account.orders.title')} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'account.orders.title')} — ${t(theme, 'site.name')}` };
 }
 
 function Badge({ st }: { st: StatusLabel }) {

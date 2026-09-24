@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import type { QuoteDetail } from '@maqserv/types';
@@ -14,7 +15,7 @@ import { QuoteAccept } from './QuoteAccept';
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const CONTAINER: React.CSSProperties = { maxWidth: 820, margin: '0 auto', padding: '40px clamp(20px, 5vw, 40px) 60px' };
 
-export const metadata: Metadata = { title: 'Cotización' };
+export const metadata: Metadata = { robots: NOINDEX, title: 'Cotización' };
 
 /** Cómo se lee cada estado. El color acompaña al texto, nunca lo sustituye. */
 const ESTADO: Record<QuoteDetail['state'], { texto: string; nota: string; color: string }> = {

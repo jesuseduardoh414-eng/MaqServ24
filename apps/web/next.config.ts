@@ -71,8 +71,11 @@ const nextConfig: NextConfig = {
       // Equivalentes definitivos de las páginas legacy
       { source: '/faq', destination: '/', permanent: true }, // FAQ es sección de la home
       { source: '/contact', destination: '/contacto', permanent: true },
-      { source: '/stores', destination: '/vendedores', permanent: true },
-      { source: '/Marcas', destination: '/vendedores', permanent: true },
+      // Antes iban a /vendedores, que da 404 desde que se apagó el marketplace
+      // (MARKETPLACE_ACTIVO=false): un 301 a un 404 tira el valor SEO de la
+      // URL vieja. El catálogo es lo más parecido a "tiendas"/"marcas".
+      { source: '/stores', destination: '/productos', permanent: true },
+      { source: '/Marcas', destination: '/productos', permanent: true },
       { source: '/track', destination: '/rastreo', permanent: true },
     ];
   },

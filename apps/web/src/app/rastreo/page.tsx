@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import type { TrackingResult } from '@maqserv/types';
 import { SHIP_METHODS, fulfillmentFlow, fulfillmentStep, shipTracker, toShipMethod } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
@@ -12,7 +13,7 @@ const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'track.title')} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'track.title')} — ${t(theme, 'site.name')}` };
 }
 
 type Search = { orden?: string; email?: string };

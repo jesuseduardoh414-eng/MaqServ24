@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { NOINDEX } from '@/lib/seo';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getTheme, t } from '@/lib/theme';
@@ -11,7 +12,7 @@ const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'account.title')} — ${t(theme, 'site.name')}` };
+  return { robots: NOINDEX, title: `${t(theme, 'account.title')} — ${t(theme, 'site.name')}` };
 }
 
 export default async function AccountPage() {
