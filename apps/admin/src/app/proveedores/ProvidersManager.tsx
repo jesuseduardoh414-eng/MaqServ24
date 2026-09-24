@@ -103,6 +103,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
   const [provs, setProvs] = useState(initial);
   const [query, setQuery] = useState('');
   const [creando, setCreando] = useState(false);
+  /** Mandarle su invitación al darlo de alta (solo si la ficha trae correo). */
+  const [invitar, setInvitar] = useState(true);
   const [expediente, setExpediente] = useState<ProviderRow | null>(null);
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
@@ -143,12 +145,23 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         coverage: aLista(form.coverage),
         categories: form.categories,
         responseMinutes: form.responseMinutes ? Number(form.responseMinutes) : null,
+        // La invitación sale con el alta si hay correo (ver la API).
+        enviarAcceso: invitar,
       }),
     });
-    if (!r.ok) { setMsg('No se pudo guardar'); return; }
+    const d = await r.json().catch(() => null);
+    if (!r.ok) { setMsg(typeof d?.message === 'string' ? d.message : 'No se pudo guardar'); return; }
+    const conCorreo = Boolean(form.email);
     setCreando(false);
     setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', city: '', coverage: '', categories: [], responseMinutes: '' });
-    setMsg('Aliado dado de alta');
+    setInvitar(true);
+    setMsg(
+      d?.acceso
+        ? `Aliado dado de alta. ${d.acceso.mensaje}`
+        : conCorreo
+          ? 'Aliado dado de alta, sin invitación. Mándale su enlace desde su tarjeta cuando quieras.'
+          : 'Aliado dado de alta. No tiene correo: agrégaselo para mandarle su enlace.',
+    );
     recargar();
   }
 
@@ -302,7 +315,14 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
             </div>
           </div>
 
-          <button type="button" style={{ ...boton, marginTop: 18 }} onClick={crear}>Dar de alta</button>
+          {/* Con correo, el alta manda su enlace: es su invitación y por donde
+              sube sus papeles. Se desmarca solo para registrar un prospecto. */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 13, color: C.ink, opacity: form.email ? 1 : 0.5 }}>
+            <input type="checkbox" checked={invitar && Boolean(form.email)} disabled={!form.email} onChange={(e) => setInvitar(e.target.checked)} />
+            Mandarle su invitación por correo al darlo de alta
+          </label>
+
+          <button type="button" style={{ ...boton, marginTop: 14 }} onClick={crear}>Dar de alta</button>
         </div>
       ) : null}
 

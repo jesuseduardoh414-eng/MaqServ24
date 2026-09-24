@@ -425,7 +425,7 @@ export class AdminProvidersController {
     let slug = base;
     for (let i = 2; await prisma.providers.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
 
-    return prisma.providers.create({
+    const creado = await prisma.providers.create({
       data: {
         name: d.name,
         slug,
@@ -445,6 +445,29 @@ export class AdminProvidersController {
       },
       select: { id: true, slug: true },
     });
+
+    /**
+     * LA INVITACIÓN SALE CON EL ALTA (decisión del cliente, 2026-09-24).
+     *
+     * Antes el alta solo guardaba la ficha y había que volver a su tarjeta a
+     * pulsar "Mandarle su enlace": el paso se olvidaba y el aliado nunca se
+     * enteraba de que existía, ni podía subir sus papeles. Ahora, si la ficha
+     * trae correo, el enlace sale en el acto. `enviarAcceso: false` lo evita,
+     * para registrar a un prospecto sin avisarle todavía.
+     *
+     * Nunca tumba el alta: si el correo falla, la ficha queda guardada y el
+     * botón de su tarjeta sigue ahí para reintentar.
+     */
+    const quiereAcceso = (body as { enviarAcceso?: unknown })?.enviarAcceso !== false;
+    let acceso: { estado: string; url: string; mensaje: string } | null = null;
+    if (quiereAcceso && d.email?.trim() && (d.status ?? 1) === 1) {
+      try {
+        acceso = await this.enviarAcceso(creado.id);
+      } catch (e) {
+        acceso = { estado: 'fallido', url: '', mensaje: `No se pudo mandar su enlace: ${(e as Error).message}` };
+      }
+    }
+    return { ...creado, acceso };
   }
 
   @Patch(':id')
