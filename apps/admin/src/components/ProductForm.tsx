@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { atributosDe } from '@maqserv/config';
+import { atributosDe, unidadesDe } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { D } from '@/components/design-tokens';
 
@@ -29,9 +29,15 @@ export interface ProductFormData {
   /** Ficha técnica estructurada por línea (`atributosDe`). */
   attributes?: Record<string, unknown> | null;
   location?: string | null;
+  /** Unidad del precio (`UNIDADES`): día, mes, viaje, tonelada… '' = precio total / por pieza. */
+  priceUnit?: string | null;
 }
 
-interface Categoria { id: number; name: string; slug?: string }
+interface Categoria { id: number; name: string; slug?: string; status?: number }
+
+/** Unidades de tiempo: sirven para rentar, no para vender. */
+const DE_TIEMPO = new Set(['hora', 'jornada', 'dia', 'semana', 'mes']);
+
 interface Proveedor { id: number; name: string; level?: string }
 interface Renglon { tipo: string; id: string; nombre: string; linea: string; productos: number[] }
 interface Foto { id: number; url: string | null }
@@ -81,6 +87,21 @@ export function ProductForm({
 
   const slug = categories.find((c) => String(c.id) === categoryId)?.slug ?? null;
   const campos = useMemo(() => atributosDe(slug), [slug]);
+  // Solo líneas activas; la actual se conserva aunque esté apagada, para no perderla al guardar.
+  const lineas = categories.filter((c) => c.status === undefined || c.status === 1 || String(c.id) === String(initial.categoryId ?? ''));
+
+  // Unidad del precio: al rentar, las de la línea (día, mes, viaje…); al vender,
+  // pieza o las que no son de tiempo (tonelada, m³…).
+  const opcionesUnidad = useMemo(() => {
+    const deLinea = unidadesDe(slug);
+    if (isRental) return deLinea.map((u) => ({ value: u.clave, label: u.singular }));
+    return [{ value: '', label: 'pieza (precio total)' }, ...deLinea.filter((u) => !DE_TIEMPO.has(u.clave)).map((u) => ({ value: u.clave, label: u.singular }))];
+  }, [slug, isRental]);
+  const [unidad, setUnidad] = useState(initial.priceUnit ?? '');
+  useEffect(() => {
+    // Si la unidad elegida no aplica a la línea o a la modalidad, la primera que sí.
+    if (!opcionesUnidad.some((o) => o.value === unidad)) setUnidad(opcionesUnidad[0]?.value ?? '');
+  }, [opcionesUnidad, unidad]);
 
   // ---- Revisión: renglones del cotizador + rechazo ----
   const [renglones, setRenglones] = useState<Renglon[]>([]);
@@ -240,7 +261,7 @@ export function ProductForm({
                   placeholder="Selecciona…"
                   value={categoryId}
                   onChange={setCategoryId}
-                  options={categories.map((c) => ({ value: String(c.id), label: c.name }))}
+                  options={lineas.map((c) => ({ value: String(c.id), label: c.name }))}
                 />
               </Campo>
               <Campo etiqueta="Marca y modelo">
@@ -305,28 +326,39 @@ export function ProductForm({
             </div>
           </Tarjeta>
 
-          <Tarjeta titulo="Precio y disponibilidad" icono="ph-tag">
-            <div className="pf-3">
-              <Campo etiqueta="Precio" nota="0 = el sitio dice “precio bajo cotización”.">
+          <Tarjeta
+            titulo={isRental ? 'Renta y disponibilidad' : 'Venta y disponibilidad'}
+            icono="ph-tag"
+            ayuda={isRental
+              ? 'Tarifa de referencia por periodo. En 0 el sitio dice “precio bajo cotización” y el precio lo pone el cotizador.'
+              : 'Precio de venta. En 0 el sitio dice “precio bajo cotización”.'}
+          >
+            <input type="hidden" name="priceUnit" value={unidad} />
+            <div className="pf-2">
+              <Campo etiqueta={isRental ? 'Tarifa de renta' : 'Precio de venta'}>
                 <input name="price" type="number" step="0.01" min={0} required defaultValue={initial.price ?? 0} style={input} />
               </Campo>
-              <Campo etiqueta="Precio anterior" nota="Opcional, se muestra tachado.">
-                <input name="oldPrice" type="number" step="0.01" min={0} defaultValue={initial.oldPrice ?? ''} style={input} />
-              </Campo>
-              <Campo etiqueta="Unidades" nota="Cuántas iguales tiene.">
-                <input name="stock" type="number" min={0} defaultValue={initial.stock ?? ''} style={input} />
+              <Campo etiqueta={isRental ? 'Por' : 'Se vende por'}>
+                <AdminSelect ariaLabel="Unidad del precio" value={unidad} onChange={setUnidad} options={opcionesUnidad} />
               </Campo>
             </div>
             <div className="pf-2">
-              <Campo etiqueta="Dónde está" nota="Patio o ciudad; sirve para calcular el traslado.">
-                <input name="location" defaultValue={initial.location ?? ''} placeholder="Patio en García, N.L." style={input} />
-              </Campo>
               {isRental ? (
-                <Campo etiqueta="Flete por km" nota="Opcional. Vacío = tarifa general.">
+                <Campo etiqueta="Flete por km" nota="Opcional. Vacío = tarifa general del traslado.">
                   <input name="rentalFreight" type="number" step="0.01" min={0} defaultValue={initial.rentalFreight ?? ''} style={input} />
                 </Campo>
-              ) : <div />}
+              ) : (
+                <Campo etiqueta="Precio anterior" nota="Opcional, se muestra tachado como oferta.">
+                  <input name="oldPrice" type="number" step="0.01" min={0} defaultValue={initial.oldPrice ?? ''} style={input} />
+                </Campo>
+              )}
+              <Campo etiqueta={isRental ? 'Unidades iguales' : 'Existencias'} nota={isRental ? 'Cuántas máquinas iguales tiene para rentar.' : 'Cuántas tiene para vender. Vacío = sin control.'}>
+                <input name="stock" type="number" min={0} defaultValue={initial.stock ?? ''} style={input} />
+              </Campo>
             </div>
+            <Campo etiqueta="Dónde está" nota="Patio o ciudad; sirve para calcular el traslado.">
+              <input name="location" defaultValue={initial.location ?? ''} placeholder="Patio en García, N.L." style={input} />
+            </Campo>
             <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5, color: D.text, cursor: 'pointer' }}>
               <input type="checkbox" name="featured" defaultChecked={initial.featured} style={{ width: 16, height: 16, accentColor: 'var(--color-primary)' }} />
               Destacado (aparece en el inicio del sitio)
