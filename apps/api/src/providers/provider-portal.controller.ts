@@ -14,6 +14,8 @@ import { disponibilidadDe, DIAS_FRESCURA } from '../catalog/availability';
 import { documentosQueAvisan, textoAviso } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial } from '../catalog/provider-history';
 import { ServiceService } from '../quotes/service.service';
+import { PASOS, avance, esEstado } from '../quotes/service-flow';
+import { lista } from '../common/json-list';
 import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
 
 /**
@@ -94,7 +96,7 @@ export class ProviderPortalController {
           quotes: {
             select: {
               quote_number: true, service_category: true, address: true, comments: true,
-              service_state: true, total: true,
+              service_state: true, total: true, created_at: true,
               client_sites: {
                 select: { name: true, address: true, contact_name: true, contact_phone: true, requirements: true },
               },
@@ -145,6 +147,24 @@ export class ProviderPortalController {
 
     const enCurso = ['cerrado', 'cancelado'];
 
+    /**
+     * Nombres legibles de sus líneas de servicio: el aliado no tiene por qué
+     * leer "maquinaria-pesada". Una consulta para todas.
+     */
+    const slugs = [
+      ...new Set([
+        ...lista(p.categories),
+        ...asignaciones.map((a) => a.quotes.service_category).filter((c): c is string => !!c),
+      ]),
+    ];
+    const cats = slugs.length
+      ? await prisma.categories.findMany({ where: { cat_slug: { in: slugs } }, select: { cat_slug: true, cat_name: true } })
+      : [];
+    const nombreCat = new Map(cats.map((c) => [c.cat_slug, c.cat_name]));
+    const cat = (slug: string | null) => (slug ? nombreCat.get(slug) ?? slug : null);
+    const estadoServicio = (s: string | null) =>
+      esEstado(s) ? { stateLabel: PASOS[s].label, progress: avance(s) } : { stateLabel: 'Por asignar', progress: 0 };
+
     return {
       aliado: {
         id: p.id,
@@ -155,6 +175,8 @@ export class ProviderPortalController {
         docsStatus: docs,
         coverage: p.coverage,
         categories: p.categories,
+        categoryLabels: lista(p.categories).map((c) => cat(c) ?? c),
+        joinedAt: p.joined_at,
         monthsInNetwork: mesesEnRed(p.joined_at),
         // Editables desde el portal. Van aquí para que la pantalla rellene el
         // formulario con lo que hay y el aliado corrija, en vez de recapturar.
@@ -174,7 +196,7 @@ export class ProviderPortalController {
         .map((a) => ({
           assignmentId: a.id,
           quoteNumber: a.quotes.quote_number,
-          category: a.quotes.service_category,
+          category: cat(a.quotes.service_category),
           // La dirección de la obra manda sobre la escrita a mano: la de la
           // obra ya la revisó alguien.
           address: a.quotes.client_sites?.address ?? a.quotes.address,
@@ -182,6 +204,9 @@ export class ProviderPortalController {
           detail: a.scope ?? a.quotes.comments,
           requirements: a.quotes.client_sites?.requirements ?? [],
           offeredAt: a.offered_at,
+          // Lo que el cliente ya aceptó pagar: es lo primero que el aliado
+          // pregunta antes de decir que sí.
+          total: Number(a.quotes.total) || null,
         })),
 
       /** Lo que ya es suyo y sigue corriendo, con los datos de la obra. */
@@ -189,8 +214,11 @@ export class ProviderPortalController {
         .filter((a) => a.state === 'aceptado' && !enCurso.includes(a.quotes.service_state ?? ''))
         .map((a) => ({
           quoteNumber: a.quotes.quote_number,
-          category: a.quotes.service_category,
+          category: cat(a.quotes.service_category),
           state: a.quotes.service_state,
+          ...estadoServicio(a.quotes.service_state),
+          committedAt: a.committed_at,
+          total: Number(a.quotes.total) || null,
           site: a.quotes.client_sites?.name ?? null,
           address: a.quotes.client_sites?.address ?? a.quotes.address,
           contactName: a.quotes.client_sites?.contact_name ?? null,
@@ -255,6 +283,23 @@ export class ProviderPortalController {
        * Si el sistema lo va a ordenar con esos números, tiene derecho a verlos.
        * Enseñárselos también es la única forma de que pueda discutirlos.
        */
+      /**
+       * Sus últimos trabajos contestados: qué se le ofreció y en qué quedó. Es
+       * su historial a la vista, no solo un número de "cómo vas".
+       */
+      recientes: asignaciones
+        .filter((a) => a.state !== 'propuesto')
+        .slice(0, 8)
+        .map((a) => ({
+          quoteNumber: a.quotes.quote_number,
+          category: cat(a.quotes.service_category),
+          site: a.quotes.client_sites?.name ?? null,
+          answer: a.state,
+          reason: a.reason,
+          respondedAt: a.responded_at,
+          ...estadoServicio(a.quotes.service_state),
+          total: Number(a.quotes.total) || null,
+        })),
       cumplimiento: {
         resumen: resumenHistorial(hist),
         ofrecidos: hist.ofrecidos,
@@ -276,9 +321,24 @@ export class ProviderPortalController {
     @Body() body: unknown,
   ) {
     const p = z
-      .object({ estado: z.enum(['aceptado', 'rechazado']), motivo: z.string().max(500).optional() })
+      .object({
+        estado: z.enum(['aceptado', 'rechazado']),
+        motivo: z.string().max(500).optional(),
+        /**
+         * Cuándo se compromete a llegar (ISO, fecha y hora local). Es contra lo
+         * que se mide su puntualidad; antes el portal no lo pedía y el
+         * compromiso quedaba vacío.
+         */
+        llegada: z.string().max(40).optional(),
+      })
       .safeParse(body);
     if (!p.success) throw new BadRequestException('Datos inválidos');
+    let committedAt: Date | null = null;
+    if (p.data.estado === 'aceptado' && p.data.llegada) {
+      const d = new Date(p.data.llegada);
+      if (Number.isNaN(d.getTime())) throw new BadRequestException('La fecha de llegada no es válida.');
+      committedAt = d;
+    }
 
     // Decisión 1: la propuesta tiene que ser SUYA. Sin esto, cambiar el número
     // en la URL contestaría por otro aliado.
@@ -292,6 +352,7 @@ export class ProviderPortalController {
 
     return this.services.responder(assignmentId, p.data.estado, {
       reason: p.data.motivo,
+      committedAt,
       // adminId null = lo movió el aliado, no una persona de operaciones. El
       // historial tiene que poder distinguirlo.
       adminId: null,

@@ -59,11 +59,14 @@ export default async function AliadoPage({
     );
   }
   const datos = (await res.json()) as DatosPortal;
+  // Cómo contactar a MAQSER24: los mismos canales de Diseño → Contacto.
+  const c = theme.tokens.contact;
+  const contacto = { phone: c?.phone || null, email: c?.email || null, hours: c?.hours || null };
 
   return (
     <>
       <main style={{ background: 'var(--color-bg)', color: 'var(--color-text)', minHeight: '100vh' }}>
-        <PortalAliado datos={datos} />
+        <PortalAliado datos={datos} contacto={contacto} />
       </main>
       <SiteFooter theme={theme} />
     </>
