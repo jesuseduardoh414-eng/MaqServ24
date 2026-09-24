@@ -5,6 +5,7 @@ import { getTheme, t } from '@/lib/theme';
 import { CartProvider } from '@/components/CartProvider';
 import { DevAutoRefresh } from '@/components/DevAutoRefresh';
 import { Pwa } from '@/components/Pwa';
+import { IMAGEN_OG, SITE_URL } from '@/lib/seo';
 import './globals.css';
 import { RecortarEspacios } from '@maqserv/ui';
 
@@ -31,7 +32,14 @@ export async function generateMetadata(): Promise<Metadata> {
   const nombre = t(theme, 'site.name');
   const b = theme.tokens.branding ?? {};
   return {
+    // Con esto los canonical y las imágenes OG relativos de cada página salen
+    // absolutos (https://maqserv24.com/...). Cada página pone su canonical con
+    // paginaSeo(); aquí NO va uno, o lo heredarían todas.
+    metadataBase: new URL(SITE_URL),
     title: nombre,
+    description: t(theme, 'seo.home.description'),
+    openGraph: { siteName: nombre, locale: 'es_MX', type: 'website', images: [{ url: IMAGEN_OG, width: 1200, height: 630, alt: nombre }] },
+    twitter: { card: 'summary_large_image' },
     // PWA: manifiesto + cómo se comporta al "Agregar a inicio" en iOS (que no
     // lee el manifiesto). Los iconos del panel (Diseño → Identidad) mandan;
     // si no hay, los de marca del repo.

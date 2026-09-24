@@ -139,7 +139,7 @@ export async function Hero({ theme }: { theme: Theme }) {
           {hero?.image ? (
             <span style={{ position: 'absolute', top: '50%', left: '52%', transform: 'translate(-50%, -50%)', width: 'min(560px, 118%)', aspectRatio: '1', zIndex: 1, display: 'block' }}>
               {/* La caja (span) queda IGUAL; solo la imagen escala → no altera el resto. */}
-              <Image src={hero.image} alt="" fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', transform: 'scale(1.45)', transformOrigin: 'center' }} />
+              <Image src={hero.image} alt={`${title} ${accent}`.trim()} fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', transform: 'scale(1.45)', transformOrigin: 'center' }} />
             </span>
           ) : (
             // Sin imagen configurada: el círculo de acento queda solo como
@@ -332,7 +332,7 @@ export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
         <div style={{ position: 'relative', minHeight: 420 }} className="why-visual">
           <div style={{ position: 'absolute', inset: 0, borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow)', background: 'var(--surface-2)' }}>
             {image ? (
-              <Image src={image} alt="" fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
+              <Image src={image} alt={t(theme, 'home.whyChooseUs.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
             ) : (
               <span className="ph" style={{ position: 'absolute', inset: 0 }} />
             )}
@@ -493,7 +493,7 @@ export async function OfferSection({ theme }: { theme: Theme }) {
           </div>
           <div style={{ position: 'relative', height: 230, borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)' }}>
             {cfg?.image ? (
-              <Image src={cfg.image} alt="" fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
+              <Image src={cfg.image} alt={t(theme, 'home.offer.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
             ) : (
               <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,.08) 0 15px, rgba(255,255,255,.02) 15px 30px)' }} />
             )}

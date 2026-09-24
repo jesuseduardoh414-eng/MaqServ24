@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { paginaSeo, migas } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import Link from 'next/link';
 import { getTheme, t } from '@/lib/theme';
 import { getProducts, getCategories, getSubcategories } from '@/lib/api';
@@ -16,7 +18,9 @@ const CONTAINER: React.CSSProperties = { maxWidth: 1320, margin: '0 auto', paddi
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'catalog.title')} — ${t(theme, 'site.name')}` };
+  // Canonical fijo a /productos: las variantes con filtros (?categoria=, ?q=)
+  // son la misma página y no deben competir entre sí en el índice.
+  return paginaSeo(theme, { ruta: '/productos', titulo: t(theme, 'seo.catalog.title'), descripcion: t(theme, 'seo.catalog.description') });
 }
 
 export default async function CatalogPage({ searchParams }: { searchParams: Promise<Search> }) {
@@ -103,11 +107,13 @@ export default async function CatalogPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <SiteHeader theme={theme} />
+      <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: t(theme, 'nav.products') }])} />
       <main style={{ background: 'var(--color-bg)', minHeight: '60vh' }}>
         {/* Banner + buscador flotante sobre su borde inferior */}
         {hasBanner ? (
           <div style={{ position: 'relative' }}>
-            <Band block={catalog!.banner} kind="hero" maxWidth={1320} />
+            {/* h1: es el único encabezado principal del catálogo (el grid no tiene otro). */}
+            <Band block={catalog!.banner} kind="hero" maxWidth={1320} titleTag="h1" />
             {searchForm(true)}
           </div>
         ) : null}

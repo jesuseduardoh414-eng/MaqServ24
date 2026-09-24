@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
+import { paginaSeo } from '@/lib/seo';
 import { defaultTheme, LEGAL_DEFAULTS } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { LegalPage } from '@/components/LegalPage';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `Aviso de Privacidad — ${t(theme, 'site.name')}` };
+  return paginaSeo(theme, { ruta: '/privacidad', titulo: t(theme, 'seo.privacy.title'), descripcion: t(theme, 'seo.privacy.description') });
 }
 
 export default async function PrivacidadPage() {

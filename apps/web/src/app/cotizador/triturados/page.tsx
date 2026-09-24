@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { paginaSeo } from '@/lib/seo';
 import { getTheme, t } from '@/lib/theme';
 import { PaginaCotizador } from '../pagina';
 
@@ -16,10 +17,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return {
-    title: `Cotizador de triturados — ${t(theme, 'site.name')}`,
-    description: 'Cotiza grava, arena, base y material de banco: por tonelada en planta o por viaje puesto en obra.',
-  };
+  return paginaSeo(theme, { ruta: '/cotizador/triturados', titulo: t(theme, 'seo.quoter.aggregates.title'), descripcion: t(theme, 'seo.quoter.aggregates.description') });
 }
 
 export default function CotizadorTrituradosPage() {

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { paginaSeo } from '@/lib/seo';
 import Link from 'next/link';
 import { COTIZADORES_META, COTIZADOR_TIPOS } from '@maqserv/config';
 import { IconoCotizador } from '@maqserv/ui';
@@ -20,10 +21,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return {
-    title: `Cotizador en línea — ${t(theme, 'site.name')}`,
-    description: 'Arma tu cotización paso a paso: maquinaria con operador y diésel, o triturados por tonelada y por viaje.',
-  };
+  return paginaSeo(theme, { ruta: '/cotizador', titulo: t(theme, 'seo.quoter.title'), descripcion: t(theme, 'seo.quoter.description') });
 }
 
 const PASOS = [

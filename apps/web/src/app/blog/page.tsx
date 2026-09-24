@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { paginaSeo } from '@/lib/seo';
 import { getTheme, t } from '@/lib/theme';
 import { getBlogs } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -6,7 +7,7 @@ import { BlogIndex } from './BlogIndex';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `${t(theme, 'nav.blog')} — ${t(theme, 'site.name')}` };
+  return paginaSeo(theme, { ruta: '/blog', titulo: t(theme, 'seo.blog.title'), descripcion: t(theme, 'seo.blog.description') });
 }
 
 export default async function BlogIndexPage() {

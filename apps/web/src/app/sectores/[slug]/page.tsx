@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { paginaSeo, migas } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -35,11 +37,13 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const [theme, sector] = await Promise.all([getTheme(), fetchBySlug(slug)]);
   if (!sector) return { title: t(theme, 'site.name') };
-  return {
-    title: `${sector.title} — ${t(theme, 'site.name')}`,
-    description: sector.description ? strip(sector.description).slice(0, 160) : undefined,
-    alternates: { canonical: `/sectores/${sector.slug}` },
-  };
+  return paginaSeo(theme, {
+    ruta: `/sectores/${sector.slug}`,
+    // "Maquinaria y servicios para Infraestructura": el nombre solo quedaba en 26 caracteres.
+    titulo: t(theme, 'seo.sector.title').replace('{sector}', sector.title),
+    descripcion: sector.description ? strip(sector.description).slice(0, 160) : undefined,
+    imagen: sector.image,
+  });
 }
 
 /** Bloque de texto largo del sector (legacy: HTML libre). Solo se muestra si hay contenido. */
@@ -63,6 +67,7 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
   return (
     <>
       <SiteHeader theme={theme} />
+      <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: sector.title }])} />
       <main style={{ background: 'var(--color-bg)' }}>
         {/* ===== HERO (foto full-bleed + degradado) ===== */}
         <section style={{ position: 'relative', minHeight: 440, background: INK, overflow: 'hidden' }}>

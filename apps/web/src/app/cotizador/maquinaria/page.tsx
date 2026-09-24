@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { paginaSeo } from '@/lib/seo';
 import { getTheme, t } from '@/lib/theme';
 import { PaginaCotizador } from '../pagina';
 
@@ -16,10 +17,7 @@ export const dynamic = 'force-dynamic';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return {
-    title: `Cotizador de maquinaria — ${t(theme, 'site.name')}`,
-    description: 'Cotiza renta de maquinaria con operador y diésel paso a paso: elige el equipo, los días y recibe tu propuesta.',
-  };
+  return paginaSeo(theme, { ruta: '/cotizador/maquinaria', titulo: t(theme, 'seo.quoter.machinery.title'), descripcion: t(theme, 'seo.quoter.machinery.description') });
 }
 
 export default function CotizadorMaquinariaPage() {

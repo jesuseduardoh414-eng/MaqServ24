@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { paginaSeo, migas } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import { notFound } from 'next/navigation';
 import { parseProductSlug, productSlug } from '@maqserv/config';
 import type { ProductCommentsSummary, ProductDetail } from '@maqserv/types';
@@ -35,12 +37,14 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   if (!product) return { title: t(theme, 'site.name') };
   const description = (product.metaDescription ?? product.short ?? stripHtml(product.description)).slice(0, 160);
   const canonical = `/productos/${productSlug(product.name, product.id)}`;
-  return {
-    title: `${product.metaTitle ?? product.name} — ${t(theme, 'site.name')}`,
-    description,
-    alternates: { canonical },
-    openGraph: { title: product.name, description, images: product.image ? [product.image] : [], type: 'website' },
-  };
+  // Con metaTitle del panel va tal cual (ya viene pensado entero); si no, nombre + sitio.
+  return paginaSeo(theme, {
+    ruta: canonical,
+    titulo: product.metaTitle || product.name,
+    sinSufijo: !!product.metaTitle,
+    descripcion: description,
+    imagen: product.image,
+  });
 }
 
 export default async function ProductPage({ params }: { params: Promise<Params> }) {
@@ -84,7 +88,17 @@ export default async function ProductPage({ params }: { params: Promise<Params> 
   return (
     <>
       <SiteHeader theme={theme} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd
+        data={[
+          jsonLd,
+          migas([
+            { nombre: t(theme, 'nav.home'), ruta: '/' },
+            { nombre: t(theme, 'nav.products'), ruta: '/productos' },
+            ...(product.categoryName && product.categorySlug ? [{ nombre: product.categoryName, ruta: `/productos?categoria=${product.categorySlug}` }] : []),
+            { nombre: product.name },
+          ]),
+        ]}
+      />
       <ProductDetailView
         product={product}
         theme={theme}

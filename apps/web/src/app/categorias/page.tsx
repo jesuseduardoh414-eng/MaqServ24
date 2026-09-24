@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { paginaSeo, migas } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import Link from 'next/link';
 import Image from 'next/image';
 import { getTheme, t } from '@/lib/theme';
@@ -16,7 +18,7 @@ const PANEL =
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `Categorías — ${t(theme, 'site.name')}` };
+  return paginaSeo(theme, { ruta: '/categorias', titulo: t(theme, 'seo.categories.title'), descripcion: t(theme, 'seo.categories.description') });
 }
 
 /**
@@ -29,7 +31,9 @@ export default async function CategoriasPage() {
   const cv = theme.tokens.categoriesView;
   const cval = (key: string, def: string) => {
     const v = t(theme, key);
-    return v === key ? def : v;
+    // Vacío cuenta como ausente: en producción el título estaba guardado como
+    // '' y la página salía con un <h1> sin texto.
+    return v === key || !v.trim() ? def : v;
   };
   const unit = t(theme, 'home.categories.unit');
   const eyebrowColor = cv.eyebrowColor ?? 'var(--color-accent)';
@@ -111,9 +115,11 @@ export default async function CategoriasPage() {
   return (
     <>
       <SiteHeader theme={theme} />
+      <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: t(theme, 'nav.categories') }])} />
       <main style={{ background: 'var(--color-bg)' }}>
         {/* Hero superior (configurable) */}
-        {cv.hero?.enabled ? <Band block={cv.hero} kind="hero" /> : null}
+        {/* Es un anuncio: el h1 de la página es el del grid, más abajo. */}
+        {cv.hero?.enabled ? <Band block={cv.hero} kind="hero" titleTag="p" /> : null}
 
         <section style={{ ...CONTAINER, paddingTop: 62, paddingBottom: 78 }}>
           {/* Encabezado del grid */}

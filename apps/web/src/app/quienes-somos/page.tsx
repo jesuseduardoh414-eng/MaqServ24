@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { paginaSeo } from '@/lib/seo';
 import Link from 'next/link';
 import Image from 'next/image';
 import { defaultTheme } from '@maqserv/config';
@@ -29,11 +30,8 @@ async function getInfSitio(): Promise<InfSitio | null> {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const [theme, info] = await Promise.all([getTheme(), getInfSitio()]);
-  return {
-    title: `${info?.titulo ?? t(theme, 'nav.about')} — ${t(theme, 'site.name')}`,
-    description: info?.frase ?? undefined,
-  };
+  const theme = await getTheme();
+  return paginaSeo(theme, { ruta: '/quienes-somos', titulo: t(theme, 'seo.about.title'), descripcion: t(theme, 'seo.about.description') });
 }
 
 const Eyebrow = ({ children, center }: { children: React.ReactNode; center?: boolean }) => (

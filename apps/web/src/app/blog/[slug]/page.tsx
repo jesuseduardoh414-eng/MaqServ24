@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { paginaSeo, migas, SITE_URL, IMAGEN_OG } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import Link from 'next/link';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
@@ -45,17 +47,15 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { slug } = await params;
   const [theme, blog] = await Promise.all([getTheme(), fetchBySlug(slug)]);
   if (!blog) return { title: t(theme, 'site.name') };
-  return {
-    title: `${blog.metaTitle ?? blog.title} — ${t(theme, 'site.name')}`,
-    description: (blog.metaDescription ?? blog.excerpt).slice(0, 160),
-    alternates: { canonical: `/blog/${blog.slug}` },
-    openGraph: {
-      title: blog.title,
-      description: blog.excerpt,
-      images: blog.image ? [blog.image] : [],
-      type: 'article',
-    },
-  };
+  // Con metaTitle del panel va tal cual (ya viene pensado entero); si no, título + sitio.
+  return paginaSeo(theme, {
+    ruta: `/blog/${blog.slug}`,
+    titulo: blog.metaTitle || blog.title,
+    sinSufijo: !!blog.metaTitle,
+    descripcion: (blog.metaDescription || blog.excerpt).slice(0, 160),
+    imagen: blog.image,
+    tipo: 'article',
+  });
 }
 
 export default async function BlogPage({ params }: { params: Promise<Params> }) {
@@ -74,20 +74,27 @@ export default async function BlogPage({ params }: { params: Promise<Params> }) 
   // no repita el primer párrafo del cuerpo; si no hay, usamos el extracto.
   const deck = blog.metaDescription?.trim() || blog.excerpt;
 
+  const sitio = t(theme, 'site.name');
+  const urlArticulo = `${SITE_URL}/blog/${blog.slug}`;
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
+    mainEntityOfPage: { '@type': 'WebPage', '@id': urlArticulo },
+    url: urlArticulo,
     headline: blog.title,
-    image: blog.image ? [blog.image] : [],
+    description: deck,
+    image: blog.image ? [blog.image] : [`${SITE_URL}${IMAGEN_OG}`],
     datePublished: blog.date ?? undefined,
-    author: blog.author ? { '@type': 'Person', name: blog.author } : undefined,
+    // El byline sale del campo `source` del panel; si está vacío, firma la marca.
+    author: blog.author ? { '@type': 'Person', name: blog.author } : { '@type': 'Organization', name: sitio, url: SITE_URL },
+    publisher: { '@type': 'Organization', name: sitio, url: SITE_URL, logo: { '@type': 'ImageObject', url: `${SITE_URL}/brand/maqser24-logo.png` } },
     articleSection: blog.category,
   };
 
   return (
     <>
       <SiteHeader theme={theme} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd data={[jsonLd, migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: t(theme, 'nav.blog'), ruta: '/blog' }, { nombre: blog.title }])]} />
       <style>{`
         .blog-article :where(h2,h3) { font-family: ${DISPLAY}; margin: 40px 0 10px; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--color-text); line-height: 1.15; }
         .blog-article :where(h4,h5) { font-family: ${DISPLAY}; margin: 32px 0 8px; font-size: 20px; font-weight: 700; color: var(--color-text); }
@@ -163,13 +170,13 @@ export default async function BlogPage({ params }: { params: Promise<Params> }) 
             <aside className="blog-art-aside" style={{ position: 'sticky', top: 96 }}>
               <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '28px 24px' }}>
                 <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.18em', color: 'var(--color-primary)', marginBottom: 6 }}>RANKING</div>
-                <h3 style={{ fontFamily: DISPLAY, margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>Lo más leído</h3>
+                <h2 style={{ fontFamily: DISPLAY, margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>Lo más leído</h2>
                 {popular.map((post, i) => (
                   <Link key={post.id} href={`/blog/${post.slug}`} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, padding: '16px 0', borderTop: '1px solid var(--color-border)', alignItems: 'center', textDecoration: 'none', color: 'inherit' }}>
                     <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, color: 'color-mix(in srgb, var(--color-text) 22%, transparent)', lineHeight: 1, width: 32 }}>{String(i + 1).padStart(2, '0')}</span>
                     <div>
                       <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', color: 'var(--color-text-muted)', marginBottom: 5 }}>{post.category}</div>
-                      <h4 style={{ fontFamily: DISPLAY, margin: 0, fontSize: 15, lineHeight: 1.2, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--color-text)' }}>{post.title}</h4>
+                      <h3 style={{ fontFamily: DISPLAY, margin: 0, fontSize: 15, lineHeight: 1.2, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--color-text)' }}>{post.title}</h3>
                     </div>
                   </Link>
                 ))}

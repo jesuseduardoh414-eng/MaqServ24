@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { paginaSeo, migas } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import { defaultTheme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -10,8 +12,7 @@ const DISPLAY = 'var(--font-display)';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  const c = theme.tokens.contact ?? defaultTheme.tokens.contact;
-  return { title: `${c.title} — ${t(theme, 'site.name')}` };
+  return paginaSeo(theme, { ruta: '/contacto', titulo: t(theme, 'seo.contact.title'), descripcion: t(theme, 'seo.contact.description') });
 }
 
 const telHref = (v: string) => `tel:${v.replace(/[^\d+]/g, '')}`;
@@ -55,6 +56,7 @@ export default async function ContactPage() {
   return (
     <>
       <SiteHeader theme={theme} />
+      <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: t(theme, 'nav.contact') }])} />
       <style>{`
         @media (max-width: 900px){
           .ct-hero, .ct-main, .ct-branches { grid-template-columns: 1fr !important; }

@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
+import { paginaSeo } from '@/lib/seo';
 import { defaultTheme, LEGAL_DEFAULTS } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { LegalPage } from '@/components/LegalPage';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
-  return { title: `Términos y Condiciones — ${t(theme, 'site.name')}` };
+  return paginaSeo(theme, { ruta: '/terminos', titulo: t(theme, 'seo.terms.title'), descripcion: t(theme, 'seo.terms.description') });
 }
 
 export default async function TerminosPage() {

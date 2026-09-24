@@ -9,7 +9,7 @@ import { Icon } from '@/components/Icon';
  * encima, a la izquierda. Sin imagen, es una banda de color con el texto.
  * Todo por tokens del tema.
  */
-export function Band({ block, kind, maxWidth = 1240 }: { block: CtaBlock; kind: 'hero' | 'promo'; maxWidth?: number }) {
+export function Band({ block, kind, maxWidth = 1240, titleTag: Title = 'h2' }: { block: CtaBlock; kind: 'hero' | 'promo'; maxWidth?: number; /** `h1` cuando la banda es el encabezado principal de la página (catálogo); `p` cuando es un anuncio encima de una página que ya tiene su h1 (categorías). */ titleTag?: 'h1' | 'h2' | 'p' }) {
   const big = kind === 'hero';
   const bg = block.bg ?? 'linear-gradient(135deg, var(--band) 0%, var(--color-bg) 100%)';
   // La banda siempre lleva fondo oscuro, así que el texto va en blanco técnico
@@ -39,7 +39,7 @@ export function Band({ block, kind, maxWidth = 1240 }: { block: CtaBlock; kind: 
               <span style={{ width: 22, height: 3, background: accent }} />{block.eyebrow}
             </span>
           ) : null}
-          <h2 style={{ margin: 0, fontSize: big ? 'clamp(2.2rem, 5vw, 3.8rem)' : 'clamp(1.7rem, 3.6vw, 2.6rem)', textTransform: 'uppercase', color: textColor, lineHeight: 1.01, letterSpacing: '-.01em', textShadow: hasImg ? '0 2px 24px rgba(0,0,0,.45)' : undefined }}>{block.title}</h2>
+          <Title style={{ margin: 0, fontSize: big ? 'clamp(2.2rem, 5vw, 3.8rem)' : 'clamp(1.7rem, 3.6vw, 2.6rem)', textTransform: 'uppercase', color: textColor, lineHeight: 1.01, letterSpacing: '-.01em', textShadow: hasImg ? '0 2px 24px rgba(0,0,0,.45)' : undefined }}>{block.title}</Title>
           {block.subtitle ? (
             <p style={{ margin: 0, color: `color-mix(in srgb, ${textColor} 78%, transparent)`, fontSize: big ? 17.5 : 16, lineHeight: 1.6, fontWeight: 300, maxWidth: 480 }}>{block.subtitle}</p>
           ) : null}

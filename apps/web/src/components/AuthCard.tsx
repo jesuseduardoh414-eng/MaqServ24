@@ -328,7 +328,7 @@ export function AuthCard({
       {view === 'login' ? (
         <div>
           <div style={eyebrow}>{L.loginEyebrow}</div>
-          <h2 style={heading}>{L.loginHeading}</h2>
+          <h1 style={heading}>{L.loginHeading}</h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
             {campo(
               <>
@@ -366,7 +366,7 @@ export function AuthCard({
       {view === 'register' ? (
         <div>
           <div style={eyebrow}>{L.registerEyebrow}</div>
-          <h2 style={heading}>{L.registerHeading}</h2>
+          <h1 style={heading}>{L.registerHeading}</h1>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
             {campo(
               <>
@@ -419,7 +419,7 @@ export function AuthCard({
       {view === 'forgot' ? (
         <div>
           <div style={eyebrow}>{L.forgotEyebrow}</div>
-          <h2 style={{ ...heading, marginBottom: 10 }}>{L.forgotTitle}</h2>
+          <h1 style={{ ...heading, marginBottom: 10 }}>{L.forgotTitle}</h1>
           <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>{L.forgotHint}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
             {campo(
@@ -445,7 +445,7 @@ export function AuthCard({
       {view === 'verificar' ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}><Icon name="check" size={30} /></div>
-          <h2 style={{ ...heading, marginBottom: 12 }}>Confirma tu correo</h2>
+          <h1 style={{ ...heading, marginBottom: 12 }}>Confirma tu correo</h1>
           <p style={{ margin: '0 0 8px', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
             Te mandamos un enlace a <strong style={{ color: 'var(--color-text)' }}>{email.trim()}</strong>. Ábrelo para activar tu cuenta: entras directo y sigues donde ibas.
           </p>
@@ -461,7 +461,7 @@ export function AuthCard({
       {view === 'success' ? (
         <div style={{ textAlign: 'center', padding: '12px 0' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}><Icon name="check" size={30} /></div>
-          <h2 style={{ ...heading, marginBottom: 12 }}>{L.doneTitle}</h2>
+          <h1 style={{ ...heading, marginBottom: 12 }}>{L.doneTitle}</h1>
           <p style={{ margin: '0 0 26px', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{L.doneBody}</p>
           <ShButton onClick={() => go('login')} className="h-12 w-full text-[15px]">{L.forgotBack}</ShButton>
         </div>
