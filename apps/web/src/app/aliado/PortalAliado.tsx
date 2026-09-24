@@ -372,11 +372,19 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   ];
 
   return (
-    <div style={{ maxWidth: 880, margin: '0 auto', padding: '28px clamp(16px, 4vw, 28px) 64px' }}>
+    <div style={{ maxWidth: 1240, margin: '0 auto', padding: '22px clamp(14px, 2.5vw, 24px) 56px' }}>
+      {/* Escritorio: dos columnas, lo accionable a la izquierda (solicitudes,
+          lo que trae, equipos) y la consulta a la derecha (papeles, cómo va,
+          sus datos). En tableta y teléfono, una sola columna en ese orden. */}
       <style>{`
         .pa-kpis{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
         .pa-dos{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+        .pa-cols{ display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:22px; align-items:start; }
+        .pa-side .pa-dos{ grid-template-columns:1fr; }
         .pa-kpi:hover{ border-color: var(--color-primary) !important; }
+        @media (max-width: 980px){
+          .pa-cols{ grid-template-columns:1fr; }
+        }
         @media (max-width: 720px){
           .pa-kpis{ grid-template-columns:repeat(2,minmax(0,1fr)); }
           .pa-dos{ grid-template-columns:1fr; }
@@ -433,6 +441,9 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           </a>
         ))}
       </nav>
+
+      <div className="pa-cols">
+      <div className="pa-main">
 
       {/* ── Para recibir trabajo ── */}
       {listos < pasos.length ? (
@@ -649,6 +660,62 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         )}
       </section>
 
+      {/* ── Cómo vas + historial ── */}
+      <section style={{ marginBottom: 28 }}>
+        <Titulo icono="star">Cómo vas con nosotros</Titulo>
+        <div style={card}>
+          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6 }}>{cumplimiento.resumen}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 12, marginTop: 16 }}>
+            {([
+              ['Te ofrecimos', cumplimiento.ofrecidos, 'var(--color-text)'],
+              ['Aceptaste', cumplimiento.aceptados, AZUL],
+              ['Completaste', cumplimiento.completados, VERDE],
+              ['Cancelaste', cumplimiento.cancelados, cumplimiento.cancelados ? ROJO : 'var(--color-text)'],
+            ] as const).map(([t, n, c]) => (
+              <div key={t} style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--color-bg)' }}>
+                <div style={{ fontSize: 12, ...muted }}>{t}</div>
+                <div style={{ fontSize: 24, fontWeight: 800, marginTop: 2, color: c }}>{n}</div>
+              </div>
+            ))}
+          </div>
+          <p style={{ margin: '14px 0 0', fontSize: 13, ...muted, lineHeight: 1.6 }}>
+            {cumplimiento.minutosRespuestaReal !== null
+              ? `Contestas en ~${cumplimiento.minutosRespuestaReal} min${cumplimiento.minutosRespuestaDeclarado !== null ? ` (tenemos anotado ${cumplimiento.minutosRespuestaDeclarado})` : ''}. `
+              : ''}
+            Entre más rápido contestes y más puntual llegues, más arriba apareces cuando buscamos a quién ofrecerle.
+          </p>
+        </div>
+
+        {recientes.length > 0 ? (
+          <div style={{ ...card, marginTop: 12, padding: 0, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 20px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', ...muted }}>Tus últimos trabajos</div>
+            {recientes.map((r) => {
+              const acepto = r.answer === 'aceptado';
+              return (
+                <div key={`${r.quoteNumber}-${r.respondedAt}`} style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', padding: '12px 20px', borderTop: '1px solid var(--color-border)' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{r.site ?? r.category ?? 'Servicio'}</div>
+                    <div style={{ fontSize: 12.5, ...muted }}>
+                      Folio {r.quoteNumber}{r.respondedAt ? ` · ${hace(r.respondedAt)}` : ''}{!acepto && r.reason ? ` · “${r.reason}”` : ''}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {acepto && dinero(r.total) ? <span style={{ fontSize: 13.5, fontWeight: 700 }}>{dinero(r.total)}</span> : null}
+                    <Chip color={acepto ? (r.stateLabel === 'Cerrado' ? VERDE : AZUL) : 'var(--color-text-muted)'}>
+                      {acepto ? r.stateLabel : r.answer === 'retirado' ? 'Te retiraste' : 'No lo tomaste'}
+                    </Chip>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+      </section>
+
+      </div>
+
+      <aside className="pa-side">
+
       {/* ── Papeles ── */}
       <section id="papeles" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
         <Titulo icono="shield" extra={<Chip color={docs.color}>{docs.label}</Chip>}>Tus papeles</Titulo>
@@ -731,60 +798,8 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         </div>
       </section>
 
-      {/* ── Cómo vas + historial ── */}
-      <section style={{ marginBottom: 28 }}>
-        <Titulo icono="star">Cómo vas con nosotros</Titulo>
-        <div style={card}>
-          <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6 }}>{cumplimiento.resumen}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(110px,1fr))', gap: 12, marginTop: 16 }}>
-            {([
-              ['Te ofrecimos', cumplimiento.ofrecidos, 'var(--color-text)'],
-              ['Aceptaste', cumplimiento.aceptados, AZUL],
-              ['Completaste', cumplimiento.completados, VERDE],
-              ['Cancelaste', cumplimiento.cancelados, cumplimiento.cancelados ? ROJO : 'var(--color-text)'],
-            ] as const).map(([t, n, c]) => (
-              <div key={t} style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--color-bg)' }}>
-                <div style={{ fontSize: 12, ...muted }}>{t}</div>
-                <div style={{ fontSize: 24, fontWeight: 800, marginTop: 2, color: c }}>{n}</div>
-              </div>
-            ))}
-          </div>
-          <p style={{ margin: '14px 0 0', fontSize: 13, ...muted, lineHeight: 1.6 }}>
-            {cumplimiento.minutosRespuestaReal !== null
-              ? `Contestas en ~${cumplimiento.minutosRespuestaReal} min${cumplimiento.minutosRespuestaDeclarado !== null ? ` (tenemos anotado ${cumplimiento.minutosRespuestaDeclarado})` : ''}. `
-              : ''}
-            Entre más rápido contestes y más puntual llegues, más arriba apareces cuando buscamos a quién ofrecerle.
-          </p>
-        </div>
-
-        {recientes.length > 0 ? (
-          <div style={{ ...card, marginTop: 12, padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 20px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', ...muted }}>Tus últimos trabajos</div>
-            {recientes.map((r) => {
-              const acepto = r.answer === 'aceptado';
-              return (
-                <div key={`${r.quoteNumber}-${r.respondedAt}`} style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', padding: '12px 20px', borderTop: '1px solid var(--color-border)' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{r.site ?? r.category ?? 'Servicio'}</div>
-                    <div style={{ fontSize: 12.5, ...muted }}>
-                      Folio {r.quoteNumber}{r.respondedAt ? ` · ${hace(r.respondedAt)}` : ''}{!acepto && r.reason ? ` · “${r.reason}”` : ''}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {acepto && dinero(r.total) ? <span style={{ fontSize: 13.5, fontWeight: 700 }}>{dinero(r.total)}</span> : null}
-                    <Chip color={acepto ? (r.stateLabel === 'Cerrado' ? VERDE : AZUL) : 'var(--color-text-muted)'}>
-                      {acepto ? r.stateLabel : r.answer === 'retirado' ? 'Te retiraste' : 'No lo tomaste'}
-                    </Chip>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </section>
-
       {/* ── Datos + contacto ── */}
-      <div className="pa-dos" style={{ alignItems: 'start' }}>
+      <div className="pa-dos" style={{ alignItems: 'start', gap: 28 }}>
         <section>
           <Titulo icono="user">Tus datos</Titulo>
           <div style={card}>
@@ -857,6 +872,9 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
             </p>
           </div>
         </section>
+      </div>
+
+      </aside>
       </div>
     </div>
   );
