@@ -363,6 +363,7 @@ export class ProductsService {
       pricingUnits: Object.keys(tarifasDe(p.tarifas)),
       minUnits: p.minimo ?? null,
       schedule: p.horario ? textoHorario(horarioDe(p.horario)) : null,
+      scheduleRaw: p.horario ? horarioDe(p.horario) : null,
       attributes: Object.fromEntries(
         Object.entries((p.attributes ?? {}) as Record<string, unknown>)
           .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')

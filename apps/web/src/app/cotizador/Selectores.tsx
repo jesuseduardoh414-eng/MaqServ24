@@ -73,7 +73,11 @@ const Disparador = forwardRef<HTMLButtonElement, { texto: string; icono: React.R
   },
 );
 
-export function SelectorFecha({ value, min, onChange, style }: { value: string; min?: string; onChange: (isoFecha: string) => void; style?: React.CSSProperties }) {
+export function SelectorFecha({ value, min, onChange, style, dias }: {
+  value: string; min?: string; onChange: (isoFecha: string) => void; style?: React.CSSProperties;
+  /** Días de la semana en que atiende la máquina (0=dom…6=sáb). Los demás salen apagados. */
+  dias?: number[] | null;
+}) {
   const [open, setOpen] = useState(false);
   const elegida = desdeIso(value) ?? new Date();
   const [vista, setVista] = useState({ y: elegida.getFullYear(), m: elegida.getMonth() });
@@ -115,7 +119,8 @@ export function SelectorFecha({ value, min, onChange, style }: { value: string; 
           {celdas.map((d, i) => {
             if (d === null) return <span key={`v${i}`} />;
             const v = iso(vista.y, vista.m, d);
-            const deshabilitado = v < minIso;
+            const diaSemana = new Date(vista.y, vista.m, d).getDay();
+            const deshabilitado = v < minIso || (!!dias && !dias.includes(diaSemana));
             const on = v === value;
             const esHoy = v === hoyIso;
             return (
@@ -142,7 +147,11 @@ export function SelectorFecha({ value, min, onChange, style }: { value: string; 
   );
 }
 
-export function SelectorHora({ value, onChange, desde = 6, hasta = 20, style }: { value: string; onChange: (hhmm: string) => void; desde?: number; hasta?: number; style?: React.CSSProperties }) {
+export function SelectorHora({ value, onChange, desde = 6, hasta = 20, style }: {
+  value: string; onChange: (hhmm: string) => void;
+  /** Primera y última hora que se ofrecen (enteras). Con máquina elegida, su horario. */
+  desde?: number; hasta?: number; style?: React.CSSProperties;
+}) {
   const [open, setOpen] = useState(false);
   const horas = useMemo(() => {
     const out: string[] = [];

@@ -101,6 +101,8 @@ export interface ResultadoRecomendacion {
   unidades: number;
   maquinas: MaquinaRecomendada[];
   descartadas: { noSirven: number; noLlegan: number; ocupadas: number; fueraDeHorario: number };
+  /** Horarios de las que se descartaron por hora o día: para decirle al cliente cuándo sí. */
+  horariosDescartados: string[];
   tipoNoEncontrado: boolean;
 }
 
@@ -195,6 +197,7 @@ export class RecomendadorService {
     const hoy = new Date();
 
     const descartadas = { noSirven: 0, noLlegan: 0, ocupadas: 0, fueraDeHorario: 0 };
+    const horariosDescartados = new Set<string>();
     const maquinas: MaquinaRecomendada[] = [];
 
     for (const p of candidatos) {
@@ -227,7 +230,11 @@ export class RecomendadorService {
       const unidadesTotales = p.stock ?? 1;
       if (reservas + equipos > unidadesTotales) { descartadas.ocupadas += 1; continue; }
       const horario = p.horario ? horarioDe(p.horario) : null;
-      if (horario && !atiendeEn(horario, e.fecha, e.hora)) { descartadas.fueraDeHorario += 1; continue; }
+      if (horario && !atiendeEn(horario, e.fecha, e.hora)) {
+        descartadas.fueraDeHorario += 1;
+        horariosDescartados.add(textoHorario(horario));
+        continue;
+      }
       const disp = disponibilidadDe({ stock: p.stock, location: p.location, confirmedAt: p.availability_confirmed_at, blocks: [] }, hoy);
       const confirmada = disp.state === 'disponible' || disp.state === 'limitada';
       porque.push(confirmada ? 'Libre en esas fechas' : 'Disponibilidad por confirmar');
@@ -288,6 +295,7 @@ export class RecomendadorService {
       unidades,
       maquinas,
       descartadas,
+      horariosDescartados: [...horariosDescartados],
       tipoNoEncontrado,
     };
   }
@@ -296,7 +304,7 @@ export class RecomendadorService {
     return {
       obra: obra.lat != null && obra.lng != null ? { lat: obra.lat, lng: obra.lng } : null,
       zona: obra.zona, fecha, fin, unidad, unidades, maquinas: [],
-      descartadas: { noSirven: 0, noLlegan: 0, ocupadas: 0, fueraDeHorario: 0 }, tipoNoEncontrado,
+      descartadas: { noSirven: 0, noLlegan: 0, ocupadas: 0, fueraDeHorario: 0 }, horariosDescartados: [], tipoNoEncontrado,
     };
   }
 

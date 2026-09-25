@@ -43,6 +43,7 @@ interface Resultado {
   zona: string | null; fecha: string; fin: string; unidad: string; unidades: number;
   maquinas: Maquina[];
   descartadas: { noSirven: number; noLlegan: number; ocupadas: number; fueraDeHorario: number };
+  horariosDescartados?: string[];
   tipoNoEncontrado: boolean;
 }
 
@@ -81,7 +82,7 @@ export function CotizadorGuiado({
 }: {
   user: AuthUser;
   lineas: Linea[];
-  inicial: { linea?: string | null; producto?: { id: number; name: string; slug: string; categorySlug: string | null; atributos?: Record<string, string> } | null };
+  inicial: { linea?: string | null; producto?: { id: number; name: string; slug: string; categorySlug: string | null; atributos?: Record<string, string>; horario?: { dias: number[]; desde: string; hasta: string } | null } | null };
   /** Logo para fondo claro: el documento se imprime en blanco. */
   logo: string | null;
 }) {
@@ -138,12 +139,31 @@ export function CotizadorGuiado({
   const [direccion, setDireccion] = useState(user.address ?? '');
   const [municipio, setMunicipio] = useState(user.city ?? '');
 
+  /**
+   * Con la máquina elegida desde su ficha, el calendario y el reloj solo
+   * ofrecen lo que ella atiende (2026-09-25): antes se podía elegir un domingo
+   * o las 7 p. m. y la búsqueda la descartaba sin que se entendiera por qué.
+   */
+  const horarioMaquina = preferido && inicial.producto?.id === preferido ? inicial.producto?.horario ?? null : null;
+  const horaDesde = horarioMaquina ? Number(horarioMaquina.desde.slice(0, 2)) : 6;
+  const horaHasta = horarioMaquina ? Number(horarioMaquina.hasta.slice(0, 2)) : 20;
+
   // 4 · Cuándo
   const [fecha, setFecha] = useState(manana());
   const [hora, setHora] = useState('08:00');
   const [unidad, setUnidad] = useState('dia');
   const [unidades, setUnidades] = useState(1);
   const [equipos, setEquipos] = useState(1);
+  // Si mañana o las 8:00 no caen en su horario, se proponen el primer día y la primera hora que sí.
+  useEffect(() => {
+    if (!horarioMaquina) return;
+    const d = new Date(`${fecha}T12:00:00`);
+    for (let i = 0; i < 7 && !horarioMaquina.dias.includes(d.getDay()); i += 1) d.setDate(d.getDate() + 1);
+    const ok = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (ok !== fecha) setFecha(ok);
+    if (hora < horarioMaquina.desde || hora > horarioMaquina.hasta) setHora(horarioMaquina.desde);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [horarioMaquina]);
 
   // 5 · Elige
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -434,11 +454,12 @@ export function CotizadorGuiado({
           <div className="cg-three" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
             <div style={{ display: 'grid', gap: 6 }}>
               <span style={etiquetaReq}>Fecha</span>
-              <SelectorFecha value={fecha} onChange={setFecha} style={campo} />
+              <SelectorFecha value={fecha} onChange={setFecha} style={campo} dias={horarioMaquina?.dias ?? null} />
             </div>
             <div style={{ display: 'grid', gap: 6 }}>
               <span style={etiquetaReq}>Hora</span>
-              <SelectorHora value={hora} onChange={setHora} style={campo} />
+              <SelectorHora value={hora} onChange={setHora} style={campo} desde={horaDesde} hasta={horaHasta} />
+              {horarioMaquina ? <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Esta máquina atiende en ese horario.</span> : null}
             </div>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiquetaReq}>Cuántas máquinas</span>
@@ -487,6 +508,7 @@ export function CotizadorGuiado({
                 <div style={{ ...card, background: 'transparent' }}>
                   <p style={{ margin: 0, fontSize: 13.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
                     {descartadasTexto(resultado.descartadas)}
+                    {resultado.horariosDescartados?.length ? ` Atiende ${resultado.horariosDescartados.join(' o ')}: cambia la fecha u hora en el paso anterior.` : ''}
                     {' '}¿Necesitas otra cosa?{' '}
                     <Link href={`/cotizar?servicio=${encodeURIComponent(linea)}`} style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Mándanos tu requerimiento</Link> y un asesor lo arma contigo.
                   </p>

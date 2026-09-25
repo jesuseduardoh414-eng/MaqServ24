@@ -33,13 +33,13 @@ export default async function CotizadorPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams;
   const [theme, user, categorias] = await Promise.all([getTheme(), getSessionUser(), getCategories().catch(() => [])]);
 
-  let producto: { id: number; name: string; slug: string; categorySlug: string | null; atributos: Record<string, string> } | null = null;
+  let producto: { id: number; name: string; slug: string; categorySlug: string | null; atributos: Record<string, string>; horario: { dias: number[]; desde: string; hasta: string } | null } | null = null;
   if (sp.producto) {
     const id = /^\d+$/.test(sp.producto) ? Number(sp.producto) : parseProductSlug(sp.producto);
     if (id) {
       const p = await getProduct(id).catch(() => null);
       // Su ficha (capacidad, implementos, operador…) prellena los requisitos: no se le vuelve a preguntar.
-      if (p) producto = { id: p.id, name: p.name, slug: p.slug, categorySlug: p.categorySlug, atributos: p.attributes ?? {} };
+      if (p) producto = { id: p.id, name: p.name, slug: p.slug, categorySlug: p.categorySlug, atributos: p.attributes ?? {}, horario: p.scheduleRaw ?? null };
     }
   }
   const next = sp.producto ? `/cotizador?producto=${encodeURIComponent(sp.producto)}` : sp.linea ? `/cotizador?linea=${encodeURIComponent(sp.linea)}` : '/cotizador';

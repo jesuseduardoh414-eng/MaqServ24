@@ -89,6 +89,8 @@ export interface ProductDetail extends ProductCard {
   pricingUnits: string[];
   minUnits: number | null;
   schedule: string | null;
+  /** El horario como datos (días 0=dom…6=sáb, desde/hasta HH:MM): el cotizador limita calendario y reloj con él. */
+  scheduleRaw: { dias: number[]; desde: string; hasta: string } | null;
   /** Ficha técnica estructurada por línea (claves de `atributosDe`): capacidad, operador, combustible… */
   attributes: Record<string, string>;
 }
