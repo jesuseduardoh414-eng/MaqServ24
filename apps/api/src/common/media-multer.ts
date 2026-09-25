@@ -5,6 +5,17 @@ import type { StorageEngine } from 'multer';
 import { resolveImageMime } from './image-sniff';
 import { mediaDir, sanitizeKey } from './media';
 
+/** Extensión con la que se guarda cada tipo REAL (ver `image-sniff`). */
+const EXTENSION: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/gif': 'gif',
+  'image/svg+xml': 'svg',
+  'image/x-icon': 'ico',
+};
+
 /** Lo que aceptan por defecto todas las subidas: imágenes de verdad, sin SVG. */
 const RASTER = /^image\/(png|jpeg|webp|avif|gif)$/;
 
@@ -37,8 +48,14 @@ export function mediaStorage(allowed: RegExp = RASTER): StorageEngine {
           return;
         }
 
-        const safe = file.originalname.replace(/[^a-zA-Z0-9.]+/g, '-').slice(-60);
-        const filename = `${Date.now()}-${safe}`;
+        // La EXTENSIÓN sale del tipo real, nunca del nombre que mandaron
+        // (QA 2026-09-25): un archivo con bytes de JPEG llamado "x.html" pasaba
+        // el detector y el estático lo servía como text/html → JavaScript
+        // ejecutable bajo nuestro dominio. Del nombre original solo queda la
+        // base, como referencia legible.
+        const ext = EXTENSION[resolved.mime] ?? 'bin';
+        const base = file.originalname.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9]+/g, '-').slice(-50) || 'archivo';
+        const filename = `${Date.now()}-${base}.${ext}`;
         const rel = sanitizeKey(`uploads/${filename}`);
         const abs = join(mediaDir(), rel);
         fs.mkdir(join(mediaDir(), 'uploads'), { recursive: true })

@@ -44,6 +44,17 @@ const ALLOWLIST = [
 /** Rutas cuya credencial la manda el navegador, no la cookie de sesión. */
 const CON_TOKEN_PROPIO = /^aliado(\/|$)/;
 
+/**
+ * Un segmento que, DECODIFICADO, trae '/', '\', '%', '.' o '..' (QA 2026-09-25):
+ * Next entrega `wishlist%2f..%2fhealth` como UN segmento con '/' y '..'
+ * literales; pasaba el allowlist y fetch lo normalizaba hacia otra ruta.
+ */
+function segmentoRaro(seg: string): boolean {
+  let d: string;
+  try { d = decodeURIComponent(seg); } catch { return true; }
+  return d === '.' || d.includes('..') || /[\\/%]/.test(d);
+}
+
 async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
 
@@ -55,7 +66,7 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
    * el token del CLIENTE y el AdminGuard lo rechaza), pero un allowlist que se puede
    * leer de dos formas no es un allowlist. Se compara exactamente lo que se envía.
    */
-  if (path.some((seg) => seg === '.' || seg === '..' || seg.includes('\\') || seg.includes('%2e') || seg.includes('%2E'))) {
+  if (path.some(segmentoRaro)) {
     return NextResponse.json({ message: 'Ruta no permitida' }, { status: 404 });
   }
 

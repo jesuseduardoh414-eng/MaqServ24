@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
@@ -24,7 +24,9 @@ export class AdminAvisosController {
 
   @Post('leido')
   async leido(@Req() req: AdminRequest, @Body() body: unknown) {
+    // Un id inválido NO es "marcar todos" (QA 2026-09-25).
     const p = z.object({ id: z.number().int().positive().optional() }).safeParse(body ?? {});
-    return marcarAvisosPanel(req.adminRol, await permisosVigentes(), p.success ? p.data.id : undefined);
+    if (!p.success) throw new BadRequestException('Aviso inválido');
+    return marcarAvisosPanel(req.adminRol, await permisosVigentes(), p.data.id);
   }
 }

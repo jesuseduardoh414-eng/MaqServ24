@@ -8,6 +8,7 @@ import { MailerService } from '../notifications/mailer.service';
 import { avisarPanel } from '../notifications/panel';
 import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
+import { sanitizeUserHtml } from '../common/sanitize';
 import { z } from 'zod';
 import { mediaStorage } from '../common/media-multer';
 import { imageUrl } from '../catalog/images';
@@ -567,7 +568,9 @@ export class ProviderPortalController {
     const unidad = d.unidad && permitidas.has(d.unidad) ? d.unidad : Object.keys(costos)[0] ?? null;
     let horario: unknown = null;
     if (d.horario) {
-      const h = horarioSchema.safeParse(JSON.parse(d.horario));
+      let crudo: unknown;
+      try { crudo = JSON.parse(d.horario); } catch { throw new BadRequestException('Revisa el horario: elige días y horas.'); }
+      const h = horarioSchema.safeParse(crudo);
       if (!h.success) throw new BadRequestException('Revisa el horario: elige días y horas.');
       horario = h.data;
     }
@@ -581,7 +584,8 @@ export class ProviderPortalController {
         category_id: categoria.id,
         name: d.nombre,
         Marca: d.marca || null,
-        description: d.descripcion || d.nombre,
+        // Limpia HTML: la ficha pública la pinta como HTML (QA 2026-09-25: XSS confirmado).
+        description: sanitizeUserHtml(d.descripcion || d.nombre),
         // El precio lo pone MAQSER24 al publicar; en 0 el sitio dice "precio bajo cotización".
         cprice: 0,
         is_rental: d.modalidad === 'renta',

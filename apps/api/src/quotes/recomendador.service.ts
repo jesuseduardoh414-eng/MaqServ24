@@ -148,14 +148,14 @@ export class RecomendadorService {
     // ── Máquinas de la línea (o solo la pedida) ──
     const cat = await prisma.categories.findUnique({ where: { cat_slug: e.linea }, select: { id: true } });
     const where = e.soloProductoId
-      ? { id: e.soloProductoId, status: 1, provider_id: { not: null } }
-      : { status: 1, provider_id: { not: null }, ...(cat ? { category_id: cat.id } : {}) };
+      ? { id: e.soloProductoId, status: 1, provider_id: { not: null }, category_id: cat?.id ?? -1 }
+      : { status: 1, provider_id: { not: null }, category_id: cat?.id ?? -1 };
     const productos = await prisma.products.findMany({
       where,
       select: {
         id: true, name: true, Marca: true, photo: true, attributes: true, location: true, stock: true,
         availability_confirmed_at: true, provider_id: true, is_rental: true, rental_freight: true,
-        tarifas: true, minimo: true, horario: true, description: true,
+        tarifas: true, minimo: true, price_unit: true, horario: true, description: true,
       },
     });
     if (productos.length === 0) return this.vacio(obra, e.fecha, fin, unidad, unidades, false);
@@ -216,7 +216,7 @@ export class RecomendadorService {
         { coverage: lista(aliado.coverage), lat: aliado.lat != null ? Number(aliado.lat) : null, lng: aliado.lng != null ? Number(aliado.lng) : null, coverageRadiusKm: aliado.coverage_radius_km },
         { categoria: e.linea, zona: obra.zona, punto },
       );
-      if (!cob.cubre && !e.soloProductoId) { descartadas.noLlegan += 1; continue; }
+      if (!cob.cubre) { descartadas.noLlegan += 1; continue; }
       let km = cob.km;
       if (km === null && punto && aliado.lat != null && aliado.lng != null) {
         km = Math.round(distanciaKm({ lat: Number(aliado.lat), lon: Number(aliado.lng) }, punto) * FACTOR_CARRETERA * 10) / 10;
@@ -244,7 +244,7 @@ export class RecomendadorService {
 
       // 4. Cuesta
       const tarifas = tarifasDe(p.tarifas);
-      const imp = importeMaquina({ tarifas, unidad, unidades, equipos, minimo: p.minimo });
+      const imp = importeMaquina({ tarifas, unidad, unidades, equipos, minimo: p.minimo, unidadMinimo: p.price_unit });
       const flete = e.recoger
         ? { costo: 0, texto: 'Lo recoges en planta' }
         : this.flete({ km, cfg, esRenta: p.is_rental, tarifaKm: p.rental_freight ? Number(p.rental_freight) : null, equipos });

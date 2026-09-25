@@ -6,13 +6,24 @@ import { clientIpHeaders } from '@/lib/client-ip';
  * Proxy del admin: login escribe la cookie httpOnly; el resto reenvía a
  * /admin/* de la API con el Bearer. Solo rutas admin — nada abierto.
  */
+/**
+ * Un segmento que, DECODIFICADO, trae '/', '\', '%', '.' o '..' (QA 2026-09-25):
+ * `auth%2f..%2f..%2fhealth` llegaba como un solo segmento y se salía del
+ * prefijo /admin/ al normalizar la URL.
+ */
+function segmentoRaro(seg: string): boolean {
+  let d: string;
+  try { d = decodeURIComponent(seg); } catch { return true; }
+  return d === '.' || d.includes('..') || /[\\/%]/.test(d);
+}
+
 async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
 
   // Todo lo de aquí sale con el prefijo `/admin/`; un `..` lo dejaría salirse de él
   // (`admin/../auth/login`). No hay escalada —fuera de /admin solo hay endpoints
   // públicos— pero la ruta que se envía debe ser la que se ve.
-  if (path.some((seg) => seg === '.' || seg === '..' || seg.includes('\\') || seg.includes('%2e') || seg.includes('%2E'))) {
+  if (path.some(segmentoRaro)) {
     return NextResponse.json({ message: 'Ruta no permitida' }, { status: 404 });
   }
   const joined = path.join('/');

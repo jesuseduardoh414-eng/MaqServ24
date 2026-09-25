@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { prisma } from '@maqserv/db';
-import { unidadesDe } from '@maqserv/config';
+import { esLineaServicio, unidadesDe } from '@maqserv/config';
 import { z } from 'zod';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
-import { RecomendadorService, type MaquinaRecomendada } from './recomendador.service';
+import { RecomendadorService, fechaFin, type MaquinaRecomendada } from './recomendador.service';
+import { conCandado } from '../common/candado';
 import { MaquinaServicio, type PartidaMaquina } from './maquina-servicio';
 
 /**
@@ -27,14 +28,33 @@ const obraSchema = z.object({
   municipio: z.string().trim().max(120).nullable().optional(),
   lat: z.number().min(-90).max(90).nullable().optional(),
   lng: z.number().min(-180).max(180).nullable().optional(),
-});
+}).refine(
+  // Sin dónde, no hay cobertura ni flete que calcular (QA 2026-09-25: con "obra: {}" se abría un servicio sin dirección).
+  (o) => Boolean(o.siteId || o.direccion?.trim() || o.municipio?.trim() || (o.lat != null && o.lng != null)),
+  'Dinos dónde es la obra',
+);
+
+/** Hoy en Monterrey (YYYY-MM-DD): el servidor puede estar en otra zona horaria. */
+function hoyMty(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+/** Fecha real (no 2026-02-30) y no pasada (QA 2026-09-25). */
+const fechaSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Elige la fecha')
+  .refine((f) => {
+    const d = new Date(`${f}T12:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === f;
+  }, 'Esa fecha no existe')
+  .refine((f) => f >= hoyMty(), 'La fecha ya pasó: elige hoy o una fecha futura');
 
 const entradaSchema = z.object({
   linea: z.string().min(2).max(120),
   tipo: z.string().trim().max(120).nullable().optional(),
   requisitos: z.record(z.string().max(60), z.string().max(500)).nullable().optional(),
   obra: obraSchema,
-  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Elige la fecha'),
+  fecha: fechaSchema,
   hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
   unidad: z.string().max(20),
   unidades: z.coerce.number().min(0.5).max(1000),
@@ -92,7 +112,8 @@ export class MaquinasController {
       where: { id: { in: grupos.map((g) => g.category_id) }, status: 1 },
       select: { id: true, cat_slug: true },
     });
-    const slug = new Map(cats.map((c) => [c.id, c.cat_slug]));
+    // El cotizador es de SERVICIOS: una categoría de productos no es una línea.
+    const slug = new Map(cats.filter((c) => esLineaServicio(c.cat_slug)).map((c) => [c.id, c.cat_slug]));
     return grupos
       .filter((g) => slug.has(g.category_id))
       .map((g) => ({ slug: slug.get(g.category_id)!, servicios: g._count._all }));
@@ -145,6 +166,17 @@ export class MaquinasController {
     const out: PartidaMaquina[] = [];
     let zona: string | null = null;
     const nombres = new Map<string, string>();
+    // La misma máquina dos veces en fechas que se enciman se apartaba doble
+    // (QA 2026-09-25). Para más de una se usa "cuántas máquinas".
+    const rangos = partidas.map((p) => ({ id: p.productoId, desde: p.fecha, hasta: fechaFin(p.fecha, p.unidad, Math.max(0.5, Number(p.unidades) || 1)) }));
+    for (let i = 0; i < rangos.length; i += 1) {
+      for (let j = i + 1; j < rangos.length; j += 1) {
+        const a = rangos[i], b = rangos[j];
+        if (a.id === b.id && a.desde <= b.hasta && b.desde <= a.hasta) {
+          throw new BadRequestException('Agregaste la misma máquina dos veces en fechas que se enciman. Para más de una, usa "cuántas máquinas".');
+        }
+      }
+    }
     for (const p of partidas) {
       const r = await this.recomendador.recomendar({ ...p, soloProductoId: p.productoId });
       const m = r.maquinas[0];
@@ -189,16 +221,22 @@ export class MaquinasController {
     const d = parsed.data;
     const cuenta = await datosDeCuenta(req.userId);
     if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
-    const { partidas, zona } = await this.resolverPartidas(d.partidas);
-    void completarTelefono(req.userId, d.telefono);
-    return this.servicio.abrir({
-      partidas,
-      zona,
-      cuenta,
-      userId: req.userId,
-      cliente: d.cliente || cuenta.name,
-      telefono: d.telefono || cuenta.phone,
-      notas: d.notas || null,
+    // Revisar disponibilidad y apartar van bajo candado por cliente y por
+    // máquina: dos envíos simultáneos (doble clic, o dos clientes a la vez)
+    // veían la máquina libre y la apartaban dos veces (QA 2026-09-25).
+    const llaves = [`cliente:${req.userId}`, ...d.partidas.map((p) => `maquina:${p.productoId}`)];
+    return conCandado(llaves, async () => {
+      const { partidas, zona } = await this.resolverPartidas(d.partidas);
+      void completarTelefono(req.userId, d.telefono);
+      return this.servicio.abrir({
+        partidas,
+        zona,
+        cuenta,
+        userId: req.userId,
+        cliente: d.cliente || cuenta.name,
+        telefono: d.telefono || cuenta.phone,
+        notas: d.notas || null,
+      });
     });
   }
 }

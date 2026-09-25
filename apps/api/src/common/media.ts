@@ -35,3 +35,20 @@ export const sanitizeKey = (k: string): string =>
     .split('/')
     .map((seg) => seg.replace(/[^A-Za-z0-9_.\-!*'() &$@=;:+,?]/g, '_'))
     .join('/');
+
+/**
+ * Borra del disco fotos que ya no usa nadie (QA 2026-09-25: al rechazar una
+ * propuesta quedaban huérfanas). Solo toca `uploads/<nombre>` y por NOMBRE
+ * de archivo: una ruta rara en la BD nunca puede salirse de esa carpeta.
+ * Nunca lanza.
+ */
+export async function borrarSubidas(rutas: Array<string | null | undefined>): Promise<void> {
+  const { unlink } = await import('node:fs/promises');
+  const { basename } = await import('node:path');
+  for (const r of rutas) {
+    if (!r || !r.startsWith('uploads/')) continue;
+    const nombre = basename(r);
+    if (!nombre || nombre.startsWith('.')) continue;
+    await unlink(join(mediaDir(), 'uploads', nombre)).catch(() => undefined);
+  }
+}

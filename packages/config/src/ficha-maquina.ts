@@ -131,6 +131,11 @@ export function importeMaquina(d: {
   unidades: number;
   equipos?: number;
   minimo?: number | null;
+  /**
+   * En qué unidad está el mínimo (la principal de la ficha). Sin esto, "mínimo
+   * 2" pensado en días cobraba 2 semanas al pedir 1 semana (QA 2026-09-25).
+   */
+  unidadMinimo?: string | null;
 }): { precioUnitario: number; unidadesCobradas: number; equipos: number; subtotal: number; notaMinimo: string | null; tramo: string | null } | null {
   /**
    * TRAMOS COMO EN EL COTIZADOR ORIGINAL (2026-09-25): "los días definen la
@@ -147,7 +152,7 @@ export function importeMaquina(d: {
   if (!precioUnitario) return null;
   const equipos = Math.max(1, Math.floor(d.equipos ?? 1));
   const pedidas = Math.max(0, d.unidades);
-  const minimo = d.minimo && d.minimo > 0 ? d.minimo : 0;
+  const minimo = d.minimo && d.minimo > 0 && (!d.unidadMinimo || d.unidadMinimo === d.unidad) ? d.minimo : 0;
   const unidadesCobradas = Math.max(pedidas, minimo);
   const u = UNIDADES[d.unidad];
   const notaMinimo =

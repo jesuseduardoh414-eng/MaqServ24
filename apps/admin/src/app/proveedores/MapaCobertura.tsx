@@ -33,6 +33,10 @@ export interface PuntoMapa {
   detalle?: string | null;
 }
 
+/** Texto → HTML seguro para los globos de Leaflet. */
+const esc = (s: string) =>
+  String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
+
 /** Centro por omisión (Monterrey) cuando se va a marcar a mano y aún no hay punto. */
 const CENTRO_MTY: [number, number] = [25.6866, -100.3161];
 
@@ -114,8 +118,11 @@ export function MapaCobertura({
           fillColor: color,
           fillOpacity: 0.9,
         }).addTo(m);
+        // Escapado: el nombre de la obra lo escribe el CLIENTE y el del aliado
+        // lo captura cualquiera; bindPopup interpreta HTML (QA 2026-09-25:
+        // XSS confirmado en el panel).
         marca.bindPopup(
-          `<strong>${p.nombre}</strong>${p.detalle ? `<br>${p.detalle}` : ''}${
+          `<strong>${esc(p.nombre)}</strong>${p.detalle ? `<br>${esc(p.detalle)}` : ''}${
             p.radioKm ? `<br>Llega hasta ${p.radioKm} km` : ''
           }`,
         );

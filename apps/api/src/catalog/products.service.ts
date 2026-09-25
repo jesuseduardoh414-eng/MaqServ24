@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
+import { sanitizeUserHtml } from '../common/sanitize';
 import { productSlug, LINEAS_SERVICIO, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario } from '@maqserv/config';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
@@ -342,7 +343,8 @@ export class ProductsService {
     } catch { /* specs legacy/no JSON */ }
     return {
       ...this.toCard(p, catSlugs, provs, bloqueos),
-      description: p.description,
+      // Defensa en la salida: lo guardado antes del arreglo también se limpia.
+      description: sanitizeUserHtml(p.description ?? ''),
       short: p.Corto && p.Corto.trim() ? p.Corto.trim() : null,
       specs,
       gallery: gallery.map((g) => imageUrl(g.photo)).filter((u): u is string => u !== null),

@@ -17,6 +17,7 @@ import { prisma } from '@maqserv/db';
 import { COTIZADOR_TIPOS, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
 import { margenAliadoPct } from '../common/platform-settings';
 import { coordenadasDe } from '../freight/direccion';
+import { borrarSubidas } from '../common/media';
 import { disponibilidadDe } from '../catalog/availability';
 import { lista } from '../common/json-list';
 import { z } from 'zod';
@@ -126,7 +127,11 @@ export class AdminProvidersController {
 
     // A mano (2026-09-25): clic en el mapa, o coordenadas / enlace de Google
     // Maps pegados. Es la salida cuando la dirección no existe en OSM.
+    // Si mandaron coordenadas y no sirven, se dice (QA 2026-09-25: se
+    // ignoraban y se ubicaba por dirección diciendo "quedó ubicado").
+    const trae = typeof body === 'object' && body !== null && ('lat' in body || 'lng' in body);
     const manual = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).safeParse(body ?? {});
+    if (trae && !manual.success) throw new BadRequestException('Coordenadas inválidas: latitud entre -90 y 90, longitud entre -180 y 180.');
     const pegado = !manual.success && p.address ? coordenadasDe(p.address) : null;
     const fijo = manual.success ? manual.data : pegado;
     if (fijo) {
@@ -138,6 +143,11 @@ export class AdminProvidersController {
     // (sin coma). Antes se pegaba siempre, y "…Apodaca, N.L., Juárez" no
     // existe: la ficha decía Juárez y la dirección Apodaca.
     const dir = p.address?.trim() ?? '';
+    // El estado solo no basta: "Nuevo León" cae en el centro del estado
+    // y se reportaba como ubicado (QA 2026-09-25).
+    if (!dir && !p.city?.trim()) {
+      throw new BadRequestException('Sin dirección ni ciudad no hay a dónde ubicarlo. Escribe la dirección o marca el punto en el mapa.');
+    }
     const consulta = dir.includes(',')
       ? dir
       : [dir, p.city, p.state].map((x) => x?.trim()).filter(Boolean).join(', ');
@@ -519,7 +529,7 @@ export class AdminProvidersController {
     const activos = await prisma.providers.findMany({ where: { status: 1 }, select: { name: true, email: true, phone: true } });
     const repetido = activos.find((p) =>
       (correo && p.email?.trim().toLowerCase() === correo) ||
-      (p.name.trim().toLowerCase() === d.name.trim().toLowerCase() && (p.phone ?? '').replace(/D/g, '') === (d.phone ?? '').replace(/D/g, '')),
+      (p.name.trim().toLowerCase() === d.name.trim().toLowerCase() && (p.phone ?? '').replace(/\D/g, '') === (d.phone ?? '').replace(/\D/g, '')),
     );
     if (repetido) throw new ConflictException(`Ya existe el aliado «${repetido.name}» con esos datos. Ábrelo desde la lista en vez de darlo de alta otra vez.`);
 
@@ -656,19 +666,11 @@ export class AdminProvidersController {
       }
     }
 
-    // Opcional: a qué renglón del cotizador pertenece. Así, cuando un cliente
-    // lo cotice, la solicitud le llega a este aliado sin capturar nada más.
-    const r = z
-      .object({ renglon: z.object({ tipo: z.enum(COTIZADOR_TIPOS), id: z.string().min(1).max(80) }).nullable().optional() })
-      .safeParse(body ?? {});
-    if (!r.success) throw new BadRequestException('Renglón del cotizador inválido');
-    if (r.data.renglon) {
-      const { tipo, id } = r.data.renglon;
-      const nuevo = ligarProducto(await this.quoter.catalogo(tipo), id, productId);
-      if (!nuevo) throw new BadRequestException('Ese renglón ya no existe en el cotizador.');
-      await this.quoter.guardarCatalogo(tipo, nuevo, req.adminEmail);
-      void registrarAccion(req, 'cotizador', 'ligar equipo a renglón', `${tipo}:${id}`, `producto ${productId}`);
-    }
+    // Ya no se liga a un renglón del tabulador (2026-09-25): el cotizador
+    // guiado recomienda las máquinas publicadas. Además escribía en el
+    // tabulador desde el módulo de proveedores, que Red de Aliados puede
+    // abrir sin tener permiso de cotizador (QA 2026-09-25).
+    void body; void req;
     await prisma.products.update({
       where: { id: productId },
       data: {
@@ -697,8 +699,14 @@ export class AdminProvidersController {
     if (!motivo.success) throw new BadRequestException(motivo.error.issues[0]?.message ?? 'Falta el motivo');
     const e = await prisma.products.findUnique({ where: { id: productId }, select: { id: true, name: true, status: true, provider_id: true } });
     if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
+    // También se borran las fotos del disco (QA 2026-09-25: quedaban huérfanas).
+    const fotos = [
+      ...(await prisma.galleries.findMany({ where: { product_id: productId }, select: { photo: true } })).map((g) => g.photo),
+      (await prisma.products.findUnique({ where: { id: productId }, select: { photo: true } }))?.photo ?? null,
+    ];
     await prisma.galleries.deleteMany({ where: { product_id: productId } });
     await prisma.products.delete({ where: { id: productId } });
+    void borrarSubidas(fotos);
     if (e.provider_id) {
       const p = await prisma.providers.findUnique({ where: { id: e.provider_id }, select: { email: true, contact_name: true } });
       if (p?.email) {
@@ -729,6 +737,8 @@ export class AdminProvidersController {
    */
   @Delete(':id')
   async deactivate(@Param('id', ParseIntPipe) id: number) {
+    const existe = await prisma.providers.findUnique({ where: { id }, select: { id: true } });
+    if (!existe) throw new NotFoundException('Aliado no encontrado');
     const [asignaciones, equipos, papeles] = await Promise.all([
       prisma.service_assignments.count({ where: { provider_id: id } }),
       prisma.products.count({ where: { provider_id: id } }),

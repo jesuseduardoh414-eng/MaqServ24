@@ -24,6 +24,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { mediaDir } from './common/media';
 import { TrimPipe } from './common/trim.pipe';
+import { ZodErrorFilter } from './common/zod-filter';
 import { AppModule } from './app.module';
 
 /**
@@ -89,11 +90,26 @@ async function bootstrap() {
   // Espacios de los extremos fuera, en TODO lo que entra (ver trim.pipe.ts):
   // una contraseña pegada con un espacio al final no puede parecer incorrecta.
   app.useGlobalPipes(new TrimPipe());
+  app.useGlobalFilters(new ZodErrorFilter());
 
   // Archivos subidos (MEDIA_DIR). En cPanel los sirve Apache desde el subdominio
   // media.* y esta ruta no se usa; en local y como respaldo, la API los sirve aquí.
   // `maxAge`: son inmutables (el nombre lleva timestamp), que el navegador los guarde.
-  app.useStaticAssets(mediaDir(), { prefix: '/media/', maxAge: '7d', index: false });
+  app.useStaticAssets(mediaDir(), {
+    prefix: '/media/',
+    maxAge: '7d',
+    index: false,
+    // Lo que no es imagen se DESCARGA, nunca se abre en el navegador: un .html
+    // o .svg subido antes del arreglo de extensiones no puede ejecutar nada
+    // bajo nuestro dominio (QA 2026-09-25).
+    setHeaders: (res, ruta) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (!/\.(png|jpe?g|webp|avif|gif|ico)$/i.test(ruta)) {
+        res.setHeader('Content-Disposition', 'attachment');
+        res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+      }
+    },
+  });
   const port = Number(process.env.PORT ?? 4000);
   await app.listen(port, '0.0.0.0');
   console.log(`API escuchando en el puerto ${port}`);

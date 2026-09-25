@@ -8,6 +8,7 @@ import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
 import { Prisma, prisma } from '@maqserv/db';
+import { sanitizeUserHtml } from '../common/sanitize';
 import { productSlug, slugify } from '@maqserv/config';
 
 /**
@@ -46,7 +47,8 @@ const productSchema = z.object({
   categoryId: z.coerce.number().int().positive(),
   price: z.coerce.number().min(0),
   oldPrice: z.coerce.number().min(0).optional(),
-  description: z.string().min(1).max(20000),
+  // Se pinta con dangerouslySetInnerHTML en la ficha pública: se limpia aquí (QA 2026-09-25).
+  description: z.string().min(1).max(20000).transform((s) => sanitizeUserHtml(s)),
   stock: z.coerce.number().int().min(0).optional(),
   brand: z.string().max(190).optional(),
   isRental: boolTexto().optional(),
@@ -216,6 +218,10 @@ export class AdminCatalogController {
     return { margenPct: await margenAliadoPct() };
   }
 
+  // Cambiar el margen mueve el precio al cliente de TODO lo publicado: es una
+  // herramienta de precio (módulo cotizador), no de catálogo. Leerlo sí queda
+  // en catálogo, para el "Proponer con margen" de la ficha (QA 2026-09-25).
+  @Modulo('cotizador')
   @Patch('ajustes')
   async guardarAjustes(@Body() body: unknown, @Req() req: AdminRequest) {
     const p = z.object({ margenPct: z.coerce.number().min(0).max(300) }).safeParse(body);

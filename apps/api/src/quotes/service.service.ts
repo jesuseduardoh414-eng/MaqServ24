@@ -97,7 +97,8 @@ export class ServiceService {
           : {};
 
     // Un servicio cancelado suelta la máquina que tenía apartada.
-    if (hacia === 'cancelado') await liberarReserva(quoteId);
+    // Cerrar (terminó antes) también suelta las fechas que quedaban apartadas.
+    if (hacia === 'cancelado' || hacia === 'cerrado') await liberarReserva(quoteId);
 
     await prisma.quotes.update({
       where: { id: quoteId },
