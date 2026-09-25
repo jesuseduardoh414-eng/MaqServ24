@@ -16,6 +16,7 @@ import {
 import { prisma } from '@maqserv/db';
 import { COTIZADOR_TIPOS, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
 import { margenAliadoPct } from '../common/platform-settings';
+import { coordenadasDe } from '../freight/direccion';
 import { disponibilidadDe } from '../catalog/availability';
 import { lista } from '../common/json-list';
 import { z } from 'zod';
@@ -116,16 +117,30 @@ export class AdminProvidersController {
    * dos resultados distintos para la misma direccion.
    */
   @Post(':id/geocodificar')
-  async geocodificar(@Param('id', ParseIntPipe) id: number) {
+  async geocodificar(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const p = await prisma.providers.findUnique({
       where: { id },
       select: { address: true, city: true, state: true, name: true },
     });
     if (!p) throw new NotFoundException('Aliado no encontrado');
 
-    // Si no capturaron direccion, se intenta con ciudad y estado: es peor
-    // precision pero mejor que nada, y el radio absorbe el error.
-    const consulta = [p.address, p.city, p.state].map((x) => x?.trim()).filter(Boolean).join(', ');
+    // A mano (2026-09-25): clic en el mapa, o coordenadas / enlace de Google
+    // Maps pegados. Es la salida cuando la dirección no existe en OSM.
+    const manual = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) }).safeParse(body ?? {});
+    const pegado = !manual.success && p.address ? coordenadasDe(p.address) : null;
+    const fijo = manual.success ? manual.data : pegado;
+    if (fijo) {
+      await prisma.providers.update({ where: { id }, data: { lat: fijo.lat, lng: fijo.lng, updated_at: new Date() } });
+      return { ok: true, lat: fijo.lat, lng: fijo.lng, precision: 'exacta', mensaje: `${p.name} quedó ubicado en el punto que marcaste.` };
+    }
+
+    // La ciudad de la ficha solo se agrega si la dirección no trae municipio
+    // (sin coma). Antes se pegaba siempre, y "…Apodaca, N.L., Juárez" no
+    // existe: la ficha decía Juárez y la dirección Apodaca.
+    const dir = p.address?.trim() ?? '';
+    const consulta = dir.includes(',')
+      ? dir
+      : [dir, p.city, p.state].map((x) => x?.trim()).filter(Boolean).join(', ');
     if (!consulta) {
       throw new BadRequestException('Sin dirección ni ciudad no hay a dónde ubicarlo.');
     }
@@ -134,7 +149,7 @@ export class AdminProvidersController {
     if (!punto) {
       return {
         ok: false,
-        mensaje: `No encontramos "${consulta}". Prueba con una direccion mas simple: calle y municipio bastan.`,
+        mensaje: `No encontramos "${consulta}". Marca el punto con un clic en el mapa, o pega las coordenadas de Google Maps (clic derecho sobre el lugar → copiar coordenadas).`,
       };
     }
 
@@ -142,11 +157,16 @@ export class AdminProvidersController {
       where: { id },
       data: { lat: punto.lat, lng: punto.lon, updated_at: new Date() },
     });
+    const aviso =
+      punto.precision === 'municipio' ? ' No encontramos la calle: quedó en el centro del municipio. Arrastra el punto o da clic en su lugar exacto.'
+        : punto.precision === 'colonia' ? ' Quedó en la colonia, no en el número exacto. Si hace falta, da clic en su lugar exacto.'
+          : ' Quedó sobre la calle, no en el número exacto (el mapa gratuito no tiene números en muchas calles). Revisa el punto y arrástralo a su lugar.';
     return {
       ok: true,
       lat: punto.lat,
       lng: punto.lon,
-      mensaje: `${p.name} quedó ubicado. Falta decirle hasta cuántos km llega.`,
+      precision: punto.precision ?? 'calle',
+      mensaje: `${p.name} quedó ubicado.${aviso}`,
     };
   }
 

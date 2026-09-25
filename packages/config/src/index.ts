@@ -146,3 +146,4 @@ export {
   CATALOGO_MAQUINARIA_DEFAULT,
   CATALOGO_TRITURADOS_DEFAULT,
 } from './quoter-defaults';
+export { coordenadasDe } from './coordenadas';

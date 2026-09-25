@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { esLineaServicio } from '@maqserv/config';
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { coordenadasDe, esLineaServicio } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
 import { DocumentAlerts } from './DocumentAlerts';
@@ -889,6 +889,28 @@ function UbicacionAliado({ p }: { p: ProviderRow }) {
     if (d?.ok) setCoords({ lat: d.lat, lng: d.lng });
   }
 
+  // A mano (2026-09-25): clic/arrastre en el mapa o coordenadas pegadas.
+  const fijar = useCallback(async (lat: number, lng: number) => {
+    setCoords({ lat, lng });
+    const r = await fetch(`/api/admin/providers/${p.id}/geocodificar`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng }),
+    });
+    const d = await r.json().catch(() => null);
+    setMsg(d?.ok ? `Punto guardado: ${lat.toFixed(5)}, ${lng.toFixed(5)}.` : 'No se pudo guardar el punto.');
+  }, [p.id]);
+  const [pegado, setPegado] = useState('');
+  function usarPegado() {
+    const c = coordenadasDe(pegado);
+    if (!c) { setMsg('No reconocí coordenadas. En Google Maps: clic derecho sobre el lugar y toca los números (ej. 25.78662, -100.18123), o copia el enlace del lugar.'); return; }
+    setPegado('');
+    void fijar(c.lat, c.lng);
+  }
+  const radioNum = p.coverageRadiusKm ?? (radio ? Number(radio) : null);
+  const puntosMapa = useMemo<PuntoMapa[]>(
+    () => (coords ? [{ id: p.id, nombre: p.name, lat: coords.lat, lng: coords.lng, radioKm: radioNum, tipo: 'aliado' }] : []),
+    [coords, p.id, p.name, radioNum],
+  );
+
   return (
     <section style={{ borderTop: `1px solid ${C.line}`, marginTop: 22, paddingTop: 18 }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: C.ink }}>Dónde está y hasta dónde llega</h3>
@@ -922,16 +944,25 @@ function UbicacionAliado({ p }: { p: ProviderRow }) {
         )}
       </div>
 
-      {msg ? <div style={{ marginTop: 11, fontSize: 13, color: C.ink }}>{msg}</div> : null}
+      {msg ? <div style={{ marginTop: 11, fontSize: 13, color: C.ink, lineHeight: 1.5 }}>{msg}</div> : null}
 
-      {coords ? (
-        <div style={{ marginTop: 13 }}>
-          <MapaCobertura
-            alto={220}
-            puntos={[{ id: p.id, nombre: p.name, lat: coords.lat, lng: coords.lng, radioKm: p.coverageRadiusKm ?? (radio ? Number(radio) : null), tipo: 'aliado' }]}
-          />
+      <div style={{ marginTop: 13 }}>
+        <MapaCobertura alto={240} puntos={puntosMapa} onMover={fijar} />
+        <div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>
+          {coords ? 'Arrastra el punto o da clic en el mapa para corregir su lugar exacto.' : 'Da clic en el mapa para marcar su base.'}
         </div>
-      ) : null}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+        <input
+          style={{ ...input, flex: '1 1 260px' }}
+          value={pegado}
+          onChange={(e) => setPegado(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); usarPegado(); } }}
+          placeholder="O pega coordenadas o el enlace de Google Maps"
+        />
+        <button type="button" style={botonSec} onClick={usarPegado} disabled={!pegado.trim()}>Usar</button>
+      </div>
     </section>
   );
 }

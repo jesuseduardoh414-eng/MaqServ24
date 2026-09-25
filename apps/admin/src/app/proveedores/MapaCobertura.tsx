@@ -33,18 +33,27 @@ export interface PuntoMapa {
   detalle?: string | null;
 }
 
+/** Centro por omisión (Monterrey) cuando se va a marcar a mano y aún no hay punto. */
+const CENTRO_MTY: [number, number] = [25.6866, -100.3161];
+
 export function MapaCobertura({
   puntos,
   alto = 340,
+  onMover,
 }: {
   puntos: PuntoMapa[];
   alto?: number;
+  /**
+   * Modo "marcar a mano" (2026-09-25): un clic en el mapa o arrastrar el
+   * punto lo mueve. Para cuando la dirección no existe en OpenStreetMap.
+   */
+  onMover?: (lat: number, lng: number) => void;
 }) {
   const caja = useRef<HTMLDivElement>(null);
   const mapa = useRef<unknown>(null);
 
   useEffect(() => {
-    if (!caja.current || puntos.length === 0) return;
+    if (!caja.current || (puntos.length === 0 && !onMover)) return;
     let vivo = true;
 
     (async () => {
@@ -84,6 +93,20 @@ export function MapaCobertura({
           capas.push(c);
         }
 
+        // Editable: un marcador que se arrastra (el circleMarker no se puede).
+        if (onMover && puntos.length === 1) {
+          const icono = L.divIcon({
+            className: '',
+            html: `<div style="width:18px;height:18px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.6);cursor:grab"></div>`,
+            iconSize: [18, 18],
+            iconAnchor: [9, 9],
+          });
+          const pin = L.marker([p.lat, p.lng], { draggable: true, icon: icono }).addTo(m);
+          pin.on('dragend', () => { const ll = pin.getLatLng(); onMover(ll.lat, ll.lng); });
+          capas.push(pin as never);
+          continue;
+        }
+
         const marca = L.circleMarker([p.lat, p.lng], {
           radius: esObra ? 8 : 6,
           color,
@@ -99,8 +122,15 @@ export function MapaCobertura({
         capas.push(marca);
       }
 
+      if (onMover) {
+        m.on('click', (e: { latlng: { lat: number; lng: number } }) => onMover(e.latlng.lat, e.latlng.lng));
+        (caja.current as HTMLDivElement).style.cursor = 'crosshair';
+      }
+
       // Encuadra todo lo que hay. Con un solo punto no hay límites que calcular.
-      if (puntos.length === 1) {
+      if (puntos.length === 0) {
+        m.setView(CENTRO_MTY, 10);
+      } else if (puntos.length === 1) {
         m.setView([puntos[0].lat, puntos[0].lng], puntos[0].radioKm ? 10 : 13);
       } else {
         const grupo = L.featureGroup(capas as never);
@@ -115,9 +145,9 @@ export function MapaCobertura({
         mapa.current = null;
       }
     };
-  }, [puntos]);
+  }, [puntos, onMover]);
 
-  if (puntos.length === 0) {
+  if (puntos.length === 0 && !onMover) {
     return (
       <div
         style={{

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { checkoutSchema, type CheckoutFreight } from '@maqserv/config';
+import { variantesDireccion, type Precision } from './direccion';
 
 export interface FreightDistance {
   km: number;
@@ -42,6 +43,8 @@ export interface FreightQuote {
 export interface GeoPoint {
   lat: number;
   lon: number;
+  /** Qué tan preciso quedó: la calle, la colonia o solo el municipio. */
+  precision?: Precision;
 }
 
 export const ROAD_FACTOR = 1.32; // línea recta → carretera (aprox. México)
@@ -169,15 +172,16 @@ export class FreightService {
     const hit = this.geoCache.get(key);
     if (hit && Date.now() - hit.at < GEO_TTL_MS) return hit.point;
 
-    const parts = address.split(',').map((s) => s.trim()).filter(Boolean);
-    const attempts = parts.length > 1
-      ? Array.from({ length: Math.min(parts.length, 3) }, (_, i) => parts.slice(i).join(', '))
-      : [address];
+    // Limpia lo que Google mete al copiar (código postal, "Cdad.", "N.L.",
+    // "Ìll") y va de lo más preciso a lo más general (ver direccion.ts).
+    const attempts = variantesDireccion(address);
+    if (attempts.length === 0) return null;
 
     let point: GeoPoint | null = null;
     for (let i = 0; i < attempts.length; i += 1) {
       try {
-        point = await this.nominatim(attempts[i]);
+        const p = await this.nominatim(attempts[i].q);
+        point = p ? { ...p, precision: attempts[i].precision } : null;
       } catch (err) {
         this.logger.warn(`Nominatim falló: ${(err as Error).message}`);
         return null; // error de red: no cachear, se reintenta a la próxima
