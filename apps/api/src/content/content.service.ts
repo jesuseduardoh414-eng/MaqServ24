@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
 import type {
@@ -232,6 +233,14 @@ export class ContentService {
         message,
       },
       select: { id: true },
+    });
+
+    void avisarPanel({
+      modulo: 'comunidad',
+      evento: 'mensaje',
+      titulo: `Mensaje de ${name}${need ? ` · ${need}` : ''}`,
+      cuerpo: message.slice(0, 180),
+      link: '/mensajes',
     });
 
     // `crm_pushed` se sella solo si Perfex confirmó. Los que queden en false son

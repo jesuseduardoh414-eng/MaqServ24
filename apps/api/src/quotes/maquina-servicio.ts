@@ -3,6 +3,7 @@ import { Prisma, prisma } from '@maqserv/db';
 import { UNIDADES, type BloqueCondiciones, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo, type RenglonCotizacion } from '@maqserv/config';
 import { QuoterService } from '../quoter/quoter.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { avisarPanel } from '../notifications/panel';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseSolicitud, correoSolicitudInterna } from '../notifications/email-templates';
 import { ServiceService } from './service.service';
@@ -242,6 +243,14 @@ export class MaquinaServicio {
         ? `${solicitudes.length} servicios: ${solicitudes.map((s) => s.name).join(', ')}. Estamos confirmando con los aliados; te avisamos en cuanto acepten.`
         : `${principal.name} para el ${primera.fecha}. Estamos confirmando con el aliado; en cuanto acepte te avisamos.`,
       link: documentUrl ?? principal.url,
+    });
+    // Campana del panel: MAQSER24 se entera sin abrir el correo.
+    void avisarPanel({
+      modulo: 'servicios',
+      evento: 'solicitud',
+      titulo: `Nueva solicitud ${folio ?? principal.quoteNumber} de ${cliente}`,
+      cuerpo: `${solicitudes.map((s) => s.name).join(', ')} · ${dinero(total)} · ${direccion || 'sin zona'}`,
+      link: '/servicios',
     });
     void this.avisar({
       folio: folio ?? principal.quoteNumber, total, conceptos, aliados: [...new Set(d.partidas.map((p) => p.maquina.providerName))],

@@ -5,6 +5,7 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { atributosDe, esLineaServicio, horarioSchema, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
 import { MailerService } from '../notifications/mailer.service';
+import { avisarPanel } from '../notifications/panel';
 import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
@@ -583,6 +584,14 @@ export class ProviderPortalController {
         data: rutas.slice(1).map((photo) => ({ product_id: creado.id, photo, created_at: ahora, updated_at: ahora })),
       });
     }
+
+    void avisarPanel({
+      modulo: 'proveedores',
+      evento: 'oferta_aliado',
+      titulo: `${p.name} ofreció ${esProducto ? 'un producto' : 'un servicio'} para revisar`,
+      cuerpo: `${creado.name}${d.marca ? ` (${d.marca})` : ''} · ${categoria.cat_name}`,
+      link: '/proveedores',
+    });
 
     // Avisar al equipo de MAQSER24; nunca tumba la propuesta, que ya quedó guardada.
     const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;

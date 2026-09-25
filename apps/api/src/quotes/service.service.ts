@@ -4,6 +4,7 @@ import { prisma } from '@maqserv/db';
 import { formatearCantidad, unidadPorDefectoDe } from '@maqserv/config';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
+import { avisarPanel } from '../notifications/panel';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { correoServicioAvanzo, correoOfertaAAliado, correoAsignacionAAliado } from '../notifications/email-templates';
 import { liberarReserva } from './reservas';
@@ -323,6 +324,22 @@ export class ServiceService {
             : `${a.providers.name} ${estado === 'rechazado' ? 'rechazó' : 'se retiró'}${opts.reason ? `: ${opts.reason.trim()}` : ''}`,
       },
     });
+
+    // Campana del panel: solo cuando contesta el aliado (si fue un admin, ya lo sabe).
+    if (!opts.adminId) {
+      const cot = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true, product_interested: true } });
+      void avisarPanel({
+        modulo: 'servicios',
+        evento: 'respuesta_aliado',
+        titulo: estado === 'aceptado'
+          ? `${a.providers.name} aceptó ${cot?.quote_number ?? 'una solicitud'}`
+          : `${a.providers.name} ${estado === 'rechazado' ? 'rechazó' : 'se retiró de'} ${cot?.quote_number ?? 'una solicitud'}`,
+        cuerpo: estado === 'aceptado'
+          ? `${cot?.product_interested ?? 'Servicio'} · ya quedó asignado.`
+          : `${cot?.product_interested ?? 'Servicio'}${opts.reason ? ` · ${opts.reason.trim()}` : ''} · busca otro aliado.`,
+        link: '/servicios',
+      });
+    }
 
     // Si no la toma, la máquina vuelve a estar libre para otros.
     if (estado !== 'aceptado') {

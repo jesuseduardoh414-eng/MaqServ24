@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
 import type { QuoteDetail, QuoteItem, QuoteRequestInput, QuoteSummary } from '@maqserv/types';
 import { formatearCantidad } from '@maqserv/config';
@@ -194,6 +195,15 @@ export class QuotesService {
     // El registro no pide teléfono: la primera solicitud es donde se conoce,
     // y se guarda en la cuenta para no volver a preguntarlo.
     void completarTelefono(userId, customer.phone);
+
+    // Campana del panel: una cotización "a la medida" espera respuesta.
+    void avisarPanel({
+      modulo: 'cotizaciones',
+      evento: 'cotizacion',
+      titulo: `Cotización a la medida ${q.quote_number} de ${customer.name}`,
+      cuerpo: `${q.product_interested || 'Sin equipo elegido'}${customer.company ? ` · ${customer.company}` : ''}`,
+      link: '/cotizaciones',
+    });
 
     return {
       ...this.toSummary(q),

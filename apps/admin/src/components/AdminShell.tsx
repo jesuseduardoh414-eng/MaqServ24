@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SidebarNav } from './SidebarNav';
+import { AvisosBell } from './AvisosBell';
 import { useBranding } from './branding';
 import type { ModuloAdmin, RolAdmin } from '@maqserv/config';
 
@@ -156,9 +157,9 @@ export function AdminShell({
 
           <div className="adm-topbar-spacer" />
 
-          {/* La campana se quitó: era decorativa (sin handler) y su punto de
-              "avisos nuevos" estaba SIEMPRE encendido — indicaba avisos que no
-              existían. Vuelve cuando haya notificaciones de admin reales. */}
+          {/* Campana real (2026-09-25): solicitudes, respuestas de aliados,
+              ofertas por revisar y mensajes, en segundos. Ver AvisosBell. */}
+          <AvisosBell />
           <div className="adm-topbar-divider" />
           <span className="adm-avatar" aria-hidden>{initial}</span>
         </header>

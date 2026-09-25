@@ -250,23 +250,28 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
   }
 
   // Contadores en vivo (pendientes) desde el resumen del panel.
+  // Se recargan también cuando la campana recibe un aviso nuevo (`adm:avisos`).
   useEffect(() => {
     let alive = true;
-    fetch('/api/admin/dashboard')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (!alive || !d) return;
-        setBadges({
-          orders: d.pendingOrders ?? 0,
-          quotes: d.pendingQuotes ?? 0,
-          withdraws: d.withdrawsPending ?? 0,
-          messages: d.pendingMessages ?? 0,
-          quoterRequests: d.pendingQuoterRequests ?? 0,
-        });
-      })
-      .catch(() => {});
+    const cargar = () =>
+      fetch('/api/admin/dashboard')
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!alive || !d) return;
+          setBadges({
+            orders: d.pendingOrders ?? 0,
+            quotes: d.pendingQuotes ?? 0,
+            withdraws: d.withdrawsPending ?? 0,
+            messages: d.pendingMessages ?? 0,
+            quoterRequests: d.pendingQuoterRequests ?? 0,
+          });
+        })
+        .catch(() => {});
+    void cargar();
+    window.addEventListener('adm:avisos', cargar);
     return () => {
       alive = false;
+      window.removeEventListener('adm:avisos', cargar);
     };
   }, []);
 
