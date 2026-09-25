@@ -177,8 +177,13 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
     if (r.ok) setProvs(await r.json());
   }
 
+  // Un clic = un alta (2026-09-25): el botón se bloquea mientras se guarda.
+  const [guardando, setGuardando] = useState(false);
+  const [errorAlta, setErrorAlta] = useState<string | null>(null);
   async function crear() {
-    if (form.name.trim().length < 2) { setMsg('El nombre es obligatorio'); return; }
+    if (guardando) return;
+    if (form.name.trim().length < 2) { setErrorAlta('El nombre es obligatorio'); return; }
+    setGuardando(true); setErrorAlta(null);
     const r = await fetch('/api/admin/providers', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -197,7 +202,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
       }),
     });
     const d = await r.json().catch(() => null);
-    if (!r.ok) { setMsg(typeof d?.message === 'string' ? d.message : 'No se pudo guardar'); return; }
+    setGuardando(false);
+    if (!r.ok) { setErrorAlta(typeof d?.message === 'string' ? d.message : 'No se pudo guardar'); return; }
     const conCorreo = Boolean(form.email);
     setCreando(false);
     setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', city: '', coverage: '', categories: [], responseMinutes: '' });
@@ -325,13 +331,14 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         abierto={creando}
         titulo="Nuevo aliado"
         subtitulo="Con correo, al darlo de alta le llega su invitación al portal."
-        onCerrar={() => setCreando(false)}
+        onCerrar={() => { setCreando(false); setErrorAlta(null); }}
         ancho={860}
         pie={<>
           <button type="button" style={botonSec} onClick={() => setCreando(false)}>Cancelar</button>
-          <button type="button" style={boton} onClick={crear}>Dar de alta</button>
+          <button type="button" style={{ ...boton, opacity: guardando ? 0.6 : 1 }} onClick={crear} disabled={guardando}>{guardando ? 'Dando de alta…' : 'Dar de alta'}</button>
         </>}
       >
+        {errorAlta ? <div role="alert" style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, border: `1px solid color-mix(in srgb, ${C.bad} 45%, transparent)`, color: C.bad, fontSize: 13.5 }}>{errorAlta}</div> : null}
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
             <div><span style={label}>Nombre del aliado *</span><input style={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
@@ -469,6 +476,14 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           onCerrar={() => setExpediente(null)}
           onAgregar={agregarDoc}
           onBorrar={borrarDoc}
+          onEliminar={async () => {
+            const r = await fetch(`/api/admin/providers/${expediente.id}`, { method: 'DELETE' });
+            const d = await r.json().catch(() => null);
+            if (!r.ok) { window.alert('No se pudo eliminar.'); return; }
+            setMsg(d?.eliminado ? `«${expediente.name}» se eliminó.` : `«${expediente.name}» tiene historial: se dio de baja en vez de borrarlo.`);
+            setExpediente(null);
+            await recargar();
+          }}
           onRevisado={async (texto) => {
             setMsg(texto);
             const r = await fetch('/api/admin/providers');
@@ -485,7 +500,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 }
 
 function ExpedienteModal({
-  p, docs, onCerrar, onAgregar, onBorrar, onRevisado,
+  p, docs, onCerrar, onAgregar, onBorrar, onRevisado, onEliminar,
 }: {
   p: ProviderRow;
   docs: DocRow[];
@@ -494,6 +509,8 @@ function ExpedienteModal({
   onBorrar: (id: number) => void;
   /** Tras publicar o rechazar: mensaje y recarga. */
   onRevisado: (texto: string) => void;
+  /** Borra al aliado si no tiene historial; si lo tiene, lo da de baja. */
+  onEliminar: () => void;
 }) {
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [rechazando, setRechazando] = useState<number | null>(null);
@@ -749,6 +766,20 @@ function ExpedienteModal({
           que es otra cosa: se puede tener todo vigente y no contestar nunca.
         */}
         <ProviderHistory providerId={p.id} colores={C} />
+
+        {/* Eliminar: para altas duplicadas o por error. Con historial solo se da de baja. */}
+        <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 20, paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, maxWidth: 420 }}>
+            Si se dio de alta por error o está duplicado, elimínalo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.
+          </span>
+          <button
+            type="button"
+            onClick={() => { if (window.confirm(`¿Eliminar a «${p.name}»? Si no tiene historial se borra por completo.`)) onEliminar(); }}
+            style={{ background: 'transparent', color: C.bad, border: `1px solid color-mix(in srgb, ${C.bad} 45%, transparent)`, borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Eliminar aliado
+          </button>
+        </div>
       </div>
     </div>
   );

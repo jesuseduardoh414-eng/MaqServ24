@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Delete,
   Get,
@@ -488,6 +489,19 @@ export class AdminProvidersController {
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
     const d = parsed.data;
 
+    /**
+     * NO DUPLICAR (2026-09-25): el alta tarda (manda la invitación) y un
+     * segundo clic creaba el mismo aliado dos veces. Se rechaza si ya hay uno
+     * activo con el mismo correo, o con el mismo nombre y teléfono.
+     */
+    const correo = d.email?.trim().toLowerCase() || null;
+    const activos = await prisma.providers.findMany({ where: { status: 1 }, select: { name: true, email: true, phone: true } });
+    const repetido = activos.find((p) =>
+      (correo && p.email?.trim().toLowerCase() === correo) ||
+      (p.name.trim().toLowerCase() === d.name.trim().toLowerCase() && (p.phone ?? '').replace(/D/g, '') === (d.phone ?? '').replace(/D/g, '')),
+    );
+    if (repetido) throw new ConflictException(`Ya existe el aliado «${repetido.name}» con esos datos. Ábrelo desde la lista en vez de darlo de alta otra vez.`);
+
     // El slug sale del nombre, pero dos aliados pueden llamarse parecido y la
     // columna es única: se le agrega un sufijo en vez de reventar con un 500.
     const base = slugify(d.name) || 'aliado';
@@ -666,9 +680,25 @@ export class AdminProvidersController {
    * aliado que ya atendió servicios dejaría el historial sin dueño, así que para
    * sacarlo de circulación se usa `status = 0`.
    */
+  /**
+   * ELIMINAR UN ALIADO (2026-09-25). Si no tiene historial (servicios
+   * ofrecidos, equipos ni papeles) se borra de verdad: es un alta por error
+   * o duplicada. Si ya tiene historial se da de baja (`status = 0`) para no
+   * dejar servicios sin dueño.
+   */
   @Delete(':id')
   async deactivate(@Param('id', ParseIntPipe) id: number) {
+    const [asignaciones, equipos, papeles] = await Promise.all([
+      prisma.service_assignments.count({ where: { provider_id: id } }),
+      prisma.products.count({ where: { provider_id: id } }),
+      prisma.provider_documents.count({ where: { provider_id: id } }),
+    ]);
+    if (asignaciones + equipos + papeles === 0) {
+      await prisma.email_log.updateMany({ where: { provider_id: id }, data: { provider_id: null } }).catch(() => undefined);
+      await prisma.providers.delete({ where: { id } });
+      return { ok: true, eliminado: true };
+    }
     await prisma.providers.update({ where: { id }, data: { status: 0, updated_at: new Date() } });
-    return { ok: true };
+    return { ok: true, eliminado: false };
   }
 }
