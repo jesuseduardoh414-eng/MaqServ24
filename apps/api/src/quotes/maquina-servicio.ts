@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
-import { UNIDADES } from '@maqserv/config';
+import { UNIDADES, type CalculoCotizacion, type CotizadorTipo } from '@maqserv/config';
+import { QuoterService } from '../quoter/quoter.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseSolicitud, correoSolicitudInterna } from '../notifications/email-templates';
@@ -32,6 +33,8 @@ export interface ServicioDeMaquina {
   quoteNumber: string;
   url: string;
   total: number;
+  /** El documento imprimible (folio del cotizador), si se pudo emitir. */
+  documentUrl: string | null;
 }
 
 @Injectable()
@@ -42,6 +45,7 @@ export class MaquinaServicio {
     private readonly services: ServiceService,
     private readonly notifications: NotificationsService,
     private readonly mailer: MailerService,
+    private readonly quoter: QuoterService,
   ) {}
 
   async abrir(d: {
@@ -70,6 +74,8 @@ export class MaquinaServicio {
       `${m.name}${m.brand ? ` (${m.brand})` : ''} · ${pedido}${m.equipos > 1 ? ` × ${m.equipos} unidades` : ''} × ${dinero(m.precioUnitario)}/${u?.singular ?? m.unidad} = ${dinero(m.subtotal)}`,
       m.flete ? `Traslado desde el patio del aliado${m.km !== null ? ` (${m.km} km)` : ''} = ${dinero(m.flete)}` : `Traslado: ${m.fleteTexto}`,
       ...(m.notaMinimo ? [m.notaMinimo] : []),
+      // Lo que define quien la ofrece (operador, combustible, capacidad…) va en lo que incluye.
+      ...(m.specs.length ? [`Ficha: ${m.specs.map((s) => `${s.label}: ${s.valor}`).join(' · ')}`] : []),
     ].join('\n');
     const condiciones = [
       'Precio y traslado congelados al solicitar; vigencia de la cotización según su fecha de vencimiento.',
@@ -79,6 +85,67 @@ export class MaquinaServicio {
     const requisitos = Object.fromEntries(
       Object.entries(e.requisitos ?? {}).filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => [k, v.trim().slice(0, 500)]),
     );
+
+    /**
+     * EL DOCUMENTO DE SIEMPRE (2026-09-25). El cliente quiere la cotización
+     * como la de PUCSA: folio, empresa, partidas, condiciones y firma, para
+     * imprimir o guardar en PDF. Se emite con el precio de la máquina y las
+     * condiciones del tabulador de su línea. Si falla, la solicitud sigue:
+     * el documento es un papel, no la operación.
+     */
+    const tipoDoc: CotizadorTipo = e.linea === 'triturados' ? 'triturados' : 'maquinaria';
+    let folio: string | null = null;
+    let quoterId: number | null = null;
+    try {
+      const catDoc = await this.quoter.catalogo(tipoDoc);
+      const esTransporte = e.linea === 'transporte-y-servicios-de-obra';
+      const condicionesDoc = Object.entries(catDoc.condiciones)
+        .filter(([k]) => esTransporte || !['pipa', 'retiro'].includes(k))
+        .map(([, b]) => b);
+      const flete = r2(m.flete ?? 0);
+      const baseDoc = r2(m.subtotal + flete);
+      const calcDoc: CalculoCotizacion = {
+        renglones: [
+          {
+            clase: m.renta ? 'equipo' : 'servicio',
+            id: String(m.id),
+            nombre: m.name,
+            concepto: `${m.name}${m.brand ? ` (${m.brand})` : ''}${m.equipos > 1 ? ` × ${m.equipos}` : ''}`,
+            unidad: u?.singular ?? m.unidad,
+            cantidad: m.unidadesCobradas * m.equipos,
+            pu: m.precioUnitario,
+            importe: r2(m.subtotal),
+            detalle: `A partir del ${e.fecha}${e.hora ? ` ${e.hora}` : ''}`,
+          },
+          ...(flete > 0
+            ? [{ clase: 'flete', concepto: `Traslado a obra${m.km !== null ? ` (${m.km} km)` : ''}`, unidad: 'viaje', cantidad: 1, pu: flete, importe: flete }]
+            : []),
+        ],
+        desglose: { renta: m.renta ? r2(m.subtotal) : 0, servicios: m.renta ? 0 : r2(m.subtotal), fletes: flete, materiales: 0 },
+        subtotal: baseDoc,
+        iva: r2(m.iva),
+        iva_tasa: baseDoc > 0 && m.iva > 0 ? Math.round((m.iva / baseDoc) * 100) : 0,
+        con_iva: m.iva > 0,
+        total: r2(m.total),
+        condiciones: condicionesDoc,
+      };
+      const doc = await this.quoter.documentoDeMaquina({
+        tipo: tipoDoc,
+        calc: calcDoc,
+        cliente: d.cliente || d.cuenta.name,
+        obra: e.obra.direccion ?? null,
+        municipio: e.obra.municipio ?? d.zona,
+        correo: d.cuenta.email,
+        telefono: d.telefono,
+        notas: d.notas,
+        items: { productoId: m.id, fecha: e.fecha, hora: e.hora ?? null, unidad: m.unidad, unidades: m.unidadesCobradas, equipos: m.equipos },
+        userId: d.userId,
+      });
+      folio = doc.folio;
+      quoterId = doc.id;
+    } catch (err) {
+      this.log.warn(`No se pudo emitir el documento de la solicitud de ${m.name}: ${(err as Error).message}`);
+    }
 
     const q = await prisma.quotes.create({
       data: {
@@ -112,6 +179,8 @@ export class MaquinaServicio {
         requirements: {
           origen: 'maquina',
           productId: m.id,
+          // El documento imprimible: es lo que abre "Ver documento" en Mi cuenta.
+          ...(folio ? { folio, quoterId, cotizador: tipoDoc } : {}),
           fecha_inicio: e.fecha,
           fecha_fin: d.fin,
           ...(e.hora ? { hora: e.hora } : {}),
@@ -177,7 +246,7 @@ export class MaquinaServicio {
     });
     void this.avisar({ q: { id: quoteId, number: q.quote_number, total: m.total }, m, e, cliente: d.cliente || d.cuenta.name, correo: d.cuenta.email, telefono: d.telefono, zona: d.zona, url });
 
-    return { quoteId, quoteNumber: q.quote_number, url, total: m.total };
+    return { quoteId, quoteNumber: q.quote_number, url, total: m.total, documentUrl: folio ? `${url}/documento` : null };
   }
 
   /** Correos: al equipo (entró una solicitud) y al cliente (acuse). Nunca lanza. */

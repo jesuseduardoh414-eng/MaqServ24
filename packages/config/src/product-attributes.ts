@@ -58,6 +58,11 @@ export const ATRIBUTOS_POR_CATEGORIA: Record<string, AtributoProducto[]> = {
     { clave: 'energia', label: 'Energía', tipo: 'opcion', opciones: ['Diésel', 'Eléctrica', 'Gasolina', 'Híbrida'], compara: 'igual' },
     { clave: 'año', label: 'Modelo', tipo: 'numero', hint: 'Año del equipo.' },
     { clave: 'implementos', label: 'Implementos que trae', tipo: 'texto', hint: 'Cucharón, martillo, rastrillo…' },
+    // Operador y combustible los define quien ofrece la máquina, no el cliente
+    // (2026-09-25): antes el formulario de cotizar se los preguntaba al cliente,
+    // que no puede decidirlos. Se enseñan en la ficha y en la cotización.
+    { clave: 'operador', label: 'Operador', tipo: 'opcion', opciones: ['Incluido', 'Sin operador'], hint: '¿La máquina va con su operador?' },
+    { clave: 'combustible', label: 'Combustible', tipo: 'opcion', opciones: ['Incluido', 'Lo pone el cliente'] },
   ],
   'transporte-y-servicios-de-obra': [
     { clave: 'capacidad_pipa', label: 'Capacidad de la pipa', tipo: 'numero', unidad: 'L', compara: 'alcanza' },

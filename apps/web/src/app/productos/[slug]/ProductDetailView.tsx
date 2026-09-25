@@ -226,6 +226,8 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                         {unidades.length ? <li>Se cobra por {unidades.length > 1 ? `${unidades.slice(0, -1).join(', ')} o ${unidades[unidades.length - 1]}` : unidades[0]}.</li> : null}
                         {product.minUnits && principal ? <li>Mínimo {product.minUnits} {product.minUnits === 1 ? principal.singular : principal.plural}.</li> : null}
                         {product.schedule ? <li>Atiende {product.schedule}.</li> : null}
+                        {product.attributes?.operador ? <li>Operador: {product.attributes.operador.toLowerCase()}.</li> : null}
+                        {product.attributes?.combustible ? <li>Combustible: {product.attributes.combustible.toLowerCase()}.</li> : null}
                         <li>Traslado calculado por distancia hasta tu obra{product.availability?.location ? ` desde ${product.availability.location}` : ''}.</li>
                         <li style={{ color: 'var(--color-text-muted)' }}>Dinos fechas y obra: el precio sale al momento y la máquina queda apartada al solicitar.</li>
                       </>

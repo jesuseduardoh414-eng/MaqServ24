@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import type { AuthUser } from '@maqserv/types';
-import { requestFormFor, UNIDADES } from '@maqserv/config';
+import { atributosDe, requestFormFor, UNIDADES } from '@maqserv/config';
 import { Icon } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
 import { evento } from '@/lib/analitica';
@@ -62,7 +62,7 @@ export function CotizadorGuiado({
 }: {
   user: AuthUser;
   lineas: Linea[];
-  inicial: { linea?: string | null; producto?: { id: number; name: string; slug: string; categorySlug: string | null } | null };
+  inicial: { linea?: string | null; producto?: { id: number; name: string; slug: string; categorySlug: string | null; atributos?: Record<string, string> } | null };
 }) {
   const [paso, setPaso] = useState(inicial.producto ? 1 : 0);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +92,22 @@ export function CotizadorGuiado({
   }, [linea]);
 
   // 2 · Requisitos
-  const [reqs, setReqs] = useState<Record<string, string>>({});
+  /**
+   * Lo que YA sabemos por la máquina elegida no se vuelve a preguntar
+   * (2026-09-25): capacidad, implementos, altura… van prellenados desde su
+   * ficha y fuera del formulario. Operador y combustible tampoco se preguntan:
+   * los define quien ofrece la máquina, y el cliente los ve en la ficha y en
+   * la cotización.
+   */
+  const conocidos = useMemo(() => {
+    const a = inicial.producto?.atributos ?? {};
+    return Object.fromEntries(Object.entries(a).filter(([, v]) => v && String(v).trim())) as Record<string, string>;
+  }, [inicial.producto]);
+  const ocultas = useMemo(
+    () => [...CLAVES_UBICACION, ...CLAVES_FECHA, 'tipo_equipo', 'operador', 'combustible', ...Object.keys(conocidos)],
+    [conocidos],
+  );
+  const [reqs, setReqs] = useState<Record<string, string>>(() => ({ ...conocidos }));
 
   // 3 · Dónde
   const [obra, setObra] = useState<ObraCliente | null>(null);
@@ -116,7 +131,7 @@ export function CotizadorGuiado({
   const [telefono, setTelefono] = useState(user.phone ?? '');
   const [notas, setNotas] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [listo, setListo] = useState<{ quoteNumber: string; url: string; total: number } | null>(null);
+  const [listo, setListo] = useState<{ quoteNumber: string; url: string; total: number; documentUrl?: string | null } | null>(null);
 
   const u = UNIDADES[unidad];
   const entrada = () => ({
@@ -137,7 +152,7 @@ export function CotizadorGuiado({
   function falta(): string | null {
     if (paso === 0 && !linea) return 'Elige qué línea de servicio necesitas.';
     if (paso === 1 && form) {
-      const oblig = form.fields.filter((f) => f.required && !CLAVES_UBICACION.includes(f.key) && !CLAVES_FECHA.includes(f.key) && f.key !== 'tipo_equipo');
+      const oblig = form.fields.filter((f) => f.required && !ocultas.includes(f.key));
       const vacio = oblig.find((f) => !(reqs[f.key] ?? '').trim());
       if (vacio) return `Falta: ${vacio.label}.`;
     }
@@ -203,7 +218,8 @@ export function CotizadorGuiado({
               La máquina quedó apartada y estamos confirmando con el aliado. Te avisamos por correo y en tu cuenta en cuanto acepte.
             </p>
             <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
-              <Link href={listo.url} style={btn}>Ver mi solicitud <Icon name="arrowRight" size={14} /></Link>
+              {listo.documentUrl ? <Link href={listo.documentUrl} style={btn}>Ver documento de la cotización <Icon name="arrowRight" size={14} /></Link> : null}
+              <Link href={listo.url} style={listo.documentUrl ? btnSec : btn}>Ver mi solicitud <Icon name="arrowRight" size={14} /></Link>
               <Link href="/cotizador" style={btnSec}>Cotizar otra cosa</Link>
             </div>
           </div>
@@ -260,19 +276,33 @@ export function CotizadorGuiado({
 
       {/* ── 2 · Requisitos ── */}
       {paso === 1 ? (
-        form ? (
-          <RequirementFields
-            form={form}
-            values={reqs}
-            onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
-            except={[...CLAVES_UBICACION, ...CLAVES_FECHA, 'tipo_equipo']}
-            estilos={{ campo, etiqueta: etiquetaReq, tarjeta: card, leyenda }}
-            titulo={`Lo que la obra necesita${tipo ? ` · ${tipo}` : ''}`}
-            intro="Con esto solo te proponemos máquinas que alcanzan lo que pides. Llena lo que sepas."
-          />
-        ) : (
-          <div style={card}><p style={{ margin: 0, color: 'var(--color-text-muted)' }}>Esta línea no tiene preguntas extra. Sigue al siguiente paso.</p></div>
-        )
+        <div style={{ display: 'grid', gap: 16 }}>
+          {Object.keys(conocidos).length ? (
+            <div style={card}>
+              <h2 style={leyenda}>Ya lo sabemos por la máquina que elegiste</h2>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {atributosDe(linea).filter((a) => conocidos[a.clave]).map((a) => (
+                  <span key={a.clave} style={{ ...chip, cursor: 'default' }}>
+                    {a.label}: {conocidos[a.clave]}{a.unidad && !/[a-z]/i.test(conocidos[a.clave]) ? ` ${a.unidad}` : ''}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {form ? (
+            <RequirementFields
+              form={form}
+              values={reqs}
+              onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
+              except={ocultas}
+              estilos={{ campo, etiqueta: etiquetaReq, tarjeta: card, leyenda }}
+              titulo={inicial.producto ? 'Sobre tu obra' : `Lo que la obra necesita${tipo ? ` · ${tipo}` : ''}`}
+              intro={inicial.producto ? 'Lo que el aliado necesita saber para llegar y trabajar. Llena lo que sepas.' : 'Con esto solo te proponemos máquinas que alcanzan lo que pides. Llena lo que sepas.'}
+            />
+          ) : !Object.keys(conocidos).length ? (
+            <div style={card}><p style={{ margin: 0, color: 'var(--color-text-muted)' }}>Esta línea no tiene preguntas extra. Sigue al siguiente paso.</p></div>
+          ) : null}
+        </div>
       ) : null}
 
       {/* ── 3 · Dónde ── */}

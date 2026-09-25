@@ -87,6 +87,13 @@ export class QuotesController {
     return this.quotes.byNumber(req.userId, quoteNumber);
   }
 
+  /** El documento imprimible de la cotización (folio, partidas, condiciones, firma). */
+  @Get(':quoteNumber/documento')
+  @UseGuards(JwtGuard)
+  documento(@Req() req: AuthedRequest, @Param('quoteNumber') quoteNumber: string) {
+    return this.quotes.documento(req.userId, quoteNumber);
+  }
+
   /**
    * El cliente acepta la cotizacion. Es lo que el documento llama convertir la
    * cotizacion aceptada en compromiso, y queda con fecha para saber QUE VERSION

@@ -104,6 +104,17 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
             </p>
           ) : <div style={{ height: 20 }} />}
 
+          {/* El documento de siempre (folio, partidas, condiciones, firma) para imprimir o guardar en PDF. */}
+          {q.documentFolio ? (
+            <Link
+              href={`/cuenta/cotizaciones/${q.quoteNumber}/documento`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24, padding: '11px 16px', borderRadius: 'var(--radius-button)', border: '1px solid var(--color-text)', color: 'var(--color-text)', textDecoration: 'none', fontWeight: 700, fontSize: 14 }}
+            >
+              Ver documento {q.documentFolio} · imprimir o guardar PDF
+              <Icon name="arrowRight" size={14} />
+            </Link>
+          ) : null}
+
           {/*
             EN QUÉ VA EL SERVICIO (documento institucional, sección 16).
 

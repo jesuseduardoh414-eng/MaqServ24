@@ -209,6 +209,68 @@ export class QuoterService {
     throw new BadRequestException('No se pudo asignar folio. Inténtalo de nuevo.');
   }
 
+  /**
+   * DOCUMENTO DE UNA SOLICITUD POR MÁQUINA (2026-09-25).
+   *
+   * El cliente quiere el mismo documento de siempre (folio, empresa, partidas,
+   * condiciones, firma) aunque el precio ya no salga del tabulador sino de la
+   * máquina que eligió. El cálculo llega hecho por el recomendador; aquí solo
+   * se congela con los datos de la empresa del tabulador de su línea y se le
+   * da folio. Nace `aceptada`: pedir el servicio con ese precio es aceptarlo.
+   */
+  async documentoDeMaquina(d: {
+    tipo: CotizadorTipo;
+    calc: CalculoCotizacion;
+    cliente: string;
+    obra?: string | null;
+    atencion?: string | null;
+    municipio?: string | null;
+    correo?: string | null;
+    telefono?: string | null;
+    notas?: string | null;
+    items: unknown;
+    userId: number;
+  }) {
+    const cat = await this.catalogo(d.tipo);
+    const snapshot = {
+      calc: d.calc,
+      version: cat.version,
+      empresa: cat.empresa,
+      firma: cat.firma,
+      saludo: cat.saludo,
+      emitida: new Date().toISOString(),
+    };
+    const base = {
+      kind: d.tipo,
+      origin: 'sitio',
+      state: 'aceptada',
+      client_name: (d.cliente || 'Sin nombre').slice(0, 190),
+      work: d.obra?.slice(0, 190) || null,
+      attention: d.atencion?.slice(0, 190) || null,
+      municipality: d.municipio?.slice(0, 90) || null,
+      email: d.correo?.slice(0, 190) || null,
+      phone: d.telefono?.slice(0, 40) || null,
+      notes: d.notas || null,
+      options: {} as Prisma.InputJsonValue,
+      items: d.items as Prisma.InputJsonValue,
+      snapshot: snapshot as unknown as Prisma.InputJsonValue,
+      subtotal: new Prisma.Decimal(d.calc.subtotal),
+      tax: new Prisma.Decimal(d.calc.iva),
+      total: new Prisma.Decimal(d.calc.total),
+      user_id: d.userId,
+    };
+    for (let intento = 0; intento < 5; intento += 1) {
+      try {
+        const folio = await this.siguienteFolio(d.tipo, intento);
+        return await prisma.quoter_quotes.create({ data: { ...base, folio }, select: { id: true, folio: true } });
+      } catch (e) {
+        const duplicado = e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002';
+        if (!duplicado) throw e;
+      }
+    }
+    throw new BadRequestException('No se pudo asignar folio. Inténtalo de nuevo.');
+  }
+
   async listar(filtros: { tipo?: CotizadorTipo; estado?: string; origen?: string; buscar?: string; pagina?: number }) {
     const porPagina = 25;
     const pagina = Math.max(1, filtros.pagina ?? 1);

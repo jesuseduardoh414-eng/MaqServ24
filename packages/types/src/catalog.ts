@@ -89,6 +89,8 @@ export interface ProductDetail extends ProductCard {
   pricingUnits: string[];
   minUnits: number | null;
   schedule: string | null;
+  /** Ficha técnica estructurada por línea (claves de `atributosDe`): capacidad, operador, combustible… */
+  attributes: Record<string, string>;
 }
 
 export interface Category {

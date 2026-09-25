@@ -9,6 +9,12 @@ import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './s
 import { resolverClienteYObra } from './client-resolver';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 
+/** Folio del documento del cotizador guardado en `requirements` (cotizador por tipo o por máquina). */
+function folioDocumento(requirements: unknown): string | null {
+  const f = (requirements as Record<string, unknown> | null)?.folio;
+  return typeof f === 'string' && f.trim() ? f : null;
+}
+
 /** Formato legacy: COT- + 8 alfanuméricos mayúsculas. Lo usa también el puente del cotizador. */
 export function newQuoteNumber(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -208,6 +214,7 @@ export class QuotesService {
       respondedBy: q.responded_by,
       acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
       canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
+      documentFolio: folioDocumento(q.requirements),
       // Recién creada no hay servicio que seguir: falta que la respondan y
       // que el cliente la acepte.
       service: null,
@@ -341,7 +348,37 @@ export class QuotesService {
       respondedBy: q.responded_by,
       acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
       canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
+      documentFolio: folioDocumento(q.requirements),
       service: await this.servicioDe(q),
+    };
+  }
+
+  /**
+   * EL DOCUMENTO DE LA COTIZACIÓN (2026-09-25). Es el mismo documento de
+   * siempre (folio, empresa, partidas, condiciones, firma) que se guarda en
+   * `quoter_quotes` cuando la cotización nace del cotizador: por tipo o por
+   * máquina. Solo lo ve su dueño.
+   */
+  async documento(userId: number, quoteNumber: string) {
+    const q = await prisma.quotes.findFirst({
+      where: { quote_number: quoteNumber, user_id: userId },
+      select: { quote_number: true, requirements: true },
+    });
+    if (!q) throw new NotFoundException('Cotización no encontrada');
+    const folio = folioDocumento(q.requirements);
+    if (!folio) throw new NotFoundException('Esta cotización no tiene documento');
+    const d = await prisma.quoter_quotes.findUnique({ where: { folio } });
+    if (!d) throw new NotFoundException('Documento no encontrado');
+    return {
+      folio: d.folio,
+      tipo: d.kind,
+      quoteNumber: q.quote_number,
+      cliente: d.client_name,
+      obra: d.work,
+      atencion: d.attention,
+      municipio: d.municipality,
+      notas: d.notes,
+      documento: d.snapshot,
     };
   }
 

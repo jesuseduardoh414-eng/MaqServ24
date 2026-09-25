@@ -124,6 +124,12 @@ export interface QuoteDetail extends QuoteSummary {
   /** Solo se puede aceptar una respondida y dentro de su vigencia. */
   canAccept: boolean;
   /**
+   * Folio del documento imprimible (el de siempre: empresa, partidas,
+   * condiciones, firma) cuando la cotización nació del cotizador. Null si se
+   * respondió a mano y no hay documento.
+   */
+  documentFolio: string | null;
+  /**
    * En qué va el SERVICIO, después de aceptar. Null mientras la cotización no
    * se acepta: hasta entonces no hay operación que seguir.
    *
