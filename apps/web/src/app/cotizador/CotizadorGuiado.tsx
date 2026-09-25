@@ -594,6 +594,12 @@ export function CotizadorGuiado({
 
       <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
         {paso > 0 ? <button type="button" onClick={() => { setError(null); setPaso((p) => p - 1); }} style={btnSec}>Atrás</button> : null}
+        {/* Agregando otro servicio: se puede volver a la cotización sin elegir nada más. */}
+        {paso < 5 && partidas.length > 0 ? (
+          <button type="button" onClick={() => { setError(null); setPaso(5); void cargarVista(); }} style={btnSec}>
+            Volver a mi cotización ({partidas.length})
+          </button>
+        ) : null}
         {paso < 5 ? (
           <button type="button" onClick={avanzar} style={{ ...btn, flex: 1 }} disabled={paso === 4 && buscando}>
             {paso === 3 ? 'Ver máquinas disponibles' : paso === 4 ? 'Continuar con esta máquina' : 'Continuar'} <Icon name="arrowRight" size={14} />

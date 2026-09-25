@@ -141,6 +141,11 @@ export interface QuoteDetail extends QuoteSummary {
    */
   documentFolio: string | null;
   /**
+   * Los otros servicios de la misma cotización (mismo documento), cada uno
+   * con su propio estado: un aliado puede aprobar y otro rechazar.
+   */
+  siblings: Array<{ quoteNumber: string; name: string; request: QuoteSummary['request'] }>;
+  /**
    * En qué va el SERVICIO, después de aceptar. Null mientras la cotización no
    * se acepta: hasta entonces no hay operación que seguir.
    *

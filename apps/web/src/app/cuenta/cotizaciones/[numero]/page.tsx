@@ -142,6 +142,21 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
             </div>
           ) : null}
 
+          {/* Los demás servicios de esta misma cotización: cada aliado aprueba o rechaza el suyo. */}
+          {q.siblings?.length ? (
+            <div style={{ ...bloque, marginBottom: 20 }}>
+              <h2 style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+                Otros servicios de esta cotización
+              </h2>
+              {q.siblings.map((s) => (
+                <Link key={s.quoteNumber} href={`/cuenta/cotizaciones/${s.quoteNumber}`} style={{ ...fila, textDecoration: 'none' }}>
+                  <span style={{ color: 'var(--color-text)' }}>{s.name} <span style={{ color: 'var(--color-text-muted)' }}>· {s.quoteNumber}</span></span>
+                  <span style={{ fontWeight: 700, color: s.request ? COLOR_SOLICITUD[s.request.state] : 'var(--color-text-muted)' }}>{s.request?.label ?? '—'}</span>
+                </Link>
+              ))}
+            </div>
+          ) : null}
+
           {/* El documento de siempre (folio, partidas, condiciones, firma) para imprimir o guardar en PDF. */}
           {q.documentFolio ? (
             <Link

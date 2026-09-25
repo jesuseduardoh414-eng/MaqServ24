@@ -218,6 +218,7 @@ export class QuotesService {
       acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
       canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
       documentFolio: folioDocumento(q.requirements),
+      siblings: [],
       // Recién creada no hay servicio que seguir: falta que la respondan y
       // que el cliente la acepte.
       service: null,
@@ -357,8 +358,28 @@ export class QuotesService {
       acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
       canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
       documentFolio: folioDocumento(q.requirements),
+      siblings: await this.hermanos(userId, q.id, folioDocumento(q.requirements)),
       service: await this.servicioDe(q),
     };
+  }
+
+  /** Los otros servicios del mismo documento, con su estado para el cliente. */
+  private async hermanos(userId: number, id: bigint, folio: string | null) {
+    if (!folio) return [];
+    const rows = await prisma.quotes.findMany({
+      where: { user_id: userId, id: { not: id } },
+      orderBy: { id: 'asc' },
+      take: 100,
+      select: { id: true, quote_number: true, product_interested: true, requirements: true, service_state: true },
+    });
+    const mios = rows.filter((r) => folioDocumento(r.requirements) === folio);
+    if (!mios.length) return [];
+    const asign = await prisma.service_assignments.findMany({ where: { quote_id: { in: mios.map((r) => r.id) } }, select: { quote_id: true, state: true } });
+    return mios.map((r) => ({
+      quoteNumber: r.quote_number,
+      name: (r.product_interested ?? r.quote_number).split(' · ')[0],
+      request: estadoSolicitud(r.service_state, asign.filter((a) => a.quote_id === r.id)),
+    }));
   }
 
   /**
