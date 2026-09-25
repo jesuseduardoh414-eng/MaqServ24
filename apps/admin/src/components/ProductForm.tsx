@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, horarioDe, margenDe, precioConMargen, unidadesDeTarifa, type Horario } from '@maqserv/config';
+import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, horarioDe, margenDe, precioConMargen, rutaPanelDeCatalogo, tipoDeCatalogo, unidadesDeTarifa, type Horario, type TipoCatalogo } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { D } from '@/components/design-tokens';
 
@@ -68,19 +68,25 @@ export function ProductForm({
   initial,
   categories,
   providers = [],
+  tipo,
 }: {
   initial: ProductFormData;
   categories: Categoria[];
   providers?: Proveedor[];
+  /** Servicio (se cotiza) o producto (precio fijo). Al editar sale de la categoría de la ficha. */
+  tipo?: TipoCatalogo;
 }) {
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
   const isEdit = Boolean(initial.id);
   const enRevision = isEdit && initial.status === POR_REVISAR;
   const proveedor = providers.find((p) => p.id === initial.providerId);
+  const tipoActual: TipoCatalogo = tipo ?? (initial.categoryId ? tipoDeCatalogo(categories.find((c) => c.id === initial.categoryId)?.slug) : 'servicio');
+  const singular = tipoActual === 'servicio' ? 'servicio' : 'producto';
 
   const [categoryId, setCategoryId] = useState(initial.categoryId ? String(initial.categoryId) : '');
-  const [isRental, setIsRental] = useState(initial.isRental ?? true);
+  // Un producto siempre se vende a precio fijo; en un servicio se elige cómo se cobra.
+  const [isRental, setIsRental] = useState(initial.isRental ?? tipoActual === 'servicio');
   const [attrs, setAttrs] = useState<Record<string, string>>(() =>
     Object.fromEntries(Object.entries(initial.attributes ?? {}).map(([k, v]) => [k, v == null ? '' : String(v)])),
   );
@@ -91,7 +97,7 @@ export function ProductForm({
   const slug = categories.find((c) => String(c.id) === categoryId)?.slug ?? null;
   const campos = useMemo(() => atributosDe(slug), [slug]);
   // Solo líneas activas; la actual se conserva aunque esté apagada, para no perderla al guardar.
-  const lineas = categories.filter((c) => c.status === undefined || c.status === 1 || String(c.id) === String(initial.categoryId ?? ''));
+  const lineas = categories.filter((c) => tipoDeCatalogo(c.slug) === tipoActual && (c.status === undefined || c.status === 1 || String(c.id) === String(initial.categoryId ?? '')));
 
   /**
    * PRECIOS POR UNIDAD (2026-09-25). La máquina es la unidad de cotización:
@@ -206,7 +212,7 @@ export function ProductForm({
     const ok = await guardar();
     setBusy(null);
     if (!ok) return;
-    router.push(enRevision ? '/proveedores' : '/productos');
+    router.push(enRevision ? '/proveedores' : rutaPanelDeCatalogo(tipoActual));
     router.refresh();
   }
 
@@ -241,8 +247,10 @@ export function ProductForm({
     router.refresh();
   }
 
-  const titulo = isEdit ? initial.name ?? 'Equipo' : 'Nuevo equipo';
-  const volver = enRevision ? { href: '/proveedores', texto: 'Proveedores' } : { href: '/productos', texto: 'Productos' };
+  const titulo = isEdit ? initial.name ?? (tipoActual === 'servicio' ? 'Servicio' : 'Producto') : `Nuevo ${singular}`;
+  const volver = enRevision
+    ? { href: '/proveedores', texto: 'Proveedores' }
+    : { href: rutaPanelDeCatalogo(tipoActual), texto: tipoActual === 'servicio' ? 'Servicios' : 'Productos' };
 
   return (
     <form ref={form} onSubmit={(e) => { e.preventDefault(); void onGuardar(); }} encType="multipart/form-data" className="pf">
@@ -283,7 +291,7 @@ export function ProductForm({
               <input name="name" required minLength={2} defaultValue={initial.name ?? ''} style={input} />
             </Campo>
             <div className="pf-2">
-              <Campo etiqueta="Línea de servicio">
+              <Campo etiqueta={tipoActual === 'servicio' ? 'Línea de servicio' : 'Categoría'}>
                 <AdminSelect
                   name="categoryId"
                   required
@@ -298,12 +306,14 @@ export function ProductForm({
                 <input name="brand" defaultValue={initial.brand ?? ''} placeholder="CAT 320, John Deere 310L…" style={input} />
               </Campo>
             </div>
-            <Campo etiqueta="¿Se renta o se vende?" grupo>
-              <div className="pf-2">
-                <Opcion activo={isRental} onClick={() => setIsRental(true)}>Se renta</Opcion>
-                <Opcion activo={!isRental} onClick={() => setIsRental(false)}>Se vende</Opcion>
-              </div>
-            </Campo>
+            {tipoActual === 'servicio' ? (
+              <Campo etiqueta="¿Cómo se cobra?" nota="Decide qué unidades de precio se ofrecen y si lleva traslado." grupo>
+                <div className="pf-2">
+                  <Opcion activo={isRental} onClick={() => setIsRental(true)}>Por tiempo (día, semana, mes)</Opcion>
+                  <Opcion activo={!isRental} onClick={() => setIsRental(false)}>Por cantidad (viaje, tonelada, m³)</Opcion>
+                </div>
+              </Campo>
+            ) : null}
             <Campo etiqueta="Resumen" nota="Una línea que sale arriba de la ficha en el sitio.">
               <input name="short" defaultValue={initial.short ?? ''} placeholder="Excavadora de 20 t con cucharón, lista para obra." style={input} />
             </Campo>
@@ -357,11 +367,11 @@ export function ProductForm({
           </Tarjeta>
 
           <Tarjeta
-            titulo={isRental ? 'Renta y disponibilidad' : 'Venta y disponibilidad'}
+            titulo={tipoActual === 'servicio' ? 'Precios y disponibilidad' : 'Venta y existencias'}
             icono="ph-tag"
-            ayuda={isRental
-              ? 'Con estos precios cotiza el sitio: el cliente elige esta máquina y ve el importe al momento. Sin precio, el sitio dice “precio bajo cotización”.'
-              : 'Con estos precios cotiza el sitio. Sin precio, el sitio dice “precio bajo cotización”.'}
+            ayuda={tipoActual === 'servicio'
+              ? 'Precio de referencia por unidad: el sitio lo enseña como “desde” y el total exacto sale del cotizador con fechas y traslado. Sin precio, dice “precio bajo cotización”.'
+              : 'Precio fijo al que se vende y va al carrito.'}
           >
             <input type="hidden" name="priceUnit" value={unidad} />
             <input type="hidden" name="price" value={tarifasNum[unidad] ?? 0} />
@@ -586,7 +596,7 @@ export function ProductForm({
         <button type="button" onClick={() => router.push(volver.href)} style={botonSec}>Cancelar</button>
         {enRevision ? null : (
           <button type="submit" disabled={busy !== null} style={{ ...botonPri, opacity: busy ? 0.6 : 1 }}>
-            {busy === 'guardar' ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear equipo'}
+            {busy === 'guardar' ? 'Guardando…' : isEdit ? 'Guardar cambios' : `Crear ${singular}`}
           </button>
         )}
       </div>

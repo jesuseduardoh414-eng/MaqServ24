@@ -81,15 +81,18 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
       : p.isRental
         ? t(theme, 'product.badge.rental')
         : null;
-  const canAdd = !quoteMode && p.inStock && !p.isRental && p.price !== null;
+  // Un SERVICIO no va al carrito: su precio es "desde" y se cierra en el cotizador.
+  const esServicio = p.kind === 'servicio';
+  const ficha = `${esServicio ? '/servicios' : '/productos'}/${p.slug}`;
+  const canAdd = !quoteMode && !esServicio && p.inStock && !p.isRental && p.price !== null;
   // El modo (renta/venta) y la DISPONIBILIDAD ya no van juntos en una cadena:
   // el manual pide que el estado se lea de un vistazo y con su propio color
   // (21 / ESTADOS DE DISPONIBILIDAD).
-  const modo = p.isRental ? t(theme, 'product.mode.rental') : t(theme, 'product.mode.sale');
+  const modo = esServicio ? t(theme, 'product.mode.service') : p.isRental ? t(theme, 'product.mode.rental') : t(theme, 'product.mode.sale');
   const disp = estadoDeProducto(p);
   // Cotizar SIEMPRE es posible desde la card: lleva al cotizador con este equipo cargado.
   const quoteHref = `/cotizador?producto=${p.slug}`;
-  const quoteOnly = quoteMode || p.price === null; // sin precio público: cotizar es la acción principal
+  const quoteOnly = quoteMode || esServicio || p.price === null; // servicio o sin precio: cotizar es la acción
 
   function add() {
     cart.add({ productId: p.id, slug: p.slug, name: p.name, price: p.price ?? 0, image: p.image });
@@ -112,7 +115,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
     // queries había que acertarle a cada una.
     <div className="lift prod-card" style={{ position: 'relative', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column' }}>
       {/* Panel de imagen (radial claro, foto contenida sin recortar) */}
-      <Link href={`/productos/${p.slug}`} style={{ position: 'relative', height: 210, display: 'block', overflow: 'hidden', background: PANEL }}>
+      <Link href={ficha} style={{ position: 'relative', height: 210, display: 'block', overflow: 'hidden', background: PANEL }}>
         {p.image ? (
           <Image src={p.image} alt={p.name} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 33vw, 25vw" className="zoom" style={{ objectFit: 'contain', padding: 16 }} />
         ) : (
@@ -135,7 +138,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 16 }}>
           <span style={{ fontSize: '10.5px', letterSpacing: '.14em', color: 'var(--color-accent)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.brand ?? ''}</span>
         </div>
-        <Link href={`/productos/${p.slug}`} style={{ fontWeight: 700, fontSize: '15.5px', lineHeight: 1.3, margin: '8px 0 4px', color: 'var(--color-text)', textDecoration: 'none', minHeight: 40, display: 'block' }}>{p.name}</Link>
+        <Link href={ficha} style={{ fontWeight: 700, fontSize: '15.5px', lineHeight: 1.3, margin: '8px 0 4px', color: 'var(--color-text)', textDecoration: 'none', minHeight: 40, display: 'block' }}>{p.name}</Link>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{modo}</span>
           <AvailabilityBadge info={disp} />
@@ -150,6 +153,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
             ) : (
               <>
                 <div style={{ fontWeight: 800, fontSize: '20px', color: 'var(--color-text)', lineHeight: 1 }}>
+                  {esServicio ? <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: 4 }}>{t(theme, 'product.card.from')}</span> : null}
                   {formatPrice(p.price)}{unidadCorta(p) ? <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>/{unidadCorta(p)}</span> : null}
                 </div>
                 {p.oldPrice && p.oldPrice > (p.price ?? 0) ? (
@@ -168,7 +172,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
                     {added ? <><Icon name="check" size={14} />{t(theme, 'product.card.added')}</> : <><span style={{ fontSize: '14px', marginTop: -1 }}>+</span>{t(theme, 'product.card.add')}</>}
                   </button>
                 ) : (
-                  <Link href={`/productos/${p.slug}`} style={addBtn}>{t(theme, 'product.card.view')}</Link>
+                  <Link href={ficha} style={addBtn}>{t(theme, 'product.card.view')}</Link>
                 )}
                 <Link href={quoteHref} data-evento="producto_cotizar" style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--color-text-muted)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'product.card.quote')}<Icon name="arrowRight" size={11.5} /></Link>
               </>

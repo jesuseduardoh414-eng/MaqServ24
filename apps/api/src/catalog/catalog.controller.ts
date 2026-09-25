@@ -17,6 +17,12 @@ export class CatalogController {
     return Number.isFinite(n) && n >= 0 ? n : undefined;
   }
 
+  /** Cuántos servicios y productos hay publicados: el sitio decide con esto qué pestañas enseña. */
+  @Get('resumen')
+  resumen() {
+    return this.products.resumen();
+  }
+
   @Get('products')
   listProducts(
     @Query('page') page?: string,
@@ -29,6 +35,7 @@ export class CatalogController {
     @Query('minRating') minRating?: string,
     @Query('availability') availability?: string,
     @Query('sort') sort?: string,
+    @Query('kind') kind?: string,
   ) {
     // Valores fuera de catálogo se ignoran (no se filtra por basura de la URL).
     const avail = availability === 'now' || availability === 'rent' || availability === 'offer' ? availability : undefined;
@@ -44,6 +51,7 @@ export class CatalogController {
       minRating: CatalogController.num(minRating),
       availability: avail,
       sort: order,
+      kind: kind === 'servicio' || kind === 'producto' ? kind : undefined,
     });
   }
 

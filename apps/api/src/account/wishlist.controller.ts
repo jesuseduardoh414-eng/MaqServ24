@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { productSlug } from '@maqserv/config';
+import { productSlug, tipoDeCatalogo } from '@maqserv/config';
 import type { ProductCard } from '@maqserv/types';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { imageUrl } from '../catalog/images';
@@ -71,6 +71,7 @@ export class WishlistController {
       // La lista de favoritos tampoco pinta disponibilidad: mismo motivo.
       availability: null,
       categorySlug: catMap.get(p.category_id) ?? null,
+      kind: tipoDeCatalogo(catMap.get(p.category_id) ?? null),
     }));
   }
 }

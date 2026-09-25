@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { rutaDeCatalogo } from '@maqserv/config';
 import { getBlogs, getProducts, getSectors } from '@/lib/api';
 import { SITE_URL, esRutaPrivada } from '@/lib/seo';
 
@@ -8,11 +9,10 @@ type Frecuencia = NonNullable<Entrada['changeFrequency']>;
 /** Rutas fijas públicas. Lo privado NO va aquí (ver RUTAS_PRIVADAS en lib/seo.ts). */
 const FIJAS: Array<[ruta: string, freq: Frecuencia, prio: number]> = [
   ['/', 'daily', 1],
-  ['/productos', 'daily', 0.9],
+  ['/servicios', 'daily', 0.9],
+  ['/productos', 'daily', 0.7],
   ['/categorias', 'weekly', 0.7],
   ['/cotizador', 'monthly', 0.8],
-  ['/cotizador/maquinaria', 'monthly', 0.8],
-  ['/cotizador/triturados', 'monthly', 0.8],
   ['/quienes-somos', 'monthly', 0.6],
   ['/contacto', 'monthly', 0.6],
   ['/blog', 'weekly', 0.7],
@@ -65,7 +65,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const res = await getProducts({ page });
       pages = res.pages;
       for (const p of res.items) {
-        entries.push({ url: `${SITE_URL}/productos/${p.slug}`, changeFrequency: 'weekly', priority: 0.8 });
+        entries.push({ url: `${SITE_URL}${rutaDeCatalogo(p.kind)}/${p.slug}`, changeFrequency: 'weekly', priority: 0.8 });
       }
       page++;
     } while (page <= pages);

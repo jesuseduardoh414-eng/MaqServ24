@@ -364,7 +364,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
     { hecho: Boolean(aliado.phone && aliado.email && aliado.coverage.length), texto: 'Tus datos y tu cobertura', ayuda: 'Teléfono, correo y los municipios a los que llegas.' },
     { hecho: documentos.lista.length > 0, texto: 'Entregar tus papeles', ayuda: 'Póliza de seguro, constancia fiscal y DC-3 de tus operadores.' },
     { hecho: aliado.verified, texto: 'Sello de verificado', ayuda: 'Lo da MAQSER24 al revisar tus papeles vigentes.' },
-    { hecho: equipos.length > 0, texto: 'Ofrecer tus equipos', ayuda: propuestas.length ? 'Ya enviaste equipos: MAQSER24 los está revisando para publicarlos.' : 'Toca "Ofrecer un equipo" y responde las preguntas: MAQSER24 lo revisa y lo publica.' },
+    { hecho: equipos.length > 0, texto: 'Ofrecer tus servicios', ayuda: propuestas.length ? 'Ya enviaste servicios: MAQSER24 los está revisando para publicarlos.' : 'Toca "Ofrecer un servicio" y responde las preguntas: MAQSER24 lo revisa y lo publica.' },
     { hecho: equipos.length > 0 && equiposConfirmados === equipos.length, texto: 'Disponibilidad confirmada', ayuda: 'Toca "Sigue libre" en cada equipo al menos cada 14 días.' },
   ];
   const listos = pasos.filter((p) => p.hecho).length;
@@ -626,11 +626,11 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           icono="box"
           extra={!ofreciendo && lineasOferta.length > 0 ? (
             <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13.5 }} onClick={() => { setOfreciendo(true); setMsg(null); }}>
-              + Ofrecer un equipo
+              + Ofrecer un servicio
             </button>
           ) : null}
         >
-          Tus equipos
+          Tus servicios
         </Titulo>
 
         {ofreciendo ? (
@@ -669,7 +669,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         ) : null}
         {equipos.length === 0 ? (
           <div style={{ ...card, fontSize: 14, lineHeight: 1.6, ...muted }}>
-            Todavía no tienes equipos publicados. Toca <strong style={{ color: 'var(--color-text)' }}>"Ofrecer un equipo"</strong>,
+            Todavía no tienes servicios publicados. Toca <strong style={{ color: 'var(--color-text)' }}>"Ofrecer un servicio"</strong>,
             responde las preguntas y sube fotos: MAQSER24 lo revisa y, al publicarlo, aparece aquí para que confirmes si sigue libre.
           </div>
         ) : (

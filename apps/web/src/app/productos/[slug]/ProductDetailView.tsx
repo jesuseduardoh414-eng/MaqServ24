@@ -104,7 +104,10 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
   const disp = estadoDeProducto(product);
   const ctxDisp = contextoDisponibilidad(product.availability);
   const quickSpecs = product.specs.slice(0, 3);
-  const canBuy = !quoteMode && product.price !== null && product.inStock;
+  // Un SERVICIO no se compra aquí: el precio es "desde" y el total (fechas,
+  // traslado, IVA) lo da el cotizador con la máquina ya elegida.
+  const esServicio = product.kind === 'servicio';
+  const canBuy = !quoteMode && !esServicio && product.price !== null && product.inStock;
   const short = product.short ?? '';
 
   function addToCart() {
@@ -158,7 +161,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
       <main className="pd-wrap" style={{ maxWidth: 1280, margin: '0 auto', padding: '32px 40px 40px' }}>
         {/* breadcrumb */}
         <div style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.1em', color: 'var(--color-text-muted)', marginBottom: 34 }}>
-          <Link href="/" style={{ color: 'var(--color-text-muted)' }}>INICIO</Link> / <Link href="/productos" style={{ color: 'var(--color-text-muted)' }}>PRODUCTOS</Link>
+          <Link href="/" style={{ color: 'var(--color-text-muted)' }}>INICIO</Link> / <Link href={esServicio ? '/servicios' : '/productos'} style={{ color: 'var(--color-text-muted)' }}>{esServicio ? 'SERVICIOS' : 'PRODUCTOS'}</Link>
           {product.categoryName ? <> / <span style={{ color: 'var(--color-text)' }}>{product.categoryName}</span></> : null}
         </div>
 
@@ -208,6 +211,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
             {!quoteMode && product.price !== null ? (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '22px 0', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
+                {esServicio ? <span style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.14em', color: 'var(--color-text-muted)' }}>DESDE</span> : null}
                 <span style={{ fontFamily: DISPLAY, fontSize: 42, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(effPrice as number)}</span>
                 <span style={{ fontFamily: MONO, fontSize: 13, color: 'var(--color-text-muted)' }}>{priceUnit}</span>
               </div>
@@ -219,7 +223,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
             {isR && porTiempo && !quoteMode && product.price !== null ? (
               <div style={{ marginBottom: 26 }}>
-                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: 10 }}>PERIODO DE RENTA</div>
+                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: 10 }}>{esServicio ? 'TARIFAS DE REFERENCIA' : 'PERIODO DE RENTA'}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                   {PERIODS.map(([key, label]) => {
                     const on = period === key;
@@ -231,6 +235,11 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     );
                   })}
                 </div>
+                {esServicio ? (
+                  <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 10, lineHeight: 1.5 }}>
+                    El total exacto, con tus fechas y el traslado a tu obra, lo ves en el cotizador antes de solicitar.
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -288,7 +297,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
               </>
             ) : (
               <div style={{ display: 'flex', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
-                <Link href={`/cotizador?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 'var(--radius-button)' }}>Solicitar cotización<Icon name="arrowRight" size={16} /></Link>
+                <Link href={`/cotizador?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" style={{ flex: 1, minWidth: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '16px 30px', borderRadius: 'var(--radius-button)' }}>{esServicio ? 'Cotizar este servicio' : 'Solicitar cotización'}<Icon name="arrowRight" size={16} /></Link>
                 <button type="button" onClick={toggleFav} aria-pressed={fav === true} title="Favoritos" style={{ width: 56, fontSize: 20, background: 'var(--color-bg)', color: 'var(--color-primary)', border: `1px solid ${fav ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-button)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="heart" size={20} fill={!!fav} /></button>
               </div>
             )}

@@ -1,3 +1,5 @@
+import { rutaDeCatalogo, tipoDeCatalogo } from '@maqserv/config';
+
 /**
  * A dónde lleva la tarjeta de una categoría de servicio.
  *
@@ -13,8 +15,9 @@
  * tocar código.
  */
 export function categoryHref(c: { slug: string; productCount: number }): string {
+  // Servicios y productos viven en listados distintos (2026-09-25).
   return c.productCount > 0
-    ? `/productos?categoria=${c.slug}`
+    ? `${rutaDeCatalogo(tipoDeCatalogo(c.slug))}?categoria=${c.slug}`
     : `/cotizar?servicio=${encodeURIComponent(c.slug)}`;
 }
 

@@ -54,6 +54,15 @@ export {
   type Horario,
   type Tarifas,
 } from './ficha-maquina';
+export {
+  LINEAS_SERVICIO,
+  esLineaServicio,
+  tipoDeCatalogo,
+  rutaDeCatalogo,
+  rutaDeFicha,
+  rutaPanelDeCatalogo,
+  type TipoCatalogo,
+} from './catalogo-tipos';
 export { MARKETPLACE_ACTIVO } from './marketplace';
 export { NEWSLETTER_ACTIVO, CRM_ACTIVO } from './newsletter';
 export {

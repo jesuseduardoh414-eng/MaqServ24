@@ -19,6 +19,7 @@ import { ACCOUNT_LINKS } from '@/lib/account-links';
 const NAV_ICONS: Record<string, IconName> = {
   '/': 'home',
   '/productos': 'box',
+  '/servicios': 'box',
   '/categorias': 'grid',
   '/cotizador': 'calculator',
   '/quienes-somos': 'users',

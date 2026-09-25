@@ -7,7 +7,7 @@ import { ProductForm } from '@/components/ProductForm';
  * Alta de producto. Con `?proveedor=<id>` (el botón "Agregar equipo" del
  * expediente del aliado) la ficha nace ya a nombre de ese aliado.
  */
-export default async function NewProductPage({ searchParams }: { searchParams: Promise<{ proveedor?: string }> }) {
+export default async function NewProductPage({ searchParams }: { searchParams: Promise<{ proveedor?: string; tipo?: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'catalogo');
@@ -21,7 +21,8 @@ export default async function NewProductPage({ searchParams }: { searchParams: P
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <ProductForm initial={proveedor ? { providerId: proveedor.id } : {}} categories={categories} providers={providers} />
+      {/* `?tipo=producto` viene del gestor de Productos; sin él es un servicio (hoy, todo). */}
+      <ProductForm initial={proveedor ? { providerId: proveedor.id } : {}} categories={categories} providers={providers} tipo={sp.tipo === 'producto' ? 'producto' : 'servicio'} />
     </AdminShell>
   );
 }

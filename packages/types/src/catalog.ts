@@ -47,6 +47,11 @@ export interface ProductCard {
    */
   availability: Availability | null;
   categorySlug: string | null;
+  /**
+   * Servicio (se cotiza: las cinco líneas de MAQSER24) o producto (se vende a
+   * precio fijo, al carrito). Sale de la categoría; ver `tipoDeCatalogo`.
+   */
+  kind: 'servicio' | 'producto';
 }
 
 export interface MedicalInfo {

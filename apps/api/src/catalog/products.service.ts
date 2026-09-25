@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
-import { productSlug } from '@maqserv/config';
+import { productSlug, LINEAS_SERVICIO, tipoDeCatalogo } from '@maqserv/config';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
 import { lista } from '../common/json-list';
@@ -80,6 +80,7 @@ export class ProductsService {
         blocks: bloqueos.get(p.id) ?? [],
       }),
       categorySlug: catSlugs.get(p.category_id) ?? null,
+      kind: tipoDeCatalogo(catSlugs.get(p.category_id) ?? null),
     };
   }
 
@@ -196,6 +197,21 @@ export class ProductsService {
     return rows.filter((r) => (r._avg.rating ?? 0) >= min).map((r) => r.product_id);
   }
 
+  private async idsDeLineasServicio(): Promise<number[]> {
+    const cats = await prisma.categories.findMany({ where: { cat_slug: { in: [...LINEAS_SERVICIO] } }, select: { id: true } });
+    return cats.map((c) => c.id);
+  }
+
+  /** Cuántos servicios y cuántos productos hay publicados: decide qué pestañas enseña el sitio. */
+  async resumen(): Promise<{ servicios: number; productos: number }> {
+    const ids = await this.idsDeLineasServicio();
+    const [servicios, productos] = await Promise.all([
+      prisma.products.count({ where: { status: 1, category_id: { in: ids } } }),
+      prisma.products.count({ where: { status: 1, category_id: { notIn: ids } } }),
+    ]);
+    return { servicios, productos };
+  }
+
   async list(opts: {
     page?: number;
     search?: string;
@@ -211,6 +227,8 @@ export class ProductsService {
     availability?: 'now' | 'rent' | 'offer';
     /** `low`/`high` = precio · `new` = más recientes. Default: relevancia (id desc). */
     sort?: 'low' | 'high' | 'new';
+    /** Servicios (las líneas de MAQSER24) o productos (lo demás). */
+    kind?: 'servicio' | 'producto';
   }): Promise<Paginated<ProductCard>> {
     const page = Math.max(1, opts.page ?? 1);
 
@@ -229,6 +247,12 @@ export class ProductsService {
     ]);
     if (opts.subcategory) where.subcategory_id = sub ? sub.id : -1;
     if (opts.category) where.category_id = cat ? cat.id : -1; // categoría inexistente → 0 resultados
+    // Por tipo: las categorías de servicio están en config; lo demás es producto.
+    // Una categoría explícita ya decide el tipo, así que solo aplica sin ella.
+    if (opts.kind && !opts.category) {
+      const ids = await this.idsDeLineasServicio();
+      where.category_id = opts.kind === 'servicio' ? { in: ids } : { notIn: ids };
+    }
 
     // Precio: `cprice` es el precio de venta/renta mensual que ve el cliente.
     if (opts.minPrice !== undefined || opts.maxPrice !== undefined) {

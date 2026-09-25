@@ -198,8 +198,11 @@ export function getProducts(opts: {
   minRating?: number;
   availability?: string;
   sort?: string;
+  /** Servicios (se cotizan) o productos (carrito). Sin él, todo. */
+  kind?: 'servicio' | 'producto';
 } = {}): Promise<Paginated<ProductCard>> {
   const q = new URLSearchParams();
+  if (opts.kind) q.set('kind', opts.kind);
   if (opts.page) q.set('page', String(opts.page));
   if (opts.search) q.set('search', opts.search);
   if (opts.category) q.set('category', opts.category);
@@ -220,6 +223,14 @@ export function getSubcategories(categorySlug: string): Promise<Array<{ id: numb
 
 export function getProduct(id: number): Promise<ProductDetail> {
   return get(`/catalog/products/${id}`);
+}
+
+/**
+ * Cuántos servicios y productos hay publicados. Decide qué pestañas enseña el
+ * menú: hoy solo hay servicios, y "Productos" aparece cuando exista uno.
+ */
+export function getCatalogoResumen(): Promise<{ servicios: number; productos: number }> {
+  return getOr('/catalog/resumen', { servicios: 0, productos: 0 });
 }
 
 export function getCategories(): Promise<Category[]> {

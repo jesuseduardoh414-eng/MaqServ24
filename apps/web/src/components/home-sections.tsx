@@ -239,6 +239,8 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
     getCategories().catch(() => []),
   ]);
   const products = (featured.length > 0 ? featured : (await getProducts({}).catch(() => ({ items: [] }))).items).slice(0, f.limit);
+  // "Ver todo" va al listado del tipo que se está enseñando (hoy, servicios).
+  const verTodo = products.length > 0 && products.every((p) => p.kind === 'producto') ? '/productos' : '/servicios';
   if (products.length === 0) return null;
 
   const isCenter = f.align === 'center';
@@ -259,7 +261,7 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
               <h2 style={{ ...H2, fontSize: 'clamp(2rem, 4.4vw, 2.6rem)', margin: '0 0 12px', color: f.titleColor ?? undefined }}>{t(theme, 'home.featured.title')}</h2>
               <p style={{ color: 'var(--color-text-muted)', fontSize: '16px', margin: 0, fontWeight: 300, lineHeight: 1.6 }}>{t(theme, 'home.featured.subtitle')}</p>
             </div>
-            <Link href="/productos" style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '14.5px', padding: '13px 24px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
+            <Link href={verTodo} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '14.5px', padding: '13px 24px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
               {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={17} />
             </Link>
           </div>
@@ -273,7 +275,7 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
         />
         {isCenter ? (
           <div style={{ textAlign: 'center', marginTop: 40 }}>
-            <Link href="/productos" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '15px', padding: '15px 30px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
+            <Link href={verTodo} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '15px', padding: '15px 30px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
               {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={17} />
             </Link>
           </div>

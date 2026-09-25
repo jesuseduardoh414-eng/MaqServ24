@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { MARKETPLACE_ACTIVO, NEWSLETTER_ACTIVO, defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
-import { getSiteSettings } from '@/lib/api';
+import { getCatalogoResumen, getSiteSettings } from '@/lib/api';
 import { HeaderActions } from '@/components/HeaderActions';
 import { MainNav } from '@/components/MainNav';
 import { MobileNav } from '@/components/MobileNav';
@@ -25,7 +25,10 @@ const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', paddi
  * Todo color/texto sale de tokens/copys/BD (regla de oro).
  */
 export async function SiteHeader({ theme }: { theme: Theme }) {
-  const settings = await getSiteSettings().catch(() => ({ email: null, phone: null, logo: null }));
+  const [settings, resumen] = await Promise.all([
+    getSiteSettings().catch(() => ({ email: null, phone: null, logo: null })),
+    getCatalogoResumen(),
+  ]);
   const brand = t(theme, 'site.name');
   // Canales de contacto (editables en Diseño → Contacto): alimentan la barra superior.
   const contact = theme.tokens.contact ?? defaultTheme.tokens.contact;
@@ -35,7 +38,10 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
   // drawer de móvil (si divergen, el menú miente en uno de los dos).
   const navItems = [
     { href: '/', label: t(theme, 'nav.home') },
-    { href: '/productos', label: t(theme, 'nav.products') },
+    // Servicios y Productos (2026-09-25): cada pestaña solo si hay algo publicado
+    // de ese tipo. Hoy todo son servicios; "Productos" aparece cuando exista uno.
+    ...(resumen.servicios > 0 || resumen.productos === 0 ? [{ href: '/servicios', label: t(theme, 'nav.services') }] : []),
+    ...(resumen.productos > 0 ? [{ href: '/productos', label: t(theme, 'nav.products') }] : []),
     { href: '/categorias', label: t(theme, 'nav.categories') },
     // Cotizador guiado (2026-09-25): una sola entrada; la línea se elige adentro.
     { href: '/cotizador', label: t(theme, 'nav.quoter') },

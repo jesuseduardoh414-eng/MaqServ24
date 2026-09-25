@@ -146,7 +146,7 @@ export function OfrecerEquipo({
   return (
     <div style={{ ...card, borderColor: 'var(--color-primary)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <strong style={{ fontSize: 17 }}>Ofrecer un equipo</strong>
+        <strong style={{ fontSize: 17 }}>Ofrecer un servicio</strong>
         <button type="button" onClick={onCerrar} aria-label="Cerrar" style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex' }}>
           <Icon name="x" size={18} />
         </button>
@@ -200,11 +200,11 @@ export function OfrecerEquipo({
               <input value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="CAT 320, John Deere 310L…" style={campo} />
             </label>
             <div style={{ display: 'grid', gap: 6 }}>
-              <span style={etiqueta}>¿Lo rentas o lo vendes?</span>
+              <span style={etiqueta}>¿Cómo lo cobras?</span>
               <div style={{ display: 'flex', gap: 8 }}>
                 {(['renta', 'venta'] as const).map((m) => (
                   <button key={m} type="button" onClick={() => setModalidad(m)} style={{ ...btnSec, flex: 1, borderColor: modalidad === m ? 'var(--color-primary)' : 'var(--color-border)', background: modalidad === m ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}>
-                    {m === 'renta' ? 'Lo rento' : 'Lo vendo'}
+                    {m === 'renta' ? 'Por tiempo (día, semana, mes)' : 'Por cantidad (viaje, tonelada, m³)'}
                   </button>
                 ))}
               </div>
@@ -292,7 +292,7 @@ export function OfrecerEquipo({
         {paso === P.precios ? (
           <>
             <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>
-              Lo que cobras por {modalidad === 'renta' ? 'rentarlo' : 'venderlo'}. Con eso MAQSER24 arma el precio al cliente. Llena las unidades que manejes.
+              Lo que cobras. Con eso MAQSER24 arma el precio al cliente. Llena las unidades que manejes.
             </p>
             <div style={{ display: 'grid', gap: 10 }}>
               {unidadesPrecio.map((u) => (
@@ -366,7 +366,7 @@ export function OfrecerEquipo({
               ['Línea', lineaLabel],
               ['Qué es', nombre],
               ['Marca', marca || '—'],
-              ['Modalidad', modalidad === 'renta' ? 'Renta' : 'Venta'],
+              ['Cobro', modalidad === 'renta' ? 'Por tiempo' : 'Por cantidad'],
               ...preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).map((q) => [q.label, `${atributos[q.clave]}${q.unidad ? ` ${q.unidad}` : ''}`]),
               ['Dónde está', ubicacion || '—'],
               ['Horario', textoHorario(horario)],

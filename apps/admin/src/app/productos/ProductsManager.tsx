@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
-import { unidadesDe, atributosDe } from '@maqserv/config';
+import { useRouter } from 'next/navigation';
+import { unidadesDe, atributosDe, tipoDeCatalogo, type TipoCatalogo } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
 
 export interface ProductRow {
@@ -42,10 +43,26 @@ interface Form {
   attributes: Record<string, string>;
 }
 
-export function ProductsManager({ initial, categories }: { initial: ProductRow[]; categories: CatOption[] }) {
+export function ProductsManager({ initial, categories, tipo }: { initial: ProductRow[]; categories: CatOption[]; tipo: TipoCatalogo }) {
   const emptyForm: Form = { name: '', brand: '', categoryId: categories[0]?.id ?? 0, price: '', oldPrice: '', stock: '', short: '', description: '', specs: [], isRental: false, rentalFreight: '', featured: false, status: 1, priceUnit: '', attributes: {} };
 
-  const [items, setItems] = useState<ProductRow[]>(initial);
+  /**
+   * SERVICIOS O PRODUCTOS (2026-09-25). Esta pantalla gestiona uno de los dos
+   * tipos; el tipo lo decide la categoría de cada ficha (`tipoDeCatalogo`).
+   * Las fichas se crean y editan en la página de ficha completa, no en el
+   * modal de abajo (que quedó sin uso: no tiene tarifas ni horario).
+   */
+  const router = useRouter();
+  const nombre = tipo === 'servicio' ? 'Servicios' : 'Productos';
+  const singular = tipo === 'servicio' ? 'servicio' : 'producto';
+  const slugDeCat = useMemo(() => new Map(categories.map((c) => [c.name, c.slug])), [categories]);
+  const categoriasTipo = useMemo(() => categories.filter((c) => tipoDeCatalogo(c.slug) === tipo), [categories, tipo]);
+
+  const [todos, setItems] = useState<ProductRow[]>(initial);
+  const items = useMemo(
+    () => todos.filter((p) => tipoDeCatalogo(slugDeCat.get(p.categoryName ?? '') ?? null) === tipo),
+    [todos, slugDeCat, tipo],
+  );
   const [query, setQuery] = useState('');
   const [catFilter, setCatFilter] = useState('todas');
   const [filter, setFilter] = useState<'todos' | 'activos' | 'destacados'>('todos');
@@ -138,9 +155,13 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
   }
 
   function openNew() {
-    setEditingId(null); setForm(emptyForm); setFile(null); setPreview(null); setCurrentImage(null); setConfirmId(null); setGallery([]); setModalOpen(true);
+    router.push(`/productos/nuevo?tipo=${tipo}`);
   }
   async function openEdit(p: ProductRow) {
+    router.push(`/productos/editar/${p.id}`);
+    return;
+    // Modal viejo, sin uso: se conserva hasta retirar el resto del código.
+    // eslint-disable-next-line no-unreachable
     setEditingId(p.id); setConfirmId(null); setFile(null); setPreview(null); setCurrentImage(p.image); setGallery([]); setModalOpen(true);
     fetch(`/api/admin/catalog/products/${p.id}/gallery`).then((r) => (r.ok ? r.json() : [])).then((g) => setGallery(Array.isArray(g) ? g : [])).catch(() => setGallery([]));
     setForm({ ...emptyForm, name: p.name, brand: p.brand ?? '', price: p.price != null ? String(p.price) : '', stock: p.stock != null ? String(p.stock) : '', featured: p.featured, status: p.status, isRental: p.isRental });
@@ -282,15 +303,15 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ fontSize: 12, color: C.dim, fontWeight: 300, marginBottom: 6 }}>Catálogo <span style={{ margin: '0 6px' }}>/</span> <span style={{ color: C.muted }}>Productos</span></div>
-          <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>Productos <span style={{ color: C.dim, fontWeight: 600, fontSize: 22 }}>({stats.total})</span></h1>
+          <div style={{ fontSize: 12, color: C.dim, fontWeight: 300, marginBottom: 6 }}>Catálogo <span style={{ margin: '0 6px' }}>/</span> <span style={{ color: C.muted }}>{nombre}</span></div>
+          <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>{nombre} <span style={{ color: C.dim, fontWeight: 600, fontSize: 22 }}>({stats.total})</span></h1>
         </div>
-        <button type="button" onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 12px 26px -14px color-mix(in srgb, var(--color-primary) 70%, transparent)' }}><i className="ph-bold ph-plus" style={{ fontSize: 15 }} /> Nuevo producto</button>
+        <button type="button" onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 12px 26px -14px color-mix(in srgb, var(--color-primary) 70%, transparent)' }}><i className="ph-bold ph-plus" style={{ fontSize: 15 }} /> Nuevo {singular}</button>
       </div>
 
       {/* Stats */}
       <div className="pr-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 22 }}>
-        {statCard('Productos', stats.total, 'ph-cube', C.blue)}
+        {statCard(nombre, stats.total, 'ph-cube', C.blue)}
         {statCard('Activos', stats.activos, 'ph-check-circle', C.green, C.green)}
         {statCard('Destacados', stats.destacados, 'ph-star', C.amber, C.amber)}
         {statCard('Bajo stock', stats.bajo, 'ph-warning', C.red)}
@@ -308,7 +329,7 @@ export function ProductsManager({ initial, categories }: { initial: ProductRow[]
           ariaLabel="Categoría"
           value={catFilter}
           onChange={setCatFilter}
-          options={[{ value: 'todas', label: 'Todas las categorías' }, ...categories.map((c) => ({ value: c.name, label: c.name }))]}
+          options={[{ value: 'todas', label: tipo === 'servicio' ? 'Todas las líneas' : 'Todas las categorías' }, ...categoriasTipo.map((c) => ({ value: c.name, label: c.name }))]}
         />
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={() => setFilter('todos')} style={chip(filter === 'todos')}>Todos</button>
