@@ -127,8 +127,19 @@ export function importeMaquina(d: {
   unidades: number;
   equipos?: number;
   minimo?: number | null;
-}): { precioUnitario: number; unidadesCobradas: number; equipos: number; subtotal: number; notaMinimo: string | null } | null {
-  const precioUnitario = d.tarifas[d.unidad];
+}): { precioUnitario: number; unidadesCobradas: number; equipos: number; subtotal: number; notaMinimo: string | null; tramo: string | null } | null {
+  /**
+   * TRAMOS COMO EN EL COTIZADOR ORIGINAL (2026-09-25): "los días definen la
+   * tarifa: 1-5 día, 6-15 semana, 16+ mes". Si se piden días y la máquina
+   * tiene tarifa semanal o mensual, el día sale de ese tramo (semana/5,
+   * mes/20: días hábiles, como se cotiza en el ramo).
+   */
+  let precioUnitario = d.tarifas[d.unidad];
+  let tramo: string | null = null;
+  if (d.unidad === 'dia') {
+    if (d.unidades >= 16 && d.tarifas.mes) { precioUnitario = Math.round((d.tarifas.mes / 20) * 100) / 100; tramo = 'Tarifa mensual (16 días o más)'; }
+    else if (d.unidades >= 6 && d.tarifas.semana) { precioUnitario = Math.round((d.tarifas.semana / 5) * 100) / 100; tramo = 'Tarifa semanal (6 a 15 días)'; }
+  }
   if (!precioUnitario) return null;
   const equipos = Math.max(1, Math.floor(d.equipos ?? 1));
   const pedidas = Math.max(0, d.unidades);
@@ -145,5 +156,6 @@ export function importeMaquina(d: {
     equipos,
     subtotal: Math.round(precioUnitario * unidadesCobradas * equipos * 100) / 100,
     notaMinimo,
+    tramo,
   };
 }

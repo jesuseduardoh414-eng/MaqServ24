@@ -60,6 +60,8 @@ export interface EntradaRecomendacion {
   productoId?: number | null;
   /** Solo esta máquina (al solicitar). */
   soloProductoId?: number | null;
+  /** Triturados/materiales: el cliente lo recoge en planta (sin traslado), como el LAB del cotizador original. */
+  recoger?: boolean | null;
 }
 
 export interface MaquinaRecomendada {
@@ -243,7 +245,9 @@ export class RecomendadorService {
       // 4. Cuesta
       const tarifas = tarifasDe(p.tarifas);
       const imp = importeMaquina({ tarifas, unidad, unidades, equipos, minimo: p.minimo });
-      const flete = this.flete({ km, cfg, esRenta: p.is_rental, tarifaKm: p.rental_freight ? Number(p.rental_freight) : null, equipos });
+      const flete = e.recoger
+        ? { costo: 0, texto: 'Lo recoges en planta' }
+        : this.flete({ km, cfg, esRenta: p.is_rental, tarifaKm: p.rental_freight ? Number(p.rental_freight) : null, equipos });
       const subtotal = imp?.subtotal ?? null;
       const base = subtotal !== null ? subtotal + (flete.costo ?? 0) : null;
       const iva = base !== null && tax > 0 ? r2(base * tax / 100) : 0;
@@ -271,7 +275,7 @@ export class RecomendadorService {
         fleteTexto: flete.texto,
         iva,
         total,
-        notaMinimo: imp?.notaMinimo ?? null,
+        notaMinimo: [imp?.tramo, imp?.notaMinimo].filter(Boolean).join('. ') || null,
         porque,
         providerId: aliado.id,
         providerName: aliado.name,
@@ -349,7 +353,8 @@ export class RecomendadorService {
    */
   private flete(d: { km: number | null; cfg: Awaited<ReturnType<FreightService['config']>>; esRenta: boolean; tarifaKm: number | null; equipos: number }): { costo: number | null; texto: string } {
     const { cfg } = d;
-    if (!cfg.enabled || (cfg.rentalOnly && !d.esRenta)) return { costo: 0, texto: 'Sin traslado' };
+    // En el cotizador todo es servicio: el traslado aplica aunque se cobre por cantidad (grava puesta en obra).
+    if (!cfg.enabled) return { costo: 0, texto: 'Sin traslado' };
     if (cfg.mode === 'flat') return { costo: r2(Math.max(cfg.minCharge, cfg.base + cfg.flatAmount * (cfg.perUnit ? d.equipos : 1))), texto: cfg.label };
     if (cfg.mode === 'quote') return { costo: null, texto: cfg.quoteText };
     if (d.km === null) return { costo: null, texto: 'Traslado a cotizar' };

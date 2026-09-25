@@ -544,7 +544,7 @@ function ExpedienteModal({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '14px 0 10px' }}>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Qué ofrece</h3>
           <a href={`/productos/nuevo?proveedor=${p.id}`} style={{ background: C.accent, color: C.accentInk, borderRadius: 9, padding: '7px 13px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-            + Agregar equipo
+            + Agregar servicio o producto
           </a>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -623,7 +623,7 @@ function ExpedienteModal({
         <div style={{ display: 'grid', gap: 10, marginBottom: 22 }}>
           {publicados.length === 0 ? (
             <div style={{ color: C.dim, fontSize: 13.5, lineHeight: 1.6 }}>
-              Todavía no tiene equipos. Con "Agregar equipo" creas la ficha de su máquina (tipo, marca, capacidad,
+              Todavía no tiene servicios ni productos. Con "Agregar servicio o producto" creas la ficha (tipo, marca, capacidad,
               fotos) ya a su nombre. Si la máquina ya existe en el catálogo, ábrela y en "De quién es el equipo" elígelo a él.
             </div>
           ) : null}

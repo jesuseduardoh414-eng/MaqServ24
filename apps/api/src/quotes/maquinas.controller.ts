@@ -40,6 +40,7 @@ const entradaSchema = z.object({
   unidades: z.coerce.number().min(0.5).max(1000),
   equipos: z.coerce.number().int().min(1).max(20).optional(),
   productoId: z.number().int().positive().nullable().optional(),
+  recoger: z.boolean().nullable().optional(),
 });
 
 /** Una máquina elegida con lo que se pide de ella. */

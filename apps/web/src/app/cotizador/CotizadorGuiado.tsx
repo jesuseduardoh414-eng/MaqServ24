@@ -59,6 +59,7 @@ interface EntradaGuiada {
   unidades: number;
   equipos: number;
   productoId: number | null;
+  recoger?: boolean;
 }
 /** Una máquina ya elegida para esta cotización. */
 interface Partida { maquina: Maquina; entrada: EntradaGuiada; clave: string }
@@ -71,6 +72,31 @@ const PASOS = [
   { clave: 'elige', titulo: 'Elige la máquina' },
   { clave: 'confirmar', titulo: 'Confirmación' },
 ];
+
+interface Pregunta { titulo: string; cantidad: string; unidades: string[]; equipos?: string; entrega?: boolean; nota: string }
+const PREGUNTAS: Record<string, Pregunta> = {
+  'maquinaria-pesada': {
+    titulo: '¿Cuándo y cuántos días de renta?', cantidad: '¿Cuántos días?', unidades: ['dia', 'hora'], equipos: 'Cuántas máquinas',
+    nota: 'Los días definen la tarifa: de 1 a 5 días por día, de 6 a 15 semanal y de 16 en adelante mensual. Por hora solo para trabajos cortos.',
+  },
+  'transporte-y-servicios-de-obra': {
+    titulo: '¿Cuándo y cuántos viajes?', cantidad: '¿Cuántos viajes?', unidades: ['viaje', 'jornada'], equipos: 'Cuántas unidades',
+    nota: 'Un viaje es una carga puesta en tu obra (una pipa llena o un volteo). Por jornada si la unidad se queda todo el día.',
+  },
+  triturados: {
+    titulo: '¿Cuándo y cuánto material?', cantidad: '¿Cuánto material?', unidades: ['tonelada', 'm3', 'viaje'], entrega: true,
+    nota: 'Por tonelada (se pesa en báscula), por m³ o por viaje de volteo.',
+  },
+  'materiales-para-construccion': {
+    titulo: '¿Cuándo y cuánto material?', cantidad: '¿Cuánto material?', unidades: ['m3', 'tonelada', 'pieza', 'bulto'], entrega: true,
+    nota: 'Concreto por m³, acero por tonelada, block por pieza, cemento por bulto.',
+  },
+  'soluciones-asfalticas': {
+    titulo: '¿Cuándo y cuánta superficie?', cantidad: '¿Cuánto?', unidades: ['m2', 'tonelada', 'm3'],
+    nota: 'Carpeta por m² colocado; mezcla sola por tonelada.',
+  },
+};
+const PREGUNTA_GENERICA: Pregunta = { titulo: '¿Cuándo y cuánto?', cantidad: '¿Cuánto?', unidades: [], equipos: 'Cuántas', nota: '' };
 
 const manana = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
 
@@ -155,6 +181,17 @@ export function CotizadorGuiado({
   const [unidad, setUnidad] = useState('dia');
   const [unidades, setUnidades] = useState(1);
   const [equipos, setEquipos] = useState(1);
+  const [recoger, setRecoger] = useState(false);
+  /**
+   * QUÉ SE PREGUNTA SEGÚN EL SERVICIO (2026-09-25), como los cotizadores
+   * originales: la maquinaria se renta por días (el tramo decide la tarifa),
+   * las pipas y volteos por viaje, y los materiales por cantidad, puestos en
+   * obra o recogidos en planta.
+   */
+  const pregunta = PREGUNTAS[linea] ?? PREGUNTA_GENERICA;
+  const unidadesPregunta = pregunta.unidades.length
+    ? unidadesLinea.filter((x) => pregunta.unidades.includes(x.clave))
+    : unidadesLinea;
   // Si mañana o las 8:00 no caen en su horario, se proponen el primer día y la primera hora que sí.
   useEffect(() => {
     if (!horarioMaquina) return;
@@ -226,6 +263,7 @@ export function CotizadorGuiado({
     unidades,
     equipos,
     productoId: preferido,
+    ...(pregunta.entrega ? { recoger } : {}),
   });
   const cuerpoSolicitud = (lista: Partida[]) => ({
     partidas: lista.map((p) => ({ ...p.entrada, productoId: p.maquina.id })),
@@ -457,7 +495,7 @@ export function CotizadorGuiado({
       {/* ── 4 · Cuándo ── */}
       {paso === 3 ? (
         <div style={card}>
-          <h2 style={leyenda}>¿Cuándo y por cuánto tiempo?</h2>
+          <h2 style={leyenda}>{pregunta.titulo}</h2>
           <div className="cg-three" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
             <div style={{ display: 'grid', gap: 6 }}>
               <span style={etiquetaReq}>Fecha</span>
@@ -468,17 +506,34 @@ export function CotizadorGuiado({
               <SelectorHora value={hora} onChange={setHora} style={campo} desde={horaDesde} hasta={horaHasta} />
               {horarioMaquina ? <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Esta máquina atiende en ese horario.</span> : null}
             </div>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={etiquetaReq}>Cuántas máquinas</span>
-              <input type="number" min={1} max={20} value={equipos} onChange={(e) => setEquipos(Math.max(1, Number(e.target.value) || 1))} style={campo} />
-            </label>
+            {pregunta.equipos ? (
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={etiquetaReq}>{pregunta.equipos}</span>
+                <input type="number" min={1} max={20} value={equipos} onChange={(e) => setEquipos(Math.max(1, Number(e.target.value) || 1))} style={campo} />
+              </label>
+            ) : <div />}
           </div>
+          {pregunta.entrega ? (
+            <div style={{ marginTop: 14, display: 'grid', gap: 6 }}>
+              <span style={etiquetaReq}>¿Cómo lo recibes?</span>
+              <div className="cg-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <button type="button" onClick={() => setRecoger(false)} aria-pressed={!recoger} style={opcion(!recoger)}>
+                  <span style={{ display: 'block', fontWeight: 700 }}>Puesto en obra</span>
+                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 3 }}>Te lo llevamos; se suma el traslado.</span>
+                </button>
+                <button type="button" onClick={() => setRecoger(true)} aria-pressed={recoger} style={opcion(recoger)}>
+                  <span style={{ display: 'block', fontWeight: 700 }}>Lo recojo en planta</span>
+                  <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 3 }}>Sin traslado: pasas por él.</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
           <div style={{ marginTop: 14, display: 'grid', gap: 6 }}>
-            <span style={etiquetaReq}>¿Cuánto?</span>
+            <span style={etiquetaReq}>{pregunta.cantidad}</span>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <input type="number" min={0.5} step={u?.decimales ? 0.5 : 1} value={unidades} onChange={(e) => setUnidades(Math.max(0.5, Number(e.target.value) || 1))} style={{ ...campo, width: 110 }} />
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {unidadesLinea.map((x) => {
+                {unidadesPregunta.map((x) => {
                   const on = unidad === x.clave;
                   return (
                     <button key={x.clave} type="button" onClick={() => setUnidad(x.clave)} aria-pressed={on} style={{ ...chip, borderColor: on ? 'var(--color-primary)' : 'var(--color-border)', background: on ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}>
@@ -488,9 +543,7 @@ export function CotizadorGuiado({
                 })}
               </div>
             </div>
-            <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
-              Ejemplo: 3 días de excavadora, 2 viajes de pipa, 15 toneladas de grava.
-            </span>
+            <span style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>{pregunta.nota}</span>
           </div>
         </div>
       ) : null}
