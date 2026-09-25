@@ -148,12 +148,16 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
 
         <div className="prod-card-foot" style={{ marginTop: 'auto', paddingTop: 15, borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
           <div className="prod-card-price" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-            {quoteMode || p.price === null ? (
+            {esServicio ? (
+              // Un servicio no enseña importe: se cotiza con fechas y obra.
+              <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.35 }}>
+                Se cotiza{p.priceUnit && UNIDADES[p.priceUnit] ? ` por ${UNIDADES[p.priceUnit].singular}` : ''}
+              </div>
+            ) : quoteMode || p.price === null ? (
               <div style={{ fontWeight: 800, fontSize: '16px', color: 'var(--color-accent)', lineHeight: 1 }}>{t(theme, 'product.price.onQuote')}</div>
             ) : (
               <>
                 <div style={{ fontWeight: 800, fontSize: '20px', color: 'var(--color-text)', lineHeight: 1 }}>
-                  {esServicio ? <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 600, marginRight: 4 }}>{t(theme, 'product.card.from')}</span> : null}
                   {formatPrice(p.price)}{unidadCorta(p) ? <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>/{unidadCorta(p)}</span> : null}
                 </div>
                 {p.oldPrice && p.oldPrice > (p.price ?? 0) ? (

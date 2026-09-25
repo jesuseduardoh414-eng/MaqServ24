@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
-import { productSlug, LINEAS_SERVICIO, tipoDeCatalogo } from '@maqserv/config';
+import { productSlug, LINEAS_SERVICIO, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario } from '@maqserv/config';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
 import { lista } from '../common/json-list';
@@ -359,6 +359,10 @@ export class ProductsService {
       metaTitle: p.is_meta ? p.meta_tag : null,
       metaDescription: p.is_meta ? p.meta_description : null,
       views: p.views,
+      // Cómo se cotiza (sin importes): unidades con tarifa, mínimo y horario.
+      pricingUnits: Object.keys(tarifasDe(p.tarifas)),
+      minUnits: p.minimo ?? null,
+      schedule: p.horario ? textoHorario(horarioDe(p.horario)) : null,
     };
   }
 }

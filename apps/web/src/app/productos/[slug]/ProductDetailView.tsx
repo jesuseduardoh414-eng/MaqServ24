@@ -209,9 +209,32 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
               <span style={{ marginLeft: 'auto' }}><AvailabilityBadge info={disp} tamano="ficha" /></span>
             </div>
 
-            {!quoteMode && product.price !== null ? (
+            {esServicio ? (
+              /* UN SERVICIO NO ENSEÑA IMPORTES (2026-09-25): el precio depende de
+                 fechas, obra y traslado, y lo da el cotizador. Aquí va cómo se
+                 cotiza: unidades, mínimo, horario y de dónde sale el traslado. */
+              <div style={{ padding: '20px 0', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
+                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: 12 }}>SE COTIZA EN LÍNEA</div>
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8, fontSize: 14.5, lineHeight: 1.5 }}>
+                  {(() => {
+                    // `?? []`: una respuesta cacheada de la API vieja no trae el campo.
+                    const unidades = ((product.pricingUnits ?? []).length ? product.pricingUnits : product.priceUnit ? [product.priceUnit] : [])
+                      .map((u) => UNIDADES[u]?.singular ?? u);
+                    const principal = product.priceUnit ? UNIDADES[product.priceUnit] : undefined;
+                    return (
+                      <>
+                        {unidades.length ? <li>Se cobra por {unidades.length > 1 ? `${unidades.slice(0, -1).join(', ')} o ${unidades[unidades.length - 1]}` : unidades[0]}.</li> : null}
+                        {product.minUnits && principal ? <li>Mínimo {product.minUnits} {product.minUnits === 1 ? principal.singular : principal.plural}.</li> : null}
+                        {product.schedule ? <li>Atiende {product.schedule}.</li> : null}
+                        <li>Traslado calculado por distancia hasta tu obra{product.availability?.location ? ` desde ${product.availability.location}` : ''}.</li>
+                        <li style={{ color: 'var(--color-text-muted)' }}>Dinos fechas y obra: el precio sale al momento y la máquina queda apartada al solicitar.</li>
+                      </>
+                    );
+                  })()}
+                </ul>
+              </div>
+            ) : !quoteMode && product.price !== null ? (
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, padding: '22px 0', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
-                {esServicio ? <span style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.14em', color: 'var(--color-text-muted)' }}>DESDE</span> : null}
                 <span style={{ fontFamily: DISPLAY, fontSize: 42, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(effPrice as number)}</span>
                 <span style={{ fontFamily: MONO, fontSize: 13, color: 'var(--color-text-muted)' }}>{priceUnit}</span>
               </div>
@@ -221,9 +244,9 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
             {short ? <p style={{ margin: '22px 0 26px', fontSize: 16, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{short}</p> : <div style={{ height: 22 }} />}
 
-            {isR && porTiempo && !quoteMode && product.price !== null ? (
+            {isR && porTiempo && !quoteMode && !esServicio && product.price !== null ? (
               <div style={{ marginBottom: 26 }}>
-                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: 10 }}>{esServicio ? 'TARIFAS DE REFERENCIA' : 'PERIODO DE RENTA'}</div>
+                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', color: 'var(--color-text-muted)', marginBottom: 10 }}>PERIODO DE RENTA</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
                   {PERIODS.map(([key, label]) => {
                     const on = period === key;
@@ -235,11 +258,6 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     );
                   })}
                 </div>
-                {esServicio ? (
-                  <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 10, lineHeight: 1.5 }}>
-                    El total exacto, con tus fechas y el traslado a tu obra, lo ves en el cotizador antes de solicitar.
-                  </div>
-                ) : null}
               </div>
             ) : null}
 

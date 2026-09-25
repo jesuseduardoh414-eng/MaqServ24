@@ -81,6 +81,14 @@ export interface ProductDetail extends ProductCard {
   metaTitle: string | null;
   metaDescription: string | null;
   views: number;
+  /**
+   * Cómo se cotiza un SERVICIO (2026-09-25): la ficha no enseña importes,
+   * solo en qué unidades se cobra, el mínimo y el horario en que atiende.
+   * El precio sale del cotizador con fechas, obra y traslado.
+   */
+  pricingUnits: string[];
+  minUnits: number | null;
+  schedule: string | null;
 }
 
 export interface Category {
