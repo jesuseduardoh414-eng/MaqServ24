@@ -47,5 +47,16 @@ export function estadoSolicitud(
   else if (asignaciones.some((a) => a.state === 'propuesto')) state = 'en_revision';
   else if (asignaciones.some((a) => a.state === 'rechazado' || a.state === 'retirado')) state = 'rechazada';
   else state = 'enviada';
+  // Ya en operación, la etiqueta dice dónde va la máquina (2026-09-25):
+  // "¿cómo sabe el cliente cuando la máquina ya salió?".
+  const enMarcha = EN_MARCHA[serviceState];
+  if (state === 'aprobada' && enMarcha) return { state, ...enMarcha };
   return { state, ...TEXTOS[state] };
 }
+
+const EN_MARCHA: Record<string, { label: string; message: string } | undefined> = {
+  en_traslado: { label: 'En camino', message: 'La unidad ya salió y va en camino a tu obra.' },
+  en_sitio: { label: 'En tu obra', message: 'La unidad ya llegó a tu obra.' },
+  en_curso: { label: 'En servicio', message: 'El servicio está en curso.' },
+  terminado: { label: 'Terminado', message: 'El aliado terminó. MAQSER24 registra el cierre.' },
+};

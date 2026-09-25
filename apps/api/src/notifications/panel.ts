@@ -22,7 +22,7 @@ const PREFIJO = 'panel:';
 const LIMITE = 30;
 const log = new Logger('AvisosPanel');
 
-export type EventoPanel = 'solicitud' | 'respuesta_aliado' | 'oferta_aliado' | 'mensaje' | 'cotizacion';
+export type EventoPanel = 'avance' | 'solicitud' | 'respuesta_aliado' | 'oferta_aliado' | 'mensaje' | 'cotizacion';
 
 export interface AvisoPanel {
   id: number;

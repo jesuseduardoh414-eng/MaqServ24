@@ -145,6 +145,17 @@ const campo: React.CSSProperties = {
 const etiqueta: React.CSSProperties = { fontSize: 13, color: 'var(--color-text-muted)' };
 const muted: React.CSSProperties = { color: 'var(--color-text-muted)' };
 
+/**
+ * El siguiente paso que el aliado reporta, según dónde va el servicio
+ * (2026-09-25). Un botón a la vez: en obra no hay tiempo para menús.
+ */
+const SIGUIENTE: Record<string, { estado: string; texto: string; ayuda: string } | undefined> = {
+  asignado: { estado: 'en_traslado', texto: 'Ya salió la unidad', ayuda: 'Al tocarlo, el cliente recibe "tu unidad va en camino".' },
+  en_traslado: { estado: 'en_sitio', texto: 'Ya llegué a la obra', ayuda: 'Queda registrada la hora real de llegada.' },
+  en_sitio: { estado: 'en_curso', texto: 'Empecé el trabajo', ayuda: 'Desde aquí corre el servicio o la renta.' },
+  en_curso: { estado: 'terminado', texto: 'Terminé el trabajo', ayuda: 'MAQSER24 registra horas o viajes y cierra el servicio.' },
+};
+
 const VERDE = 'var(--color-success)';
 const AMBAR = 'var(--color-warning)';
 const ROJO = 'var(--color-error)';
@@ -251,7 +262,7 @@ function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
  */
 export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto?: ContactoMaqser }) {
   const router = useRouter();
-  const [ocupado, setOcupado] = useState<number | null>(null);
+  const [ocupado, setOcupado] = useState<number | string | null>(null);
   const [msg, setMsg] = useState<{ texto: string; ok: boolean } | null>(null);
   const [editando, setEditando] = useState(false);
   const [subiendoDoc, setSubiendoDoc] = useState(false);
@@ -316,6 +327,16 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
     const ok = await llamar(`${API}/aliado/equipos/${productId}/confirmar`);
     setOcupado(null);
     if (ok) { avisar('Confirmado. Gracias.'); router.refresh(); }
+  }
+
+  /** "Ya salió", "Llegué"…: le avisa al cliente (campana y correo) y al panel. */
+  async function reportarAvance(quoteNumber: string, estado: string) {
+    const paso = Object.values(SIGUIENTE).find((x) => x?.estado === estado);
+    if (paso && !window.confirm(`${paso.texto}\n\n${paso.ayuda}\n\n¿Confirmas?`)) return;
+    setOcupado(quoteNumber); setMsg(null);
+    const ok = await llamar(`${API}/aliado/servicios/${encodeURIComponent(quoteNumber)}/avance`, { estado });
+    setOcupado(null);
+    if (ok) { avisar('Listo: el cliente y MAQSER24 ya lo saben.'); router.refresh(); }
   }
 
   async function moverEquipo(productId: number, actual: string | null) {
@@ -619,6 +640,22 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                   <div style={{ marginTop: 12, fontSize: 13, color: AMBAR, display: 'flex', gap: 6 }}>
                     <Icon name="warning" size={14} />Exige: {s.requirements.join(' · ')}
                   </div>
+                ) : null}
+                {/* Reporta el avance: el cliente y MAQSER24 se enteran al instante. */}
+                {SIGUIENTE[s.state ?? 'asignado'] ? (
+                  <div style={{ marginTop: 14, display: 'grid', gap: 6 }}>
+                    <button
+                      type="button"
+                      style={{ ...btn, width: '100%', opacity: ocupado === s.quoteNumber ? 0.6 : 1 }}
+                      disabled={ocupado === s.quoteNumber}
+                      onClick={() => void reportarAvance(s.quoteNumber, SIGUIENTE[s.state ?? 'asignado']!.estado)}
+                    >
+                      {SIGUIENTE[s.state ?? 'asignado']!.texto}
+                    </button>
+                    <span style={{ fontSize: 12.5, ...muted }}>{SIGUIENTE[s.state ?? 'asignado']!.ayuda}</span>
+                  </div>
+                ) : s.state === 'terminado' ? (
+                  <div style={{ marginTop: 14, fontSize: 13, ...muted }}>Reportaste que terminaste. MAQSER24 registra horas o viajes y cierra el servicio.</div>
                 ) : null}
               </article>
             ))}

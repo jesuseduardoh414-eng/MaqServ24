@@ -216,7 +216,9 @@ export class QuoterService {
    * condiciones, firma) aunque el precio ya no salga del tabulador sino de la
    * máquina que eligió. El cálculo llega hecho por el recomendador; aquí solo
    * se congela con los datos de la empresa del tabulador de su línea y se le
-   * da folio. Nace `aceptada`: pedir el servicio con ese precio es aceptarlo.
+   * da folio. Nace `solicitada` (2026-09-25): "aparecen aceptadas pero aún no
+   * apruebo nada". Pasa a `aceptada` cuando los aliados aceptan todos sus
+   * servicios (ver `ServiceService.responder`).
    */
   async documentoDeMaquina(d: {
     tipo: CotizadorTipo;
@@ -243,7 +245,7 @@ export class QuoterService {
     const base = {
       kind: d.tipo,
       origin: 'sitio',
-      state: 'aceptada',
+      state: 'solicitada',
       client_name: (d.cliente || 'Sin nombre').slice(0, 190),
       work: d.obra?.slice(0, 190) || null,
       attention: d.atencion?.slice(0, 190) || null,

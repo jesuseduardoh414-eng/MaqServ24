@@ -403,6 +403,28 @@ export class ProviderPortalController {
   }
 
   /**
+   * EL ALIADO REPORTA EL AVANCE (2026-09-25): "¿cómo sabe el cliente cuando la
+   * máquina ya salió, al igual que el proveedor y el sistema?". Antes solo
+   * operaciones movía el servicio en el tablero; ahora quien trae la máquina
+   * dice "salí", "llegué", "empecé" y "terminé". Pasa por el mismo `mover`:
+   * el cliente recibe campana y correo, y el panel su aviso. CERRAR (con
+   * horas/viajes) sigue siendo de MAQSER24.
+   */
+  @Patch('servicios/:quoteNumber/avance')
+  async avance(@Req() req: AliadoRequest, @Param('quoteNumber') quoteNumber: string, @Body() body: unknown) {
+    const p = z.object({ estado: z.enum(['en_traslado', 'en_sitio', 'en_curso', 'terminado']) }).safeParse(body);
+    if (!p.success) throw new BadRequestException('Paso inválido');
+    const q = await prisma.quotes.findFirst({ where: { quote_number: quoteNumber.slice(0, 40) }, select: { id: true } });
+    // Solo el aliado que la ACEPTÓ puede reportarla: cambiar el folio en la URL no sirve.
+    const suya = q
+      ? await prisma.service_assignments.findFirst({ where: { quote_id: q.id, provider_id: req.providerId, state: 'aceptado' }, select: { id: true } })
+      : null;
+    if (!q || !suya) throw new BadRequestException('Ese servicio no es tuyo.');
+    const prov = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { name: true } });
+    return this.services.mover(Number(q.id), p.data.estado, { adminId: null, porAliado: prov?.name ?? 'El aliado', note: `Lo reportó ${prov?.name ?? 'el aliado'} desde su portal` });
+  }
+
+  /**
    * "Sigue disponible". No cambia el inventario: dice que lo que hay sigue
    * siendo cierto hoy. Son dos cosas distintas y mezclarlas haría que confirmar
    * pareciera un ajuste de existencias.

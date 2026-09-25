@@ -51,6 +51,8 @@ export class ServiceService {
       /** Solo al cerrar. */
       quantity?: number | null;
       unit?: string | null;
+      /** Nombre del aliado cuando lo reporta él desde su portal: avisa al panel. */
+      porAliado?: string | null;
     } = {},
   ) {
     const q = await prisma.quotes.findUnique({ where: { id: quoteId } });
@@ -118,6 +120,17 @@ export class ServiceService {
         created_at: ahora,
       },
     });
+
+    // Lo reportó el aliado: MAQSER24 se entera en la campana del panel.
+    if (opts.porAliado) {
+      void avisarPanel({
+        modulo: 'servicios',
+        evento: 'avance',
+        titulo: `${opts.porAliado}: ${PASOS[hacia].label.toLowerCase()} · ${q.quote_number}`,
+        cuerpo: `${q.product_interested ?? 'Servicio'}${q.address ? ` · ${q.address}` : ''}`,
+        link: '/servicios',
+      });
+    }
 
     // Avisar al cliente. El texto es el suyo, no el de operaciones: son dos
     // personas distintas haciéndose preguntas distintas.
@@ -412,8 +425,40 @@ export class ServiceService {
       if (q && this.estadoDe(q) === 'por_asignar') {
         await this.mover(quoteId, 'asignado', { adminId: opts.adminId ?? null });
       }
+      await this.documentoAceptadoSiTodos(quoteId);
     }
     return { ok: true };
+  }
+
+  /**
+   * El documento del cotizador (MQ-/TR-) nace `solicitada` y pasa a
+   * `aceptada` cuando TODOS los servicios de su folio tienen aliado que
+   * aceptó (2026-09-25). Nunca lanza: es un reflejo, no el dato principal.
+   */
+  private async documentoAceptadoSiTodos(quoteId: number) {
+    try {
+      const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { requirements: true } });
+      const req = (q?.requirements ?? {}) as { folio?: string; quoterId?: number };
+      if (!req.folio || !req.quoterId) return;
+      const hermanos = await prisma.quotes.findMany({
+        where: { requirements: { path: '$.folio', equals: req.folio } },
+        select: { id: true },
+      });
+      if (hermanos.length === 0) return;
+      const aceptados = await prisma.service_assignments.findMany({
+        where: { quote_id: { in: hermanos.map((h) => h.id) }, state: 'aceptado' },
+        select: { quote_id: true },
+      });
+      const conAliado = new Set(aceptados.map((a) => String(a.quote_id)));
+      if (hermanos.every((h) => conAliado.has(String(h.id)))) {
+        await prisma.quoter_quotes.updateMany({
+          where: { id: Number(req.quoterId), state: 'solicitada' },
+          data: { state: 'aceptada', updated_at: new Date() },
+        });
+      }
+    } catch (err) {
+      this.log.warn(`No se pudo actualizar el documento del folio: ${(err as Error).message}`);
+    }
   }
 
   /** Historial del servicio, del más viejo al más nuevo, con el nombre de quien lo movió. */
