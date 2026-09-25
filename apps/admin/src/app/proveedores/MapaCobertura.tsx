@@ -133,8 +133,19 @@ export function MapaCobertura({
       } else if (puntos.length === 1) {
         m.setView([puntos[0].lat, puntos[0].lng], puntos[0].radioKm ? 10 : 13);
       } else {
-        const grupo = L.featureGroup(capas as never);
-        m.fitBounds(grupo.getBounds().pad(0.15));
+        // Los límites se calculan con los números, NO con `circle.getBounds()`:
+        // ese necesita el mapa ya con vista y lanzaba "layerPointToLatLng of
+        // undefined" en cuanto había dos aliados ubicados y uno con radio —el
+        // mapa quedaba gris (2026-09-25). 1° de latitud ≈ 111 km.
+        const limites = L.latLngBounds(puntos.map((p) => [p.lat, p.lng] as [number, number]));
+        for (const p of puntos) {
+          if (p.tipo === 'obra' || !p.radioKm) continue;
+          const dLat = p.radioKm / 111;
+          const dLng = p.radioKm / (111 * Math.max(0.2, Math.cos((p.lat * Math.PI) / 180)));
+          limites.extend([p.lat - dLat, p.lng - dLng]).extend([p.lat + dLat, p.lng + dLng]);
+        }
+        // maxZoom: si todos están en el mismo punto no se acerca hasta la banqueta.
+        m.fitBounds(limites.pad(0.15), { maxZoom: 13 });
       }
     })();
 

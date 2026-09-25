@@ -311,7 +311,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
                 lng: x.lng!,
                 radioKm: x.coverageRadiusKm,
                 tipo: 'aliado',
-                detalle: x.categories.join(', '),
+                detalle: (x.categoryLabels ?? x.categories).join(', '),
               }))}
           />
           <div style={{ fontSize: 12, color: C.dim, marginTop: 8 }}>
