@@ -507,17 +507,9 @@ function ExpedienteModal({
   const pendientes = (p.equipment ?? []).filter((e) => e.pending);
   const publicados = (p.equipment ?? []).filter((e) => !e.pending);
 
-  // Renglones del cotizador: al publicar, el equipo puede "contar como" uno.
-  // Así, cuando un cliente lo cotiza, la solicitud le llega a este aliado.
-  const [renglones, setRenglones] = useState<Renglon[]>([]);
-  const [cuentaComo, setCuentaComo] = useState<Record<number, string>>({});
-  useEffect(() => {
-    if (pendientes.length === 0) return;
-    void fetch('/api/admin/providers/cotizador/renglones')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d: Renglon[]) => setRenglones(Array.isArray(d) ? d : []))
-      .catch(() => undefined);
-  }, [pendientes.length]);
+  // Ya no se liga a renglones del tabulador: el cotizador guiado recomienda
+  // las máquinas publicadas. Se conserva vacío por compatibilidad con la API.
+  const cuentaComo: Record<number, string> = {};
 
   async function revisar(e: EquipoRow, accion: 'publicar' | 'rechazar') {
     if (accion === 'rechazar' && motivo.trim().length < 4) return;
@@ -629,30 +621,13 @@ function ExpedienteModal({
                   </div>
                 ) : (
                   <>
-                  {(() => {
-                    const suyos = renglones.filter((x) => !e.categorySlug || x.linea === e.categorySlug);
-                    if (suyos.length === 0) return null;
-                    return (
-                      <div style={{ marginTop: 10, display: 'grid', gap: 4 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>Cuenta como en el cotizador</span>
-                        <AdminSelect
-                          ariaLabel="Renglón del cotizador"
-                          value={cuentaComo[e.id] ?? ''}
-                          onChange={(v) => setCuentaComo({ ...cuentaComo, [e.id]: v })}
-                          options={[
-                            { value: '', label: 'No está en el cotizador' },
-                            ...suyos.map((x) => ({
-                              value: `${x.tipo}:${x.id}`,
-                              label: `${x.nombre}${x.productos.length ? ` · ya lo tienen ${x.productos.length}` : ''}`,
-                            })),
-                          ]}
-                        />
-                        <span style={{ fontSize: 11.5, color: C.dim }}>
-                          Cuando un cliente cotice ese renglón, la solicitud le llega a este aliado.
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {/* El cotizador guiado recomienda máquinas publicadas: con
+                      publicar basta (el renglón del tabulador ya no aplica). */}
+                  <div style={{ marginTop: 10, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+                    {esLineaServicio(e.categorySlug)
+                      ? <>Al publicarlo <strong style={{ color: C.ink }}>aparece en el cotizador</strong> de {e.category ?? 'su línea'} y las solicitudes le llegan a este aliado. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>
+                      : <>Al publicarlo aparece en la tienda como producto. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>}
+                  </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                     <a href={`/productos/editar/${e.id}`} style={{ ...botonSec, textDecoration: 'none', padding: '8px 14px', fontSize: 13 }}>Revisar y corregir</a>
                     <button type="button" disabled={ocupado === e.id} onClick={() => void revisar(e, 'publicar')} style={{ ...boton, padding: '8px 14px', fontSize: 13, opacity: ocupado === e.id ? 0.6 : 1 }}>Publicar</button>

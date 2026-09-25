@@ -14,7 +14,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { COTIZADOR_TIPOS, fichaDe, ligarProducto, renglonesDe, slugify } from '@maqserv/config';
+import { COTIZADOR_TIPOS, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
+import { margenAliadoPct } from '../common/platform-settings';
 import { disponibilidadDe } from '../catalog/availability';
 import { lista } from '../common/json-list';
 import { z } from 'zod';
@@ -615,8 +616,25 @@ export class AdminProvidersController {
    */
   @Post('equipos/:productId/publicar')
   async publicarEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
-    const e = await prisma.products.findUnique({ where: { id: productId }, select: { id: true, name: true, status: true, provider_id: true } });
+    const e = await prisma.products.findUnique({
+      where: { id: productId },
+      select: { id: true, name: true, status: true, provider_id: true, tarifas: true, costo_aliado: true, price_unit: true },
+    });
     if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
+
+    // Publicar directo = salir en el cotizador CON precio (2026-09-25). Si
+    // nadie abrió "Revisar y corregir", el precio al cliente sale del costo
+    // del aliado + el margen vigente; sin esto la máquina se recomendaba
+    // "sin precio" aunque el aliado sí dijo cuánto cobra.
+    let precios: { tarifas: Record<string, number>; cprice: number } | null = null;
+    if (Object.keys(tarifasDe(e.tarifas)).length === 0) {
+      const costo = tarifasDe(e.costo_aliado);
+      if (Object.keys(costo).length > 0) {
+        const tarifas = tarifasPropuestas(costo, await margenAliadoPct());
+        const principal = e.price_unit && tarifas[e.price_unit] ? e.price_unit : Object.keys(tarifas)[0];
+        precios = { tarifas, cprice: tarifas[principal] ?? 0 };
+      }
+    }
 
     // Opcional: a qué renglón del cotizador pertenece. Así, cuando un cliente
     // lo cotice, la solicitud le llega a este aliado sin capturar nada más.
@@ -633,7 +651,10 @@ export class AdminProvidersController {
     }
     await prisma.products.update({
       where: { id: productId },
-      data: { status: 1, availability_confirmed_at: new Date(), updated_at: new Date() },
+      data: {
+        status: 1, availability_confirmed_at: new Date(), updated_at: new Date(),
+        ...(precios ? { tarifas: precios.tarifas as never, cprice: precios.cprice } : {}),
+      },
     });
     if (e.provider_id) {
       const p = await prisma.providers.findUnique({ where: { id: e.provider_id }, select: { email: true, contact_name: true } });
