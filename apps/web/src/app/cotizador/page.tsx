@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { paginaSeo } from '@/lib/seo';
 import { parseProductSlug } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
-import { getCategories, getProduct } from '@/lib/api';
+import { getCategories, getLineasConServicios, getProduct } from '@/lib/api';
 import { getSessionUser } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { QuoteGate } from '../cotizar/QuoteGate';
@@ -31,7 +31,7 @@ type Search = { linea?: string; producto?: string };
  */
 export default async function CotizadorPage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
-  const [theme, user, categorias] = await Promise.all([getTheme(), getSessionUser(), getCategories().catch(() => [])]);
+  const [theme, user, categorias, conServicios] = await Promise.all([getTheme(), getSessionUser(), getCategories().catch(() => []), getLineasConServicios()]);
 
   let producto: { id: number; name: string; slug: string; categorySlug: string | null; atributos: Record<string, string>; horario: { dias: number[]; desde: string; hasta: string } | null } | null = null;
   if (sp.producto) {
@@ -43,7 +43,11 @@ export default async function CotizadorPage({ searchParams }: { searchParams: Pr
     }
   }
   const next = sp.producto ? `/cotizador?producto=${encodeURIComponent(sp.producto)}` : sp.linea ? `/cotizador?linea=${encodeURIComponent(sp.linea)}` : '/cotizador';
-  const lineas = categorias.map((c) => ({ slug: c.slug, name: c.name, description: c.description }));
+  // Solo las categorías que tienen servicios publicados (2026-09-25): con uno solo, sale solo esa.
+  const conteo = new Map(conServicios.map((l) => [l.slug, l.servicios]));
+  const lineas = categorias
+    .filter((c) => conteo.has(c.slug))
+    .map((c) => ({ slug: c.slug, name: c.name, description: c.description, servicios: conteo.get(c.slug) ?? 0 }));
 
   return (
     <>

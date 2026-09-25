@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { prisma } from '@maqserv/db';
-import { catalogoCotizadorSchema, renglonesDe, unidadesDe } from '@maqserv/config';
+import { unidadesDe } from '@maqserv/config';
 import { z } from 'zod';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
@@ -75,23 +75,38 @@ export class MaquinasController {
   ) {}
 
   /**
-   * Tipos de una línea: los renglones del tabulador (si la línea tiene
-   * cotizador) más los nombres de máquinas publicadas. Sirve para el paso
-   * "qué necesitas" sin obligar a escribir.
+   * LÍNEAS CON SERVICIOS (2026-09-25): el cotizador solo ofrece las categorías
+   * que tienen al menos un servicio publicado con aliado. Antes salían las
+   * cinco aunque no hubiera nada que cotizar en cuatro de ellas.
+   */
+  @Get('lineas')
+  async lineas() {
+    const grupos = await prisma.products.groupBy({
+      by: ['category_id'],
+      where: { status: 1, provider_id: { not: null } },
+      _count: { _all: true },
+    });
+    if (grupos.length === 0) return [];
+    const cats = await prisma.categories.findMany({
+      where: { id: { in: grupos.map((g) => g.category_id) }, status: 1 },
+      select: { id: true, cat_slug: true },
+    });
+    const slug = new Map(cats.map((c) => [c.id, c.cat_slug]));
+    return grupos
+      .filter((g) => slug.has(g.category_id))
+      .map((g) => ({ slug: slug.get(g.category_id)!, servicios: g._count._all }));
+  }
+
+  /**
+   * Los servicios de una línea: SOLO los publicados en el catálogo, por
+   * nombre (2026-09-25). Los renglones del tabulador viejo ya no salen: eran
+   * tipos genéricos que no correspondían a ninguna máquina real.
    */
   @Get('tipos')
   async tipos(@Query('linea') linea?: string) {
     if (!linea) throw new BadRequestException('Falta la línea');
     const cat = await prisma.categories.findUnique({ where: { cat_slug: linea }, select: { id: true } });
-    const tipos = new Map<string, { nombre: string; origen: 'tabulador' | 'catalogo'; maquinas: number }>();
-    const filas = await prisma.quoter_catalogs.findMany({ select: { data: true } }).catch(() => []);
-    for (const f of filas) {
-      const parsed = catalogoCotizadorSchema.safeParse(f.data);
-      if (!parsed.success) continue;
-      for (const r of renglonesDe(parsed.data)) {
-        if (r.linea === linea) tipos.set(r.nombre.toLowerCase(), { nombre: r.nombre, origen: 'tabulador', maquinas: r.productos.length });
-      }
-    }
+    const tipos = new Map<string, { nombre: string; origen: 'catalogo'; maquinas: number }>();
     if (cat) {
       const productos = await prisma.products.findMany({
         where: { status: 1, provider_id: { not: null }, category_id: cat.id },
@@ -105,7 +120,7 @@ export class MaquinasController {
       }
     }
     return {
-      tipos: [...tipos.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+      tipos: [...tipos.values()].sort((x, y) => x.nombre.localeCompare(y.nombre, 'es')),
       unidades: unidadesDe(linea).map((u) => ({ clave: u.clave, singular: u.singular, plural: u.plural })),
     };
   }

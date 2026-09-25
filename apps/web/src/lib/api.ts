@@ -233,6 +233,11 @@ export function getCatalogoResumen(): Promise<{ servicios: number; productos: nu
   return getOr('/catalog/resumen', { servicios: 0, productos: 0 });
 }
 
+/** Líneas con al menos un servicio publicado con aliado: las únicas que ofrece el cotizador. */
+export function getLineasConServicios(): Promise<Array<{ slug: string; servicios: number }>> {
+  return getOr('/maquinas/lineas', []);
+}
+
 export function getCategories(): Promise<Category[]> {
   return getOr('/catalog/categories', []);
 }

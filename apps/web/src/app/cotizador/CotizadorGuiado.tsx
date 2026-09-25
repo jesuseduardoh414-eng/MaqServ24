@@ -28,7 +28,7 @@ import { SelectorFecha, SelectorHora } from './Selectores';
  * El cliente ve dónde está la máquina y a cuántos km, no de quién es.
  */
 
-interface Linea { slug: string; name: string; description: string | null }
+interface Linea { slug: string; name: string; description: string | null; servicios?: number }
 interface Tipo { nombre: string; origen: 'tabulador' | 'catalogo'; maquinas: number }
 interface Unidad { clave: string; singular: string; plural: string }
 interface Maquina {
@@ -90,7 +90,8 @@ export function CotizadorGuiado({
   const [error, setError] = useState<string | null>(null);
 
   // 1 · Qué necesitas
-  const [linea, setLinea] = useState(inicial.producto?.categorySlug ?? inicial.linea ?? '');
+  // Con una sola línea disponible, ya va elegida.
+  const [linea, setLinea] = useState(inicial.producto?.categorySlug ?? inicial.linea ?? (lineas.length === 1 ? lineas[0].slug : ''));
   const [tipo, setTipo] = useState(inicial.producto?.name ?? '');
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [unidadesLinea, setUnidadesLinea] = useState<Unidad[]>([]);
@@ -350,6 +351,12 @@ export function CotizadorGuiado({
         <div style={{ display: 'grid', gap: 16 }}>
           <div style={card}>
             <h2 style={leyenda}>¿Qué línea de servicio necesitas?</h2>
+            {lineas.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
+                Todavía no hay servicios publicados para cotizar en línea.{' '}
+                <Link href="/cotizar" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>Mándanos tu requerimiento</Link> y un asesor lo arma contigo.
+              </p>
+            ) : null}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
               {lineas.map((l) => {
                 const on = linea === l.slug;
@@ -357,6 +364,7 @@ export function CotizadorGuiado({
                   <button key={l.slug} type="button" onClick={() => { setLinea(l.slug); setTipo(''); setReqs({}); }} aria-pressed={on} style={opcion(on)}>
                     <span style={{ display: 'block', fontWeight: 700, fontSize: 15 }}>{l.name}</span>
                     {l.description ? <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 4, lineHeight: 1.5 }}>{l.description}</span> : null}
+                    {l.servicios ? <span style={{ display: 'block', fontSize: 12, color: 'var(--color-primary)', marginTop: 6, fontWeight: 600 }}>{l.servicios} {l.servicios === 1 ? 'servicio disponible' : 'servicios disponibles'}</span> : null}
                   </button>
                 );
               })}
@@ -364,9 +372,9 @@ export function CotizadorGuiado({
           </div>
           {linea ? (
             <div style={card}>
-              <h2 style={leyenda}>¿Qué tipo de {lineaNombre(lineas, linea)}?</h2>
+              <h2 style={leyenda}>¿Qué servicio de {lineaNombre(lineas, linea)}?</h2>
               <p style={{ margin: '0 0 14px', fontSize: 13.5, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-                Elige uno o escríbelo. Si no lo tienes claro, déjalo vacío y te enseñamos todo lo de la línea.
+                Estos son los servicios disponibles en esta línea. Elige uno; si no lo tienes claro, sigue sin elegir y te enseñamos todos.
               </p>
               {tipos.length ? (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -381,7 +389,6 @@ export function CotizadorGuiado({
                   })}
                 </div>
               ) : null}
-              <input value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="Excavadora 20 t, pipa de agua 10 mil litros, grava ¾…" style={campo} />
             </div>
           ) : null}
         </div>

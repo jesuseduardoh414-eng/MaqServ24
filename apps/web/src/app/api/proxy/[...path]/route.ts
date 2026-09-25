@@ -38,7 +38,7 @@ const ALLOWLIST = [
    */
   /^quoter\/(catalog|calculate|request)\/(maquinaria|triturados)$/,
   /** Cotizador guiado por máquina (2026-09-25): tipos, recomendaciones y solicitud. */
-  /^maquinas\/(tipos|recomendar|documento|solicitar)$/,
+  /^maquinas\/(lineas|tipos|recomendar|documento|solicitar)$/,
 ];
 
 /** Rutas cuya credencial la manda el navegador, no la cookie de sesión. */
