@@ -107,6 +107,26 @@ export class MaquinasController {
     return { ...r, maquinas: r.maquinas.map(publica) };
   }
 
+  /**
+   * VISTA PREVIA del documento (2026-09-25): la cotización tal como se
+   * imprime, con la máquina elegida, ANTES de solicitar. Se recalcula en el
+   * servidor igual que al solicitar; lo único que falta es el folio.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Post('documento')
+  @UseGuards(JwtGuard)
+  async documento(@Req() req: AuthedRequest, @Body() body: unknown) {
+    const parsed = solicitudSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
+    const d = parsed.data;
+    const cuenta = await datosDeCuenta(req.userId);
+    if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
+    const r = await this.recomendador.recomendar({ ...d, soloProductoId: d.productoId });
+    const m = r.maquinas[0];
+    if (!m) throw new BadRequestException('Esa máquina ya no está disponible para esas fechas.');
+    return this.servicio.vistaPrevia({ entrada: d, maquina: m, cliente: d.cliente || cuenta.name, zona: r.zona, notas: d.notas || null });
+  }
+
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('solicitar')
   @UseGuards(JwtGuard)

@@ -7,9 +7,11 @@ import { atributosDe, requestFormFor, UNIDADES } from '@maqserv/config';
 import { Icon } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
 import { evento } from '@/lib/analitica';
+import { VistaDocumento, type DatosDocumento } from '@maqserv/ui';
 import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA } from '../cotizar/RequirementFields';
 import { SitePicker, type ObraCliente } from '../cotizar/SitePicker';
 import { Stepper } from '../cotizar/Stepper';
+import { SelectorFecha, SelectorHora } from './Selectores';
 
 /**
  * COTIZADOR GUIADO POR MÁQUINA (decisión del cliente, 2026-09-25).
@@ -59,10 +61,13 @@ export function CotizadorGuiado({
   user,
   lineas,
   inicial,
+  logo,
 }: {
   user: AuthUser;
   lineas: Linea[];
   inicial: { linea?: string | null; producto?: { id: number; name: string; slug: string; categorySlug: string | null; atributos?: Record<string, string> } | null };
+  /** Logo para fondo claro: el documento se imprime en blanco. */
+  logo: string | null;
 }) {
   const [paso, setPaso] = useState(inicial.producto ? 1 : 0);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +136,29 @@ export function CotizadorGuiado({
   const [telefono, setTelefono] = useState(user.phone ?? '');
   const [notas, setNotas] = useState('');
   const [enviando, setEnviando] = useState(false);
+  /**
+   * LA COTIZACIÓN COMO DOCUMENTO, ANTES DE SOLICITAR (2026-09-25). Igual que
+   * en el cotizador original: el cliente ve el documento tal como se imprime
+   * (empresa, partida, traslado, condiciones) y luego solicita. Lo arma el
+   * servidor con la misma cuenta que usará al solicitar; solo falta el folio.
+   */
+  const [vista, setVista] = useState<Omit<DatosDocumento, 'logo'> | null>(null);
+  const [vistaCargando, setVistaCargando] = useState(false);
+  async function cargarVista(maquina?: Maquina | null) {
+    const m = maquina ?? elegida;
+    if (!m) return;
+    setVistaCargando(true);
+    try {
+      const r = await fetch('/api/proxy/maquinas/documento', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...entrada(), productoId: m.id, notas: notas.trim(), cliente: cliente.trim(), telefono: telefono.trim() }),
+      });
+      const d = await r.json().catch(() => null);
+      if (r.ok && d?.calc) setVista(d as Omit<DatosDocumento, 'logo'>);
+    } finally {
+      setVistaCargando(false);
+    }
+  }
   const [listo, setListo] = useState<{ quoteNumber: string; url: string; total: number; documentUrl?: string | null } | null>(null);
 
   const u = UNIDADES[unidad];
@@ -183,6 +211,7 @@ export function CotizadorGuiado({
     const siguiente = paso + 1;
     setPaso(siguiente);
     if (siguiente === 4) void buscar();
+    if (siguiente === 5) void cargarVista();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -339,14 +368,14 @@ export function CotizadorGuiado({
         <div style={card}>
           <h2 style={leyenda}>¿Cuándo y por cuánto tiempo?</h2>
           <div className="cg-three" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
-            <label style={{ display: 'grid', gap: 6 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
               <span style={etiquetaReq}>Fecha</span>
-              <input type="date" value={fecha} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setFecha(e.target.value)} style={campo} />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
+              <SelectorFecha value={fecha} onChange={setFecha} style={campo} />
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
               <span style={etiquetaReq}>Hora</span>
-              <input type="time" value={hora} onChange={(e) => setHora(e.target.value)} style={campo} />
-            </label>
+              <SelectorHora value={hora} onChange={setHora} style={campo} />
+            </div>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiquetaReq}>Cuántas máquinas</span>
               <input type="number" min={1} max={20} value={equipos} onChange={(e) => setEquipos(Math.max(1, Number(e.target.value) || 1))} style={campo} />
@@ -407,13 +436,12 @@ export function CotizadorGuiado({
       {/* ── 6 · Confirmar ── */}
       {paso === 5 && elegida ? (
         <div style={{ display: 'grid', gap: 16 }}>
-          <TarjetaMaquina m={elegida} elegida onElegir={() => undefined} resumen />
           <div style={card}>
             <h2 style={leyenda}>Datos de contacto</h2>
             <div className="cg-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <label style={{ display: 'grid', gap: 6 }}>
                 <span style={etiquetaReq}>A nombre de</span>
-                <input value={cliente} onChange={(e) => setCliente(e.target.value)} style={campo} />
+                <input value={cliente} onChange={(e) => setCliente(e.target.value)} onBlur={() => void cargarVista()} style={campo} />
               </label>
               <label style={{ display: 'grid', gap: 6 }}>
                 <span style={etiquetaReq}>Teléfono</span>
@@ -422,11 +450,23 @@ export function CotizadorGuiado({
             </div>
             <label style={{ display: 'grid', gap: 6, marginTop: 12 }}>
               <span style={etiquetaReq}>Notas para el aliado (opcional)</span>
-              <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={3} placeholder="Acceso a la obra, contacto en sitio, horario de descarga…" style={{ ...campo, resize: 'vertical' }} />
+              <textarea value={notas} onChange={(e) => setNotas(e.target.value)} onBlur={() => void cargarVista()} rows={3} placeholder="Acceso a la obra, contacto en sitio, horario de descarga…" style={{ ...campo, resize: 'vertical' }} />
             </label>
             <p style={{ margin: '14px 0 0', fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
               Al solicitar, el precio y el traslado quedan congelados y la máquina se aparta para esas fechas. El aliado confirma y te avisamos.
             </p>
+          </div>
+
+          {/* La cotización tal como se imprime. El folio se asigna al solicitar. */}
+          <div style={card}>
+            <h2 style={leyenda}>Así queda tu cotización</h2>
+            {vista ? (
+              <VistaDocumento datos={{ ...vista, logo }} />
+            ) : (
+              <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 14 }}>
+                {vistaCargando ? 'Armando el documento…' : 'No pudimos armar el documento. Puedes solicitar de todos modos: lo recibes en tu cuenta.'}
+              </p>
+            )}
           </div>
         </div>
       ) : null}

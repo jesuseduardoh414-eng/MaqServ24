@@ -62,7 +62,13 @@ export default async function CotizadorPage({ searchParams }: { searchParams: Pr
           {!user ? (
             <QuoteGate theme={theme} next={next} />
           ) : (
-            <CotizadorGuiado user={user} lineas={lineas} inicial={{ linea: sp.linea ?? null, producto }} />
+            <CotizadorGuiado
+              user={user}
+              lineas={lineas}
+              inicial={{ linea: sp.linea ?? null, producto }}
+              // El documento se imprime en blanco: logo para fondo claro.
+              logo={theme.tokens.branding?.logoLight ?? theme.tokens.branding?.logoAlt ?? null}
+            />
           )}
         </div>
       </main>

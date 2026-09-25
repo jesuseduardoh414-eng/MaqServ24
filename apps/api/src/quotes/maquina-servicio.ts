@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
-import { UNIDADES, type CalculoCotizacion, type CotizadorTipo } from '@maqserv/config';
+import { UNIDADES, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
 import { QuoterService } from '../quoter/quoter.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
@@ -26,6 +26,11 @@ import type { DatosCuenta } from '../common/cuenta';
  */
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** De qué tabulador salen empresa, firma y condiciones del documento de esa línea. */
+export function tipoDocumentoDe(linea: string): CotizadorTipo {
+  return linea === 'triturados' ? 'triturados' : 'maquinaria';
+}
 const dinero = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export interface ServicioDeMaquina {
@@ -93,42 +98,11 @@ export class MaquinaServicio {
      * condiciones del tabulador de su línea. Si falla, la solicitud sigue:
      * el documento es un papel, no la operación.
      */
-    const tipoDoc: CotizadorTipo = e.linea === 'triturados' ? 'triturados' : 'maquinaria';
+    const tipoDoc = tipoDocumentoDe(e.linea);
     let folio: string | null = null;
     let quoterId: number | null = null;
     try {
-      const catDoc = await this.quoter.catalogo(tipoDoc);
-      const esTransporte = e.linea === 'transporte-y-servicios-de-obra';
-      const condicionesDoc = Object.entries(catDoc.condiciones)
-        .filter(([k]) => esTransporte || !['pipa', 'retiro'].includes(k))
-        .map(([, b]) => b);
-      const flete = r2(m.flete ?? 0);
-      const baseDoc = r2(m.subtotal + flete);
-      const calcDoc: CalculoCotizacion = {
-        renglones: [
-          {
-            clase: m.renta ? 'equipo' : 'servicio',
-            id: String(m.id),
-            nombre: m.name,
-            concepto: `${m.name}${m.brand ? ` (${m.brand})` : ''}${m.equipos > 1 ? ` × ${m.equipos}` : ''}`,
-            unidad: u?.singular ?? m.unidad,
-            cantidad: m.unidadesCobradas * m.equipos,
-            pu: m.precioUnitario,
-            importe: r2(m.subtotal),
-            detalle: `A partir del ${e.fecha}${e.hora ? ` ${e.hora}` : ''}`,
-          },
-          ...(flete > 0
-            ? [{ clase: 'flete', concepto: `Traslado a obra${m.km !== null ? ` (${m.km} km)` : ''}`, unidad: 'viaje', cantidad: 1, pu: flete, importe: flete }]
-            : []),
-        ],
-        desglose: { renta: m.renta ? r2(m.subtotal) : 0, servicios: m.renta ? 0 : r2(m.subtotal), fletes: flete, materiales: 0 },
-        subtotal: baseDoc,
-        iva: r2(m.iva),
-        iva_tasa: baseDoc > 0 && m.iva > 0 ? Math.round((m.iva / baseDoc) * 100) : 0,
-        con_iva: m.iva > 0,
-        total: r2(m.total),
-        condiciones: condicionesDoc,
-      };
+      const { calc: calcDoc } = await this.armarDocumento(e, m);
       const doc = await this.quoter.documentoDeMaquina({
         tipo: tipoDoc,
         calc: calcDoc,
@@ -247,6 +221,79 @@ export class MaquinaServicio {
     void this.avisar({ q: { id: quoteId, number: q.quote_number, total: m.total }, m, e, cliente: d.cliente || d.cuenta.name, correo: d.cuenta.email, telefono: d.telefono, zona: d.zona, url });
 
     return { quoteId, quoteNumber: q.quote_number, url, total: m.total, documentUrl: folio ? `${url}/documento` : null };
+  }
+
+  /**
+   * El documento de una máquina: la partida con su precio, el traslado y las
+   * condiciones del tabulador de su línea, más empresa/firma/saludo. Lo usan
+   * la vista previa (antes de solicitar) y el documento emitido (después).
+   */
+  async armarDocumento(e: EntradaRecomendacion, m: MaquinaRecomendada): Promise<{
+    tipo: CotizadorTipo;
+    calc: CalculoCotizacion;
+    empresa: CatalogoCotizador['empresa'];
+    firma: CatalogoCotizador['firma'];
+    saludo: string;
+  }> {
+    const tipo = tipoDocumentoDe(e.linea);
+    const cat = await this.quoter.catalogo(tipo);
+    const esTransporte = e.linea === 'transporte-y-servicios-de-obra';
+    const condiciones = Object.entries(cat.condiciones)
+      .filter(([k]) => esTransporte || !['pipa', 'retiro'].includes(k))
+      .map(([, b]) => b);
+    const u = UNIDADES[m.unidad];
+    const flete = r2(m.flete ?? 0);
+    const base = r2((m.subtotal ?? 0) + flete);
+    const calc: CalculoCotizacion = {
+      renglones: [
+        {
+          clase: m.renta ? 'equipo' : 'servicio',
+          id: String(m.id),
+          nombre: m.name,
+          concepto: `${m.name}${m.brand ? ` (${m.brand})` : ''}${m.equipos > 1 ? ` × ${m.equipos}` : ''}`,
+          unidad: u?.singular ?? m.unidad,
+          cantidad: m.unidadesCobradas * m.equipos,
+          pu: m.precioUnitario ?? 0,
+          importe: r2(m.subtotal ?? 0),
+          detalle: `A partir del ${e.fecha}${e.hora ? ` ${e.hora}` : ''}`,
+        },
+        ...(flete > 0
+          ? [{ clase: 'flete', concepto: `Traslado a obra${m.km !== null ? ` (${m.km} km)` : ''}`, unidad: 'viaje', cantidad: 1, pu: flete, importe: flete }]
+          : []),
+      ],
+      desglose: { renta: m.renta ? r2(m.subtotal ?? 0) : 0, servicios: m.renta ? 0 : r2(m.subtotal ?? 0), fletes: flete, materiales: 0 },
+      subtotal: base,
+      iva: r2(m.iva),
+      iva_tasa: base > 0 && m.iva > 0 ? Math.round((m.iva / base) * 100) : 0,
+      con_iva: m.iva > 0,
+      total: r2(m.total ?? base + m.iva),
+      condiciones,
+    };
+    return { tipo, calc, empresa: cat.empresa, firma: cat.firma, saludo: cat.saludo };
+  }
+
+  /**
+   * VISTA PREVIA (2026-09-25): el cliente ve la cotización tal como se
+   * imprime ANTES de solicitar, igual que en el cotizador original. Sin folio
+   * todavía: se asigna al solicitar.
+   */
+  async vistaPrevia(d: { entrada: EntradaRecomendacion; maquina: MaquinaRecomendada; cliente: string; zona: string | null; notas: string | null }) {
+    const doc = await this.armarDocumento(d.entrada, d.maquina);
+    return {
+      titulo: 'Cotización de servicio',
+      folio: 'Vista previa',
+      fecha: new Date().toISOString(),
+      cliente: d.cliente,
+      obra: d.entrada.obra.direccion ?? '',
+      atencion: '',
+      municipio: d.entrada.obra.municipio ?? d.zona ?? '',
+      notas: d.notas ?? '',
+      empresa: doc.empresa,
+      firma: doc.firma,
+      saludo: doc.saludo,
+      calc: doc.calc,
+      mostrarPrecios: true,
+    };
   }
 
   /** Correos: al equipo (entró una solicitud) y al cliente (acuse). Nunca lanza. */
