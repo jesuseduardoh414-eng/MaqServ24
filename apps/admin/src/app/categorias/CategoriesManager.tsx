@@ -1,5 +1,6 @@
 'use client';
 
+import { Modal } from '@/components/Modal';
 import { useMemo, useRef, useState, type CSSProperties } from 'react';
 
 export interface CategoryRow {
@@ -81,6 +82,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
       setDraftName(''); setDraftDescription(''); setDraftFile(null); setDraftPreview(null);
       if (fileRef.current) fileRef.current.value = '';
       await reload();
+      setNuevaAbierta(false);
       flash(`Categoría «${name}» creada`);
     } catch (e) { flash((e as Error).message, 'warn'); } finally { setCreating(false); }
   }
@@ -126,9 +128,11 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
     flash(`«${c.name}» eliminada`, 'trash');
   }
 
+  // Alta en modal (2026-09-25): antes la tarjeta estaba fija encima de la lista.
+  const [nuevaAbierta, setNuevaAbierta] = useState(false);
   function focusNew() {
-    newCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => nameRef.current?.focus(), 200);
+    setNuevaAbierta(true);
+    setTimeout(() => nameRef.current?.focus(), 120);
   }
 
   const stats = useMemo(() => ({
@@ -202,8 +206,8 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
       </div>
 
       {/* Nueva categoría */}
-      <div ref={newCardRef} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 18, padding: '24px 26px', marginBottom: 22, transition: 'box-shadow .3s' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}><span style={{ width: 8, height: 8, borderRadius: 999, background: C.amber }} /><div style={{ fontWeight: 700, fontSize: 17 }}>Nueva categoría</div></div>
+      <Modal abierto={nuevaAbierta} titulo="Nueva categoría" subtitulo="Nombre, imagen y la línea que sale bajo el nombre en el sitio." onCerrar={() => setNuevaAbierta(false)} ancho={860}>
+      <div ref={newCardRef}>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) minmax(0,1fr) auto auto', gap: 14, alignItems: 'end' }} className="cat-newgrid">
           <label style={{ display: 'grid', gap: 7 }}>
             <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Nombre</span>
@@ -229,6 +233,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
           <input value={draftDescription} onChange={(e) => setDraftDescription(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') create(); }} maxLength={300} placeholder="Ej. Arena, grava, base hidráulica y CNC" style={inputStyle} />
         </label>
       </div>
+      </Modal>
 
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 14, flexWrap: 'wrap' }}>
@@ -355,7 +360,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
 
       {/* Toast */}
       {toast ? (
-        <div style={{ position: 'fixed', bottom: 26, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: C.panel3, border: `1px solid ${C.line2}`, color: C.ink, padding: '13px 20px', borderRadius: 12, boxShadow: '0 24px 60px -30px rgba(0,0,0,.85)', fontSize: 14, fontWeight: 600, zIndex: 200 }}>
+        <div style={{ position: 'fixed', bottom: 26, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: C.panel3, border: `1px solid ${C.line2}`, color: C.ink, padding: '13px 20px', borderRadius: 12, boxShadow: '0 24px 60px -30px rgba(0,0,0,.85)', fontSize: 14, fontWeight: 600, zIndex: 400 }}>
           <i className={`ph-bold ${toast.kind === 'warn' ? 'ph-warning-circle' : toast.kind === 'trash' ? 'ph-trash' : 'ph-check-circle'}`} style={{ fontSize: 18, color: toast.kind === 'warn' ? C.red : C.ok }} /> {toast.text}
         </div>
       ) : null}

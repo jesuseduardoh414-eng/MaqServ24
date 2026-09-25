@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
+import { Modal } from '@/components/Modal';
 import { useRouter } from 'next/navigation';
 import { SiteEditor, type Obra } from './SiteEditor';
 
@@ -96,20 +97,25 @@ export function ClientsManager({ initial }: { initial: ClienteRow[] }) {
             casi todas las solicitudes las hace alguien sin registrarse.
           </p>
         </div>
-        <button type="button" style={boton} onClick={() => setCreando((v) => !v)}>
-          {creando ? 'Cancelar' : '+ Nuevo cliente'}
+        <button type="button" style={boton} onClick={() => setCreando(true)}>
+          + Nuevo cliente
         </button>
       </div>
 
-      {creando ? (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: 18, marginBottom: 20, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 280px' }}>
-            <span style={label}>Nombre o razón social</span>
-            <input style={input} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Constructora del Norte SA de CV" />
-          </div>
-          <button type="button" style={boton} onClick={crear}>Crear</button>
-        </div>
-      ) : null}
+      <Modal
+        abierto={creando}
+        titulo="Nuevo cliente"
+        subtitulo="La empresa que contrata. Sus obras se agregan después desde su ficha."
+        onCerrar={() => setCreando(false)}
+        ancho={560}
+        pie={<>
+          <button type="button" style={botonSec} onClick={() => setCreando(false)}>Cancelar</button>
+          <button type="button" style={boton} onClick={crear}>Crear cliente</button>
+        </>}
+      >
+        <span style={label}>Nombre o razón social</span>
+        <input style={input} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Constructora del Norte SA de CV" autoFocus />
+      </Modal>
 
       {msg ? (
         <div style={{ background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13.5 }}>{msg}</div>
@@ -229,14 +235,15 @@ function FichaCliente({ clientId }: { clientId: number }) {
         <span style={{ fontSize: 12, color: C.muted }}>
           {ficha.sites.length === 0 ? 'Sin obras registradas' : `${ficha.sites.length} obra(s)`}
         </span>
-        <button type="button" style={botonSec} onClick={() => setNueva((v) => !v)}>
-          {nueva ? 'Cancelar' : '+ Agregar obra'}
+        <button type="button" style={botonSec} onClick={() => setNueva(true)}>
+          + Agregar obra
         </button>
       </div>
 
-      {nueva ? (
+      {/* Alta de obra en modal (2026-09-25). */}
+      <Modal abierto={nueva} titulo="Nueva obra" subtitulo="Dirección, contacto en sitio y lo que la obra exige para dejar entrar." onCerrar={() => setNueva(false)} ancho={820}>
         <SiteEditor clientId={clientId} onListo={() => { setNueva(false); recargar(); }} onCancelar={() => setNueva(false)} />
-      ) : null}
+      </Modal>
 
       <div style={{ display: 'grid', gap: 10 }}>
         {ficha.sites.map((o) => (

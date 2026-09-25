@@ -1,5 +1,6 @@
 'use client';
 
+import { Modal } from '@/components/Modal';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Sectors, ThemeTokens } from '@maqserv/config';
@@ -180,6 +181,7 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [busy, setBusy] = useState<number | 'new' | null>(null);
   const [nTitle, setNTitle] = useState('');
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   async function create() {
@@ -190,6 +192,7 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
       const d = await r.json().catch(() => null);
       if (!r.ok || !d?.id) throw new Error('No se pudo crear el sector');
       setNTitle('');
+      setNuevoAbierto(false);
       setEditing(Number(d.id));
       router.refresh();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
@@ -216,21 +219,23 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
 
   return (
     <>
-      <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-plus" style={{ fontSize: 17 }} /></div>
-          <div><h3 style={h3Style}>Nuevo sector</h3><p style={{ margin: '2px 0 0', fontSize: 12, color: D.muted }}>Crea el sector y luego edita sus datos e imagen. Se aplica al instante.</p></div>
-        </div>
+      {/* Nuevo sector: en modal (2026-09-25). */}
+      <div style={{ marginBottom: 14 }}>
+        <button type="button" onClick={() => setNuevoAbierto(true)} style={btnPrimary(true)}><i className="ph-bold ph-plus" /> Nuevo sector</button>
+      </div>
+      <Modal abierto={nuevoAbierto} titulo="Nuevo sector" subtitulo="Crea el sector y luego edita sus datos e imagen. Se aplica al instante." onCerrar={() => setNuevoAbierto(false)} ancho={560}>
+      <div style={{ display: 'grid', gap: 12 }}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} placeholder="Nombre del sector (ej. Minería)" style={{ ...inputStyle, flex: 1, minWidth: 200 }} />
           <button type="button" onClick={create} disabled={busy === 'new' || nTitle.trim().length < 2} style={btnPrimary(busy !== 'new' && nTitle.trim().length >= 2)}><i className="ph-bold ph-plus" /> {busy === 'new' ? 'Creando…' : 'Crear y editar'}</button>
         </div>
       </div>
+      </Modal>
 
       {err ? <div style={{ marginBottom: 12, fontSize: 12.5, color: '#f87171', display: 'flex', alignItems: 'center', gap: 7 }}><i className="ph ph-warning-circle" /> {err}</div> : null}
 
       {sectors.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: 'center', color: D.muted2, fontSize: 13 }}>Aún no hay sectores. Crea el primero arriba.</div>
+        <div style={{ ...cardStyle, textAlign: 'center', color: D.muted2, fontSize: 13 }}>Aún no hay sectores. Crea el primero con «Nuevo sector».</div>
       ) : sectors.map((sec) => (
         editing === sec.id ? (
           <SectorEditRow key={sec.id} id={sec.id} busy={busy === sec.id} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); router.refresh(); }} />

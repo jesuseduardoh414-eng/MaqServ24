@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
+import { Modal } from '@/components/Modal';
 import { DocumentAlerts } from './DocumentAlerts';
 import { ProviderHistory } from './ProviderHistory';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
@@ -254,8 +255,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
             sale del nivel y de que sus documentos estén vigentes.
           </p>
         </div>
-        <button type="button" style={boton} onClick={() => setCreando((v) => !v)}>
-          {creando ? 'Cancelar' : '+ Nuevo aliado'}
+        <button type="button" style={boton} onClick={() => setCreando(true)}>
+          + Nuevo aliado
         </button>
       </div>
 
@@ -319,8 +320,19 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         </div>
       ) : null}
 
-      {creando ? (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: 20, marginBottom: 22 }}>
+      {/* Alta en modal (2026-09-25): antes el formulario empujaba la lista hacia abajo. */}
+      <Modal
+        abierto={creando}
+        titulo="Nuevo aliado"
+        subtitulo="Con correo, al darlo de alta le llega su invitación al portal."
+        onCerrar={() => setCreando(false)}
+        ancho={860}
+        pie={<>
+          <button type="button" style={botonSec} onClick={() => setCreando(false)}>Cancelar</button>
+          <button type="button" style={boton} onClick={crear}>Dar de alta</button>
+        </>}
+      >
+        <div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
             <div><span style={label}>Nombre del aliado *</span><input style={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div><span style={label}>Persona que responde</span><input style={input} value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} /></div>
@@ -368,9 +380,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
             Mandarle su invitación por correo al darlo de alta
           </label>
 
-          <button type="button" style={{ ...boton, marginTop: 14 }} onClick={crear}>Dar de alta</button>
         </div>
-      ) : null}
+      </Modal>
 
       <input style={{ ...input, maxWidth: 380, marginBottom: 16 }} placeholder="Buscar por nombre o municipio…" value={query} onChange={(e) => setQuery(e.target.value)} />
 

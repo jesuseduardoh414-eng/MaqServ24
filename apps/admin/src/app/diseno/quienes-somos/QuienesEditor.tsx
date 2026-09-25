@@ -1,5 +1,6 @@
 'use client';
 
+import { Modal } from '@/components/Modal';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ThemeTokens, WhyChooseUs, QuienesSomos, QsStat, QsValue, QsMilestone } from '@maqserv/config';
@@ -371,6 +372,7 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
   const [editing, setEditing] = useState<number | null>(null);
   const [busy, setBusy] = useState<number | 'new' | null>(null);
   const [nTitle, setNTitle] = useState('');
+  const [nuevaAbierta, setNuevaAbierta] = useState(false);
   const [nText, setNText] = useState('');
   const [nPlacement, setNPlacement] = useState<Placement>('both');
   const [err, setErr] = useState<string | null>(null);
@@ -384,6 +386,7 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
       const r = await fetch('/api/admin/cms/why-choose-us', { method: 'POST', body: fd });
       if (!r.ok) throw new Error('No se pudo agregar la razón');
       setNTitle(''); setNText(''); setNPlacement('both');
+      setNuevaAbierta(false);
       router.refresh();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
   }
@@ -408,12 +411,12 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
 
   return (
     <>
-      {/* Nueva razón */}
-      <div style={{ ...cardStyle, display: 'grid', gap: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-plus" style={{ fontSize: 17 }} /></div>
-          <div><h3 style={h3Style}>Nueva razón</h3><p style={{ margin: '2px 0 0', fontSize: 12, color: D.muted }}>Se aplica al instante (no pasa por «Guardar y publicar»).</p></div>
-        </div>
+      {/* Nueva razón: en modal (2026-09-25). */}
+      <div style={{ marginBottom: 14 }}>
+        <button type="button" onClick={() => setNuevaAbierta(true)} style={btnPrimary(true)}><i className="ph-bold ph-plus" /> Nueva razón</button>
+      </div>
+      <Modal abierto={nuevaAbierta} titulo="Nueva razón" subtitulo="Se aplica al instante (no pasa por «Guardar y publicar»)." onCerrar={() => setNuevaAbierta(false)} ancho={620}>
+      <div style={{ display: 'grid', gap: 14 }}>
         <div style={{ display: 'grid', gap: 10 }}>
           <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} placeholder="Título (ej. Transparencia total)" style={inputStyle} />
           <textarea value={nText} onChange={(e) => setNText(e.target.value)} rows={2} placeholder="Descripción breve…" style={textareaStyle} />
@@ -421,12 +424,13 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
         <PlacementSeg value={nPlacement} onChange={setNPlacement} />
         <div><button type="button" onClick={create} disabled={busy === 'new' || !newReady} style={btnPrimary(busy !== 'new' && newReady)}><i className="ph-bold ph-plus" /> {busy === 'new' ? 'Agregando…' : 'Agregar razón'}</button></div>
       </div>
+      </Modal>
 
       {err ? <div style={{ marginBottom: 12, fontSize: 12.5, color: '#f87171', display: 'flex', alignItems: 'center', gap: 7 }}><i className="ph ph-warning-circle" /> {err}</div> : null}
 
       {/* Lista */}
       {reasons.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: 'center', color: D.muted2, fontSize: 13 }}>Aún no hay razones. Agrega la primera arriba.</div>
+        <div style={{ ...cardStyle, textAlign: 'center', color: D.muted2, fontSize: 13 }}>Aún no hay razones. Agrega la primera con «Nueva razón».</div>
       ) : reasons.map((r) => (
         editing === r.id ? (
           <ReasonEditRow key={r.id} reason={r} busy={busy === r.id} onCancel={() => setEditing(null)} onSave={(t, x, p) => update(r.id, t, x, p)} />

@@ -1,5 +1,6 @@
 'use client';
 
+import { Modal } from '@/components/Modal';
 import { useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
@@ -59,8 +60,8 @@ export function AdminCreate() {
     }
   }
 
-  if (!open) {
-    return (
+  return (
+    <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <style>{`.ad-new:hover{ filter: brightness(1.1); }`}</style>
         <button
@@ -73,16 +74,16 @@ export function AdminCreate() {
         </button>
         {ok ? <span role="status" style={{ fontSize: 12.5, fontWeight: 600, color: '#3fbf8f' }}>✓ {ok}</span> : null}
       </div>
-    );
-  }
 
-  return (
-    <div style={{ background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 16, padding: 22 }}>
+      {/* Alta en modal (2026-09-25): antes se abría encima de la lista. */}
+      <Modal
+        abierto={open}
+        titulo="Nuevo administrador"
+        subtitulo="Elige el rol con cuidado: decide qué secciones verá. Dile la contraseña por un canal seguro: no se la mandamos por correo."
+        onCerrar={() => { setOpen(false); setError(null); }}
+        ancho={720}
+      >
       <style>{`.ad-btn:hover:not(:disabled){ filter: brightness(1.1); } .ad-ghost:hover{ background: rgba(255,255,255,0.06); }`}</style>
-      <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Nuevo administrador</h2>
-      <p style={{ margin: '0 0 18px', fontSize: 12.5, color: '#7A7A7F' }}>
-        Elige el rol con cuidado: decide qué secciones verá. Dile la contraseña por un canal seguro: no se la mandamos por correo.
-      </p>
 
       {/*
         `autoComplete="off"` + nombres no estándar: sin esto el navegador rellenaba
@@ -146,6 +147,7 @@ export function AdminCreate() {
           </button>
         </div>
       </form>
-    </div>
+      </Modal>
+    </>
   );
 }
