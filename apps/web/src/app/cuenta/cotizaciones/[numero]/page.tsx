@@ -51,7 +51,20 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
   if (res.status === 401) redirect('/login');
   if (!res.ok) notFound();
   const q = (await res.json()) as QuoteDetail;
-  const est = ESTADO[q.state];
+  /**
+   * "ACEPTADA" confundía (2026-09-25): el cliente leía que el aliado ya había
+   * aceptado, cuando lo que pasó es que él aceptó el precio al solicitar. Con
+   * servicio abierto, el estado que se enseña es el del servicio.
+   */
+  const est = q.state === 'aceptada' && q.service
+    ? q.service.state === 'por_asignar'
+      ? { texto: 'SOLICITADA', nota: 'Estamos confirmando con el aliado. Te avisamos en cuanto acepte.', color: 'var(--color-warning)' }
+      : q.service.state === 'cancelado'
+        ? { texto: 'CANCELADA', nota: q.service.message, color: 'var(--color-error)' }
+        : q.service.state === 'cerrado'
+          ? { texto: 'COMPLETADA', nota: q.service.message, color: 'var(--color-success)' }
+          : { texto: 'CONFIRMADA', nota: 'El aliado aceptó. Quedamos en coordinar el servicio.', color: 'var(--color-success)' }
+    : ESTADO[q.state];
 
   const bloque: React.CSSProperties = {
     border: '1px solid var(--color-border)',

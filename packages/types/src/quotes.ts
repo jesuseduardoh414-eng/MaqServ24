@@ -90,6 +90,12 @@ export interface QuoteSummary {
   state: 'pendiente' | 'vigente' | 'vencida' | 'aceptada' | 'rechazada';
   validUntil: string | null;
   daysToExpire: number | null;
+  /**
+   * En qué va el servicio (por_asignar, asignado, en_servicio, cerrado,
+   * cancelado…) o null si aún no hay servicio. Sirve para no decir "aceptada"
+   * cuando lo que el cliente quiere saber es si el aliado ya confirmó.
+   */
+  serviceState: string | null;
 }
 
 export interface QuoteDetail extends QuoteSummary {

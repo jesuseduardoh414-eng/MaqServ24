@@ -57,6 +57,16 @@ export default async function MyQuotesPage() {
    * aun pudiera aceptarla.
    */
   const statusOf = (q: QuoteSummary) => {
+    // Con servicio abierto, lo que importa es si el aliado ya confirmó, no
+    // que el cliente "aceptó" (aceptar el precio es lo que hizo al solicitar).
+    if (q.state === 'aceptada' && q.serviceState) {
+      switch (q.serviceState) {
+        case 'por_asignar': return { text: 'Solicitada · esperando al aliado', tone: 'warn' as const };
+        case 'cancelado': return { text: 'Cancelada', tone: 'bad' as const };
+        case 'cerrado': return { text: 'Completada', tone: 'ok' as const };
+        default: return { text: 'Confirmada', tone: 'ok' as const };
+      }
+    }
     switch (q.state) {
       case 'vigente': return { text: 'Vigente', tone: 'ok' as const };
       case 'vencida': return { text: 'Vencida', tone: 'bad' as const };

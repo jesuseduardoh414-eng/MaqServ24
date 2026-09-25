@@ -46,6 +46,22 @@ interface Resultado {
   tipoNoEncontrado: boolean;
 }
 
+/** Lo que se manda a recomendar/solicitar por cada máquina. */
+interface EntradaGuiada {
+  linea: string;
+  tipo: string | null;
+  requisitos: Record<string, string>;
+  obra: { siteId?: number; direccion: string | null; municipio: string | null };
+  fecha: string;
+  hora: string | null;
+  unidad: string;
+  unidades: number;
+  equipos: number;
+  productoId: number | null;
+}
+/** Una máquina ya elegida para esta cotización. */
+interface Partida { maquina: Maquina; entrada: EntradaGuiada; clave: string }
+
 const PASOS = [
   { clave: 'que', titulo: 'Qué necesitas' },
   { clave: 'requisitos', titulo: 'Requisitos' },
@@ -77,7 +93,9 @@ export function CotizadorGuiado({
   const [tipo, setTipo] = useState(inicial.producto?.name ?? '');
   const [tipos, setTipos] = useState<Tipo[]>([]);
   const [unidadesLinea, setUnidadesLinea] = useState<Unidad[]>([]);
-  const productoId = inicial.producto?.id ?? null;
+  // La máquina con la que entró (desde su ficha) es la preferida SOLO para el
+  // primer servicio; al agregar otro se busca libremente.
+  const [preferido, setPreferido] = useState<number | null>(inicial.producto?.id ?? null);
   const form = useMemo(() => requestFormFor(linea), [linea]);
 
   useEffect(() => {
@@ -105,9 +123,10 @@ export function CotizadorGuiado({
    * la cotización.
    */
   const conocidos = useMemo(() => {
+    if (!preferido || inicial.producto?.id !== preferido) return {} as Record<string, string>;
     const a = inicial.producto?.atributos ?? {};
     return Object.fromEntries(Object.entries(a).filter(([, v]) => v && String(v).trim())) as Record<string, string>;
-  }, [inicial.producto]);
+  }, [inicial.producto, preferido]);
   const ocultas = useMemo(
     () => [...CLAVES_UBICACION, ...CLAVES_FECHA, 'tipo_equipo', 'operador', 'combustible', ...Object.keys(conocidos)],
     [conocidos],
@@ -130,6 +149,14 @@ export function CotizadorGuiado({
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [elegida, setElegida] = useState<Maquina | null>(null);
+  /**
+   * LA COTIZACIÓN PUEDE LLEVAR VARIOS SERVICIOS (2026-09-25), como en el
+   * cotizador original: excavadora + pipa en el mismo documento. Cada máquina
+   * elegida se guarda con lo que se pidió de ella; en la confirmación se
+   * pueden quitar o agregar otra (vuelve al paso 1 con la obra ya puesta).
+   */
+  const [partidas, setPartidas] = useState<Partida[]>([]);
+  const totalPartidas = partidas.reduce((s, p) => s + (p.maquina.total ?? 0), 0);
 
   // 6 · Confirmar
   const [cliente, setCliente] = useState(user.name ?? '');
@@ -144,14 +171,14 @@ export function CotizadorGuiado({
    */
   const [vista, setVista] = useState<Omit<DatosDocumento, 'logo'> | null>(null);
   const [vistaCargando, setVistaCargando] = useState(false);
-  async function cargarVista(maquina?: Maquina | null) {
-    const m = maquina ?? elegida;
-    if (!m) return;
+  async function cargarVista(lista?: Partida[]) {
+    const l = lista ?? partidas;
+    if (l.length === 0) return;
     setVistaCargando(true);
     try {
       const r = await fetch('/api/proxy/maquinas/documento', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...entrada(), productoId: m.id, notas: notas.trim(), cliente: cliente.trim(), telefono: telefono.trim() }),
+        body: JSON.stringify(cuerpoSolicitud(l)),
       });
       const d = await r.json().catch(() => null);
       if (r.ok && d?.calc) setVista(d as Omit<DatosDocumento, 'logo'>);
@@ -159,10 +186,13 @@ export function CotizadorGuiado({
       setVistaCargando(false);
     }
   }
-  const [listo, setListo] = useState<{ quoteNumber: string; url: string; total: number; documentUrl?: string | null } | null>(null);
+  const [listo, setListo] = useState<{
+    quoteNumber: string; url: string; total: number; documentUrl?: string | null; folio?: string | null;
+    solicitudes?: Array<{ quoteNumber: string; url: string; name: string }>;
+  } | null>(null);
 
   const u = UNIDADES[unidad];
-  const entrada = () => ({
+  const entrada = (): EntradaGuiada => ({
     linea,
     tipo: tipo.trim() || null,
     requisitos: { ...reqs, ...(tipo.trim() ? { tipo_equipo: tipo.trim() } : {}) },
@@ -174,8 +204,26 @@ export function CotizadorGuiado({
     unidad,
     unidades,
     equipos,
-    productoId,
+    productoId: preferido,
   });
+  const cuerpoSolicitud = (lista: Partida[]) => ({
+    partidas: lista.map((p) => ({ ...p.entrada, productoId: p.maquina.id })),
+    notas: notas.trim(),
+    cliente: cliente.trim(),
+    telefono: telefono.trim(),
+  });
+
+  /** Otro servicio en la misma cotización: vuelve al paso 1 con la obra y las fechas ya puestas. */
+  function agregarOtro() {
+    setElegida(null); setResultado(null); setTipo(''); setReqs({}); setPreferido(null); setError(null);
+    setPaso(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function quitarPartida(clave: string) {
+    const lista = partidas.filter((p) => p.clave !== clave);
+    setPartidas(lista);
+    if (lista.length) void cargarVista(lista); else setVista(null);
+  }
 
   function falta(): string | null {
     if (paso === 0 && !linea) return 'Elige qué línea de servicio necesitas.';
@@ -211,17 +259,24 @@ export function CotizadorGuiado({
     const siguiente = paso + 1;
     setPaso(siguiente);
     if (siguiente === 4) void buscar();
-    if (siguiente === 5) void cargarVista();
+    if (siguiente === 5 && elegida) {
+      // La máquina elegida entra a la cotización (sin duplicarla si vuelve atrás y sigue).
+      const e = entrada();
+      const yaEsta = partidas.some((p) => p.maquina.id === elegida.id && p.entrada.fecha === e.fecha);
+      const lista = yaEsta ? partidas : [...partidas, { maquina: elegida, entrada: e, clave: `${elegida.id}-${Date.now()}` }];
+      setPartidas(lista);
+      void cargarVista(lista);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   async function solicitar() {
-    if (!elegida) return;
+    if (partidas.length === 0) { setError('Agrega al menos un servicio.'); return; }
     setEnviando(true); setError(null);
     try {
       const r = await fetch('/api/proxy/maquinas/solicitar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...entrada(), productoId: elegida.id, notas: notas.trim(), cliente: cliente.trim(), telefono: telefono.trim() }),
+        body: JSON.stringify(cuerpoSolicitud(partidas)),
       });
       const d = await r.json().catch(() => null);
       if (!r.ok) { setError(d?.message ?? 'No se pudo enviar la solicitud.'); return; }
@@ -241,11 +296,20 @@ export function CotizadorGuiado({
             <Icon name="check" size={22} />
           </span>
           <div>
-            <h2 style={{ margin: 0, fontFamily: DISPLAY, fontSize: 24, letterSpacing: '-0.02em' }}>Solicitud enviada</h2>
+            <h2 style={{ margin: 0, fontFamily: DISPLAY, fontSize: 24, letterSpacing: '-0.02em' }}>Cotización enviada</h2>
             <p style={{ margin: '8px 0 0', color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-              Tu folio es <strong style={{ color: 'var(--color-text)' }}>{listo.quoteNumber}</strong> por {formatPrice(listo.total)}.
-              La máquina quedó apartada y estamos confirmando con el aliado. Te avisamos por correo y en tu cuenta en cuanto acepte.
+              Tu cotización <strong style={{ color: 'var(--color-text)' }}>{listo.folio ?? listo.quoteNumber}</strong> es por {formatPrice(listo.total)}.
+              {(listo.solicitudes?.length ?? 1) > 1
+                ? ` Incluye ${listo.solicitudes!.length} servicios; cada uno lo confirma su aliado y te avisamos por correo y en tu cuenta.`
+                : ' La máquina quedó apartada y estamos confirmando con el aliado. Te avisamos por correo y en tu cuenta en cuanto acepte.'}
             </p>
+            {(listo.solicitudes?.length ?? 0) > 1 ? (
+              <ul style={{ margin: '10px 0 0', paddingLeft: 18, color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1.7 }}>
+                {listo.solicitudes!.map((s) => (
+                  <li key={s.quoteNumber}><Link href={s.url} style={{ color: 'var(--color-primary)', fontWeight: 600 }}>{s.quoteNumber}</Link> · {s.name}</li>
+                ))}
+              </ul>
+            ) : null}
             <div style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap' }}>
               {listo.documentUrl ? <Link href={listo.documentUrl} style={btn}>Ver documento de la cotización <Icon name="arrowRight" size={14} /></Link> : null}
               <Link href={listo.url} style={listo.documentUrl ? btnSec : btn}>Ver mi solicitud <Icon name="arrowRight" size={14} /></Link>
@@ -434,8 +498,34 @@ export function CotizadorGuiado({
       ) : null}
 
       {/* ── 6 · Confirmar ── */}
-      {paso === 5 && elegida ? (
+      {paso === 5 && partidas.length > 0 ? (
         <div style={{ display: 'grid', gap: 16 }}>
+          {/* Los servicios de esta cotización: se puede quitar uno o agregar otro. */}
+          <div style={card}>
+            <h2 style={leyenda}>Servicios en esta cotización</h2>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {partidas.map((p) => {
+                const u = UNIDADES[p.maquina.unidad];
+                return (
+                  <div key={p.clave} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+                    {p.maquina.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.maquina.image} alt="" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
+                    ) : null}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <strong style={{ fontSize: 14.5 }}>{p.maquina.name}</strong>
+                      <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)' }}>
+                        {p.entrada.fecha}{p.entrada.hora ? ` ${p.entrada.hora}` : ''} · {p.maquina.unidadesCobradas} {u ? (p.maquina.unidadesCobradas === 1 ? u.singular : u.plural) : p.maquina.unidad}{p.maquina.equipos > 1 ? ` × ${p.maquina.equipos}` : ''}
+                      </div>
+                    </div>
+                    <strong style={{ whiteSpace: 'nowrap' }}>{p.maquina.total !== null ? formatPrice(p.maquina.total) : '—'}</strong>
+                    <button type="button" onClick={() => quitarPartida(p.clave)} aria-label="Quitar servicio" style={{ ...btnSec, padding: '8px 10px', fontSize: 13 }}>Quitar</button>
+                  </div>
+                );
+              })}
+            </div>
+            <button type="button" onClick={agregarOtro} style={{ ...btnSec, marginTop: 12, width: '100%' }}>+ Agregar otro servicio a esta cotización</button>
+          </div>
           <div style={card}>
             <h2 style={leyenda}>Datos de contacto</h2>
             <div className="cg-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -481,7 +571,7 @@ export function CotizadorGuiado({
           </button>
         ) : (
           <button type="button" onClick={() => void solicitar()} disabled={enviando} style={{ ...btn, flex: 1, opacity: enviando ? 0.6 : 1 }}>
-            {enviando ? 'Enviando…' : `Solicitar por ${elegida?.total !== null && elegida ? formatPrice(elegida.total) : '—'}`}
+            {enviando ? 'Enviando…' : `Solicitar ${partidas.length > 1 ? `${partidas.length} servicios ` : ''}por ${formatPrice(totalPartidas)}`}
           </button>
         )}
       </div>

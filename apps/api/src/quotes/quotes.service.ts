@@ -31,9 +31,10 @@ export class QuotesService {
     id: bigint; quote_number: string; status: string;
     subtotal: unknown; freight_cost: unknown; freight_distance: string | null;
     tax: unknown; total: unknown; created_at: Date | null;
-    valid_until?: Date | null; accepted_at?: Date | null;
+    valid_until?: Date | null; accepted_at?: Date | null; service_state?: string | null;
   }): QuoteSummary {
     return {
+      serviceState: q.service_state ?? null,
       id: Number(q.id),
       quoteNumber: q.quote_number,
       status: q.status,

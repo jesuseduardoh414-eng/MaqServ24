@@ -6,16 +6,17 @@ import { z } from 'zod';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { RecomendadorService, type MaquinaRecomendada } from './recomendador.service';
-import { MaquinaServicio } from './maquina-servicio';
+import { MaquinaServicio, type PartidaMaquina } from './maquina-servicio';
 
 /**
  * COTIZADOR GUIADO POR MÁQUINA · lado API (2026-09-25).
  *
  *  GET  /maquinas/tipos?linea=   → qué tipos hay en esa línea (para el paso 1)
  *  POST /maquinas/recomendar     → máquinas que sirven, llegan, pueden y cuánto cuestan
- *  POST /maquinas/solicitar      → el cliente eligió una: se abre el servicio
+ *  POST /maquinas/documento      → la cotización tal como se imprime, antes de solicitar
+ *  POST /maquinas/solicitar      → el cliente eligió una o varias: se abre un servicio por máquina
  *
- * Las dos últimas exigen cuenta (igual que el resto del camino de cotizar) y
+ * Las tres últimas exigen cuenta (igual que el resto del camino de cotizar) y
  * tienen tope: recomendar geocodifica la obra, y eso sale a un servicio de
  * terceros que se paga por petición.
  */
@@ -41,12 +42,24 @@ const entradaSchema = z.object({
   productoId: z.number().int().positive().nullable().optional(),
 });
 
-const solicitudSchema = entradaSchema.extend({
-  productoId: z.number().int().positive(),
+/** Una máquina elegida con lo que se pide de ella. */
+const partidaSchema = entradaSchema.extend({ productoId: z.number().int().positive() });
+
+const contactoSchema = z.object({
   notas: z.string().trim().max(2000).optional(),
   cliente: z.string().trim().max(190).optional(),
   telefono: z.string().trim().max(40).optional(),
 });
+
+/**
+ * Una solicitud trae VARIAS partidas (excavadora + pipa en la misma
+ * cotización, como en el cotizador original) o, por compatibilidad, una sola
+ * máquina con sus datos al nivel de arriba.
+ */
+const solicitudSchema = z.union([
+  contactoSchema.extend({ partidas: z.array(partidaSchema).min(1, 'Elige al menos una máquina').max(10) }),
+  partidaSchema.merge(contactoSchema).transform((s) => ({ partidas: [s], notas: s.notas, cliente: s.cliente, telefono: s.telefono })),
+]);
 
 /** Lo que ve el cliente de una máquina: sin el aliado. */
 function publica(m: MaquinaRecomendada) {
@@ -108,9 +121,35 @@ export class MaquinasController {
   }
 
   /**
+   * Cada partida se vuelve a evaluar SOLO con su máquina en el servidor: el
+   * precio, el flete y la disponibilidad nunca se toman de lo que mandó el
+   * navegador. Devuelve la zona resuelta para el documento.
+   */
+  private async resolverPartidas(partidas: z.infer<typeof partidaSchema>[]): Promise<{ partidas: PartidaMaquina[]; zona: string | null }> {
+    const out: PartidaMaquina[] = [];
+    let zona: string | null = null;
+    const nombres = new Map<string, string>();
+    for (const p of partidas) {
+      const r = await this.recomendador.recomendar({ ...p, soloProductoId: p.productoId });
+      const m = r.maquinas[0];
+      if (!m) {
+        const motivo = r.descartadas.ocupadas ? 'ya está apartada esas fechas' : r.descartadas.fueraDeHorario ? 'no atiende a esa hora' : r.descartadas.noSirven ? 'no alcanza lo que pides' : 'ya no está disponible';
+        throw new BadRequestException(`Una de las máquinas ${motivo}. Quítala o elige otra.`);
+      }
+      zona = zona ?? r.zona;
+      if (!nombres.has(p.linea)) {
+        const cat = await prisma.categories.findUnique({ where: { cat_slug: p.linea }, select: { cat_name: true } });
+        nombres.set(p.linea, cat?.cat_name ?? p.linea);
+      }
+      out.push({ entrada: p, maquina: m, lineaNombre: nombres.get(p.linea) ?? p.linea, fin: r.fin });
+    }
+    return { partidas: out, zona };
+  }
+
+  /**
    * VISTA PREVIA del documento (2026-09-25): la cotización tal como se
-   * imprime, con la máquina elegida, ANTES de solicitar. Se recalcula en el
-   * servidor igual que al solicitar; lo único que falta es el folio.
+   * imprime, con las máquinas elegidas, ANTES de solicitar. Lo único que
+   * falta es el folio.
    */
   @Throttle({ default: { ttl: 60_000, limit: 30 } })
   @Post('documento')
@@ -121,10 +160,8 @@ export class MaquinasController {
     const d = parsed.data;
     const cuenta = await datosDeCuenta(req.userId);
     if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
-    const r = await this.recomendador.recomendar({ ...d, soloProductoId: d.productoId });
-    const m = r.maquinas[0];
-    if (!m) throw new BadRequestException('Esa máquina ya no está disponible para esas fechas.');
-    return this.servicio.vistaPrevia({ entrada: d, maquina: m, cliente: d.cliente || cuenta.name, zona: r.zona, notas: d.notas || null });
+    const { partidas, zona } = await this.resolverPartidas(d.partidas);
+    return this.servicio.vistaPrevia({ partidas, cliente: d.cliente || cuenta.name, zona, notas: d.notas || null });
   }
 
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
@@ -136,24 +173,11 @@ export class MaquinasController {
     const d = parsed.data;
     const cuenta = await datosDeCuenta(req.userId);
     if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
-
-    // Se vuelve a evaluar SOLO esa máquina en el servidor: el precio, el flete y
-    // la disponibilidad nunca se toman de lo que mandó el navegador.
-    const r = await this.recomendador.recomendar({ ...d, soloProductoId: d.productoId });
-    const m = r.maquinas[0];
-    if (!m) {
-      const motivo = r.descartadas.ocupadas ? 'ya está apartada esas fechas' : r.descartadas.fueraDeHorario ? 'no atiende a esa hora' : r.descartadas.noSirven ? 'no alcanza lo que pides' : 'ya no está disponible';
-      throw new BadRequestException(`Esa máquina ${motivo}. Elige otra de la lista.`);
-    }
-    const cat = await prisma.categories.findUnique({ where: { cat_slug: d.linea }, select: { cat_name: true } });
+    const { partidas, zona } = await this.resolverPartidas(d.partidas);
     void completarTelefono(req.userId, d.telefono);
-
     return this.servicio.abrir({
-      entrada: d,
-      maquina: m,
-      lineaNombre: cat?.cat_name ?? d.linea,
-      fin: r.fin,
-      zona: r.zona,
+      partidas,
+      zona,
       cuenta,
       userId: req.userId,
       cliente: d.cliente || cuenta.name,
