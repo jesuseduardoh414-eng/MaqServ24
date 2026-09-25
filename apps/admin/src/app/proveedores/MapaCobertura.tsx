@@ -139,7 +139,8 @@ export function MapaCobertura({
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
       <div
         ref={caja}
-        style={{ height: alto, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)' }}
+        // isolation: Leaflet pinta sus capas con z-index 400–1000; sin aislarlas quedaban encima de los modales del panel.
+        style={{ height: alto, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', position: 'relative', zIndex: 0, isolation: 'isolate' }}
       />
     </>
   );

@@ -539,7 +539,7 @@ function ExpedienteModal({
   return (
     <div
       onClick={onCerrar}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 90 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 1000 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
