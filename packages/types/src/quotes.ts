@@ -96,6 +96,11 @@ export interface QuoteSummary {
    * cuando lo que el cliente quiere saber es si el aliado ya confirmó.
    */
   serviceState: string | null;
+  /**
+   * Cómo lo lee el cliente (2026-09-25): enviada, en revisión, aprobada,
+   * rechazada, cancelada o completada. Null si aún no hay servicio.
+   */
+  request: { state: 'enviada' | 'en_revision' | 'aprobada' | 'rechazada' | 'cancelada' | 'completada'; label: string; message: string } | null;
 }
 
 export interface QuoteDetail extends QuoteSummary {

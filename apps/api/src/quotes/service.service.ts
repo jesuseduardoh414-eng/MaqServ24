@@ -325,7 +325,24 @@ export class ServiceService {
     });
 
     // Si no la toma, la máquina vuelve a estar libre para otros.
-    if (estado !== 'aceptado') await liberarReserva(quoteId);
+    if (estado !== 'aceptado') {
+      await liberarReserva(quoteId);
+      /**
+       * El cliente se entera también de la negativa (2026-09-25): antes solo
+       * veía "esperando al aliado" para siempre. El mensaje dice que no es el
+       * final: MAQSER24 busca otra opción.
+       */
+      const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { user_id: true, quote_number: true, product_interested: true } });
+      if (q?.user_id) {
+        await this.notifications.push({
+          userId: Number(q.user_id),
+          type: 'service_status',
+          title: `Tu solicitud ${q.quote_number} fue rechazada por el aliado`,
+          body: `${q.product_interested ?? 'El servicio'}: el aliado no pudo atenderla. MAQSER24 está buscando otra opción para ti.`,
+          link: `/cuenta/cotizaciones/${q.quote_number}`,
+        });
+      }
+    }
 
     if (estado === 'aceptado') {
       /**

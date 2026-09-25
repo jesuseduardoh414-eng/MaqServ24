@@ -56,15 +56,21 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
    * aceptado, cuando lo que pasó es que él aceptó el precio al solicitar. Con
    * servicio abierto, el estado que se enseña es el del servicio.
    */
-  const est = q.state === 'aceptada' && q.service
-    ? q.service.state === 'por_asignar'
-      ? { texto: 'SOLICITADA', nota: 'Estamos confirmando con el aliado. Te avisamos en cuanto acepte.', color: 'var(--color-warning)' }
-      : q.service.state === 'cancelado'
-        ? { texto: 'CANCELADA', nota: q.service.message, color: 'var(--color-error)' }
-        : q.service.state === 'cerrado'
-          ? { texto: 'COMPLETADA', nota: q.service.message, color: 'var(--color-success)' }
-          : { texto: 'CONFIRMADA', nota: 'El aliado aceptó. Quedamos en coordinar el servicio.', color: 'var(--color-success)' }
+  const COLOR_SOLICITUD = {
+    enviada: 'var(--color-warning)', en_revision: 'var(--color-warning)', aprobada: 'var(--color-success)',
+    rechazada: 'var(--color-error)', cancelada: 'var(--color-error)', completada: 'var(--color-success)',
+  } as const;
+  const est = q.request
+    ? { texto: q.request.label.toUpperCase(), nota: q.request.message, color: COLOR_SOLICITUD[q.request.state] }
     : ESTADO[q.state];
+  /** Los cuatro pasos que ve el cliente: enviada → en revisión → aprobada → completada. */
+  const PASOS_SOLICITUD = [
+    { k: 'enviada', t: 'Enviada' },
+    { k: 'en_revision', t: 'En revisión' },
+    { k: 'aprobada', t: 'Aprobada' },
+    { k: 'completada', t: 'Completada' },
+  ] as const;
+  const idxSolicitud = q.request ? PASOS_SOLICITUD.findIndex((p) => p.k === q.request!.state) : -1;
 
   const bloque: React.CSSProperties = {
     border: '1px solid var(--color-border)',
@@ -116,6 +122,25 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
                 : `Este precio vale hasta el ${q.validUntil}${q.daysToExpire !== null && q.daysToExpire <= 3 ? ` · quedan ${q.daysToExpire} día(s)` : ''}.`}
             </p>
           ) : <div style={{ height: 20 }} />}
+
+          {/* Línea de estados de la solicitud: dónde va y qué sigue. */}
+          {q.request ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, margin: '0 0 22px' }}>
+              {PASOS_SOLICITUD.map((p, i) => {
+                const rechazo = q.request!.state === 'rechazada' || q.request!.state === 'cancelada';
+                const hecho = !rechazo && i <= idxSolicitud;
+                const actual = !rechazo && i === idxSolicitud;
+                const color = rechazo && i === 1 ? 'var(--color-error)' : hecho ? 'var(--color-primary)' : 'var(--color-border)';
+                return (
+                  <div key={p.k} style={{ borderTop: `3px solid ${color}`, paddingTop: 8 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: actual ? 700 : 500, color: hecho || (rechazo && i === 1) ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                      {rechazo && i === 1 ? q.request!.label : p.t}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
 
           {/* El documento de siempre (folio, partidas, condiciones, firma) para imprimir o guardar en PDF. */}
           {q.documentFolio ? (

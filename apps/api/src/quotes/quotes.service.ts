@@ -8,6 +8,7 @@ import { estadoCotizacion, sePuedeAceptar, diasParaVencer } from './quote-validi
 import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './service-flow';
 import { resolverClienteYObra } from './client-resolver';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
+import { estadoSolicitud } from './estado-solicitud';
 
 /** Folio del documento del cotizador guardado en `requirements` (cotizador por tipo o por máquina). */
 function folioDocumento(requirements: unknown): string | null {
@@ -32,9 +33,10 @@ export class QuotesService {
     subtotal: unknown; freight_cost: unknown; freight_distance: string | null;
     tax: unknown; total: unknown; created_at: Date | null;
     valid_until?: Date | null; accepted_at?: Date | null; service_state?: string | null;
-  }): QuoteSummary {
+  }, asignaciones: Array<{ state: string }> = []): QuoteSummary {
     return {
       serviceState: q.service_state ?? null,
+      request: estadoSolicitud(q.service_state, asignaciones),
       id: Number(q.id),
       quoteNumber: q.quote_number,
       status: q.status,
@@ -299,7 +301,11 @@ export class QuotesService {
       orderBy: { id: 'desc' },
       take: 50,
     });
-    return rows.map((q) => this.toSummary(q));
+    // Propuestas a aliados de todas en UNA consulta: deciden enviada/en revisión/aprobada/rechazada.
+    const asign = rows.length
+      ? await prisma.service_assignments.findMany({ where: { quote_id: { in: rows.map((r) => r.id) } }, select: { quote_id: true, state: true } })
+      : [];
+    return rows.map((q) => this.toSummary(q, asign.filter((a) => a.quote_id === q.id)));
   }
 
   async byNumber(userId: number, quoteNumber: string): Promise<QuoteDetail> {
@@ -307,6 +313,7 @@ export class QuotesService {
       where: { quote_number: quoteNumber, user_id: userId },
     });
     if (!q) throw new NotFoundException('Cotización no encontrada');
+    const asignaciones = await prisma.service_assignments.findMany({ where: { quote_id: q.id }, select: { state: true } });
 
     let items: QuoteItem[] = [];
     try {
@@ -328,7 +335,7 @@ export class QuotesService {
     }
 
     return {
-      ...this.toSummary(q),
+      ...this.toSummary(q, asignaciones),
       items,
       customer: {
         name: q.name,
