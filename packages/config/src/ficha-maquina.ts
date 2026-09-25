@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { UNIDADES, esUnidadDeTiempo, unidadesDe, type UnidadServicio } from './service-units';
+import { esLineaServicio } from './catalogo-tipos';
 
 /**
  * LA MÁQUINA COMO UNIDAD DE COTIZACIÓN (decisión del cliente, 2026-09-25).
@@ -91,6 +92,9 @@ export function tarifasDe(v: unknown): Tarifas {
  * siempre, porque vender "por mes" no significa nada.
  */
 export function unidadesDeTarifa(linea: string | null | undefined, modalidad: 'renta' | 'venta'): UnidadServicio[] {
+  // Un producto (categoría que no es línea de servicio) se vende por pieza:
+  // "por viaje" o "por día" no tienen sentido para algo que va al carrito.
+  if (linea && !esLineaServicio(linea)) return [UNIDADES.pieza];
   const deLinea = unidadesDe(linea);
   if (modalidad === 'renta') return deLinea.filter((u) => u.clave !== 'litro');
   const sinTiempo = deLinea.filter((u) => !esUnidadDeTiempo(u.clave));

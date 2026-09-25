@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, textoHorario, unidadesDeTarifa, type Horario } from '@maqserv/config';
+import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, esLineaServicio, textoHorario, unidadesDeTarifa, type Horario } from '@maqserv/config';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
 
@@ -51,8 +51,19 @@ const EJEMPLO: Record<string, { nombre: string; modalidad: 'renta' | 'venta' }> 
  * datos que el cotizador usa para recomendar la máquina: sin precio no se
  * puede cotizar, y sin horario no se sabe si atiende el viernes a las 12.
  */
-const PASOS = ['Línea', 'Qué es', 'Ficha técnica', 'Dónde y cuándo', 'Cuánto cobras', 'Fotos', 'Enviar'] as const;
-const P = { linea: 0, queEs: 1, ficha: 2, donde: 3, precios: 4, fotos: 5, enviar: 6 } as const;
+type Paso = 'tipo' | 'linea' | 'queEs' | 'ficha' | 'donde' | 'precios' | 'fotos' | 'enviar';
+
+/**
+ * SERVICIO O PRODUCTO (2026-09-25). "¿Qué pasa si en lugar de servicios
+ * ofrece productos, o ambos?" Lo que puede ofrecer lo marcó MAQSER24 al darlo
+ * de alta (`providers.categories`): las líneas son servicios y cualquier otra
+ * categoría es de productos. Si tiene de los dos, lo primero es preguntarle
+ * cuál; el producto se vende a precio fijo, sin horario ni cobro por tiempo.
+ */
+const TITULO: Record<'servicio' | 'producto', Record<Paso, string>> = {
+  servicio: { tipo: 'Qué ofreces', linea: 'Línea', queEs: 'Qué es', ficha: 'Ficha técnica', donde: 'Dónde y cuándo', precios: 'Cuánto cobras', fotos: 'Fotos', enviar: 'Enviar' },
+  producto: { tipo: 'Qué ofreces', linea: 'Categoría', queEs: 'Qué es', ficha: 'Ficha técnica', donde: 'Dónde está', precios: 'Precio y existencias', fotos: 'Fotos', enviar: 'Enviar' },
+};
 
 export function OfrecerEquipo({
   lineas,
@@ -63,8 +74,13 @@ export function OfrecerEquipo({
   onCerrar: () => void;
   onEnviado: (nombre: string) => void;
 }) {
-  const [paso, setPaso] = useState<number>(lineas.length === 1 ? P.queEs : P.linea);
-  const [linea, setLinea] = useState(lineas.length === 1 ? lineas[0].slug : '');
+  const servicios = lineas.filter((l) => esLineaServicio(l.slug));
+  const productos = lineas.filter((l) => !esLineaServicio(l.slug));
+  const ambos = servicios.length > 0 && productos.length > 0;
+  const [tipo, setTipo] = useState<'servicio' | 'producto'>(servicios.length > 0 ? 'servicio' : 'producto');
+  const esProducto = tipo === 'producto';
+  const opciones = esProducto ? productos : servicios;
+  const [linea, setLinea] = useState(!ambos && lineas.length === 1 ? lineas[0].slug : '');
   const [nombre, setNombre] = useState('');
   const [marca, setMarca] = useState('');
   const [modalidad, setModalidad] = useState<'renta' | 'venta'>(EJEMPLO[lineas[0]?.slug ?? '']?.modalidad ?? 'renta');
@@ -82,7 +98,20 @@ export function OfrecerEquipo({
   const [error, setError] = useState<string | null>(null);
 
   const preguntas = useMemo(() => atributosDe(linea), [linea]);
-  const unidadesPrecio = useMemo(() => unidadesDeTarifa(linea, modalidad), [linea, modalidad]);
+  // Los pasos dependen de qué ofrece: sin "qué ofreces" si solo tiene un tipo,
+  // sin "línea" si solo tiene una, y el producto sin ficha si su categoría no tiene.
+  const pasos = useMemo<Paso[]>(() => {
+    const xs: Paso[] = [];
+    if (ambos) xs.push('tipo');
+    if (ambos || opciones.length !== 1) xs.push('linea');
+    xs.push('queEs');
+    if (!esProducto || preguntas.length > 0) xs.push('ficha');
+    xs.push('donde', 'precios', 'fotos', 'enviar');
+    return xs;
+  }, [ambos, opciones.length, esProducto, preguntas.length]);
+  const [i, setI] = useState(0);
+  const paso = pasos[Math.min(i, pasos.length - 1)];
+  const unidadesPrecio = useMemo(() => unidadesDeTarifa(linea, esProducto ? 'venta' : modalidad), [linea, modalidad, esProducto]);
   const costosNumericos = useMemo(
     () => Object.fromEntries(Object.entries(costos).map(([k, v]) => [k, Number(v)]).filter(([, n]) => Number.isFinite(n) && (n as number) > 0)) as Record<string, number>,
     [costos],
@@ -91,20 +120,28 @@ export function OfrecerEquipo({
   const lineaLabel = lineas.find((l) => l.slug === linea)?.label ?? '';
   const previews = useMemo(() => fotos.map((f) => URL.createObjectURL(f)), [fotos]);
 
+  function elegirTipo(t: 'servicio' | 'producto') {
+    setTipo(t);
+    setAtributos({}); setCostos({}); setUnidadPrincipal('');
+    const suyas = t === 'servicio' ? servicios : productos;
+    setLinea(suyas.length === 1 ? suyas[0].slug : '');
+    setModalidad(t === 'producto' ? 'venta' : EJEMPLO[suyas[0]?.slug ?? '']?.modalidad ?? 'renta');
+  }
+
   function elegirLinea(slug: string) {
     setLinea(slug);
-    setAtributos({});
-    setModalidad(EJEMPLO[slug]?.modalidad ?? 'renta');
+    setAtributos({}); setCostos({}); setUnidadPrincipal('');
+    setModalidad(esProducto ? 'venta' : EJEMPLO[slug]?.modalidad ?? 'renta');
   }
 
   /** Qué falta para pasar de este paso. Null = puede seguir. */
   function falta(): string | null {
-    if (paso === P.linea && !linea) return 'Elige la línea de servicio.';
-    if (paso === P.queEs && nombre.trim().length < 3) return 'Escribe qué equipo o producto es.';
-    if (paso === P.donde && horario.dias.length === 0) return 'Marca al menos un día en que atiendes.';
-    if (paso === P.donde && horario.desde >= horario.hasta) return 'La hora de cierre debe ser después de la de apertura.';
-    if (paso === P.precios && Object.keys(costosNumericos).length === 0) return 'Escribe al menos un precio: sin él no se puede cotizar tu equipo.';
-    if (paso === P.fotos && fotos.length === 0) return 'Sube al menos una foto: es lo primero que revisa el cliente.';
+    if (paso === 'linea' && !linea) return esProducto ? 'Elige la categoría del producto.' : 'Elige la línea de servicio.';
+    if (paso === 'queEs' && nombre.trim().length < 3) return esProducto ? 'Escribe qué producto es.' : 'Escribe qué equipo o servicio es.';
+    if (paso === 'donde' && !esProducto && horario.dias.length === 0) return 'Marca al menos un día en que atiendes.';
+    if (paso === 'donde' && !esProducto && horario.desde >= horario.hasta) return 'La hora de cierre debe ser después de la de apertura.';
+    if (paso === 'precios' && Object.keys(costosNumericos).length === 0) return esProducto ? 'Escribe el precio al que lo vendes.' : 'Escribe al menos un precio: sin él no se puede cotizar tu equipo.';
+    if (paso === 'fotos' && fotos.length === 0) return 'Sube al menos una foto: es lo primero que revisa el cliente.';
     return null;
   }
 
@@ -112,7 +149,7 @@ export function OfrecerEquipo({
     const f = falta();
     if (f) { setError(f); return; }
     setError(null);
-    setPaso((p) => Math.min(PASOS.length - 1, p + 1));
+    setI((p) => Math.min(pasos.length - 1, p + 1));
   }
 
   async function enviar() {
@@ -121,15 +158,15 @@ export function OfrecerEquipo({
     fd.set('categoria', linea);
     fd.set('nombre', nombre.trim());
     if (marca.trim()) fd.set('marca', marca.trim());
-    fd.set('modalidad', modalidad);
+    fd.set('modalidad', esProducto ? 'venta' : modalidad);
     if (ubicacion.trim()) fd.set('ubicacion', ubicacion.trim());
     if (descripcion.trim()) fd.set('descripcion', descripcion.trim());
     fd.set('atributos', JSON.stringify(atributos));
     fd.set('costos', JSON.stringify(costosNumericos));
     fd.set('unidad', unidadElegida);
-    fd.set('minimo', String(Math.max(0, Number(minimo) || 0)));
+    fd.set('minimo', esProducto ? '0' : String(Math.max(0, Number(minimo) || 0)));
     fd.set('unidades', String(Math.max(1, Number(unidades) || 1)));
-    fd.set('horario', JSON.stringify(horario));
+    if (!esProducto) fd.set('horario', JSON.stringify(horario));
     fotos.forEach((f) => fd.append('fotos', f));
     const r = await fetch('/api/proxy/aliado/equipos', { method: 'POST', body: fd });
     setEnviando(false);
@@ -146,7 +183,7 @@ export function OfrecerEquipo({
   return (
     <div style={{ ...card, borderColor: 'var(--color-primary)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <strong style={{ fontSize: 17 }}>Ofrecer un servicio</strong>
+        <strong style={{ fontSize: 17 }}>{ambos ? 'Ofrecer' : esProducto ? 'Ofrecer un producto' : 'Ofrecer un servicio'}</strong>
         <button type="button" onClick={onCerrar} aria-label="Cerrar" style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex' }}>
           <Icon name="x" size={18} />
         </button>
@@ -154,27 +191,49 @@ export function OfrecerEquipo({
 
       {/* Pasos: se ve dónde va y lo que falta. */}
       <ol style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {PASOS.map((t, i) => (
+        {pasos.map((k, n) => (
           <li
-            key={t}
+            key={k}
             style={{
               fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
-              color: i === paso ? 'var(--color-primary-fg)' : i < paso ? 'var(--color-success)' : 'var(--color-text-muted)',
-              background: i === paso ? 'var(--color-primary)' : 'transparent',
-              border: `1px solid ${i === paso ? 'var(--color-primary)' : 'var(--color-border)'}`,
+              color: n === i ? 'var(--color-primary-fg)' : n < i ? 'var(--color-success)' : 'var(--color-text-muted)',
+              background: n === i ? 'var(--color-primary)' : 'transparent',
+              border: `1px solid ${n === i ? 'var(--color-primary)' : 'var(--color-border)'}`,
             }}
           >
-            {i < paso ? '✓ ' : `${i + 1}. `}{t}
+            {n < i ? '✓ ' : `${n + 1}. `}{TITULO[tipo][k]}
           </li>
         ))}
       </ol>
 
       <div style={{ display: 'grid', gap: 14 }}>
-        {paso === P.linea ? (
+        {paso === 'tipo' ? (
           <>
-            <span style={etiqueta}>¿En qué línea de servicio va?</span>
+            <span style={etiqueta}>¿Qué vas a ofrecer?</span>
             <div style={{ display: 'grid', gap: 8 }}>
-              {lineas.map((l) => (
+              {([
+                ['servicio', 'Un servicio', 'Renta de maquinaria, fletes, surtido de material… se cotiza por obra.'],
+                ['producto', 'Un producto', 'Algo que vendes a precio fijo y se envía o se recoge.'],
+              ] as const).map(([v, t, a]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => elegirTipo(v)}
+                  style={{ ...btnSec, display: 'grid', justifyItems: 'start', justifyContent: 'stretch', textAlign: 'left', gap: 2, borderColor: tipo === v ? 'var(--color-primary)' : 'var(--color-border)', background: tipo === v ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}
+                >
+                  <span>{tipo === v ? '✓ ' : ''}{t}</span>
+                  <span style={{ ...ayuda, fontWeight: 500 }}>{a}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {paso === 'linea' ? (
+          <>
+            <span style={etiqueta}>{esProducto ? '¿En qué categoría va?' : '¿En qué línea de servicio va?'}</span>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {opciones.map((l) => (
                 <button
                   key={l.slug}
                   type="button"
@@ -188,31 +247,33 @@ export function OfrecerEquipo({
           </>
         ) : null}
 
-        {paso === P.queEs ? (
+        {paso === 'queEs' ? (
           <>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiqueta}>¿Qué es?</span>
-              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={EJEMPLO[linea]?.nombre ?? 'Nombre del equipo o producto'} style={campo} />
-              <span style={ayuda}>Como lo buscaría un cliente: tipo y tamaño. Ej. "Excavadora 20 t".</span>
+              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={EJEMPLO[linea]?.nombre ?? (esProducto ? 'Nombre del producto' : 'Nombre del equipo o servicio')} style={campo} />
+              <span style={ayuda}>{esProducto ? 'Como lo buscaría un cliente: qué es y su medida o presentación.' : 'Como lo buscaría un cliente: tipo y tamaño. Ej. "Excavadora 20 t".'}</span>
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiqueta}>Marca y modelo <span style={ayuda}>(opcional)</span></span>
               <input value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="CAT 320, John Deere 310L…" style={campo} />
             </label>
-            <div style={{ display: 'grid', gap: 6 }}>
-              <span style={etiqueta}>¿Cómo lo cobras?</span>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['renta', 'venta'] as const).map((m) => (
-                  <button key={m} type="button" onClick={() => setModalidad(m)} style={{ ...btnSec, flex: 1, borderColor: modalidad === m ? 'var(--color-primary)' : 'var(--color-border)', background: modalidad === m ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}>
-                    {m === 'renta' ? 'Por tiempo (día, semana, mes)' : 'Por cantidad (viaje, tonelada, m³)'}
-                  </button>
-                ))}
+            {esProducto ? null : (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <span style={etiqueta}>¿Cómo lo cobras?</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {(['renta', 'venta'] as const).map((m) => (
+                    <button key={m} type="button" onClick={() => { setModalidad(m); setCostos({}); setUnidadPrincipal(''); }} style={{ ...btnSec, flex: 1, borderColor: modalidad === m ? 'var(--color-primary)' : 'var(--color-border)', background: modalidad === m ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}>
+                      {m === 'renta' ? 'Por tiempo (día, semana, mes)' : 'Por cantidad (viaje, tonelada, m³)'}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </>
         ) : null}
 
-        {paso === P.ficha ? (
+        {paso === 'ficha' ? (
           preguntas.length === 0 ? (
             <p style={{ margin: 0, ...ayuda, fontSize: 14 }}>Esta línea no tiene ficha técnica. Sigue al siguiente paso.</p>
           ) : (
@@ -246,17 +307,17 @@ export function OfrecerEquipo({
           )
         ) : null}
 
-        {paso === P.donde ? (
+        {paso === 'donde' ? (
           <>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={etiqueta}>¿Dónde está?</span>
-              <input value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} placeholder="Patio en García, banco en Escobedo…" style={campo} />
+              <span style={etiqueta}>{esProducto ? '¿Desde dónde se envía o se recoge?' : '¿Dónde está?'}</span>
+              <input value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} placeholder={esProducto ? 'Bodega en Apodaca…' : 'Patio en García, banco en Escobedo…'} style={campo} />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={etiqueta}>Algo más que el cliente deba saber <span style={ayuda}>(opcional)</span></span>
-              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} placeholder="Incluye operador y diésel, condiciones…" style={{ ...campo, resize: 'vertical' }} />
+              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} placeholder={esProducto ? 'Presentación, garantía, condiciones…' : 'Incluye operador y diésel, condiciones…'} style={{ ...campo, resize: 'vertical' }} />
             </label>
-            <div style={{ display: 'grid', gap: 8 }}>
+            {esProducto ? null : <div style={{ display: 'grid', gap: 8 }}>
               <span style={etiqueta}>¿Qué días atiendes?</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {DIAS_SEMANA.map((d, i) => {
@@ -285,14 +346,16 @@ export function OfrecerEquipo({
                 </label>
               </div>
               <span style={ayuda}>Solo te proponemos trabajos que caigan en este horario.</span>
-            </div>
+            </div>}
           </>
         ) : null}
 
-        {paso === P.precios ? (
+        {paso === 'precios' ? (
           <>
             <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>
-              Lo que cobras. Con eso MAQSER24 arma el precio al cliente. Llena las unidades que manejes.
+              {esProducto
+                ? 'El precio al que lo vendes. Con eso MAQSER24 arma el precio al cliente.'
+                : 'Lo que cobras. Con eso MAQSER24 arma el precio al cliente. Llena las unidades que manejes.'}
             </p>
             <div style={{ display: 'grid', gap: 10 }}>
               {unidadesPrecio.map((u) => (
@@ -323,7 +386,13 @@ export function OfrecerEquipo({
                 <span style={ayuda}>Es la que se enseña en el catálogo.</span>
               </label>
             ) : null}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {esProducto ? (
+              <label style={{ display: 'grid', gap: 6, maxWidth: 260 }}>
+                <span style={etiqueta}>¿Cuántas tienes en existencia?</span>
+                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} style={campo} />
+                <span style={ayuda}>Se descuentan al venderse.</span>
+              </label>
+            ) : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <label style={{ display: 'grid', gap: 6 }}>
                 <span style={etiqueta}>Mínimo</span>
                 <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={campo} />
@@ -334,11 +403,11 @@ export function OfrecerEquipo({
                 <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} style={campo} />
                 <span style={ayuda}>Para saber cuántas se pueden apartar a la vez.</span>
               </label>
-            </div>
+            </div>}
           </>
         ) : null}
 
-        {paso === P.fotos ? (
+        {paso === 'fotos' ? (
           <>
             <span style={etiqueta}>Fotos <span style={ayuda}>(hasta 6; la primera es la principal)</span></span>
             <input
@@ -359,22 +428,23 @@ export function OfrecerEquipo({
           </>
         ) : null}
 
-        {paso === P.enviar ? (
+        {paso === 'enviar' ? (
           <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
             <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>Revisa y envía. MAQSER24 lo revisa y, al publicarlo, te avisamos por correo.</p>
-            {[
-              ['Línea', lineaLabel],
+            {([
+              ['Tipo', esProducto ? 'Producto' : 'Servicio'],
+              [esProducto ? 'Categoría' : 'Línea', lineaLabel],
               ['Qué es', nombre],
               ['Marca', marca || '—'],
-              ['Cobro', modalidad === 'renta' ? 'Por tiempo' : 'Por cantidad'],
+              ...(esProducto ? [] : [['Cobro', modalidad === 'renta' ? 'Por tiempo' : 'Por cantidad']]),
               ...preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).map((q) => [q.label, `${atributos[q.clave]}${q.unidad ? ` ${q.unidad}` : ''}`]),
-              ['Dónde está', ubicacion || '—'],
-              ['Horario', textoHorario(horario)],
-              ...unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => [`Cobras por ${u.singular}`, `${costosNumericos[u.clave].toLocaleString('es-MX')}`]),
-              ['Mínimo', Number(minimo) > 0 ? `${minimo} ${unidadesPrecio.find((u) => u.clave === unidadElegida)?.plural ?? ''}` : 'Sin mínimo'],
-              ['Unidades iguales', unidades],
+              [esProducto ? 'Se envía desde' : 'Dónde está', ubicacion || '—'],
+              ...(esProducto ? [] : [['Horario', textoHorario(horario)]]),
+              ...unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => [`${esProducto ? 'Precio' : 'Cobras'} por ${u.singular}`, `$${costosNumericos[u.clave].toLocaleString('es-MX')}`]),
+              ...(esProducto ? [] : [['Mínimo', Number(minimo) > 0 ? `${minimo} ${unidadesPrecio.find((u) => u.clave === unidadElegida)?.plural ?? ''}` : 'Sin mínimo']]),
+              [esProducto ? 'En existencia' : 'Unidades iguales', unidades],
               ['Fotos', String(fotos.length)],
-            ].map(([k, v]) => (
+            ] as Array<[string, string]>).map(([k, v]) => (
               <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
                 <span style={{ color: 'var(--color-text-muted)' }}>{k}</span>
                 <strong style={{ textAlign: 'right' }}>{v}</strong>
@@ -386,10 +456,10 @@ export function OfrecerEquipo({
         {error ? <div role="alert" style={{ fontSize: 13.5, color: 'var(--color-error)' }}>{error}</div> : null}
 
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
-          {paso > (lineas.length === 1 ? P.queEs : P.linea) ? (
-            <button type="button" style={btnSec} onClick={() => { setError(null); setPaso((p) => p - 1); }}>Atrás</button>
+          {i > 0 ? (
+            <button type="button" style={btnSec} onClick={() => { setError(null); setI((p) => p - 1); }}>Atrás</button>
           ) : null}
-          {paso < PASOS.length - 1 ? (
+          {i < pasos.length - 1 ? (
             <button type="button" style={{ ...btn, flex: 1 }} onClick={avanzar}>Continuar</button>
           ) : (
             <button type="button" style={{ ...btn, flex: 1, opacity: enviando ? 0.6 : 1 }} disabled={enviando} onClick={() => void enviar()}>

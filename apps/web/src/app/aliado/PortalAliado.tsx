@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { esLineaServicio } from '@maqserv/config';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
 import { Icon, type IconName } from '@/components/Icon';
 import { OfrecerEquipo } from './OfrecerEquipo';
@@ -268,6 +269,11 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   const propuestas = datos.propuestas ?? [];
   const lineasOferta = aliado.categories.map((slug, i) => ({ slug, label: aliado.categoryLabels?.[i] ?? slug }));
   const lineas = aliado.categoryLabels?.length ? aliado.categoryLabels : aliado.categories;
+  // Lo que MAQSER24 le habilitó al darlo de alta: servicios, productos o ambos.
+  const ofreceServicios = aliado.categories.some((c) => esLineaServicio(c));
+  const ofreceProductos = aliado.categories.some((c) => !esLineaServicio(c));
+  const queOfrece = ofreceServicios && ofreceProductos ? 'servicios y productos' : ofreceProductos ? 'productos' : 'servicios';
+  const botonOfrecer = ofreceServicios && ofreceProductos ? 'Ofrecer servicio o producto' : ofreceProductos ? 'Ofrecer un producto' : 'Ofrecer un servicio';
   const API = '/api/proxy';
 
   const avisar = (texto: string, ok = true) => setMsg({ texto, ok });
@@ -364,7 +370,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
     { hecho: Boolean(aliado.phone && aliado.email && aliado.coverage.length), texto: 'Tus datos y tu cobertura', ayuda: 'Teléfono, correo y los municipios a los que llegas.' },
     { hecho: documentos.lista.length > 0, texto: 'Entregar tus papeles', ayuda: 'Póliza de seguro, constancia fiscal y DC-3 de tus operadores.' },
     { hecho: aliado.verified, texto: 'Sello de verificado', ayuda: 'Lo da MAQSER24 al revisar tus papeles vigentes.' },
-    { hecho: equipos.length > 0, texto: 'Ofrecer tus servicios', ayuda: propuestas.length ? 'Ya enviaste servicios: MAQSER24 los está revisando para publicarlos.' : 'Toca "Ofrecer un servicio" y responde las preguntas: MAQSER24 lo revisa y lo publica.' },
+    { hecho: equipos.length > 0, texto: `Ofrecer tus ${queOfrece}`, ayuda: propuestas.length ? 'Ya enviaste lo que ofreces: MAQSER24 lo está revisando para publicarlo.' : `Toca "${botonOfrecer}" y responde las preguntas: MAQSER24 lo revisa y lo publica.` },
     { hecho: equipos.length > 0 && equiposConfirmados === equipos.length, texto: 'Disponibilidad confirmada', ayuda: 'Toca "Sigue libre" en cada equipo al menos cada 14 días.' },
   ];
   const listos = pasos.filter((p) => p.hecho).length;
@@ -626,11 +632,11 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           icono="box"
           extra={!ofreciendo && lineasOferta.length > 0 ? (
             <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13.5 }} onClick={() => { setOfreciendo(true); setMsg(null); }}>
-              + Ofrecer un servicio
+              + {botonOfrecer}
             </button>
           ) : null}
         >
-          Tus servicios
+          {ofreceProductos && !ofreceServicios ? 'Tus productos' : ofreceProductos ? 'Tus servicios y productos' : 'Tus servicios'}
         </Titulo>
 
         {ofreciendo ? (
@@ -669,7 +675,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         ) : null}
         {equipos.length === 0 ? (
           <div style={{ ...card, fontSize: 14, lineHeight: 1.6, ...muted }}>
-            Todavía no tienes servicios publicados. Toca <strong style={{ color: 'var(--color-text)' }}>"Ofrecer un servicio"</strong>,
+            Todavía no tienes {queOfrece} publicados. Toca <strong style={{ color: 'var(--color-text)' }}>&quot;{botonOfrecer}&quot;</strong>,
             responde las preguntas y sube fotos: MAQSER24 lo revisa y, al publicarlo, aparece aquí para que confirmes si sigue libre.
           </div>
         ) : (

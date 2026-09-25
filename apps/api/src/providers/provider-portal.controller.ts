@@ -3,7 +3,7 @@ import {
   Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { atributosDe, horarioSchema, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
+import { atributosDe, esLineaServicio, horarioSchema, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
 import { MailerService } from '../notifications/mailer.service';
 import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
@@ -504,11 +504,18 @@ export class ProviderPortalController {
     const p = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { id: true, name: true, categories: true } });
     if (!p) throw new BadRequestException('Aliado no encontrado');
     // Solo en sus líneas: son las que MAQSER24 le validó.
+    // Servicio si la categoría es una línea; producto si es cualquier otra
+    // (2026-09-25). El producto se vende a precio fijo: sin cobro por tiempo,
+    // sin horario y sin mínimo, aunque el formulario mande otra cosa.
+    const esProducto = !esLineaServicio(d.categoria);
     if (!lista(p.categories).includes(d.categoria)) {
-      throw new BadRequestException('Esa línea de servicio no está en tu expediente. Escríbenos para agregarla.');
+      throw new BadRequestException(esProducto
+        ? 'Esa categoría de productos no está en tu expediente. Escríbenos para agregarla.'
+        : 'Esa línea de servicio no está en tu expediente. Escríbenos para agregarla.');
     }
     const categoria = await prisma.categories.findUnique({ where: { cat_slug: d.categoria }, select: { id: true, cat_name: true } });
-    if (!categoria) throw new BadRequestException('Línea de servicio desconocida.');
+    if (!categoria) throw new BadRequestException(esProducto ? 'Categoría desconocida.' : 'Línea de servicio desconocida.');
+    if (esProducto) { d.modalidad = 'venta'; d.horario = undefined; d.minimo = undefined; }
 
     // Solo las preguntas de su línea, y solo con valor: lo demás no se guarda.
     let atributos: Record<string, string> | null = null;

@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { esLineaServicio } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
 import { DocumentAlerts } from './DocumentAlerts';
 import { ProviderHistory } from './ProviderHistory';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
+import { QueOfrece, categoriasDelTipo, faltaEnOferta, tipoDeCategorias, type TipoOferta } from './QueOfrece';
 
 export interface ProviderRow {
   id: number;
@@ -107,19 +109,25 @@ const TIPOS_DOC: Array<[string, string]> = [
 ];
 
 /**
- * Las cinco líneas de servicio (desde el 2026-09-21; antes eran seis). Mismos
- * slugs que `categories.cat_slug`: es lo que cruza `matching.service` contra
- * `quotes.service_category`. Los aliados que tenían `equipo-menor`,
- * `plataformas-de-elevacion`, `agua-en-pipas` o `volteos` se remapearon en la
- * BD (ver `packages/db/sql/categorias-maqser24-v2.sql`).
+ * Lo que ofrece, separado: servicios (las líneas) y productos (cualquier otra
+ * categoría). `categoryLabels` viene en el mismo orden que `categories`.
  */
-const LINEAS: Array<[string, string]> = [
-  ['maquinaria-pesada', 'Renta de maquinaria pesada'],
-  ['transporte-y-servicios-de-obra', 'Transporte y servicios de obra'],
-  ['triturados', 'Triturados'],
-  ['materiales-para-construccion', 'Materiales para construcción'],
-  ['soluciones-asfalticas', 'Soluciones asfálticas'],
-];
+function ChipsOferta({ p }: { p: ProviderRow }) {
+  const pares = p.categories.map((slug, i) => ({ slug, nombre: p.categoryLabels?.[i] ?? slug }));
+  const servicios = pares.filter((x) => esLineaServicio(x.slug));
+  const productos = pares.filter((x) => !esLineaServicio(x.slug));
+  if (pares.length === 0) return <span style={{ fontSize: 12.5, color: C.bad }}>Sin servicios ni productos marcados</span>;
+  const grupo = (titulo: string, xs: typeof pares) =>
+    xs.length ? (
+      <>
+        <span style={{ fontSize: 11, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '.06em' }}>{titulo}</span>
+        {xs.map((x) => (
+          <span key={x.slug} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{x.nombre}</span>
+        ))}
+      </>
+    ) : null;
+  return <>{grupo('Servicios', servicios)}{grupo('Productos', productos)}</>;
+}
 
 const ETIQUETA_DOCS: Record<ProviderRow['docsStatus'], { texto: string; color: string }> = {
   'al-dia': { texto: 'Al día', color: C.ok },
@@ -180,9 +188,13 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
   // Un clic = un alta (2026-09-25): el botón se bloquea mientras se guarda.
   const [guardando, setGuardando] = useState(false);
   const [errorAlta, setErrorAlta] = useState<string | null>(null);
+  /** Servicios, productos o ambos: decide qué podrá ofrecer desde su portal. */
+  const [tipoOferta, setTipoOferta] = useState<TipoOferta>('servicios');
   async function crear() {
     if (guardando) return;
     if (form.name.trim().length < 2) { setErrorAlta('El nombre es obligatorio'); return; }
+    const falta = faltaEnOferta(form.categories, tipoOferta);
+    if (falta) { setErrorAlta(falta); return; }
     setGuardando(true); setErrorAlta(null);
     const r = await fetch('/api/admin/providers', {
       method: 'POST',
@@ -195,7 +207,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         email: form.email || null,
         city: form.city || null,
         coverage: aLista(form.coverage),
-        categories: form.categories,
+        categories: categoriasDelTipo(form.categories, tipoOferta),
         responseMinutes: form.responseMinutes ? Number(form.responseMinutes) : null,
         // La invitación sale con el alta si hay correo (ver la API).
         enviarAcceso: invitar,
@@ -208,6 +220,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
     setCreando(false);
     setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', city: '', coverage: '', categories: [], responseMinutes: '' });
     setInvitar(true);
+    setTipoOferta('servicios');
     setMsg(
       d?.acceso
         ? `Aliado dado de alta. ${d.acceso.mensaje}`
@@ -358,26 +371,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <span style={label}>Qué servicios atiende</span>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {LINEAS.map(([slug, nombre]) => {
-                const on = form.categories.includes(slug);
-                return (
-                  <button
-                    key={slug}
-                    type="button"
-                    onClick={() => setForm({ ...form, categories: on ? form.categories.filter((c) => c !== slug) : [...form.categories, slug] })}
-                    style={{
-                      background: on ? C.accent : C.panel2, color: on ? C.accentInk : C.muted,
-                      border: `1px solid ${on ? C.accent : C.line2}`, borderRadius: 999,
-                      padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: on ? 700 : 500,
-                    }}
-                  >
-                    {nombre}
-                  </button>
-                );
-              })}
-            </div>
+            <QueOfrece tipo={tipoOferta} onTipo={setTipoOferta} categorias={form.categories} onCategorias={(c) => setForm({ ...form, categories: c })} />
           </div>
 
           {/* Con correo, el alta manda su enlace: es su invitación y por donde
@@ -438,12 +432,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 
               {/* Qué ofrece, a la vista: líneas y máquinas (tipo y marca). */}
               <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                {(p.categoryLabels ?? p.categories).map((c) => (
-                  <span key={c} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{c}</span>
-                ))}
-                {(p.categoryLabels ?? p.categories).length === 0 ? (
-                  <span style={{ fontSize: 12.5, color: C.bad }}>Sin líneas de servicio marcadas</span>
-                ) : null}
+                <ChipsOferta p={p} />
               </div>
               <div style={{ marginTop: 8, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
                 {(() => {
@@ -548,6 +537,22 @@ function ExpedienteModal({
       ? `"${e.name}" quedó publicado y ya aparece en el sitio. Le avisamos al aliado.`
       : `"${e.name}" no se publicó. Le mandamos el motivo al aliado.`);
   }
+  // Qué ofrece (servicios, productos o ambos): se puede cambiar después del alta.
+  const [editandoOferta, setEditandoOferta] = useState(false);
+  const [tipoEdit, setTipoEdit] = useState<TipoOferta>('servicios');
+  const [catsEdit, setCatsEdit] = useState<string[]>([]);
+  const [errorOferta, setErrorOferta] = useState<string | null>(null);
+  async function guardarOferta() {
+    const falta = faltaEnOferta(catsEdit, tipoEdit);
+    if (falta) { setErrorOferta(falta); return; }
+    const r = await fetch(`/api/admin/providers/${p.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ categories: categoriasDelTipo(catsEdit, tipoEdit) }),
+    });
+    if (!r.ok) { setErrorOferta('No se pudo guardar.'); return; }
+    setEditandoOferta(false);
+    onRevisado(`Listo: «${p.name}» ya puede ofrecer lo que marcaste desde su portal.`);
+  }
   const [kind, setKind] = useState('fiscal');
   const [nombre, setNombre] = useState('');
   const [vence, setVence] = useState('');
@@ -575,11 +580,23 @@ function ExpedienteModal({
             + Agregar servicio o producto
           </a>
         </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-          {(p.categoryLabels ?? p.categories).map((c) => (
-            <span key={c} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{c}</span>
-          ))}
-        </div>
+        {editandoOferta ? (
+          <div style={{ background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
+            <QueOfrece tipo={tipoEdit} onTipo={setTipoEdit} categorias={catsEdit} onCategorias={setCatsEdit} />
+            {errorOferta ? <div style={{ fontSize: 12.5, color: C.bad, marginTop: 10 }}>{errorOferta}</div> : null}
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button type="button" style={{ ...boton, padding: '8px 14px', fontSize: 13 }} onClick={() => void guardarOferta()}>Guardar</button>
+              <button type="button" style={{ ...botonSec, padding: '8px 14px', fontSize: 13 }} onClick={() => setEditandoOferta(false)}>Cancelar</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+            <ChipsOferta p={p} />
+            <button type="button" onClick={() => { setCatsEdit(p.categories); setTipoEdit(tipoDeCategorias(p.categories)); setErrorOferta(null); setEditandoOferta(true); }} style={{ background: 'none', border: 'none', color: C.accent, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Cambiar qué ofrece
+            </button>
+          </div>
+        )}
         {pendientes.length > 0 ? (
           <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: C.warn }}>
