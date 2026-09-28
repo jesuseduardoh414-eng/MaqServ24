@@ -206,11 +206,15 @@ export class ServiceService {
     } = {},
   ) {
     const [q, p] = await Promise.all([
-      prisma.quotes.findUnique({ where: { id: quoteId }, select: { id: true } }),
-      prisma.providers.findUnique({ where: { id: providerId }, select: { id: true, name: true } }),
+      prisma.quotes.findUnique({ where: { id: quoteId }, select: { id: true, service_state: true } }),
+      prisma.providers.findUnique({ where: { id: providerId }, select: { id: true, name: true, status: true } }),
     ]);
     if (!q) throw new NotFoundException('Cotización no encontrada');
     if (!p) throw new NotFoundException('Aliado no encontrado');
+    // Un aliado dado de baja no puede entrar a su portal a contestar, y un
+    // servicio cerrado o cancelado ya no se ofrece (QA 2026-09-28).
+    if (p.status !== 1) throw new BadRequestException('Ese aliado está dado de baja: no podría contestar la solicitud.');
+    if (q.service_state === 'cerrado' || q.service_state === 'cancelado') throw new BadRequestException('Este servicio ya está cerrado o cancelado.');
 
     // Volver a ofrecerle a quien ya tiene una propuesta viva no crea otra:
     // duplicar la fila haría que el tablero cuente dos veces al mismo aliado.

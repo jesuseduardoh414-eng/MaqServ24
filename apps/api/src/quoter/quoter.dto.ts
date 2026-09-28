@@ -5,6 +5,7 @@ import {
   opcionesCotizadorSchema,
   partidaMaquinariaSchema,
   partidaTrituradosSchema,
+  type CatalogoCotizador,
   type CotizadorTipo,
   type PartidaCotizador,
 } from '@maqserv/config';
@@ -67,6 +68,45 @@ export function partidasDe(tipo: CotizadorTipo, crudas: unknown[]): PartidaCotiz
     out.push(parsed.data as PartidaCotizador);
   }
   return out;
+}
+
+/**
+ * PRECIO ÚNICO en el SITIO (QA 2026-09-28): el cliente elige QUÉ y CUÁNTO,
+ * nunca el precio. El motor acepta sobreprecios para el PANEL (costo/hora
+ * negociado, precio de un servicio, material a mano), y por la API directa el
+ * cliente mandaba `precio_hora: 0.01` y el documento salía a su precio. Aquí
+ * se quitan todos esos campos y solo pasan renglones del tabulador:
+ *
+ *  - equipo: sin `precio_hora`; las horas no pasan de la jornada.
+ *  - servicio: `precio` 0 = el del tabulador.
+ *  - material: solo ids del catálogo (nada de "custom"), sin `precio` ni
+ *    `nombre`; el flete por tonelada, solo uno de la lista `fletes_ton`.
+ *  - banco: `precio_m3` 0 = el del tabulador.
+ */
+export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: CatalogoCotizador): PartidaCotizador[] {
+  const partidas = partidasDe(tipo, crudas);
+  return partidas.map((p, i) => {
+    const n = i + 1;
+    if (cat.tipo === 'maquinaria') {
+      if (p.tipo === 'equipo') {
+        return { ...p, precio_hora: null, horas: Math.min(p.horas ?? 0, Math.max(0, cat.jornada_horas - 1)) };
+      }
+      if (p.tipo === 'servicio') return { ...p, precio: 0 };
+    } else {
+      if (p.tipo === 'material') {
+        if (!cat.productos.some((x) => x.id === p.id)) {
+          throw new BadRequestException(`Partida ${n}: ese material no está en el tabulador. Pídelo a la medida en /cotizar.`);
+        }
+        if (p.flete_ton !== undefined && Number(p.flete_ton) > 0 && !cat.fletes_ton.includes(Number(p.flete_ton))) {
+          throw new BadRequestException(`Partida ${n}: ese flete no está en el tabulador.`);
+        }
+        const { precio: _p, nombre: _n, ...resto } = p;
+        return resto as PartidaCotizador;
+      }
+      if (p.tipo === 'banco') return { ...p, precio_m3: 0 };
+    }
+    return p;
+  });
 }
 
 /** Primer mensaje de error de zod, ya listo para un 400. */

@@ -3,7 +3,7 @@ import {
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { unidadesDe, unidadPorDefectoDe, formatearCantidad } from '@maqserv/config';
+import { UNIDADES, unidadesDe, unidadPorDefectoDe, formatearCantidad } from '@maqserv/config';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { ServiceService } from '../quotes/service.service';
 import { ESTADOS, PASOS, esEstado, estadoInicial, siguientes, avance } from '../quotes/service-flow';
@@ -23,8 +23,9 @@ import { ESTADOS, PASOS, esEstado, estadoInicial, siguientes, avance } from '../
 const moverSchema = z.object({
   state: z.enum(ESTADOS),
   note: z.string().max(1000).optional().nullable(),
-  quantity: z.number().positive().optional().nullable(),
-  unit: z.string().max(20).optional().nullable(),
+  quantity: z.number().positive().max(1_000_000).optional().nullable(),
+  // Solo unidades conocidas (QA 2026-09-28: 'horas' se guardaba y el cliente veía el número sin unidad).
+  unit: z.string().max(20).refine((u) => u in UNIDADES, 'Unidad desconocida').optional().nullable(),
 });
 
 const ofrecerSchema = z.object({

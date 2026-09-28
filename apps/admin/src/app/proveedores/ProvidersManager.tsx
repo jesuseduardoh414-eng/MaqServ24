@@ -626,11 +626,10 @@ function ExpedienteModal({
                   </div>
                 ) : (
                   <>
-                  {/* El cotizador guiado recomienda máquinas publicadas: con
-                      publicar basta (el renglón del tabulador ya no aplica). */}
+                  {/* Precio único (2026-09-28): el servicio se cotiza con el tabulador y MAQSER24 asigna. */}
                   <div style={{ marginTop: 10, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
                     {esLineaServicio(e.categorySlug)
-                      ? <>Al publicarlo <strong style={{ color: C.ink }}>aparece en el cotizador</strong> de {e.category ?? 'su línea'} y las solicitudes le llegan a este aliado. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>
+                      ? <>Al publicarlo queda en el catálogo de {e.category ?? 'su línea'}. Se cotiza con el <strong style={{ color: C.ink }}>tabulador único</strong> (Cotizador → Tarifas) y, cuando llegue una solicitud, podrás asignársela a este aliado desde Servicios.</>
                       : <>Al publicarlo aparece en la tienda como producto. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>

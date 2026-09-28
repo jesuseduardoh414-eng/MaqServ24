@@ -79,6 +79,7 @@ export function PasoMateriales({
   actualizar,
   quitar,
   mostrarPrecios,
+  permitirOtro = true,
 }: {
   cat: CatalogoTriturados;
   lineas: LineaTriturados[];
@@ -93,6 +94,8 @@ export function PasoMateriales({
   actualizar: (uid: number, patch: Record<string, unknown>) => void;
   quitar: (uid: number) => void;
   mostrarPrecios: boolean;
+  /** "Otro material" (nombre y precio a mano): solo en el panel. En el sitio el precio es el del tabulador (2026-09-28). */
+  permitirOtro?: boolean;
 }) {
   const cuenta = (id: string) => lineas.filter((l) => l.tipo === 'material' && l.id === id).length;
 
@@ -113,13 +116,15 @@ export function PasoMateriales({
                 onClick={() => alternarMaterial(p.id)}
               />
             ))}
-            <Tarjeta
-              icono="personalizado"
-              titulo="Otro material"
-              nota="Escribe el nombre y el precio"
-              n={cuenta('custom')}
-              onClick={() => alternarMaterial('custom')}
-            />
+            {permitirOtro ? (
+              <Tarjeta
+                icono="personalizado"
+                titulo="Otro material"
+                nota="Escribe el nombre y el precio"
+                n={cuenta('custom')}
+                onClick={() => alternarMaterial('custom')}
+              />
+            ) : null}
           </div>
         </div>
       ) : null}

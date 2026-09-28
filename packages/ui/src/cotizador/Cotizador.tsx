@@ -396,6 +396,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               lineas={lineas as LineaTriturados[]}
               modalidades={modalidades}
               mostrarPrecios={preciosEnPasos}
+              permitirOtro={esPanel}
               alternarMaterial={(id) => alternar(esMaterial(id), () => lineaDeMaterial(catalogo as CatalogoTriturados, id))}
               agregarZona={() => agregar(lineaDeZona(catalogo as CatalogoTriturados))}
               agregarBanco={() => agregar(lineaDeBanco(catalogo as CatalogoTriturados))}

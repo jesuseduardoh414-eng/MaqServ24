@@ -5,7 +5,12 @@ import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { QuoterService } from './quoter.service';
 import { QuoterServicio, type ServicioAbierto } from './quoter-servicio';
-import { calcularSchema, partidasDe, primerError, solicitudSitioSchema, tipoDe } from './quoter.dto';
+import { calcularSchema, partidasPublicas, primerError, solicitudSitioSchema, tipoDe } from './quoter.dto';
+import { conCandado } from '../common/candado';
+import { prisma } from '@maqserv/db';
+
+/** Lo que cabe en quotes.total (DECIMAL(10,2)). Más que esto se recortaba en silencio (QA 2026-09-28). */
+const TOPE_TOTAL = 99_999_999;
 
 /**
  * COTIZADORES EN EL SITIO PÚBLICO.
@@ -59,7 +64,7 @@ export class QuoterController {
 
     const parsed = calcularSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
-    return this.quoter.calcular(tipo, partidasDe(tipo, parsed.data.partidas), parsed.data.opciones);
+    return this.quoter.calcular(tipo, partidasPublicas(tipo, parsed.data.partidas, cat), parsed.data.opciones);
   }
 
   /**
@@ -67,7 +72,8 @@ export class QuoterController {
    *
    * Desde el 2026-09-23 esto exige cuenta (ver `QuoterServicio` para el porqué
    * del flujo): el documento del cotizador se guarda congelado y, acto seguido,
-   * se abre el servicio y se le ofrece al proveedor dueño del equipo. Si ese
+   * se abre el servicio "por asignar" (desde el 2026-09-28 MAQSER24 elige al
+   * aliado desde el panel; ya no se ofrece solo al dueño del equipo). Si ese
    * segundo paso falla, el documento se queda en `solicitada` —que es lo que
    * cuenta el contador del panel— y alguien lo atiende a mano: el cliente
    * nunca se queda sin folio ni sin nadie que se entere.
@@ -88,7 +94,31 @@ export class QuoterController {
     const cuenta = await datosDeCuenta(userId);
     if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
 
-    const partidas = partidasDe(tipo, datos.partidas);
+    // Solo renglones del tabulador y SIN precios del cliente (precio único).
+    const partidas = partidasPublicas(tipo, datos.partidas, cat);
+    const previo = await this.quoter.calcular(tipo, partidas, datos.opciones);
+    if (Number(previo.total) > TOPE_TOTAL) {
+      throw new BadRequestException('La cotización es demasiado grande para el cotizador en línea. Escríbenos y la armamos contigo.');
+    }
+
+    // Doble clic / doble envío (QA 2026-09-28): una solicitud por cliente a la
+    // vez, y si la misma (mismas partidas y total) llegó hace menos de 2 min,
+    // se devuelve esa en vez de abrir otra.
+    return conCandado([`cotizador:${userId}`], async () => {
+    const hace2min = new Date(Date.now() - 120_000);
+    const recientes = await prisma.quoter_quotes.findMany({
+      where: { user_id: userId, kind: tipo, origin: 'sitio', created_at: { gte: hace2min } },
+      select: { folio: true, items: true, total: true },
+    });
+    const igual = recientes.find((r) => Number(r.total) === Number(previo.total) && JSON.stringify(r.items) === JSON.stringify(partidas));
+    if (igual) {
+      const q = await prisma.quotes.findFirst({ where: { requirements: { path: '$.folio', equals: igual.folio } }, select: { quote_number: true }, orderBy: { id: 'asc' } });
+      return {
+        folio: igual.folio,
+        ...(cat.publico.mostrarPrecios ? { total: Number(igual.total) } : {}),
+        ...(q ? { quoteNumber: q.quote_number, url: `/cuenta/cotizaciones/${q.quote_number}` } : {}),
+      };
+    }
     const cliente = datos.cliente || cuenta.name;
     const cot = await this.quoter.crear(
       {
@@ -143,6 +173,7 @@ export class QuoterController {
       ...(cat.publico.mostrarPrecios ? { total: Number(cot.total) } : {}),
       ...(servicio ? { quoteNumber: servicio.quoteNumber, url: servicio.url } : {}),
     };
+    });
   }
 }
 

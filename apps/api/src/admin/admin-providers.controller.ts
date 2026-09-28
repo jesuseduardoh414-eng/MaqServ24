@@ -14,7 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { COTIZADOR_TIPOS, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
+import { COTIZADOR_TIPOS, esLineaServicio, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
 import { margenAliadoPct } from '../common/platform-settings';
 import { coordenadasDe } from '../freight/direccion';
 import { borrarSubidas } from '../common/media';
@@ -529,7 +529,7 @@ export class AdminProvidersController {
     const activos = await prisma.providers.findMany({ where: { status: 1 }, select: { name: true, email: true, phone: true } });
     const repetido = activos.find((p) =>
       (correo && p.email?.trim().toLowerCase() === correo) ||
-      (p.name.trim().toLowerCase() === d.name.trim().toLowerCase() && (p.phone ?? '').replace(/\D/g, '') === (d.phone ?? '').replace(/\D/g, '')),
+      (p.name.trim().toLowerCase() === d.name.trim().toLowerCase() && (p.phone ?? '').replace(/\D/g, '').slice(-10) === (d.phone ?? '').replace(/\D/g, '').slice(-10)),
     );
     if (repetido) throw new ConflictException(`Ya existe el aliado «${repetido.name}» con esos datos. Ábrelo desde la lista en vez de darlo de alta otra vez.`);
 
@@ -648,16 +648,20 @@ export class AdminProvidersController {
   async publicarEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
     const e = await prisma.products.findUnique({
       where: { id: productId },
-      select: { id: true, name: true, status: true, provider_id: true, tarifas: true, costo_aliado: true, price_unit: true },
+      select: { id: true, name: true, status: true, provider_id: true, tarifas: true, costo_aliado: true, price_unit: true, category_id: true },
     });
     if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
+    // PRECIO ÚNICO (2026-09-28): solo un PRODUCTO sale a la venta con costo + margen.
+    // Un servicio se cotiza con el tabulador; nunca se le deriva precio (QA 2026-09-28).
+    const cat = await prisma.categories.findUnique({ where: { id: e.category_id }, select: { cat_slug: true } });
+    const esServicio = esLineaServicio(cat?.cat_slug);
 
     // Publicar directo = salir en el cotizador CON precio (2026-09-25). Si
     // nadie abrió "Revisar y corregir", el precio al cliente sale del costo
     // del aliado + el margen vigente; sin esto la máquina se recomendaba
     // "sin precio" aunque el aliado sí dijo cuánto cobra.
     let precios: { tarifas: Record<string, number>; cprice: number } | null = null;
-    if (Object.keys(tarifasDe(e.tarifas)).length === 0) {
+    if (!esServicio && Object.keys(tarifasDe(e.tarifas)).length === 0) {
       const costo = tarifasDe(e.costo_aliado);
       if (Object.keys(costo).length > 0) {
         const tarifas = tarifasPropuestas(costo, await margenAliadoPct());

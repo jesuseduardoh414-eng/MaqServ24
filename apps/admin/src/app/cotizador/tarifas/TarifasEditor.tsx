@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import {
   COTIZADORES_META,
@@ -213,14 +213,14 @@ export function TarifasEditor({
             </Campo>
             <div style={{ height: 10 }} />
             <Campo etiqueta="Puntos (uno por renglón)" ancho>
-              <textarea
+              <TextoLista
                 style={{ ...input, height: 150, padding: '11px 13px', lineHeight: 1.6, resize: 'vertical' }}
-                value={bloque.puntos.join('\n')}
-                onChange={(e) =>
+                valor={bloque.puntos}
+                onCambio={(puntos) =>
                   set({
                     condiciones: {
                       ...cat.condiciones,
-                      [clave]: { ...bloque, puntos: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) },
+                      [clave]: { ...bloque, puntos },
                     },
                   } as Partial<CatalogoCotizador>)
                 }
@@ -244,10 +244,10 @@ export function TarifasEditor({
         >
           + Agregar municipios de NL, Coahuila y Chihuahua
         </button>
-        <textarea
+        <TextoLista
           style={{ ...input, height: 130, padding: '11px 13px', lineHeight: 1.6, resize: 'vertical' }}
-          value={cat.municipios.join('\n')}
-          onChange={(e) => set({ municipios: e.target.value.split('\n').map((s) => s.trim()).filter(Boolean) } as Partial<CatalogoCotizador>)}
+          valor={cat.municipios}
+          onCambio={(lista) => set({ municipios: [...new Set(lista)] } as Partial<CatalogoCotizador>)}
         />
       </Bloque>
 
@@ -805,7 +805,7 @@ function MargenAliado() {
     setEstado(r.ok ? 'ok' : 'error');
   }
   return (
-    <Bloque titulo="Margen sobre el costo del aliado" ayuda="Cada máquina trae lo que cobra su aliado. Al publicarla, el precio al cliente se propone como ese costo más este porcentaje; se puede ajustar máquina por máquina.">
+    <Bloque titulo="Margen sobre el costo del aliado (solo PRODUCTOS)" ayuda="Solo para productos que se venden a precio fijo: al publicarlos, el precio al cliente se propone como lo que cobra el aliado más este porcentaje. Los SERVICIOS no lo usan: se cotizan con este tabulador.">
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: 140 }}>
           <input style={{ ...input, paddingRight: 30 }} type="number" min={0} max={300} step="1" value={margen} disabled={estado === 'cargando'} onChange={(e) => { setMargen(e.target.value); setEstado('listo'); }} />
@@ -893,3 +893,27 @@ const boton = {
   borderRadius: 11, border: `1px solid ${D.cardBorder}`, background: 'transparent', color: D.text,
   fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
 } as const;
+
+/**
+ * Lista "uno por renglón" que SÍ deja escribir (QA 2026-09-28): antes cada
+ * tecla pasaba por split/trim/filter y se comía el Enter y los espacios, así
+ * que no se podía agregar un municipio al final. Ahora el texto es libre y se
+ * limpia (renglones vacíos fuera) al salir del campo.
+ */
+function TextoLista({ valor, onCambio, style }: { valor: string[]; onCambio: (lista: string[]) => void; style: CSSProperties }) {
+  const [texto, setTexto] = useState(valor.join('\n'));
+  const [editando, setEditando] = useState(false);
+  const externo = valor.join('\n');
+  // Si la lista cambia desde fuera (botón de municipios, restaurar), se refleja.
+  useEffect(() => { if (!editando) setTexto(externo); }, [externo, editando]);
+  const limpiar = (t: string) => t.split('\n').map((s) => s.trim()).filter(Boolean);
+  return (
+    <textarea
+      style={style}
+      value={texto}
+      onFocus={() => setEditando(true)}
+      onChange={(e) => { setTexto(e.target.value); onCambio(limpiar(e.target.value)); }}
+      onBlur={() => { setEditando(false); onCambio(limpiar(texto)); }}
+    />
+  );
+}

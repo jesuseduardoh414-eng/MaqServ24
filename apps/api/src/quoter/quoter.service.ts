@@ -128,9 +128,17 @@ export class QuoterService {
     const ahora = new Date();
     const aa = String(ahora.getFullYear()).slice(2);
     const mm = String(ahora.getMonth() + 1).padStart(2, '0');
-    const desde = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
-    const n = await prisma.quoter_quotes.count({ where: { kind: tipo, created_at: { gte: desde } } });
-    return `${prefijo}-${aa}${mm}-${String(n + 1 + intento).padStart(4, '0')}`;
+    // El siguiente es el MAYOR del mes + 1, no "cuántos hay + 1" (QA
+    // 2026-09-28): con cuentas, borrar documentos del mes hacía chocar todos
+    // los folios nuevos con los que quedaban y ya no se podía emitir.
+    const base = `${prefijo}-${aa}${mm}-`;
+    const ultimo = await prisma.quoter_quotes.findFirst({
+      where: { folio: { startsWith: base } },
+      orderBy: { folio: 'desc' },
+      select: { folio: true },
+    });
+    const n = ultimo ? Number(ultimo.folio.slice(base.length)) || 0 : 0;
+    return `${base}${String(n + 1 + intento).padStart(4, '0')}`;
   }
 
   /**

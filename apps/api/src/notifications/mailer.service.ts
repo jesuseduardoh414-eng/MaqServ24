@@ -147,8 +147,11 @@ export class MailerService {
     try {
       await this.obtenerTransporte()!.sendMail({
         from: this.remitente,
-        to: c.toName ? `"${c.toName}" <${destino}>` : destino,
-        subject: c.subject,
+        // Nombre y asunto sin saltos de línea ni comillas (QA 2026-09-28): los
+        // escribe el cliente o el aliado, y pegados en una cabecera podían
+        // colar destinatarios o cabeceras. El nombre va como campo aparte.
+        to: c.toName ? { name: c.toName.replace(/[\r\n"<>,;]+/g, ' ').trim().slice(0, 120), address: destino } : destino,
+        subject: c.subject.replace(/[\r\n]+/g, ' ').slice(0, 250),
         html: c.html,
         // Muchos clientes de correo y filtros piden la versión de texto; sin
         // ella el mensaje pesa más para el filtro de spam.

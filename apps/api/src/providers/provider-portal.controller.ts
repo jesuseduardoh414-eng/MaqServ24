@@ -540,6 +540,10 @@ export class ProviderPortalController {
     const categoria = await prisma.categories.findUnique({ where: { cat_slug: d.categoria }, select: { id: true, cat_name: true } });
     if (!categoria) throw new BadRequestException(esProducto ? 'Categoría desconocida.' : 'Línea de servicio desconocida.');
     if (esProducto) { d.modalidad = 'venta'; d.horario = undefined; d.minimo = undefined; }
+    // PRECIO ÚNICO (2026-09-28): un SERVICIO no lleva precio del aliado; se cotiza
+    // con el tabulador. Aunque el cliente de la API mande costos o mínimo, se tiran
+    // (QA 2026-09-28: se guardaban y publicar los volvía precio al cliente).
+    else { d.costos = undefined; d.unidad = undefined; d.minimo = undefined; }
 
     // Solo las preguntas de su línea, y solo con valor: lo demás no se guarda.
     let atributos: Record<string, string> | null = null;
@@ -565,6 +569,8 @@ export class ProviderPortalController {
     } catch {
       throw new BadRequestException('Revisa los precios: deben ser números.');
     }
+    // Un producto se vende a precio fijo: sin precio no se puede publicar (QA 2026-09-28).
+    if (esProducto && Object.keys(costos).length === 0) throw new BadRequestException('Escribe el precio al que lo vendes.');
     const unidad = d.unidad && permitidas.has(d.unidad) ? d.unidad : Object.keys(costos)[0] ?? null;
     let horario: unknown = null;
     if (d.horario) {

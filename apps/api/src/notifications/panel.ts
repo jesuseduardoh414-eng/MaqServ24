@@ -82,7 +82,8 @@ export async function avisosDelPanel(
     prisma.notifications.findMany({
       where: despuesDe ? { ...where, id: { gt: despuesDe } } : where,
       orderBy: { id: 'desc' },
-      take: LIMITE,
+      // Al consultar lo nuevo se traen más: si se juntaron más de 30 entre dos vueltas no se pierde ninguno (QA 2026-09-28).
+      take: despuesDe ? 200 : LIMITE,
       select: { id: true, type: true, title: true, body: true, link: true, is_read: true, created_at: true },
     }),
     prisma.notifications.count({ where: { ...where, is_read: false } }),

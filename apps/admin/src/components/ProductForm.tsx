@@ -306,14 +306,6 @@ export function ProductForm({
                 <input name="brand" defaultValue={initial.brand ?? ''} placeholder="CAT 320, John Deere 310L…" style={input} />
               </Campo>
             </div>
-            {tipoActual === 'servicio' ? (
-              <Campo etiqueta="¿Cómo se cobra?" nota="Decide qué unidades de precio se ofrecen y si lleva traslado." grupo>
-                <div className="pf-2">
-                  <Opcion activo={isRental} onClick={() => setIsRental(true)}>Por tiempo (día, semana, mes)</Opcion>
-                  <Opcion activo={!isRental} onClick={() => setIsRental(false)}>Por cantidad (viaje, tonelada, m³)</Opcion>
-                </div>
-              </Campo>
-            ) : null}
             <Campo etiqueta="Resumen" nota="Una línea que sale arriba de la ficha en el sitio.">
               <input name="short" defaultValue={initial.short ?? ''} placeholder="Excavadora de 20 t con cucharón, lista para obra." style={input} />
             </Campo>
@@ -370,13 +362,14 @@ export function ProductForm({
             titulo={tipoActual === 'servicio' ? 'Disponibilidad' : 'Venta y existencias'}
             icono="ph-tag"
             ayuda={tipoActual === 'servicio'
-              ? 'PRECIO ÚNICO (2026-09-28): el servicio se cotiza con el tabulador estándar de MAQSER24 (Cotizador → Tarifas y condiciones), no con precios por máquina ni por aliado.'
+              ? 'El servicio se cotiza con el tabulador estándar de MAQSER24 (Cotizador → Tarifas y condiciones), no con precios por máquina ni por aliado.'
               : 'Precio fijo al que se vende y va al carrito.'}
           >
             <input type="hidden" name="priceUnit" value={unidad} />
-            <input type="hidden" name="price" value={tarifasNum[unidad] ?? 0} />
-            <input type="hidden" name="tarifas" value={JSON.stringify(tarifasNum)} />
-            <input type="hidden" name="costoAliado" value={JSON.stringify(costoNum)} />
+            {/* Un servicio no lleva precio propio (precio único): se mandan vacíos para limpiar precios viejos. */}
+            <input type="hidden" name="price" value={tipoActual === 'servicio' ? 0 : tarifasNum[unidad] ?? 0} />
+            <input type="hidden" name="tarifas" value={tipoActual === 'servicio' ? '{}' : JSON.stringify(tarifasNum)} />
+            <input type="hidden" name="costoAliado" value={tipoActual === 'servicio' ? '{}' : JSON.stringify(costoNum)} />
             <input type="hidden" name="minimo" value={Math.max(0, Number(minimo) || 0)} />
             <input type="hidden" name="horario" value={horario ? JSON.stringify(horario) : ''} />
             {tipoActual === 'servicio' ? (
@@ -472,7 +465,7 @@ export function ProductForm({
               </Campo>
             </div>
             <div className="pf-2">
-              {isRental ? (
+              {tipoActual === 'servicio' ? null : isRental ? (
                 <Campo etiqueta="Flete por km" nota="Opcional. Vacío = tarifa general del traslado.">
                   <input name="rentalFreight" type="number" step="0.01" min={0} defaultValue={initial.rentalFreight ?? ''} style={input} />
                 </Campo>
