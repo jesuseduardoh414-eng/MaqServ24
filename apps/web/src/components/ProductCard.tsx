@@ -91,7 +91,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
   const modo = esServicio ? t(theme, 'product.mode.service') : p.isRental ? t(theme, 'product.mode.rental') : t(theme, 'product.mode.sale');
   const disp = estadoDeProducto(p);
   // Cotizar SIEMPRE es posible desde la card: lleva al cotizador con este equipo cargado.
-  const quoteHref = `/cotizador?producto=${p.slug}`;
+  const quoteHref = `/cotizar?producto=${p.slug}`;
   const quoteOnly = quoteMode || esServicio || p.price === null; // servicio o sin precio: cotizar es la acción
 
   function add() {

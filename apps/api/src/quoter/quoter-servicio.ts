@@ -12,6 +12,7 @@ import {
   type PartidaCotizador,
 } from '@maqserv/config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { avisarPanel } from '../notifications/panel';
 import { ServiceService } from '../quotes/service.service';
 import { newQuoteNumber } from '../quotes/quotes.service';
 import { estadoInicial } from '../quotes/service-flow';
@@ -127,50 +128,52 @@ export class QuoterServicio {
       const calc = unaSola ? calcTotal : calcularCotizacion(catalogo, grupo.map((g) => g.partida), opciones);
       const abierto = await this.crearServicio({ cot, tipo, nombreCotizador, linea, lineaNombre: nombresLinea.get(linea) ?? linea, calc, grupo, entrada });
 
-      // Ofertas: a cada dueño único, lo suyo; lo que tiene varios dueños lo decide Operaciones.
-      const porProveedor = new Map<number, string[]>();
-      const variosDuenos: string[] = [];
-      for (const a of grupo) {
-        const duenos = duenosDePartida(a);
-        if (duenos.length === 1) porProveedor.set(duenos[0], [...(porProveedor.get(duenos[0]) ?? []), a.concepto]);
-        else if (duenos.length > 1) variosDuenos.push(`${a.concepto} (${duenos.length} aliados lo tienen)`);
-      }
-      const ofrecidos: string[] = [];
-      for (const [proveedorId, conceptos] of porProveedor) {
-        try {
-          await this.services.ofrecer(abierto.quoteId, proveedorId, { scope: conceptos.join(' · '), adminId: null, total: calc.total });
-          const p = await prisma.providers.findUnique({ where: { id: proveedorId }, select: { name: true } });
-          if (p) ofrecidos.push(p.name);
-        } catch (e) {
-          this.log.warn(`No se pudo ofrecer ${abierto.quoteNumber} al aliado ${proveedorId}: ${(e as Error).message}`);
+      /**
+       * PRECIO ÚNICO Y ASIGNA MAQSER24 (decisión del cliente, 2026-09-28).
+       * "El cotizador es un solo precio, una sola configuración… se va a
+       * manejar un solo estándar." El servicio queda "por asignar" y
+       * MAQSER24 elige al aliado desde Servicios; ya NO se le ofrece solo al
+       * dueño del equipo. Quién tiene ese equipo publicado queda anotado en
+       * el historial como sugerencia para decidir más rápido.
+       */
+      const sugeridos = new Set<number>();
+      for (const a of grupo) for (const id of duenosDePartida(a)) sugeridos.add(id);
+      if (sugeridos.size) {
+        const nombres = (await prisma.providers.findMany({ where: { id: { in: [...sugeridos] }, status: 1 }, select: { name: true } })).map((p) => p.name);
+        if (nombres.length) {
+          await prisma.service_events.create({
+            data: {
+              quote_id: BigInt(abierto.quoteId),
+              to_state: estadoInicial(),
+              note: `Aliados con ese equipo publicado: ${nombres.join(' · ')}`,
+              created_at: new Date(),
+            },
+          });
         }
       }
-      if (variosDuenos.length) {
-        await prisma.service_events.create({
-          data: {
-            quote_id: BigInt(abierto.quoteId),
-            to_state: estadoInicial(),
-            note: `Elige aliado con el emparejamiento: ${variosDuenos.join(' · ')}`,
-            created_at: new Date(),
-          },
-        });
-      }
-      servicios.push({ ...abierto, linea, proveedores: ofrecidos });
+      servicios.push({ ...abierto, linea, proveedores: [] });
     }
 
     // ── 4. Avisar al cliente y cerrar el documento del cotizador ──
-    const todos = [...new Set(servicios.flatMap((s) => s.proveedores))];
+    const todos: string[] = [];
     const principal = servicios[0];
     await this.notifications.push({
       userId,
       type: 'service_status',
       title: `Recibimos tu solicitud de servicio ${cot.folio}`,
-      body: todos.length
-        ? `Ya la tiene ${todos.join(' y ')} para revisarla. Cuando la acepte te avisamos.`
-        : 'Estamos buscando al proveedor que la atienda. Te avisamos en cuanto esté asignado.',
+      body: 'MAQSER24 está asignando al proveedor que la atenderá. Te avisamos en cuanto la acepte.',
       link: principal.url,
     });
-    await prisma.quoter_quotes.update({ where: { id: cot.id }, data: { state: 'aceptada', updated_at: new Date() } });
+    // Campana del panel: hay que asignarla.
+    void avisarPanel({
+      modulo: 'servicios',
+      evento: 'solicitud',
+      titulo: `Nueva solicitud ${cot.folio} de ${entrada.cliente}: asigna aliado`,
+      cuerpo: `${servicios.map((s) => s.linea).length} servicio(s) · ${dinero(calcTotal.total)}${cot.municipality ? ` · ${cot.municipality}` : ''}`,
+      link: '/servicios',
+    });
+    // El documento sigue "solicitada" hasta que los aliados acepten todos sus
+    // servicios (ServiceService.documentoAceptadoSiTodos lo pasa a "aceptada").
 
     return { quoteId: principal.quoteId, quoteNumber: principal.quoteNumber, proveedores: todos, url: principal.url, servicios };
   }

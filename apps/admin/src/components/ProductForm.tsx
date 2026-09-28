@@ -367,10 +367,10 @@ export function ProductForm({
           </Tarjeta>
 
           <Tarjeta
-            titulo={tipoActual === 'servicio' ? 'Precios y disponibilidad' : 'Venta y existencias'}
+            titulo={tipoActual === 'servicio' ? 'Disponibilidad' : 'Venta y existencias'}
             icono="ph-tag"
             ayuda={tipoActual === 'servicio'
-              ? 'Precio de referencia por unidad: el sitio lo enseña como “desde” y el total exacto sale del cotizador con fechas y traslado. Sin precio, dice “precio bajo cotización”.'
+              ? 'PRECIO ÚNICO (2026-09-28): el servicio se cotiza con el tabulador estándar de MAQSER24 (Cotizador → Tarifas y condiciones), no con precios por máquina ni por aliado.'
               : 'Precio fijo al que se vende y va al carrito.'}
           >
             <input type="hidden" name="priceUnit" value={unidad} />
@@ -379,6 +379,13 @@ export function ProductForm({
             <input type="hidden" name="costoAliado" value={JSON.stringify(costoNum)} />
             <input type="hidden" name="minimo" value={Math.max(0, Number(minimo) || 0)} />
             <input type="hidden" name="horario" value={horario ? JSON.stringify(horario) : ''} />
+            {tipoActual === 'servicio' ? (
+              <div style={{ fontSize: 13, color: D.muted2, lineHeight: 1.6 }}>
+                Este equipo no lleva precio propio. Las tarifas por día, semana, mes, viaje o tonelada se editan en{' '}
+                <a href="/cotizador/tarifas" style={{ color: D.accent, fontWeight: 700 }}>Cotizador → Tarifas y condiciones</a>.
+              </div>
+            ) : (
+            <>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
                 <thead>
@@ -428,10 +435,14 @@ export function ProductForm({
                 </span>
               </div>
             ) : null}
+            </>
+            )}
             <div className="pf-2">
-              <Campo etiqueta="Mínimo" nota={unidad ? `En ${unidadesPrecio.find((u) => u.clave === unidad)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}>
-                <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={input} />
-              </Campo>
+              {tipoActual === 'servicio' ? null : (
+                <Campo etiqueta="Mínimo" nota={unidad ? `En ${unidadesPrecio.find((u) => u.clave === unidad)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}>
+                  <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={input} />
+                </Campo>
+              )}
               <Campo etiqueta="Horario en que atiende" nota="Solo se recomienda para trabajos dentro de este horario.">
                 {horario ? (
                   <div style={{ display: 'grid', gap: 6 }}>

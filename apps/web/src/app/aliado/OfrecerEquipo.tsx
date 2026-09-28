@@ -106,7 +106,9 @@ export function OfrecerEquipo({
     if (ambos || opciones.length !== 1) xs.push('linea');
     xs.push('queEs');
     if (!esProducto || preguntas.length > 0) xs.push('ficha');
-    xs.push('donde', 'precios', 'fotos', 'enviar');
+    xs.push('donde');
+    if (esProducto) xs.push('precios'); // el servicio no lleva precio propio (precio único)
+    xs.push('fotos', 'enviar');
     return xs;
   }, [ambos, opciones.length, esProducto, preguntas.length]);
   const [i, setI] = useState(0);
@@ -164,7 +166,7 @@ export function OfrecerEquipo({
     fd.set('atributos', JSON.stringify(atributos));
     fd.set('costos', JSON.stringify(costosNumericos));
     fd.set('unidad', unidadElegida);
-    fd.set('minimo', esProducto ? '0' : String(Math.max(0, Number(minimo) || 0)));
+    fd.set('minimo', '0'); // el mínimo vive en el tabulador (precio único)
     fd.set('unidades', String(Math.max(1, Number(unidades) || 1)));
     if (!esProducto) fd.set('horario', JSON.stringify(horario));
     fotos.forEach((f) => fd.append('fotos', f));
@@ -258,18 +260,6 @@ export function OfrecerEquipo({
               <span style={etiqueta}>Marca y modelo <span style={ayuda}>(opcional)</span></span>
               <input value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="CAT 320, John Deere 310L…" style={campo} />
             </label>
-            {esProducto ? null : (
-              <div style={{ display: 'grid', gap: 6 }}>
-                <span style={etiqueta}>¿Cómo lo cobras?</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {(['renta', 'venta'] as const).map((m) => (
-                    <button key={m} type="button" onClick={() => { setModalidad(m); setCostos({}); setUnidadPrincipal(''); }} style={{ ...btnSec, flex: 1, borderColor: modalidad === m ? 'var(--color-primary)' : 'var(--color-border)', background: modalidad === m ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}>
-                      {m === 'renta' ? 'Por tiempo (día, semana, mes)' : 'Por cantidad (viaje, tonelada, m³)'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         ) : null}
 
@@ -347,6 +337,16 @@ export function OfrecerEquipo({
               </div>
               <span style={ayuda}>Solo te proponemos trabajos que caigan en este horario.</span>
             </div>}
+            {/* PRECIO ÚNICO (2026-09-28): el servicio se cobra con el tabulador
+                de MAQSER24, así que al aliado ya no se le pregunta cuánto
+                cobra; solo cuántas unidades iguales tiene. */}
+            {esProducto ? null : (
+              <label style={{ display: 'grid', gap: 6, maxWidth: 260 }}>
+                <span style={etiqueta}>¿Cuántas iguales tienes?</span>
+                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} style={campo} />
+                <span style={ayuda}>Para saber cuántas se pueden apartar a la vez.</span>
+              </label>
+            )}
           </>
         ) : null}
 
@@ -436,12 +436,10 @@ export function OfrecerEquipo({
               [esProducto ? 'Categoría' : 'Línea', lineaLabel],
               ['Qué es', nombre],
               ['Marca', marca || '—'],
-              ...(esProducto ? [] : [['Cobro', modalidad === 'renta' ? 'Por tiempo' : 'Por cantidad']]),
               ...preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).map((q) => [q.label, `${atributos[q.clave]}${q.unidad ? ` ${q.unidad}` : ''}`]),
               [esProducto ? 'Se envía desde' : 'Dónde está', ubicacion || '—'],
               ...(esProducto ? [] : [['Horario', textoHorario(horario)]]),
               ...unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => [`${esProducto ? 'Precio' : 'Cobras'} por ${u.singular}`, `$${costosNumericos[u.clave].toLocaleString('es-MX')}`]),
-              ...(esProducto ? [] : [['Mínimo', Number(minimo) > 0 ? `${minimo} ${unidadesPrecio.find((u) => u.clave === unidadElegida)?.plural ?? ''}` : 'Sin mínimo']]),
               [esProducto ? 'En existencia' : 'Unidades iguales', unidades],
               ['Fotos', String(fotos.length)],
             ] as Array<[string, string]>).map(([k, v]) => (

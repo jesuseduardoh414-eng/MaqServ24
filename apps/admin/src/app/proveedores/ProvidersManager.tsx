@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { coordenadasDe, esLineaServicio } from '@maqserv/config';
+import { ESTADOS_OPERACION, coordenadasDe, esLineaServicio } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
 import { DocumentAlerts } from './DocumentAlerts';
@@ -166,7 +166,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 
   const [form, setForm] = useState({
     name: '', level: 'registrado', contactName: '', phone: '', email: '',
-    city: '', coverage: '', categories: [] as string[], responseMinutes: '',
+    city: '', state: 'Nuevo León', coverage: '', categories: [] as string[], responseMinutes: '',
   });
 
   const filtrados = useMemo(() => {
@@ -206,6 +206,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         phone: form.phone || null,
         email: form.email || null,
         city: form.city || null,
+        state: form.state || null,
         coverage: aLista(form.coverage),
         categories: categoriasDelTipo(form.categories, tipoOferta),
         responseMinutes: form.responseMinutes ? Number(form.responseMinutes) : null,
@@ -218,7 +219,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
     if (!r.ok) { setErrorAlta(typeof d?.message === 'string' ? d.message : 'No se pudo guardar'); return; }
     const conCorreo = Boolean(form.email);
     setCreando(false);
-    setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', city: '', coverage: '', categories: [], responseMinutes: '' });
+    setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', city: '', state: 'Nuevo León', coverage: '', categories: [], responseMinutes: '' });
     setInvitar(true);
     setTipoOferta('servicios');
     setMsg(
@@ -359,6 +360,10 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
             <div><span style={label}>Teléfono</span><input style={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div><span style={label}>Correo</span><input style={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
             <div><span style={label}>Ciudad base</span><input style={input} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
+            <div>
+              <span style={label}>Estado</span>
+              <AdminSelect ariaLabel="Estado" value={form.state} onChange={(v) => setForm({ ...form, state: v })} options={ESTADOS_OPERACION.map((e) => ({ value: e, label: e }))} />
+            </div>
             <div>
               <span style={label}>Nivel</span>
               <AdminSelect ariaLabel="Nivel" value={form.level} onChange={(v) => setForm({ ...form, level: v })} options={NIVELES.map((n) => ({ value: n, label: n }))} />

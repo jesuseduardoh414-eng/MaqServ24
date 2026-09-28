@@ -43,6 +43,32 @@ const MUNICIPIOS = [
   'Pesquería', 'Zuazua', 'Marín', 'Abasolo', 'Hidalgo', 'Mina',
 ];
 
+/**
+ * TRES ESTADOS DEL NORTE (decisión del cliente, 2026-09-28): la operación se
+ * extiende a Nuevo León, Coahuila y Chihuahua. Los de Nuevo León van sin
+ * sufijo (como siempre); los de los otros dos llevan el estado para no
+ * confundir nombres repetidos ("Juárez" de N.L. y "Juárez, Chih.").
+ *
+ * PENDIENTE DEL CLIENTE: si las tarifas son las mismas en los tres estados o
+ * cada uno tiene su tabla. Hoy el municipio NO cambia el precio: solo sale en
+ * el documento. Ver la nota en Cotizador → Tarifas y condiciones.
+ */
+export const MUNICIPIOS_NORTE: readonly string[] = [
+  ...MUNICIPIOS,
+  'Cadereyta Jiménez', 'Santiago', 'Montemorelos', 'Linares', 'Sabinas Hidalgo',
+  'Saltillo, Coah.', 'Ramos Arizpe, Coah.', 'Arteaga, Coah.', 'General Cepeda, Coah.', 'Parras, Coah.',
+  'Torreón, Coah.', 'Matamoros, Coah.', 'Francisco I. Madero, Coah.', 'San Pedro, Coah.', 'Viesca, Coah.',
+  'Monclova, Coah.', 'Frontera, Coah.', 'Castaños, Coah.', 'San Buenaventura, Coah.', 'Sabinas, Coah.',
+  'Múzquiz, Coah.', 'Nava, Coah.', 'Piedras Negras, Coah.', 'Acuña, Coah.', 'Allende, Coah.',
+  'Zaragoza, Coah.', 'Cuatro Ciénegas, Coah.',
+  'Chihuahua, Chih.', 'Juárez, Chih.', 'Cuauhtémoc, Chih.', 'Delicias, Chih.', 'Hidalgo del Parral, Chih.',
+  'Nuevo Casas Grandes, Chih.', 'Camargo, Chih.', 'Jiménez, Chih.', 'Meoqui, Chih.', 'Aldama, Chih.',
+  'Ojinaga, Chih.', 'Saucillo, Chih.', 'Guachochi, Chih.', 'Madera, Chih.', 'Ascensión, Chih.',
+];
+
+/** Los estados donde opera MAQSER24 (2026-09-28). */
+export const ESTADOS_OPERACION = ['Nuevo León', 'Coahuila', 'Chihuahua'] as const;
+
 export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
   tipo: 'maquinaria',
   version: '2026-09-17',

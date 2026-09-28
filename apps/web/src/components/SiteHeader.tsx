@@ -43,8 +43,17 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
     ...(resumen.servicios > 0 || resumen.productos === 0 ? [{ href: '/servicios', label: t(theme, 'nav.services') }] : []),
     ...(resumen.productos > 0 ? [{ href: '/productos', label: t(theme, 'nav.products') }] : []),
     { href: '/categorias', label: t(theme, 'nav.categories') },
-    // Cotizador guiado (2026-09-25): una sola entrada; la línea se elige adentro.
-    { href: '/cotizador', label: t(theme, 'nav.quoter') },
+    // Cotizador: el único con submenú. Son DOS herramientas con tabuladores
+    // distintos —maquinaria y triturados— con el PRECIO ÚNICO de MAQSER24
+    // (se regresó a esto el 2026-09-28: "el cotizador es un solo precio").
+    {
+      href: '/cotizador',
+      label: t(theme, 'nav.quoter'),
+      children: [
+        { href: '/cotizador/maquinaria', label: t(theme, 'nav.quoter.machinery'), description: t(theme, 'nav.quoter.machinery.hint') },
+        { href: '/cotizador/triturados', label: t(theme, 'nav.quoter.aggregates'), description: t(theme, 'nav.quoter.aggregates.hint') },
+      ],
+    },
     { href: '/quienes-somos', label: t(theme, 'nav.about') },
     { href: '/blog', label: t(theme, 'nav.blog') },
     { href: '/contacto', label: t(theme, 'nav.contact') },

@@ -145,5 +145,7 @@ export {
   CATALOGOS_DEFAULT,
   CATALOGO_MAQUINARIA_DEFAULT,
   CATALOGO_TRITURADOS_DEFAULT,
+  ESTADOS_OPERACION,
+  MUNICIPIOS_NORTE,
 } from './quoter-defaults';
 export { coordenadasDe } from './coordenadas';

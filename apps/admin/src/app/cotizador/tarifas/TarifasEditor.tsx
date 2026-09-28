@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import {
   COTIZADORES_META,
+  MUNICIPIOS_NORTE,
   LINEA_MAQUINARIA,
   LINEA_TRANSPORTE,
   LINEA_TRITURADOS,
@@ -230,6 +231,19 @@ export function TarifasEditor({
       </Bloque>
 
       <Bloque titulo="Municipios sugeridos" ayuda="Salen como sugerencia en el campo de entrega. Uno por renglón.">
+        {/* TRES ESTADOS (2026-09-28): NL, Coahuila y Chihuahua. Nota pendiente del cliente. */}
+        <div style={{ marginBottom: 10, padding: '10px 13px', borderRadius: 10, border: `1px solid color-mix(in srgb, ${D.warn} 45%, transparent)`, fontSize: 13, lineHeight: 1.55, color: D.text }}>
+          <strong style={{ color: D.warn }}>Pendiente de definir:</strong> la operación se extiende a Nuevo León, Coahuila y Chihuahua,
+          pero aún no se decide si estas tarifas valen igual en los tres estados o si cada uno tendrá su tabla.
+          Hoy el municipio NO cambia el precio: solo aparece en el documento.
+        </div>
+        <button
+          type="button"
+          onClick={() => set({ municipios: [...new Set([...cat.municipios, ...MUNICIPIOS_NORTE])] } as Partial<CatalogoCotizador>)}
+          style={{ marginBottom: 10, background: 'none', border: `1px solid ${D.cardBorder}`, color: D.text, borderRadius: 9, padding: '8px 13px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          + Agregar municipios de NL, Coahuila y Chihuahua
+        </button>
         <textarea
           style={{ ...input, height: 130, padding: '11px 13px', lineHeight: 1.6, resize: 'vertical' }}
           value={cat.municipios.join('\n')}
