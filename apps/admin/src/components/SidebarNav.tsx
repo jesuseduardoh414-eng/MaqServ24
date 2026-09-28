@@ -60,7 +60,7 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
     items: [
       // Servicios y productos se gestionan aparte (2026-09-25): hoy todo son
       // servicios; "Productos" queda listo para lo que se venda a precio fijo.
-      { modulo: 'catalogo', href: '/catalogo/servicios', label: 'Servicios', icon: 'ph-wrench' },
+      { modulo: 'catalogo', href: '/catalogo/servicios', label: 'Equipos', icon: 'ph-wrench' },
       { modulo: 'catalogo', href: '/catalogo/productos', label: 'Productos', icon: 'ph-package' },
       { modulo: 'catalogo', href: '/categorias', label: 'Categorías', icon: 'ph-squares-four' },
       { modulo: 'disponibilidad', href: '/disponibilidad', label: 'Disponibilidad', icon: 'ph-calendar-check' },

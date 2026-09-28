@@ -53,8 +53,8 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
    * modal de abajo (que quedó sin uso: no tiene tarifas ni horario).
    */
   const router = useRouter();
-  const nombre = tipo === 'servicio' ? 'Servicios' : 'Productos';
-  const singular = tipo === 'servicio' ? 'servicio' : 'producto';
+  const nombre = tipo === 'servicio' ? 'Equipos' : 'Productos';
+  const singular = tipo === 'servicio' ? 'equipo' : 'producto';
   const slugDeCat = useMemo(() => new Map(categories.map((c) => [c.name, c.slug])), [categories]);
   const categoriasTipo = useMemo(() => categories.filter((c) => tipoDeCatalogo(c.slug) === tipo), [categories, tipo]);
 
