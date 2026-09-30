@@ -82,6 +82,7 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
 }
 
 export const GET = forward;
+export const PUT = forward; // Permisos → "Guardar cambios"
 export const POST = forward;
 export const PATCH = forward;
 export const DELETE = forward;

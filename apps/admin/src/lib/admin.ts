@@ -94,6 +94,9 @@ export async function getAdmin(): Promise<{ id: number; name: string; email: str
  * Sigue sin ser la seguridad: la seguridad es el `@Modulo` de la API. Esto es
  * que la mentira no se vea como un módulo vacío.
  */
-export function exigirModulo(admin: { rol: RolAdmin }, modulo: ModuloAdmin): void {
-  if (!puedeVer(admin.rol, modulo)) redirect('/');
+export function exigirModulo(admin: { rol: RolAdmin; modulos?: ModuloAdmin[] }, modulo: ModuloAdmin): void {
+  // Los módulos efectivos (con lo editado en Permisos) mandan; la matriz de
+  // fábrica queda solo para una API vieja que todavía no los manda.
+  const ok = admin.modulos?.length ? admin.modulos.includes(modulo) : puedeVer(admin.rol, modulo);
+  if (!ok) redirect('/');
 }

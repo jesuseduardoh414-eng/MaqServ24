@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export interface NavItem {
   href: string;
@@ -88,7 +88,10 @@ export function MainNav({ items }: { items: NavItem[] }) {
 function NavDesplegable({ item, activo }: { item: NavItem; activo: boolean }) {
   const [abierto, setAbierto] = useState(false);
   const caja = useRef<HTMLDivElement>(null);
-  const id = useId();
+  // Id derivado del enlace y no de useId(): useId depende de la posición en el
+  // árbol y el header no siempre se pinta igual en servidor y navegador, lo que
+  // daba "attributes didn't match" al hidratar (aria-controls distinto).
+  const id = `submenu-${item.href.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'inicio'}`;
   const pathname = usePathname();
 
   // Al navegar, el menú se cierra (la ruta cambia sin desmontar el header).

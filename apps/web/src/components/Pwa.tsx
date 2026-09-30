@@ -89,6 +89,15 @@ export function Pwa({ labels }: { labels: Labels }) {
     };
   }, []);
 
+  // Se ofrece UNA vez: en cuanto la tarjeta se ve, cuenta como descartada
+  // (30 días) aunque no la toquen. Antes solo "Ahora no" lo guardaba y, si el
+  // visitante la ignoraba, volvía a salir en cada página.
+  const visible = Boolean(evento && cookiesDecididas);
+  useEffect(() => {
+    if (!visible) return;
+    try { localStorage.setItem(DESCARTE_KEY, String(Date.now())); } catch { /* ignora */ }
+  }, [visible]);
+
   if (!evento || !cookiesDecididas) return null;
 
   const descartar = () => {

@@ -26,7 +26,16 @@ export default async function AdminQuotes() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'cotizaciones');
-  const data = await adminFetch<{ items: QuoteRow[] }>('/admin/quotes');
+  // La API pagina de 20 en 20 y la lista filtra y pagina en el navegador: sin
+  // traer las demás páginas, solo se veían las 20 más recientes. Tope de 25
+  // páginas (500) y en paralelo, para no encadenar viajes a la API.
+  const primera = await adminFetch<{ items: QuoteRow[]; pages?: number }>('/admin/quotes');
+  const resto = await Promise.all(
+    Array.from({ length: Math.min(25, primera?.pages ?? 1) - 1 }, (_, i) =>
+      adminFetch<{ items: QuoteRow[] }>(`/admin/quotes?page=${i + 2}`),
+    ),
+  );
+  const data = primera ? { items: [...primera.items, ...resto.flatMap((r) => r?.items ?? [])] } : null;
 
   // La antigüedad se calcula en el SERVIDOR: si se hiciera en el cliente,
   // "hace N días" podría diferir del HTML servido y romper la hidratación.

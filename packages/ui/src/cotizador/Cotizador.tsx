@@ -286,7 +286,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
           <p>
             {esPanel
               ? 'Ya está en el historial del cotizador. Imprímela o guárdala como PDF para enviársela al cliente.'
-              : 'Tu solicitud ya le llegó al proveedor con esta cotización. Él la revisa y, cuando la acepte, te avisamos por correo y en tu cuenta. Guarda tu folio.'}
+              : 'Recibimos tu solicitud con esta cotización. MAQSER24 asigna el equipo y te avisamos por correo y en tu cuenta en cuanto quede confirmado. Guarda tu folio.'}
           </p>
           <div className="cz-folio">{hecho.folio}</div>
           <div className="cz-done-acts">

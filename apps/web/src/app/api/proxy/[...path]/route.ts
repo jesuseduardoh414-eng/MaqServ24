@@ -13,6 +13,8 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const ALLOWLIST = [
   /^wishlist(\/|$)/,
   /^orders\/coupon\/check$/,
+  // Estado en vivo del pedido (OrderStatusLive). La API filtra por el dueño.
+  /^orders\/[A-Za-z0-9_-]+$/,
   /^auth\/profile$/,
   /^auth\/change-password$/,
   /^catalog\/products$/, // buscador del cotizador (datos públicos)
@@ -28,6 +30,8 @@ const ALLOWLIST = [
    */
   /^aliado(\/|$)/,
   /^quotes\/mis-obras$/,
+  // "Aceptar cotización" (QuoteAccept). La API filtra por el dueño y la vigencia.
+  /^quotes\/[A-Za-z0-9_-]+\/accept$/,
   /**
    * Cotizadores internos en el sitio público (maquinaria y triturados).
    *

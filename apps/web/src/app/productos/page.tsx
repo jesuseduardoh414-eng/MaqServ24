@@ -14,6 +14,12 @@ export function generateMetadata(): Promise<Metadata> {
  */
 export default async function CatalogPage({ searchParams }: { searchParams: Promise<Search> }) {
   const [sp, resumen] = await Promise.all([searchParams, getCatalogoResumen()]);
-  if (resumen.productos === 0) redirect('/servicios');
+  if (resumen.productos === 0) {
+    // Conserva los filtros: el buscador del header manda aquí con ?q=.
+    const qs = new URLSearchParams(
+      Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === 'string'),
+    ).toString();
+    redirect(qs ? `/servicios?${qs}` : '/servicios');
+  }
   return PaginaCatalogo({ sp, kind: 'producto' });
 }
