@@ -13,7 +13,7 @@
     "@maqserv/types": "workspace:*",
     "@maqserv/ui": "workspace:*",
     "leaflet": "^1.9.4",
-    "next": "^15.3.0",
+    "next": "^15.5.26",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
