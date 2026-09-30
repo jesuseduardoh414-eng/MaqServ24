@@ -173,11 +173,13 @@ export class ProductsService {
     // MySQL no tiene translate(). La colación utf8mb4_unicode_ci ya iguala
     // mayúsculas y acentos (á=a, ñ=n) en el LIKE; lo único que hay que igualar a
     // mano es b/v, que normalizeTerm() también colapsa a "v" en el término.
-    const conds = tokens.map(
-      (tk) => Prisma.sql`REPLACE(LOWER(name), 'b', 'v') LIKE ${`%${tk}%`}`,
-    );
+    // Cada palabra puede estar en el nombre, la marca, las etiquetas o el nombre
+    // de su línea (2026-09-30): "concreto" o "pipa" daban 0 porque solo se
+    // buscaba en el nombre, aunque la línea "Materiales…" sí existiera.
+    const texto = Prisma.sql`REPLACE(LOWER(CONCAT_WS(' ', p.name, p.Marca, p.tags, c.cat_name)), 'b', 'v')`;
+    const conds = tokens.map((tk) => Prisma.sql`${texto} LIKE ${`%${tk}%`}`);
     const rows = await prisma.$queryRaw<Array<{ id: number }>>(
-      Prisma.sql`SELECT id FROM products WHERE status = 1 AND ${Prisma.join(conds, ' AND ')} LIMIT 500`,
+      Prisma.sql`SELECT p.id FROM products p LEFT JOIN categories c ON c.id = p.category_id WHERE p.status = 1 AND ${Prisma.join(conds, ' AND ')} LIMIT 500`,
     );
     return rows.map((r) => Number(r.id));
   }

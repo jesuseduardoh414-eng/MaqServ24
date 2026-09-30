@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/CartProvider';
 import { NotificationsBell } from '@/components/NotificationsBell';
-import { Icon } from '@/components/Icon';
+import { BuscadorGlobal } from '@/components/BuscadorGlobal';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
 const menuItemStyle: React.CSSProperties = {
   display: 'block', padding: '9px 12px', borderRadius: 'var(--radius-md)',
@@ -38,8 +38,8 @@ export function HeaderActions({
   const [favCount, setFavCount] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const searchInput = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const cerrarBuscador = useCallback(() => setSearchOpen(false), []);
 
   // Cierra el menú de usuario al hacer clic fuera o con Escape.
   useEffect(() => {
@@ -62,9 +62,14 @@ export function HeaderActions({
       .catch(() => {});
   }, []);
 
+  // Ctrl+K / ⌘K abre el buscador desde cualquier página.
   useEffect(() => {
-    if (searchOpen) searchInput.current?.focus();
-  }, [searchOpen]);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearchOpen(true); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -84,7 +89,7 @@ export function HeaderActions({
     // En móvil sobreviven aquí solo buscar y carrito; favoritos, avisos y
     // sesión se mueven al drawer (ver `.hdr-fav` / `.hdr-auth` en globals.css).
     <div className="hdr-actions" style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
-      <button type="button" className="hdr-icon" title={labels.search} aria-label={labels.search} style={iconBtn} onClick={() => setSearchOpen((v) => !v)}>
+      <button type="button" className="hdr-icon" title={`${labels.search} (Ctrl+K)`} aria-label={labels.search} aria-expanded={searchOpen} data-buscador-toggle style={iconBtn} onClick={() => setSearchOpen((v) => !v)}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
       </button>
 
@@ -168,47 +173,7 @@ export function HeaderActions({
         </>
       )}
 
-      {/* Barra de búsqueda desplegable (anclada bajo el header sticky) */}
-      {searchOpen ? (
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: '100%',
-            background: 'var(--color-surface)',
-            borderTop: '1px solid var(--color-border)',
-            boxShadow: 'var(--shadow-sm)',
-            zIndex: 40,
-          }}
-        >
-          <form
-            action="/productos"
-            method="get"
-            style={{ maxWidth: 1240, margin: '0 auto', padding: '16px clamp(16px, 4vw, 26px)', display: 'flex', alignItems: 'center', gap: 12 }}
-            onSubmit={() => setSearchOpen(false)}
-          >
-            {/* Icono SVG propio: el glifo ⌕ no existe en muchas fuentes (misma
-                trampa que ⛟/▤ en el hero, ya corregida allá). */}
-            <span style={{ color: 'var(--grey)', display: 'inline-flex' }} aria-hidden><Icon name="search" size={19} /></span>
-            <input
-              ref={searchInput}
-              name="q"
-              placeholder={labels.searchPlaceholder}
-              aria-label={labels.searchPlaceholder}
-              style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '16px', color: 'var(--color-text)' }}
-            />
-            <button
-              type="button"
-              onClick={() => setSearchOpen(false)}
-              aria-label="Cerrar"
-              style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface)', borderRadius: 'var(--radius-sm)', width: 34, height: 34, cursor: 'pointer', color: 'var(--grey)' }}
-            >
-              <Icon name="x" size={15} style={{ margin: "0 auto" }} />
-            </button>
-          </form>
-        </div>
-      ) : null}
+      {searchOpen ? <BuscadorGlobal placeholder="Busca un servicio, equipo o material…" onClose={cerrarBuscador} /> : null}
     </div>
   );
 }
