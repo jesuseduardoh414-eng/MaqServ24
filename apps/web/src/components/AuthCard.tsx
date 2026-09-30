@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ShButton, ShInput, ShLabel } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
+import { ReglasContrasena } from '@/components/ReglasContrasena';
+import { contrasenaSegura, problemaContrasena } from '@maqserv/config';
 
 const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
@@ -13,16 +15,6 @@ const DISPLAY = 'var(--font-display)';
 type View = 'login' | 'register' | 'forgot' | 'success' | 'verificar';
 
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-function strength(p: string): number {
-  let s = 0;
-  if (p.length >= 8) s++;
-  if (/[A-Z]/.test(p) && /[a-z]/.test(p)) s++;
-  if (/[0-9]/.test(p)) s++;
-  if (/[^A-Za-z0-9]/.test(p)) s++;
-  return s;
-}
-const STRENGTH_LABEL = ['MUY DÉBIL', 'DÉBIL', 'ACEPTABLE', 'BUENA', 'FUERTE'];
-const STRENGTH_COLOR = ['var(--color-error)', 'var(--color-warning)', 'var(--color-primary)', 'var(--color-success)', 'var(--color-success)'];
 
 /**
  * Motivos con los que vuelve el callback de Google.
@@ -130,6 +122,7 @@ export function AuthCard({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
   const [remember, setRemember] = useState(true);
   const [terms, setTerms] = useState(false);
   const [showPw, setShowPw] = useState(false);
@@ -143,9 +136,9 @@ export function AuthCard({
 
   const nameErr = touched && view === 'register' && !name.trim();
   const emailErr = touched && !emailOk(email.trim());
-  const passErr = touched && (view === 'register' ? password.length < 8 : password.length < 1);
+  const passErr = touched && (view === 'register' ? !contrasenaSegura(password, { nombre: name, correo: email }) : password.length < 1);
+  const pass2Err = touched && view === 'register' && password2 !== password;
   const termsErr = touched && view === 'register' && !terms;
-  const st = strength(password);
 
   /**
    * La cuenta existe pero no ha confirmado su correo: el login lo dice y aquí
@@ -180,7 +173,7 @@ export function AuthCard({
 
   async function submitRegister() {
     setTouched(true); setServerErr(null);
-    if (!name.trim() || !emailOk(email.trim()) || password.length < 8 || !terms) return;
+    if (!name.trim() || !emailOk(email.trim()) || !contrasenaSegura(password, { nombre: name, correo: email }) || password2 !== password || !terms) return;
     setLoading(true);
     try {
       // `next` viaja en el enlace del correo: al confirmar vuelve a donde iba.
@@ -388,20 +381,18 @@ export function AuthCard({
               <>
                 <ShLabel htmlFor="reg-password">{L.fieldPassword}</ShLabel>
                 <div style={{ position: 'relative' }}>
-                  <ShInput id="reg-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 8 caracteres" autoComplete="new-password" aria-invalid={passErr} className="h-12 pr-12 text-[15px]" />
+                  <ShInput id="reg-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 10 caracteres" autoComplete="new-password" aria-invalid={passErr} className="h-12 pr-12 text-[15px]" />
                   <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}><OjoIcono abierto={showPw} /></button>
                 </div>
-                {password.length > 0 ? (
-                  <div style={{ marginTop: 4 }}>
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      {[0, 1, 2, 3].map((i) => (
-                        <span key={i} style={{ flex: 1, height: 4, borderRadius: 3, background: i < st ? STRENGTH_COLOR[st - 1] : 'var(--color-border)', transition: 'background .2s ease' }} />
-                      ))}
-                    </div>
-                    <div style={{ fontFamily: MONO, fontSize: 11, color: st > 0 ? STRENGTH_COLOR[st - 1] : 'var(--color-text-muted)', marginTop: 6, letterSpacing: '0.06em', fontWeight: 700 }}>{STRENGTH_LABEL[st]}</div>
-                  </div>
-                ) : null}
-                {passErr ? <div style={errStyle}>La contraseña debe tener al menos 8 caracteres.</div> : null}
+                <ReglasContrasena password={password} nombre={name} correo={email} />
+                {passErr ? <div style={errStyle}>{problemaContrasena(password, { nombre: name, correo: email })}</div> : null}
+              </>,
+            )}
+            {campo(
+              <>
+                <ShLabel htmlFor="reg-password2">Confirmar contraseña</ShLabel>
+                <ShInput id="reg-password2" value={password2} onChange={(e) => setPassword2(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Escríbela otra vez" autoComplete="new-password" aria-invalid={pass2Err} className="h-12 text-[15px]" />
+                {pass2Err ? <div style={errStyle}>Las contraseñas no coinciden.</div> : null}
               </>,
             )}
             <span style={{ display: 'flex', alignItems: 'flex-start', gap: 10, userSelect: 'none' }}>

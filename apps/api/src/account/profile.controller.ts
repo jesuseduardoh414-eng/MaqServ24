@@ -3,6 +3,7 @@ import { z } from 'zod';
 import * as bcrypt from 'bcryptjs';
 import { prisma } from '@maqserv/db';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
+import { problemaContrasena } from '@maqserv/config';
 
 const profileSchema = z.object({
   name: z.string().min(2).max(100).optional(),
@@ -47,6 +48,8 @@ export class ProfileController {
     if (!u?.password || !(await bcrypt.compare(parsed.data.current, u.password))) {
       throw new UnauthorizedException('La contraseña actual no es correcta');
     }
+    const debil = problemaContrasena(parsed.data.next, { nombre: u.name, correo: u.email });
+    if (debil) throw new BadRequestException(debil);
     await prisma.users.update({
       where: { id: req.userId },
       data: { password: await bcrypt.hash(parsed.data.next, 10), updated_at: new Date() },

@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ShButton, ShInput, ShLabel } from '@maqserv/ui';
 import { AccessShell, AccessError, EyeButton } from '@/components/AccessShell';
+import { ReglasContrasena } from '@/components/ReglasContrasena';
+import { contrasenaSegura, problemaContrasena } from '@maqserv/config';
 
 /**
  * Paso 2 de "¿Olvidaste tu contraseña?": elegir la nueva. El token viene en la
@@ -19,13 +21,13 @@ export function RestablecerForm({ token }: { token: string }) {
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
 
-  const corta = tocado && password.length < 8;
+  const corta = tocado && !contrasenaSegura(password);
   const distinta = tocado && confirm !== password;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setTocado(true);
-    if (password.length < 8 || confirm !== password) return;
+    if (!contrasenaSegura(password) || confirm !== password) return;
     setLoading(true);
     setError(null);
     const res = await fetch('/api/admin/auth/restablecer', {
@@ -61,7 +63,7 @@ export function RestablecerForm({ token }: { token: string }) {
   }
 
   return (
-    <AccessShell title="Elige una contraseña nueva" subtitle="Mínimo 8 caracteres. Este enlace sirve una sola vez.">
+    <AccessShell title="Elige una contraseña nueva" subtitle="Tiene que cumplir todos los puntos de la lista. Este enlace sirve una sola vez.">
       <form onSubmit={onSubmit} className="mt-7 grid gap-4" noValidate>
         <div className="grid gap-1.5">
           <ShLabel htmlFor="password">CONTRASEÑA NUEVA</ShLabel>
@@ -78,7 +80,8 @@ export function RestablecerForm({ token }: { token: string }) {
             />
             <EyeButton visible={ver} onToggle={() => setVer((v) => !v)} />
           </div>
-          {corta ? <span className="text-[12px] text-[var(--ui-danger)]">Necesita al menos 8 caracteres.</span> : null}
+          <ReglasContrasena password={password} />
+          {corta ? <span className="text-[12px] text-[var(--ui-danger)]">{problemaContrasena(password)}</span> : null}
         </div>
         <div className="grid gap-1.5">
           <ShLabel htmlFor="confirm">REPÍTELA</ShLabel>

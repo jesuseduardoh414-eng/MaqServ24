@@ -6,6 +6,7 @@ import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { ROLES_ADMIN, modulosDe, type RolAdmin } from '@maqserv/config';
 import { D } from '@/components/design-tokens';
+import { ReglasContrasena } from '@/components/ReglasContrasena';
 
 const ROLES = Object.values(ROLES_ADMIN);
 
@@ -27,6 +28,10 @@ export function AdminCreate() {
   const [open, setOpen] = useState(false);
   // Controlado para poder explicar, debajo, qué implica el rol elegido.
   const [rol, setRol] = useState<RolAdmin>('operaciones');
+  // Controlados para palomear la lista de requisitos mientras se escribe.
+  const [nombre, setNombre] = useState('');
+  const [correo, setCorreo] = useState('');
+  const [clave, setClave] = useState('');
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -50,6 +55,7 @@ export function AdminCreate() {
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(typeof body?.message === 'string' ? body.message : 'No se pudo crear');
       form.reset();
+      setNombre(''); setCorreo(''); setClave('');
       setOpen(false);
       setOk(`${email} ya puede entrar al panel.`);
       router.refresh();
@@ -94,15 +100,16 @@ export function AdminCreate() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16 }}>
           <div>
             <label style={labelStyle} htmlFor="ad-name">Nombre</label>
-            <input id="ad-name" name="name" required minLength={2} maxLength={100} autoComplete="off" style={inputStyle} />
+            <input id="ad-name" name="name" required minLength={2} maxLength={100} autoComplete="off" value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle} htmlFor="ad-email">Correo</label>
-            <input id="ad-email" name="email" type="email" required autoComplete="off" style={inputStyle} />
+            <input id="ad-email" name="email" type="email" required autoComplete="off" value={correo} onChange={(e) => setCorreo(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle} htmlFor="ad-pass">Contraseña (mín. 8)</label>
-            <input id="ad-pass" name="password" type="password" required minLength={8} autoComplete="new-password" style={inputStyle} />
+            <label style={labelStyle} htmlFor="ad-pass">Contraseña</label>
+            <input id="ad-pass" name="password" type="password" required autoComplete="new-password" value={clave} onChange={(e) => setClave(e.target.value)} style={inputStyle} />
+            <ReglasContrasena password={clave} nombre={nombre} correo={correo} />
           </div>
           <div>
             <label style={labelStyle} htmlFor="ad-rol">Rol</label>

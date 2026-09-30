@@ -149,3 +149,12 @@ export {
   MUNICIPIOS_NORTE,
 } from './quoter-defaults';
 export { coordenadasDe } from './coordenadas';
+export {
+  REGLAS_CONTRASENA,
+  CONTRASENA_MIN,
+  CONTRASENA_MAX,
+  problemaContrasena,
+  contrasenaSegura,
+  type ReglaContrasena,
+  type ContextoContrasena,
+} from './password';

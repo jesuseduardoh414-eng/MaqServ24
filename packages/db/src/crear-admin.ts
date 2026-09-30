@@ -21,7 +21,7 @@
  * de correrlo — la misma orden sirve para la de tu máquina y para producción.
  */
 import bcrypt from 'bcryptjs';
-import { ROLES_ADMIN, type RolAdmin } from '@maqserv/config';
+import { problemaContrasena, ROLES_ADMIN, type RolAdmin } from '@maqserv/config';
 import { prisma } from './index';
 
 /** Mismo coste que `hashPassword` en la API (apps/api/src/common/app-auth.ts). */
@@ -40,8 +40,9 @@ async function main() {
     console.error(`"${correo}" no parece un correo.`);
     process.exit(1);
   }
-  if (clave.length < MINIMO) {
-    console.error(`La contraseña necesita al menos ${MINIMO} caracteres.`);
+  const debil = clave.length < MINIMO ? `La contraseña necesita al menos ${MINIMO} caracteres.` : problemaContrasena(clave, { nombre, correo });
+  if (debil) {
+    console.error(debil);
     process.exit(1);
   }
   if (!(rol in ROLES_ADMIN)) {

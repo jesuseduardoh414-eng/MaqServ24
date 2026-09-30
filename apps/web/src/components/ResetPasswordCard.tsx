@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
+import { contrasenaSegura, problemaContrasena } from '@maqserv/config';
+import { ReglasContrasena } from '@/components/ReglasContrasena';
 
 const DISPLAY = 'var(--font-display)';
 const MONO = 'var(--font-sans)';
@@ -19,12 +21,12 @@ export function ResetPasswordCard({ token }: { token: string }) {
   const [serverErr, setServerErr] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const passErr = touched && password.length < 8;
+  const passErr = touched && !contrasenaSegura(password);
   const matchErr = touched && confirm !== password;
 
   async function submit() {
     setTouched(true); setServerErr(null);
-    if (password.length < 8 || confirm !== password) return;
+    if (!contrasenaSegura(password) || confirm !== password) return;
     setLoading(true);
     try {
       const r = await fetch('/api/auth/reset', {
@@ -74,7 +76,7 @@ export function ResetPasswordCard({ token }: { token: string }) {
     <div style={card}>
       <p style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--color-primary)', margin: '0 0 6px' }}>Recuperar acceso</p>
       <h1 style={{ fontFamily: DISPLAY, fontSize: 22, margin: '0 0 6px' }}>Elige una contraseña nueva</h1>
-      <p style={{ color: 'var(--color-text-muted)', margin: '0 0 20px', fontSize: 14 }}>Mínimo 8 caracteres. El enlace sirve una sola vez.</p>
+      <p style={{ color: 'var(--color-text-muted)', margin: '0 0 20px', fontSize: 14 }}>Tiene que cumplir todos los puntos de la lista. El enlace sirve una sola vez.</p>
 
       <form onSubmit={(e) => { e.preventDefault(); submit(); }} noValidate>
         <label style={labelSt}>Contraseña nueva</label>
@@ -82,7 +84,8 @@ export function ResetPasswordCard({ token }: { token: string }) {
           <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" style={input(passErr)} />
           <button type="button" onClick={() => setShowPw((v) => !v)} style={pwToggle}>{showPw ? 'OCULTAR' : 'VER'}</button>
         </div>
-        {passErr ? <p style={{ color: 'var(--color-danger, #d33)', fontSize: 13, margin: '-8px 0 12px' }}>Usa al menos 8 caracteres.</p> : null}
+        <div style={{ margin: '-6px 0 16px' }}><ReglasContrasena password={password} /></div>
+        {passErr ? <p style={{ color: 'var(--color-danger, #d33)', fontSize: 13, margin: '-8px 0 12px' }}>{problemaContrasena(password)}</p> : null}
 
         <label style={labelSt}>Repite la contraseña</label>
         <div style={{ position: 'relative', marginBottom: 18 }}>

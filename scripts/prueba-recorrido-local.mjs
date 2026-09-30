@@ -91,11 +91,11 @@ console.log(`\nRecorrido local · ${new Date().toLocaleString('es-MX')} · etiqu
 // ------------------------------------------------------------- Cliente
 console.log('Cliente');
 await paso('se registra (pide confirmar correo)', async () => {
-  const r = await api('POST', '/auth/register', { body: { name: `PRUEBA-AUTO Cliente ${TS}`, email: CLIENTE, password: 'ClientePrueba1!' } });
+  const r = await api('POST', '/auth/register', { body: { name: `PRUEBA-AUTO Cliente ${TS}`, email: CLIENTE, password: 'Tizne#Volcan-83Qr' } });
   exige(r.verificar === true, `respuesta ${JSON.stringify(r)}`);
 });
 await paso('no puede entrar sin confirmar', async () => {
-  await api('POST', '/auth/login', { body: { email: CLIENTE, password: 'ClientePrueba1!' }, esperado: 403 });
+  await api('POST', '/auth/login', { body: { email: CLIENTE, password: 'Tizne#Volcan-83Qr' }, esperado: 403 });
 });
 await paso('le llega el correo de confirmación y el enlace sirve', async () => {
   const msg = await esperaCorreo(CLIENTE);
@@ -107,7 +107,7 @@ await paso('le llega el correo de confirmación y el enlace sirve', async () => 
   return msg.Subject;
 });
 await paso('inicia sesión', async () => {
-  const r = await api('POST', '/auth/login', { body: { email: CLIENTE, password: 'ClientePrueba1!' } });
+  const r = await api('POST', '/auth/login', { body: { email: CLIENTE, password: 'Tizne#Volcan-83Qr' } });
   ctx.cliente = r.token;
 });
 
@@ -252,7 +252,7 @@ for (const [rol, rutas] of Object.entries(matriz)) {
 console.log('\nSeguridad');
 await paso('otro cliente no ve la cotización ajena', async () => {
   const otro = `otro.${TS}@maqserv24.test`;
-  await api('POST', '/auth/register', { body: { name: 'PRUEBA-AUTO Otro', email: otro, password: 'ClientePrueba1!' } });
+  await api('POST', '/auth/register', { body: { name: 'PRUEBA-AUTO Otro', email: otro, password: 'Tizne#Volcan-83Qr' } });
   const t = enlaceCon(await esperaCorreo(otro), 't');
   const s = await api('POST', '/auth/verify', { body: { token: t } });
   const r = await fetch(`${API}/quotes/${ctx.cot}`, { headers: { authorization: `Bearer ${s.token}` } });

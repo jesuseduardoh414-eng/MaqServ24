@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
-import { ROLES_ADMIN, type RolAdmin } from '@maqserv/config';
+import { ROLES_ADMIN, contrasenaSegura, type RolAdmin } from '@maqserv/config';
 import { D } from '@/components/design-tokens';
+import { ReglasContrasena } from '@/components/ReglasContrasena';
 
 const ROLES = Object.values(ROLES_ADMIN);
 
@@ -162,14 +163,15 @@ export function AdminRowActions({
             value={pass}
             onChange={(e) => setPass(e.target.value)}
             autoComplete="new-password"
-            placeholder="Mínimo 8 caracteres"
+            placeholder="Mínimo 10 caracteres"
             style={{ width: '100%', background: D.inputBg, border: `1px solid ${D.inputBorder}`, borderRadius: 8, padding: '9px 11px', color: D.text, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
           />
+          <ReglasContrasena password={pass} nombre={name} />
           <button
             type="button"
-            disabled={busy || pass.length < 8}
+            disabled={busy || !contrasenaSegura(pass, { nombre: name })}
             onClick={() => void send({ password: pass }, () => { setPass(''); setAsking(false); setDone(true); })}
-            style={{ width: '100%', marginTop: 12, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 8, padding: '9px 12px', cursor: busy ? 'wait' : pass.length < 8 ? 'not-allowed' : 'pointer', opacity: busy || pass.length < 8 ? 0.45 : 1 }}
+            style={{ width: '100%', marginTop: 12, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 8, padding: '9px 12px', cursor: busy ? 'wait' : !contrasenaSegura(pass, { nombre: name }) ? 'not-allowed' : 'pointer', opacity: busy || !contrasenaSegura(pass, { nombre: name }) ? 0.45 : 1 }}
           >
             Cambiar contraseña
           </button>

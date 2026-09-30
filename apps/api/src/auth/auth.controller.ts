@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { AuthService } from './auth.service';
 import { googleActivo, perfilDesdeCodigo } from './google';
 import { JwtGuard, type AuthedRequest } from './jwt.guard';
+import { problemaContrasena } from '@maqserv/config';
 
 /**
  * Puertas de entrada: se prueban a ciegas (contraseñas filtradas de otros sitios) y
@@ -86,6 +87,8 @@ export class AuthController {
   register(@Body() body: unknown) {
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
+    const debil = problemaContrasena(parsed.data.password, { nombre: parsed.data.name, correo: parsed.data.email });
+    if (debil) throw new BadRequestException(debil);
     return this.auth.register(parsed.data);
   }
 
@@ -135,6 +138,8 @@ export class AuthController {
   resetPassword(@Body() body: unknown) {
     const parsed = z.object({ token: z.string().min(32).max(200), password: z.string().min(8).max(100) }).safeParse(body);
     if (!parsed.success) throw new BadRequestException('La contraseña debe tener al menos 8 caracteres');
+    const debil = problemaContrasena(parsed.data.password);
+    if (debil) throw new BadRequestException(debil);
     return this.auth.resetPassword(parsed.data.token, parsed.data.password);
   }
 

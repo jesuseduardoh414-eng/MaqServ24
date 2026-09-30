@@ -6,7 +6,7 @@ import { Reflector } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
-import { rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
+import { problemaContrasena, rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 import {
   firmarRestablecimientoAdmin, hashPassword, huellaDeHash, leerRestablecimientoAdmin,
   passwordGrant, RESTABLECER_ADMIN_MINUTOS, verifyAccessToken,
@@ -251,6 +251,8 @@ export class AdminAuthController {
   async restablecer(@Body() body: unknown) {
     const parsed = z.object({ token: z.string().min(20), password: z.string().min(8).max(200) }).safeParse(body);
     if (!parsed.success) throw new BadRequestException('La contraseña necesita al menos 8 caracteres.');
+    const debil = problemaContrasena(parsed.data.password);
+    if (debil) throw new BadRequestException(debil);
 
     const pideOtro = 'Pide uno nuevo desde "¿Olvidaste tu contraseña?".';
     const leido = await leerRestablecimientoAdmin(parsed.data.token);

@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
-import { rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
+import { problemaContrasena, rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
 import { AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
 import { hashPassword } from '../common/app-auth';
 import { registrarAccion } from './audit';
@@ -83,6 +83,8 @@ export class AdminAdminsController {
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
+    const debil = problemaContrasena(parsed.data.password, { nombre: parsed.data.name, correo: parsed.data.email });
+    if (debil) throw new BadRequestException(debil);
     const email = parsed.data.email.trim().toLowerCase();
 
     if (await prisma.admins.findUnique({ where: { email } })) {
@@ -147,6 +149,10 @@ export class AdminAdminsController {
 
     const a = await prisma.admins.findUnique({ where: { id } });
     if (!a) throw new NotFoundException('Administrador no encontrado');
+    if (parsed.data.password !== undefined) {
+      const debil = problemaContrasena(parsed.data.password, { nombre: a.name, correo: a.email });
+      if (debil) throw new BadRequestException(debil);
+    }
     // Nadie se desactiva a sí mismo (evita quedarse sin acceso).
     if (parsed.data.status === 0 && id === req.adminId) {
       throw new BadRequestException('No puedes desactivar tu propia cuenta');
