@@ -5,25 +5,13 @@ import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { QuoteSummary } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
-import { SESSION_COOKIE } from '@/lib/session';
-import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { SESSION_COOKIE, getSessionUser } from '@/lib/session';
 import { Icon } from '@/components/Icon';
 import { toneColors } from '@/lib/order-status';
 import { formatPrice } from '@/lib/format';
+import { AccountShell, EstadoVacio } from '../AccountShell';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
-
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
-
-const rowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 12,
-  padding: '6px 0',
-  fontSize: 13.5,
-  color: 'var(--color-text-muted)',
-};
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
@@ -32,23 +20,25 @@ export async function generateMetadata(): Promise<Metadata> {
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '';
-  return new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(iso));
+  return new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
 }
 
 export default async function MyQuotesPage() {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
-  if (!token) redirect('/login');
+  if (!token) redirect('/login?next=/cuenta/cotizaciones');
 
-  const [theme, res] = await Promise.all([
+  const [theme, user, res] = await Promise.all([
     getTheme(),
+    getSessionUser(),
     fetch(`${API_URL}/quotes/mine`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store', signal: AbortSignal.timeout(15_000),
     }),
   ]);
-  if (res.status === 401) redirect('/login');
-  const quotes = (await res.json().catch(() => [])) as QuoteSummary[];
+  if (!user || res.status === 401) redirect('/login?next=/cuenta/cotizaciones');
+  const data = (await res.json().catch(() => [])) as QuoteSummary[];
+  const quotes = Array.isArray(data) ? data : [];
 
   // El texto sigue saliendo de los copys; solo el color lo pone el tono.
   /**
@@ -73,101 +63,68 @@ export default async function MyQuotesPage() {
   };
 
   return (
-    <>
-      <SiteHeader theme={theme} />
-      <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <style>{`
-          @media (max-width: 760px){
-            .qt-wrap{ padding-left:22px !important; padding-right:22px !important; }
-            .qt-title{ font-size:34px !important; }
-            .qt-foot{ flex-direction:column !important; align-items:flex-start !important; gap:10px !important; }
-          }
-        `}</style>
-
-        <main className="qt-wrap" style={{ maxWidth: 1000, margin: '0 auto', padding: '44px 40px 60px' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, borderBottom: '2px solid var(--color-text)', paddingBottom: 20, marginBottom: 28, flexWrap: 'wrap' }}>
-            <h1 className="qt-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>{t(theme, 'account.quotes.title')}</h1>
-            <span style={{ fontFamily: MONO, fontSize: 13, color: 'var(--color-text-muted)' }}>{quotes.length} COTIZACIÓN{quotes.length === 1 ? '' : 'ES'}</span>
-            <Link href="/cuenta" style={{ marginLeft: 'auto', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="arrowLeft" size={12} />MI CUENTA</Link>
-          </div>
-
-          {quotes.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '70px 20px' }}>
-              <div style={{ fontSize: 52, marginBottom: 18 }}>📄</div>
-              <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 28, fontWeight: 700 }}>{t(theme, 'account.quotes.empty')}</h2>
-              <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted)' }}>Pide una cotización sin costo y te respondemos con precios y disponibilidad.</p>
-              <Link href="/cotizar" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 'var(--radius-button)' }}>Solicitar cotización</Link>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gap: 14 }}>
-              {quotes.map((q) => {
-                const st = statusOf(q);
-                const c = toneColors(st.tone);
-                return (
-                  <article key={q.id} style={{ border: '1px solid var(--color-border)', borderRadius: 4, background: 'var(--color-surface)', padding: '20px 24px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.14em', color: 'var(--color-text-muted)', marginBottom: 5 }}>COTIZACIÓN</div>
-                        <div style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>{q.quoteNumber}</div>
-                        <div style={{ fontFamily: MONO, fontSize: 11.5, color: 'var(--color-text-muted)', marginTop: 6, letterSpacing: '0.04em' }}>{fmtDate(q.createdAt)}</div>
-                      </div>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--radius-button)', padding: '4px 10px', whiteSpace: 'nowrap' }}>
-                        <span style={{ width: 5, height: 5, borderRadius: 999, background: c.fg }} />
-                        {st.text}
-                      </span>
-                    </div>
-
-                    {/* Desglose: la API ya lo devolvía, antes no se mostraba. */}
-                    <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 16, paddingTop: 10 }}>
-                      <div style={rowStyle}><span>Subtotal</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(q.subtotal)}</span></div>
-                      {q.freightCost > 0 ? (
-                        <div style={rowStyle}>
-                          <span>
-                            Traslado
-                            {q.freightDistance ? <span style={{ fontFamily: MONO, fontSize: 10, opacity: 0.75, letterSpacing: '0.06em' }}> · {q.freightDistance} KM</span> : null}
-                          </span>
-                          <span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(q.freightCost)}</span>
-                        </div>
-                      ) : null}
-                      {q.tax > 0 ? (
-                        <div style={rowStyle}><span>Impuesto</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(q.tax)}</span></div>
-                      ) : null}
-                    </div>
-
-                    <div className="qt-foot" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, borderTop: '1px solid var(--color-border)', marginTop: 10, paddingTop: 16 }}>
-                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--color-text-muted)' }}>TOTAL</span>
-                        <strong style={{ fontFamily: DISPLAY, fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(q.total)}</strong>
-                      </span>
-                      {/* Ya existe página de detalle: ahí se ve la vigencia, qué
-                          incluye, qué no, y se acepta. El aviso de "un asesor te
-                          contactará" solo tiene sentido mientras nadie respondió. */}
-                      {q.state === 'pendiente' ? (
-                        <span style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'right', lineHeight: 1.5 }}>
-                          UN ASESOR TE CONTACTARÁ
-                        </span>
-                      ) : (
-                        <Link
-                          href={`/cuenta/cotizaciones/${q.quoteNumber}`}
-                          style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-                        >
-                          {q.state === 'vigente' ? 'Ver y aceptar' : 'Ver detalle'}
-                          <Icon name="arrowRight" size={13.5} />
-                        </Link>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-
-              <div style={{ textAlign: 'center', marginTop: 14 }}>
-                <Link href="/cotizar" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '14px 28px', borderRadius: 'var(--radius-button)', display: 'inline-block' }}>Solicitar otra cotización</Link>
-              </div>
-            </div>
-          )}
-        </main>
-      </div>
-      <SiteFooter theme={theme} />
-    </>
+    <AccountShell
+      theme={theme}
+      user={user}
+      active="cotizaciones"
+      title={t(theme, 'account.quotes.title')}
+      description={quotes.length
+        ? 'Tus solicitudes y cotizaciones con su estado. Abre una para ver el detalle, el documento y el avance del servicio.'
+        : 'Aquí aparecen los servicios que pides en el cotizador y las cotizaciones que te enviamos.'}
+      action={quotes.length ? <Link href="/cotizador" className="ac-btn">Nueva solicitud</Link> : undefined}
+    >
+      {quotes.length === 0 ? (
+        <EstadoVacio
+          icono="calculator"
+          titulo="Aún no has pedido nada"
+          texto="Arma tu solicitud en el cotizador: eliges el equipo o el material, ves el precio y MAQSER24 asigna quién lo atiende."
+          accion={{ href: '/cotizador', label: 'Abrir el cotizador' }}
+          secundaria={{ href: '/cotizar', label: 'Pedir algo a la medida' }}
+        />
+      ) : (
+        <div className="ac-rows">
+          {quotes.map((q) => {
+            const st = statusOf(q);
+            const c = toneColors(st.tone);
+            // El desglose: la API ya lo devolvía. Solo se muestra si hay algo
+            // además del subtotal, para no repetir el total dos veces.
+            const extras = [
+              q.freightCost > 0 ? `traslado ${formatPrice(q.freightCost)}${q.freightDistance ? ` (${q.freightDistance} km)` : ''}` : null,
+              q.tax > 0 ? `impuesto ${formatPrice(q.tax)}` : null,
+            ].filter(Boolean);
+            // Ya existe página de detalle: ahí se ve la vigencia, qué incluye,
+            // qué no, y se acepta. Mientras nadie responde no hay nada que abrir.
+            const abrir = q.state !== 'pendiente';
+            const contenido = (
+              <>
+                <div style={{ minWidth: 0 }}>
+                  <div className="ac-folio">{q.quoteNumber}</div>
+                  <div className="ac-meta">
+                    {fmtDate(q.createdAt)}
+                    {extras.length ? ` · Subtotal ${formatPrice(q.subtotal)} + ${extras.join(' + ')}` : ''}
+                  </div>
+                  <div className="ac-chips">
+                    <span className="ac-chip" style={{ color: c.fg, background: c.bg, border: `1px solid ${c.border}` }}>{st.text}</span>
+                    {!abrir ? <span className="ac-meta" style={{ marginTop: 0, alignSelf: 'center' }}>Un asesor te contactará</span> : null}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                  <div className="ac-amount">
+                    {formatPrice(q.total)}
+                    <small>{abrir ? (q.state === 'vigente' ? 'Ver y aceptar' : 'Ver detalle') : 'Total'}</small>
+                  </div>
+                  {abrir ? <span aria-hidden style={{ color: 'var(--color-text-muted)', display: 'flex' }}><Icon name="chevronRight" size={18} /></span> : null}
+                </div>
+              </>
+            );
+            return abrir ? (
+              <Link key={q.id} href={`/cuenta/cotizaciones/${q.quoteNumber}`} className="ac-row">{contenido}</Link>
+            ) : (
+              <article key={q.id} className="ac-row">{contenido}</article>
+            );
+          })}
+        </div>
+      )}
+    </AccountShell>
   );
 }
