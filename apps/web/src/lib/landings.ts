@@ -24,6 +24,8 @@ export interface Landing {
   categoria: string;
   /** Nombre corto para menús, migas y el pie. */
   nombre: string;
+  /** Una línea bajo el nombre en el submenú «Soluciones». */
+  resumen: string;
   eyebrow: string;
   h1: string;
   intro: string[];
@@ -42,6 +44,7 @@ export const LANDINGS: Landing[] = [
     clave: 'machinery',
     categoria: 'maquinaria-pesada',
     nombre: 'Renta de maquinaria pesada',
+    resumen: 'Excavadoras, retroexcavadoras y más, con operador',
     eyebrow: 'Renta de maquinaria',
     h1: 'Renta de maquinaria pesada en Monterrey y el norte de México',
     intro: [
@@ -87,6 +90,7 @@ export const LANDINGS: Landing[] = [
     clave: 'transport',
     categoria: 'transporte-y-servicios-de-obra',
     nombre: 'Pipas de agua y volteos',
+    resumen: 'Agua para obra, acarreos y retiro de escombro',
     eyebrow: 'Transporte y servicios de obra',
     h1: 'Pipas de agua y camiones de volteo para tu obra',
     intro: [
@@ -119,6 +123,7 @@ export const LANDINGS: Landing[] = [
     clave: 'aggregates',
     categoria: 'triturados',
     nombre: 'Triturados: grava, arena y base',
+    resumen: 'Por tonelada en planta o por viaje a obra',
     eyebrow: 'Triturados',
     h1: 'Grava, arena y base hidráulica para construcción',
     intro: [
@@ -151,6 +156,7 @@ export const LANDINGS: Landing[] = [
     clave: 'materials',
     categoria: 'materiales-para-construccion',
     nombre: 'Materiales para construcción',
+    resumen: 'Concreto premezclado, acero, block y cemento',
     eyebrow: 'Materiales para construcción',
     h1: 'Concreto premezclado, acero, block y cemento',
     intro: [
@@ -183,6 +189,7 @@ export const LANDINGS: Landing[] = [
     clave: 'asphalt',
     categoria: 'soluciones-asfalticas',
     nombre: 'Carpeta asfáltica',
+    resumen: 'Suministro y aplicación de carpeta asfáltica',
     eyebrow: 'Soluciones asfálticas',
     h1: 'Suministro y aplicación de carpeta asfáltica',
     intro: [

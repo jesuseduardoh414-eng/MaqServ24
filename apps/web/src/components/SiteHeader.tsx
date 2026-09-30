@@ -43,7 +43,17 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
     // de ese tipo. Hoy todo son servicios; "Productos" aparece cuando exista uno.
     ...(resumen.servicios > 0 || resumen.productos === 0 ? [{ href: '/servicios', label: t(theme, 'nav.services') }] : []),
     ...(resumen.productos > 0 ? [{ href: '/productos', label: t(theme, 'nav.products') }] : []),
-    { href: '/categorias', label: t(theme, 'nav.categories') },
+    // Soluciones (2026-09-30): el antiguo «Categorías» se vuelve submenú con las
+    // páginas de aterrizaje. El href sigue siendo /categorias (lo abre el clic en
+    // escritorio); en móvil el padre solo pliega, por eso «Ver todas» va al final.
+    {
+      href: '/categorias',
+      label: t(theme, 'nav.solutions'),
+      children: [
+        ...LANDINGS.map((l) => ({ href: l.ruta, label: l.nombre, description: l.resumen })),
+        { href: '/categorias', label: t(theme, 'nav.solutions.all'), description: t(theme, 'nav.solutions.all.hint') },
+      ],
+    },
     // Cotizador: el único con submenú. Son DOS herramientas con tabuladores
     // distintos —maquinaria y triturados— con el PRECIO ÚNICO de MAQSER24
     // (se regresó a esto el 2026-09-28: "el cotizador es un solo precio").

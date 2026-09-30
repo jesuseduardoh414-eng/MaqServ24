@@ -821,6 +821,10 @@ export const defaultTheme: Theme = {
       'nav.products': 'Productos',
       'nav.services': 'Servicios',
       'nav.categories': 'Categorías',
+      // Menú desplegable con las páginas de aterrizaje (lib/landings.ts en web).
+      'nav.solutions': 'Soluciones',
+      'nav.solutions.all': 'Ver todas las soluciones',
+      'nav.solutions.all.hint': 'Las cinco líneas de servicio en una sola página',
       // Cotizador: entrada con submenú en el header (ver SiteHeader).
       'nav.quoter': 'Cotizador',
       'nav.quoter.machinery': 'Maquinaria',
