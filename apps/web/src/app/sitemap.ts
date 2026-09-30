@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next';
 import { rutaDeCatalogo } from '@maqserv/config';
 import { getBlogs, getProducts, getSectors } from '@/lib/api';
 import { SITE_URL, esRutaPrivada } from '@/lib/seo';
+import { LANDINGS } from '@/lib/landings';
 
 type Entrada = MetadataRoute.Sitemap[number];
 type Frecuencia = NonNullable<Entrada['changeFrequency']>;
@@ -13,6 +14,10 @@ const FIJAS: Array<[ruta: string, freq: Frecuencia, prio: number]> = [
   ['/productos', 'daily', 0.7],
   ['/categorias', 'weekly', 0.7],
   ['/cotizador', 'monthly', 0.8],
+  ['/cotizador/maquinaria', 'monthly', 0.8],
+  ['/cotizador/triturados', 'monthly', 0.8],
+  // Páginas de aterrizaje por servicio (lib/landings.ts).
+  ...LANDINGS.map((l): [string, Frecuencia, number] => [l.ruta, 'monthly', 0.9]),
   ['/quienes-somos', 'monthly', 0.6],
   ['/contacto', 'monthly', 0.6],
   ['/blog', 'weekly', 0.7],

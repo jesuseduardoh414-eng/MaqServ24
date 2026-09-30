@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getBlogs, getSectors } from '@/lib/api';
 import { getTheme, t } from '@/lib/theme';
 import { SITE_URL } from '@/lib/seo';
+import { LANDINGS } from '@/lib/landings';
 
 /**
  * /llms.txt: resumen del sitio en Markdown para asistentes y buscadores con
@@ -22,6 +23,10 @@ export async function GET() {
     `> ${t(theme, 'seo.home.description')}`,
     '',
     `${sitio} es una plataforma en línea para coordinar obra en México: renta de maquinaria pesada con operador, triturados y materiales para construcción, transporte y servicios de obra, y soluciones asfálticas. Cada servicio lo presta un proveedor de la red; la plataforma cotiza, coordina y da seguimiento. Idioma: español (es-MX).`,
+    '',
+    '## Servicios',
+    '',
+    ...LANDINGS.map((l) => `- [${l.nombre}](${SITE_URL}${l.ruta}): ${t(theme, `seo.landing.${l.clave}.description`)}`),
     '',
     '## Páginas principales',
     '',

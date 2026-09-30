@@ -9,6 +9,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { FooterNewsletter } from '@/components/FooterNewsletter';
 import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
+import { LANDINGS } from '@/lib/landings';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
 //
@@ -302,6 +303,16 @@ export function SiteFooter({ theme }: { theme: Theme }) {
           ))}
         </div>
       </div>
+
+      {/* Enlaces fijos a las páginas de aterrizaje (lib/landings.ts): van por código y
+          no en las columnas del tema para que ningún cambio en Diseño las deje sin enlaces internos. */}
+      <nav aria-label="Servicios" style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
+        <div style={{ ...CONTAINER, display: 'flex', flexWrap: 'wrap', gap: '10px 22px', paddingTop: 18, paddingBottom: 18, fontSize: '13px' }}>
+          {LANDINGS.map((l) => (
+            <Link key={l.ruta} href={l.ruta} style={{ color: 'rgba(255,255,255,.66)', textDecoration: 'none', fontWeight: 300 }}>{l.nombre}</Link>
+          ))}
+        </div>
+      </nav>
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
         <div style={{ ...CONTAINER, display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', paddingTop: 20, paddingBottom: 20, fontSize: '13px', opacity: 0.55, fontWeight: 300 }}>
