@@ -9,8 +9,6 @@ import { Icon } from '@/components/Icon';
 import { FREIGHT_ADDRESS_KEY, freightCostOf, useFreightQuote } from '@/components/useFreightQuote';
 import { formatPrice } from '@/lib/format';
 
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
 
 const STEPS: Array<[string, string]> = [['1', 'Carrito'], ['2', 'Datos'], ['3', 'Pago']];
 
@@ -107,177 +105,171 @@ export function CartView({ config }: { config: CheckoutConfig }) {
   }
 
   const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
-  const Check = ({ on, onClick }: { on: boolean; onClick: () => void }) => (
-    <button type="button" onClick={onClick} aria-pressed={on} style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 5, border: `2px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'transparent', color: 'var(--color-bg)', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 13, lineHeight: 1, padding: 0 }}>{on ? <Icon name="check" size={13} /> : null}</button>
+  const Check = ({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) => (
+    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label} className="ct-check" data-on={on}>
+      {on ? <Icon name="check" size={13} /> : null}
+    </button>
   );
+  const vacio = cart.items.length === 0;
+  const nada = selectedItems.length === 0;
 
   return (
-    <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <style>{`
-        @media (max-width: 900px){
-          .cart-grid{ grid-template-columns:1fr !important; }
-          .cart-wrap{ padding-left:22px !important; padding-right:22px !important; }
-          .cart-title{ font-size:36px !important; }
-          .cart-aside{ position:static !important; }
-        }
-        @media (max-width: 640px){ .cart-line{ grid-template-columns:26px 84px 1fr !important; } .cart-line-actions{ grid-column:1 / -1; padding-left:110px; } }
-      `}</style>
+    <div className="ct-page">
+      <style>{CSS}</style>
+      <main className="ct-wrap">
+        <header className="ct-head">
+          <div>
+            <h1 className="ct-title">Tu carrito</h1>
+            <p className="ct-sub">
+              {vacio ? 'Aquí juntas lo que compras o rentas directo, sin cotización.' : `${cart.count} ${cart.count === 1 ? 'equipo' : 'equipos'} · revisa cantidades y el total antes de pagar.`}
+            </p>
+          </div>
+          {!vacio ? (
+            <ol className="ct-steps" aria-label="Pasos de la compra">
+              {STEPS.map(([n, name], i) => (
+                <li key={n} data-on={i === 0} aria-current={i === 0 ? 'step' : undefined}>
+                  <span>{n}</span>{name}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </header>
 
-      <main className="cart-wrap" style={{ maxWidth: 1280, margin: '0 auto', padding: '44px 40px 60px' }}>
-        {/* Stepper */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 40, flexWrap: 'wrap' }}>
-          {STEPS.map(([n, name], i) => (
-            <div key={n} style={{ display: 'flex', alignItems: 'center' }}>
-              <div style={{ display: 'grid', placeItems: 'center', gap: 6 }}>
-                <span style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 14, fontWeight: 700, background: i === 0 ? 'var(--color-text)' : 'transparent', color: i === 0 ? 'var(--color-bg)' : 'var(--color-text-muted)', border: `1px solid ${i === 0 ? 'var(--color-text)' : 'var(--color-border)'}` }}>{n}</span>
-                <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: i === 0 ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{name}</span>
-              </div>
-              {i < STEPS.length - 1 ? <span style={{ width: 90, height: 1, background: 'var(--color-border)', margin: '0 4px 18px' }} /> : null}
+        {vacio ? (
+          <div className="ct-empty">
+            <span className="ct-empty-ico" aria-hidden><Icon name="cart" size={22} /></span>
+            <h2>Tu carrito está vacío</h2>
+            <p>
+              Casi todo en MAQSER24 se cotiza: pides el servicio, ves el precio y te asignamos el equipo. El carrito es solo para lo que se compra
+              o renta directo.
+            </p>
+            <div className="ct-empty-acts">
+              <Link href="/cotizador" className="ct-btn">Cotizar un servicio</Link>
+              <Link href="/servicios" className="ct-link">Ver servicios <Icon name="arrowRight" size={14} /></Link>
             </div>
-          ))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, borderBottom: '2px solid var(--color-text)', paddingBottom: 20, marginBottom: 28, flexWrap: 'wrap' }}>
-          <h1 className="cart-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>Tu carrito</h1>
-          <span style={{ fontFamily: MONO, fontSize: 13, color: 'var(--color-text-muted)' }}>{cart.count} EQUIPO(S)</span>
-        </div>
-
-        {cart.items.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-            <div style={{ fontSize: 56, marginBottom: 20 }}>🛒</div>
-            <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 700 }}>Tu carrito está vacío</h2>
-            <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted)' }}>Explora nuestro catálogo y agrega el equipo que tu obra necesita.</p>
-            <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 'var(--radius-button)' }}>Ver productos</Link>
+            <ul className="ct-empty-tips">
+              <li><Icon name="calculator" size={15} /><span><b>Maquinaria</b> por día, semana o mes, con precio al momento.</span></li>
+              <li><Icon name="truck" size={15} /><span><b>Pipas, volteos y triturados</b> por viaje o por tonelada.</span></li>
+              <li><Icon name="chat" size={15} /><span><b>¿Algo especial?</b> <Link href="/cotizar">Pídelo a la medida</Link> y te respondemos.</span></li>
+            </ul>
           </div>
         ) : (
-          <div className="cart-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 56, alignItems: 'start' }}>
-            <div>
-              {/* barra de selección */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingBottom: 16, borderBottom: '1px solid var(--color-border)', flexWrap: 'wrap' }}>
-                <Check on={allSelected} onClick={toggleAll} />
-                <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.04em' }}>{selectedItems.length}/{cart.items.length} seleccionados</span>
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 18 }}>
-                  <button type="button" disabled={selectedItems.length === 0} onClick={() => saveToFav(selectedItems)} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-text)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="heart" size={12} />MOVER A FAVORITOS</button>
-                  <button type="button" disabled={selectedItems.length === 0} onClick={() => cart.removeLines(selectedItems.map(cartLineKey))} style={{ background: 'none', border: 'none', fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: selectedItems.length ? 'var(--color-error)' : 'var(--color-text-muted)', cursor: selectedItems.length ? 'pointer' : 'default', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="x" size={12} />QUITAR</button>
+          <div className="ct-grid">
+            <section aria-label="Equipos en tu carrito">
+              <div className="ct-bar">
+                <Check on={allSelected} onClick={toggleAll} label={allSelected ? 'Quitar selección' : 'Seleccionar todo'} />
+                <span className="ct-muted">{selectedItems.length} de {cart.items.length} seleccionados</span>
+                <div className="ct-bar-acts">
+                  <button type="button" disabled={nada} onClick={() => saveToFav(selectedItems)} className="ct-txtbtn"><Icon name="heart" size={14} />Mover a favoritos</button>
+                  <button type="button" disabled={nada} onClick={() => cart.removeLines(selectedItems.map(cartLineKey))} className="ct-txtbtn ct-danger"><Icon name="x" size={14} />Quitar</button>
                 </div>
               </div>
 
-              {cart.items.map((item) => (
-                <div key={cartLineKey(item)} className="cart-line" style={{ display: 'grid', gridTemplateColumns: '26px 120px 1fr auto', gap: 20, padding: '24px 0', borderBottom: '1px solid var(--color-border)', alignItems: 'center' }}>
-                  <Check on={!deselected.has(cartLineKey(item))} onClick={() => toggleSel(cartLineKey(item))} />
-                  <Link href={`/productos/${item.slug}`} style={{ height: 100, borderRadius: 3, overflow: 'hidden', background: 'var(--color-surface)', backgroundImage: item.image ? undefined : stripe, display: 'block' }}>
-                    {item.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={item.image} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : null}
-                  </Link>
-                  <div style={{ minWidth: 0 }}>
-                    <Link href={`/productos/${item.slug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                      <h3 style={{ fontFamily: DISPLAY, margin: '0 0 8px', fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }}>{item.name}</h3>
-                    </Link>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 10 }}>
-                      <span style={{ fontWeight: 700, fontSize: 16 }}>{formatPrice(item.price)}</span>
-                      <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)' }}>/ {item.unitLabel ?? 'MES'}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 16, fontFamily: MONO, fontSize: 12 }}>
-                      <button type="button" onClick={() => saveToFav([item])} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="heart" size={13} />Guardar</button>
-                      <button type="button" onClick={() => cart.remove(cartLineKey(item))} style={{ background: 'none', border: 'none', color: 'var(--color-error)', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="x" size={13} />Quitar</button>
-                    </div>
-                  </div>
-                  <div className="cart-line-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 14 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', overflow: 'hidden' }}>
-                      <button type="button" aria-label="Menos" onClick={() => cart.setQty(cartLineKey(item), item.qty - 1)} style={{ background: 'transparent', border: 'none', width: 38, height: 40, fontSize: 20, cursor: 'pointer', color: 'var(--color-text)' }}>−</button>
-                      <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, width: 30, textAlign: 'center' }}>{item.qty}</span>
-                      <button type="button" aria-label="Más" onClick={() => cart.setQty(cartLineKey(item), item.qty + 1)} style={{ background: 'transparent', border: 'none', width: 38, height: 40, fontSize: 20, cursor: 'pointer', color: 'var(--color-text)' }}>+</button>
-                    </div>
-                    <div style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>{formatPrice(cartLineTotal(item))}</div>
-                  </div>
-                </div>
-              ))}
-              <Link href="/productos" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, marginTop: 24, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, color: 'var(--color-text)', textDecoration: 'none' }}><Icon name="arrowLeft" size={15} />Seguir explorando</Link>
-            </div>
-
-            {/* Columna derecha */}
-            <div style={{ display: 'grid', gap: 18 }} className="cart-aside2">
-              {/* Cupones */}
-              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, padding: '22px 24px' }}>
-                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', color: 'var(--color-text-muted)', marginBottom: 12 }}>CUPÓN</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon(); }} placeholder="Código" style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', padding: '11px 16px', fontFamily: MONO, fontSize: 13, background: 'var(--color-bg)', color: 'var(--color-text)' }} />
-                  <button type="button" onClick={applyCoupon} style={{ background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', fontFamily: DISPLAY, fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 'var(--radius-button)', cursor: 'pointer' }}>Aplicar</button>
-                </div>
-                {coupon ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-success)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="check" size={11} /><span>{coupon.code} aplicado{coupon.label ? ` (${coupon.label})` : ''}</span></div> : null}
-                {couponMsg ? <div style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 8 }}>{couponMsg}</div> : null}
+              <div className="ct-lines">
+                {cart.items.map((item) => {
+                  const key = cartLineKey(item);
+                  return (
+                    <article key={key} className="ct-line" data-off={deselected.has(key)}>
+                      <Check on={!deselected.has(key)} onClick={() => toggleSel(key)} label={`Seleccionar ${item.name}`} />
+                      <Link href={`/productos/${item.slug}`} className="ct-img" style={{ backgroundImage: stripe }}>
+                        {item.image ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={item.image} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        ) : null}
+                      </Link>
+                      <div className="ct-info">
+                        <Link href={`/productos/${item.slug}`} className="ct-name">{item.name}</Link>
+                        <p className="ct-price">{formatPrice(item.price)} <span>/ {(item.unitLabel ?? 'mes').toLowerCase()}</span></p>
+                        <div className="ct-line-acts">
+                          <button type="button" onClick={() => saveToFav([item])} className="ct-txtbtn"><Icon name="heart" size={13} />Guardar</button>
+                          <button type="button" onClick={() => cart.remove(key)} className="ct-txtbtn ct-danger"><Icon name="x" size={13} />Quitar</button>
+                        </div>
+                      </div>
+                      <div className="ct-right">
+                        <div className="ct-qty" role="group" aria-label={`Cantidad de ${item.name}`}>
+                          <button type="button" aria-label="Menos" onClick={() => cart.setQty(key, item.qty - 1)}>−</button>
+                          <span aria-live="polite">{item.qty}</span>
+                          <button type="button" aria-label="Más" onClick={() => cart.setQty(key, item.qty + 1)}>+</button>
+                        </div>
+                        <div className="ct-line-total">{formatPrice(cartLineTotal(item))}</div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
+              <Link href="/servicios" className="ct-back"><Icon name="arrowLeft" size={15} />Seguir explorando</Link>
+            </section>
 
-              {/* Operador (opcional; monto y textos definidos en Panel → Pagos) */}
+            <div className="ct-side">
               {config.operator.enabled ? (
-                <button type="button" onClick={() => setOperator(!operator)} style={{ textAlign: 'left', cursor: 'pointer', background: operator ? 'color-mix(in srgb, var(--color-primary) 10%, var(--color-bg))' : 'var(--color-surface)', border: `1px solid ${operator ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 4, padding: 22, fontFamily: 'inherit', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  <span style={{ width: 22, height: 22, flexShrink: 0, borderRadius: 5, border: `2px solid ${operator ? 'var(--color-text)' : 'var(--color-border)'}`, background: operator ? 'var(--color-text)' : 'transparent', color: 'var(--color-bg)', display: 'grid', placeItems: 'center', fontSize: 13, marginTop: 2 }}>{operator ? <Icon name="check" size={13} /> : null}</span>
-                  <div>
-                    <div style={{ fontFamily: DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--color-text)' }}>{config.operator.label}</div>
-                    <div style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4, lineHeight: 1.5 }}>{config.operator.help} <strong style={{ color: 'var(--color-text)' }}>+{formatPrice(config.operator.amount)}</strong> por equipo</div>
-                  </div>
+                <button type="button" onClick={() => setOperator(!operator)} className="ct-card ct-op" data-on={operator}>
+                  <span className="ct-check" data-on={operator} aria-hidden>{operator ? <Icon name="check" size={13} /> : null}</span>
+                  <span>
+                    <span className="ct-op-t">{config.operator.label}</span>
+                    <span className="ct-op-d">{config.operator.help} <b>+{formatPrice(config.operator.amount)}</b> por equipo</span>
+                  </span>
                 </button>
               ) : null}
 
-              {/* Desglose */}
-              <aside className="cart-aside" style={{ position: 'sticky', top: 20, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', color: 'var(--color-text-muted)', padding: '18px 24px 0' }}>DESGLOSE ({selUnits} EQUIPO{selUnits === 1 ? '' : 'S'})</div>
-                <div style={{ padding: '14px 24px 0' }}>
+              <aside className="ct-card ct-sum" aria-label="Resumen de la compra">
+                <h2 className="ct-sum-t">Resumen <span>{selUnits} {selUnits === 1 ? 'equipo' : 'equipos'}</span></h2>
+                <div className="ct-rows">
                   {selectedItems.map((it) => (
-                    <div key={it.productId} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 0', fontSize: 13.5, color: 'var(--color-text-muted)' }}>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.qty} × {it.name}</span>
-                      <span style={{ color: 'var(--color-text)', fontWeight: 600, flexShrink: 0 }}>{formatPrice(cartLineTotal(it))}</span>
+                    <div key={cartLineKey(it)} className="ct-row ct-row-sm">
+                      <span className="ct-ell">{it.qty} × {it.name}</span>
+                      <b>{formatPrice(cartLineTotal(it))}</b>
                     </div>
                   ))}
                 </div>
-                <div style={{ padding: '14px 24px 0', borderTop: '1px solid var(--color-border)', marginTop: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-text-muted)' }}><span>Subtotal</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(subtotal)}</span></div>
-                  {discount > 0 ? <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-success)' }}><span>Descuento {coupon?.code ? `· ${coupon.code}` : ''}</span><span style={{ fontWeight: 600 }}>−{formatPrice(discount)}</span></div> : null}
-                  {operatorCost > 0 ? <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-text-muted)' }}><span>Operador ({selUnits})</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(operatorCost)}</span></div> : null}
+                <div className="ct-rows ct-sep">
+                  <div className="ct-row"><span>Subtotal</span><b>{formatPrice(subtotal)}</b></div>
+                  {discount > 0 ? <div className="ct-row ct-ok"><span>Descuento {coupon?.code ? `· ${coupon.code}` : ''}</span><b>−{formatPrice(discount)}</b></div> : null}
+                  {operatorCost > 0 ? <div className="ct-row"><span>Operador ({selUnits})</span><b>{formatPrice(operatorCost)}</b></div> : null}
 
                   {/* Traslado: va antes del impuesto porque el impuesto se calcula sobre él. */}
                   {freightCfg.enabled ? (
                     <>
                       {freightCfg.mode === 'km' ? (
-                        <div style={{ padding: '10px 0 2px' }}>
-                          <label htmlFor="freight-addr" style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.12em', color: 'var(--color-text-muted)', marginBottom: 7 }}>¿A DÓNDE LO LLEVAMOS?</label>
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <input id="freight-addr" value={addr} onChange={(e) => setAddr(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') calcFreight(); }} placeholder="Ciudad, estado o dirección" style={{ flex: 1, minWidth: 0, padding: '9px 11px', fontSize: 13, fontFamily: 'inherit', border: '1px solid var(--color-border)', borderRadius: 4, background: 'var(--color-bg)', color: 'var(--color-text)' }} />
-                            <button type="button" onClick={calcFreight} disabled={freightLoading || !addr.trim()} style={{ border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)', borderRadius: 4, padding: '0 12px', fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', cursor: freightLoading || !addr.trim() ? 'default' : 'pointer', opacity: freightLoading || !addr.trim() ? 0.5 : 1, whiteSpace: 'nowrap' }}>{freightLoading ? '…' : 'CALCULAR'}</button>
+                        <div className="ct-field">
+                          <label htmlFor="freight-addr">¿A dónde lo llevamos?</label>
+                          <div className="ct-inline">
+                            <input id="freight-addr" value={addr} onChange={(e) => setAddr(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') calcFreight(); }} placeholder="Ciudad, estado o dirección" />
+                            <button type="button" onClick={calcFreight} disabled={freightLoading || !addr.trim()} className="ct-btn-sec">{freightLoading ? 'Calculando…' : 'Calcular'}</button>
                           </div>
                         </div>
                       ) : null}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', fontSize: 14, color: 'var(--color-text-muted)' }}>
+                      <div className="ct-row">
                         <span>
                           {freightCfg.label}
-                          {freight?.km != null ? <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, opacity: 0.75, letterSpacing: '0.06em' }}>{freight.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} KM{freight.estimated ? ' APROX.' : ''}</span> : null}
+                          {freight?.km != null ? <small>{freight.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km{freight.estimated ? ' aprox.' : ''}</small> : null}
                         </span>
-                        {freightCost > 0
-                          ? <span style={{ color: 'var(--color-text)', fontWeight: 600, flexShrink: 0 }}>{formatPrice(freightCost)}</span>
-                          : <span style={{ fontFamily: MONO, fontSize: 11, textAlign: 'right', lineHeight: 1.5 }}>{(freight?.message || freightCfg.quoteText).toUpperCase()}</span>}
+                        {freightCost > 0 ? <b>{formatPrice(freightCost)}</b> : <span className="ct-note">{freight?.message || freightCfg.quoteText}</span>}
                       </div>
                     </>
                   ) : null}
 
-                  {taxAdds ? (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-text-muted)' }}><span>{config.tax.label} ({config.tax.rate}%)</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(tax)}</span></div>
-                  ) : null}
-                  {includedTax > 0 ? (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 14, color: 'var(--color-text-muted)' }}><span>{config.tax.label} incluido ({config.tax.rate}%)</span><span style={{ fontFamily: MONO, fontSize: 12 }}>{formatPrice(includedTax)}</span></div>
-                  ) : null}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '18px 0 20px', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
-                    <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700 }}>Total</span>
-                    <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(total)}</span>
-                  </div>
-                  <Link href="/checkout" aria-disabled={selectedItems.length === 0} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Proceder al pago<Icon name="arrowRight" size={16} /></Link>
-                  {/* Alternativa al pago directo: cotizar todo el carrito con un asesor. */}
-                  <Link href="/cotizar" aria-disabled={selectedItems.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', marginTop: 10, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', padding: 14, borderRadius: 'var(--radius-button)', textDecoration: 'none', boxSizing: 'border-box', opacity: selectedItems.length === 0 ? 0.5 : 1, pointerEvents: selectedItems.length === 0 ? 'none' : 'auto' }}>Solicitar cotización</Link>
-                  {config.note ? (
-                    <p style={{ margin: '16px 0 20px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6, textTransform: 'uppercase' }}>{config.note}</p>
-                  ) : null}
+                  {taxAdds ? <div className="ct-row"><span>{config.tax.label} ({config.tax.rate}%)</span><b>{formatPrice(tax)}</b></div> : null}
+                  {includedTax > 0 ? <div className="ct-row"><span>{config.tax.label} incluido ({config.tax.rate}%)</span><span>{formatPrice(includedTax)}</span></div> : null}
                 </div>
+
+                <div className="ct-field ct-sep">
+                  <label htmlFor="coupon">Cupón de descuento</label>
+                  <div className="ct-inline">
+                    <input id="coupon" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') applyCoupon(); }} placeholder="Escribe tu código" />
+                    <button type="button" onClick={applyCoupon} className="ct-btn-sec">Aplicar</button>
+                  </div>
+                  {coupon ? <p className="ct-msg ct-ok"><Icon name="check" size={13} />{coupon.code} aplicado{coupon.label ? ` (${coupon.label})` : ''}</p> : null}
+                  {couponMsg ? <p className="ct-msg ct-danger">{couponMsg}</p> : null}
+                </div>
+
+                <div className="ct-total">
+                  <span>Total</span>
+                  <strong>{formatPrice(total)}</strong>
+                </div>
+                <Link href="/checkout" aria-disabled={nada} className="ct-btn ct-full" data-off={nada}>Continuar al pago<Icon name="arrowRight" size={16} /></Link>
+                {/* Alternativa al pago directo: cotizar todo el carrito con un asesor. */}
+                <Link href="/cotizar" aria-disabled={nada} className="ct-btn-sec ct-full" data-off={nada}>Prefiero que me coticen</Link>
+                {config.note ? <p className="ct-fine">{config.note}</p> : null}
               </aside>
             </div>
           </div>
@@ -286,3 +278,116 @@ export function CartView({ config }: { config: CheckoutConfig }) {
     </div>
   );
 }
+
+const CSS = `
+.ct-page{ background:var(--color-bg); color:var(--color-text); }
+.ct-wrap{ max-width:1180px; margin:0 auto; padding:40px 32px 80px; }
+.ct-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:28px; }
+.ct-title{ margin:0; font-family:var(--font-display); font-size:30px; font-weight:700; letter-spacing:-.025em; }
+.ct-sub{ margin:8px 0 0; font-size:14.5px; color:var(--color-text-muted); }
+.ct-steps{ list-style:none; margin:0; padding:0; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--color-text-muted); }
+.ct-steps li{ display:flex; align-items:center; gap:7px; }
+.ct-steps li + li::before{ content:''; width:24px; height:1px; background:var(--color-border); margin-right:1px; }
+.ct-steps li span{ width:22px; height:22px; border-radius:50%; display:grid; place-items:center; font-size:11.5px; font-weight:700; border:1px solid var(--color-border); }
+.ct-steps li[data-on="true"]{ color:var(--color-text); font-weight:600; }
+.ct-steps li[data-on="true"] span{ background:var(--color-primary); border-color:var(--color-primary); color:var(--color-primary-fg); }
+
+.ct-empty{ border:1px dashed var(--color-border); border-radius:14px; padding:48px 36px; display:grid; justify-items:start; gap:6px; max-width:760px; }
+.ct-empty-ico{ width:48px; height:48px; border-radius:12px; display:grid; place-items:center; color:var(--color-primary); background:color-mix(in srgb, var(--color-primary) 10%, transparent); border:1px solid color-mix(in srgb, var(--color-primary) 25%, transparent); margin-bottom:10px; }
+.ct-empty h2{ margin:0; font-family:var(--font-display); font-size:21px; font-weight:700; letter-spacing:-.015em; }
+.ct-empty p{ margin:0; font-size:14.5px; line-height:1.6; color:var(--color-text-muted); max-width:56ch; }
+.ct-empty-acts{ display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-top:18px; }
+.ct-empty-tips{ list-style:none; margin:28px 0 0; padding:20px 0 0; border-top:1px solid var(--color-border); display:grid; gap:10px; width:100%; }
+.ct-empty-tips li{ display:flex; gap:10px; align-items:flex-start; font-size:13.5px; color:var(--color-text-muted); line-height:1.5; }
+.ct-empty-tips svg{ color:var(--color-primary); margin-top:2px; flex-shrink:0; }
+.ct-empty-tips b{ color:var(--color-text); font-weight:600; }
+.ct-empty-tips a{ color:var(--color-primary); }
+
+.ct-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:46px; padding:0 22px; border-radius:var(--radius-button, 8px); border:none; background:var(--color-primary); color:var(--color-primary-fg); font-family:var(--font-sans); font-size:15px; font-weight:600; text-decoration:none; cursor:pointer; transition:filter .18s ease, transform .12s ease; }
+.ct-btn:hover{ filter:brightness(1.08); }
+.ct-btn:active{ transform:translateY(1px); }
+.ct-btn-sec{ display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 14px; border-radius:var(--radius-button, 8px); border:1px solid var(--color-border); background:transparent; color:var(--color-text); font-family:var(--font-sans); font-size:13.5px; font-weight:600; text-decoration:none; cursor:pointer; white-space:nowrap; transition:border-color .18s ease; }
+.ct-btn-sec:hover:not(:disabled){ border-color:var(--color-text-muted); }
+.ct-btn-sec:disabled{ opacity:.5; cursor:default; }
+.ct-full{ width:100%; box-sizing:border-box; }
+.ct-full + .ct-full{ margin-top:10px; min-height:44px; }
+.ct-full[data-off="true"]{ opacity:.45; pointer-events:none; }
+.ct-link{ display:inline-flex; align-items:center; gap:6px; font-size:14px; font-weight:600; color:var(--color-primary); text-decoration:none; }
+.ct-btn:focus-visible, .ct-btn-sec:focus-visible, .ct-link:focus-visible, .ct-check:focus-visible, .ct-txtbtn:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+
+.ct-grid{ display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:40px; align-items:start; }
+.ct-bar{ display:flex; align-items:center; gap:12px; padding:0 4px 14px; flex-wrap:wrap; }
+.ct-bar-acts{ margin-left:auto; display:flex; gap:16px; }
+.ct-muted{ font-size:13px; color:var(--color-text-muted); }
+.ct-txtbtn{ display:inline-flex; align-items:center; gap:6px; padding:0; border:none; background:none; font:inherit; font-size:13px; font-weight:600; color:var(--color-text-muted); cursor:pointer; }
+.ct-txtbtn:hover:not(:disabled){ color:var(--color-text); }
+.ct-txtbtn:disabled{ opacity:.45; cursor:default; }
+.ct-danger, .ct-txtbtn.ct-danger:hover:not(:disabled){ color:var(--color-error); }
+.ct-check{ width:22px; height:22px; flex-shrink:0; border-radius:6px; border:1.5px solid var(--color-border); background:transparent; color:var(--color-primary-fg); display:grid; place-items:center; padding:0; cursor:pointer; transition:background .15s ease, border-color .15s ease; }
+.ct-check[data-on="true"]{ background:var(--color-primary); border-color:var(--color-primary); }
+
+.ct-lines{ display:grid; gap:10px; }
+.ct-line{ display:grid; grid-template-columns:22px 104px minmax(0,1fr) auto; gap:18px; align-items:center; padding:16px 18px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; transition:opacity .18s ease; }
+.ct-line[data-off="true"]{ opacity:.55; }
+.ct-img{ height:84px; border-radius:10px; overflow:hidden; background:var(--color-bg); border:1px solid var(--color-border); display:block; }
+.ct-img img{ width:100%; height:100%; object-fit:cover; }
+.ct-info{ min-width:0; }
+.ct-name{ display:block; font-family:var(--font-display); font-size:17px; font-weight:700; letter-spacing:-.01em; color:inherit; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ct-name:hover{ color:var(--color-primary); }
+.ct-price{ margin:4px 0 10px; font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
+.ct-price span{ font-weight:400; color:var(--color-text-muted); font-size:13px; }
+.ct-line-acts{ display:flex; gap:16px; }
+.ct-right{ display:grid; justify-items:end; gap:10px; }
+.ct-qty{ display:flex; align-items:center; border:1px solid var(--color-border); border-radius:8px; overflow:hidden; background:var(--color-bg); }
+.ct-qty button{ width:36px; height:36px; border:none; background:transparent; color:var(--color-text); font-size:18px; cursor:pointer; }
+.ct-qty button:hover{ background:color-mix(in srgb, var(--color-text) 6%, transparent); }
+.ct-qty span{ min-width:28px; text-align:center; font-weight:700; font-size:14.5px; font-variant-numeric:tabular-nums; }
+.ct-line-total{ font-family:var(--font-display); font-size:18px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+.ct-back{ display:inline-flex; align-items:center; gap:7px; margin-top:18px; font-size:14px; font-weight:600; color:var(--color-text-muted); text-decoration:none; }
+.ct-back:hover{ color:var(--color-text); }
+
+.ct-side{ display:grid; gap:14px; position:sticky; top:104px; min-width:0; }
+.ct-card{ min-width:0; width:100%; box-sizing:border-box; background:var(--color-surface); border:1px solid var(--color-border); border-radius:14px; }
+.ct-op{ display:flex; gap:12px; align-items:flex-start; padding:16px 18px; text-align:left; cursor:pointer; font:inherit; color:inherit; }
+.ct-op[data-on="true"]{ border-color:color-mix(in srgb, var(--color-primary) 55%, var(--color-border)); background:color-mix(in srgb, var(--color-primary) 7%, var(--color-surface)); }
+.ct-op > span:last-child{ display:grid; gap:3px; }
+.ct-op-t{ font-size:14.5px; font-weight:600; }
+.ct-op-d{ font-size:13px; line-height:1.5; color:var(--color-text-muted); }
+.ct-op-d b{ color:var(--color-text); }
+.ct-sum{ padding:20px 22px 22px; }
+.ct-sum-t{ margin:0 0 12px; font-size:16px; font-weight:700; display:flex; align-items:baseline; justify-content:space-between; }
+.ct-sum-t span{ font-size:13px; font-weight:500; color:var(--color-text-muted); }
+.ct-rows{ display:grid; grid-template-columns:minmax(0,1fr); gap:2px; }
+.ct-sep{ border-top:1px solid var(--color-border); margin-top:12px; padding-top:12px; }
+.ct-row{ display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-size:14px; color:var(--color-text-muted); }
+.ct-row b{ color:var(--color-text); font-weight:600; flex-shrink:0; font-variant-numeric:tabular-nums; }
+.ct-row small{ display:block; font-size:12px; opacity:.85; }
+.ct-row-sm{ font-size:13px; }
+.ct-ell{ min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ct-note{ font-size:12.5px; text-align:right; max-width:60%; }
+.ct-ok{ color:var(--color-success) !important; }
+.ct-field{ display:grid; gap:7px; padding:6px 0; }
+.ct-field label{ font-size:13px; font-weight:500; color:var(--color-text); }
+.ct-inline{ display:flex; gap:8px; }
+.ct-inline input{ flex:1; min-width:0; min-height:40px; padding:0 12px; font:inherit; font-size:14px; color:var(--color-text); background:var(--color-bg); border:1px solid var(--color-border); border-radius:8px; }
+.ct-inline input:focus{ outline:none; border-color:var(--color-primary); box-shadow:0 0 0 3px color-mix(in srgb, var(--color-primary) 22%, transparent); }
+.ct-msg{ margin:0; display:flex; align-items:center; gap:6px; font-size:12.5px; }
+.ct-total{ display:flex; justify-content:space-between; align-items:baseline; margin:14px 0 16px; padding-top:14px; border-top:1px solid var(--color-border); }
+.ct-total span{ font-size:15px; font-weight:600; }
+.ct-total strong{ font-family:var(--font-display); font-size:28px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+.ct-fine{ margin:14px 0 0; font-size:12px; line-height:1.55; color:var(--color-text-muted); text-align:center; }
+
+@media (max-width: 960px){
+  .ct-grid{ grid-template-columns:minmax(0,1fr); gap:24px; }
+  .ct-side{ position:static; }
+}
+@media (max-width: 640px){
+  .ct-wrap{ padding:24px 16px 64px; }
+  .ct-title{ font-size:25px; }
+  .ct-empty{ padding:32px 20px; }
+  .ct-line{ grid-template-columns:22px 72px minmax(0,1fr); gap:12px; padding:14px; }
+  .ct-img{ height:64px; }
+  .ct-right{ grid-column:2 / -1; display:flex; justify-content:space-between; align-items:center; }
+  .ct-bar-acts{ margin-left:0; width:100%; }
+}
+`;
