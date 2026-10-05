@@ -11,7 +11,7 @@ import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
 import { LANDINGS } from '@/lib/landings';
 import { telHref } from '@/lib/telefono';
-import { RedesSociales } from '@/components/RedesSociales';
+import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
 //
@@ -235,6 +235,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
 
   // Contenido del footer (editable en Diseño → Footer).
   const f = theme.tokens.footer ?? defaultTheme.tokens.footer;
+  const contactoPie = theme.tokens.contact ?? defaultTheme.tokens.contact;
   const columns = f.columns;
   const copyright = f.copyright.trim() || `© ${year} ${brand}. ${t(theme, 'footer.rights')}.`;
 
@@ -303,9 +304,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
                 </>
               )}
             </div>
-            <p style={{ fontSize: '14px', lineHeight: 1.6, maxWidth: 300, margin: '0 0 20px' }}>{f.tagline}</p>
-            {/* Redes con su icono; las que no tienen enlace no se pintan (antes llevaban a "#"). */}
-            <RedesSociales redes={f.social} whatsapp={(theme.tokens.contact ?? defaultTheme.tokens.contact).whatsapp} tono="claro" />
+            <p style={{ fontSize: '14px', lineHeight: 1.6, maxWidth: 300, margin: 0 }}>{f.tagline}</p>
           </div>
 
           {columns.map((col) => (
@@ -318,6 +317,16 @@ export function SiteFooter({ theme }: { theme: Theme }) {
               </div>
             </div>
           ))}
+
+          {/* Redes como una columna más, en lista con icono y nombre (2026-10-05):
+              en fila de iconos, con 6 redes se partían en dos renglones desparejos.
+              Las que no tienen enlace no se pintan; si no hay ninguna, no sale la columna. */}
+          {redesParaMostrar(f.social, contactoPie.whatsapp).length ? (
+            <div>
+              <div style={{ color: '#fff', fontWeight: 600, fontSize: '14.5px', marginBottom: 16 }}>Síguenos</div>
+              <RedesSociales redes={f.social} whatsapp={contactoPie.whatsapp} tono="claro" forma="lista" />
+            </div>
+          ) : null}
         </div>
       </div>
 
