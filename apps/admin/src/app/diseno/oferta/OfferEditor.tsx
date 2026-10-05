@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Offer, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -36,10 +37,10 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
   const setO = <K extends keyof Offer>(k: K, v: Offer[K]) => setConfig((c) => ({ ...c, off: { ...c.off, [k]: v } }));
   const o = config.off;
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(() => ({ tokens: { offer: config.off }, copys: { 'home.offer.badge': config.badge, 'home.offer.title': config.title, 'home.offer.subtitle': config.subtitle, 'home.offer.cta': config.cta } }), [config]);
 
-  const bg = o.bg ?? '#1A1A1B';
-  const accent = o.accentColor ?? '#FFC107';
-  const ttl = o.titleColor ?? '#ffffff';
 
   async function upload(file: File) {
     if (!file.type.startsWith('image/')) { setToast({ ok: false, text: 'Usa una imagen (PNG, JPG, WebP…)' }); return; }
@@ -147,22 +148,9 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
           </div>
         </div>
 
-        {/* PREVIEW */}
+        {/* VISTA PREVIA: el sitio real pinta la sección con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · home</div>
-          <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: '#f8f9fa', padding: 18 }}>
-            <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 14, background: bg, padding: 20, display: 'grid', gridTemplateColumns: '1.1fr .9fr', gap: 16, alignItems: 'center' }}>
-              <div aria-hidden style={{ position: 'absolute', right: '-6%', top: '-40%', width: 180, height: 180, borderRadius: '50%', background: `radial-gradient(circle, color-mix(in srgb, ${accent} 32%, transparent), transparent 62%)` }} />
-              <div style={{ position: 'relative', minWidth: 0 }}>
-                <span style={{ display: 'inline-block', background: accent, color: '#1A1A1B', fontWeight: 800, fontSize: 8, letterSpacing: '.08em', textTransform: 'uppercase', padding: '4px 9px', borderRadius: 6, marginBottom: 9 }}>{config.badge || 'Oferta'}</span>
-                <div style={{ fontSize: 15, fontWeight: 800, textTransform: 'uppercase', color: ttl, lineHeight: 1.1, marginBottom: 7 }}>{config.title || 'Título de la oferta'}</div>
-                {config.subtitle ? <div style={{ fontSize: 8.5, color: 'rgba(255,255,255,.7)', lineHeight: 1.5, marginBottom: 10 }}>{config.subtitle}</div> : null}
-                <span style={{ display: 'inline-block', background: accent, color: '#1A1A1B', fontSize: 9, fontWeight: 800, padding: '7px 13px', borderRadius: 8 }}>{config.cta || 'Ver la oferta'} →</span>
-              </div>
-              <div style={{ position: 'relative', height: 118, borderRadius: 10, overflow: 'hidden', background: o.image ? `#111 url(${o.image}) center/cover no-repeat` : 'repeating-linear-gradient(135deg, rgba(255,255,255,.09) 0 12px, rgba(255,255,255,.02) 12px 24px)', border: '1px solid rgba(255,255,255,.12)' }} />
-            </div>
-          </div>
-          {!o.show ? <p style={{ margin: '12px 2px 0', fontSize: 12, color: D.muted2 }}><i className="ph ph-eye-slash" /> La oferta está oculta en el home.</p> : null}
+          <VistaPreviaSitio vista="home.offer" etiqueta="home" borrador={borrador} modoInicial={modoTema} aviso={!o.show ? <><i className="ph ph-eye-slash" /> La oferta está oculta en el home.</> : null} />
         </div>
       </div>
 

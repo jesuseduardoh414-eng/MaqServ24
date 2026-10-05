@@ -4,6 +4,7 @@ import { Modal } from '@/components/Modal';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ThemeTokens, WhyChooseUs, QuienesSomos, QsStat, QsValue, QsMilestone } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -28,6 +29,22 @@ interface Config {
 }
 
 const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
+
+/** Copys de la banda del home. Los usan «Guardar y publicar» y la vista previa. */
+function copysDeBanda(c: Config): Record<string, string> {
+  const es: Record<string, string> = {
+    'home.whyChooseUs.eyebrow': c.eyebrow,
+    'home.whyChooseUs.title': c.title,
+    'home.whyChooseUs.subtitle': c.subtitle,
+    'home.whyChooseUs.years.num': c.yearsNum,
+    'home.whyChooseUs.years.label': c.yearsLabel,
+  };
+  c.stats.forEach((s, i) => {
+    es[`home.whyChooseUs.stat${i + 1}.num`] = s.num;
+    es[`home.whyChooseUs.stat${i + 1}.label`] = s.label;
+  });
+  return es;
+}
 
 export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, infSitio }: {
   themeId: number | null; copys: Copys; tokens: ThemeTokens; whyChooseUs: WhyChooseUs; reasons: Reason[]; infSitio: InfSitio | null;
@@ -73,17 +90,22 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
   const setQs = (patch: Partial<QuienesSomos>) => setConfig((c) => ({ ...c, qs: { ...c.qs, ...patch } }));
 
   const w = config.wcu;
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
 
-  // Colores efectivos del preview (null ⇒ valores del tema por defecto claro).
-  const eye = w.eyebrowColor ?? '#004A99';
-  const ttl = w.titleColor ?? '#1A1A1B';
-  const acc = w.accentColor ?? '#FFC107';
-  const sBg = w.statsBg ?? '#FFC107';
-  const sFg = w.statsFg ?? '#1A1A1B';
-  const previewReasons = reasons.length
-    ? reasons.slice(0, 4).map((r) => r.title)
-    : ['Transparencia total', 'Precios justos', 'Seguridad garantizada', 'Procesos eficientes'];
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const razonesSitio = useMemo(
+    () => reasons.map((r) => ({ id: r.id, title: r.title, description: r.text, icon: null, photo: r.image, placement: r.placement })),
+    [reasons],
+  );
+  const borradorBanda = useMemo(
+    () => ({ tokens: { whyChooseUs: config.wcu }, copys: copysDeBanda(config), datos: { razones: razonesSitio } }),
+    [config, razonesSitio],
+  );
+  const borradorPagina = useMemo(
+    () => ({ tokens: { quienesSomos: config.qs }, datos: { infSitio: pageLive, razones: razonesSitio } }),
+    [config.qs, pageLive, razonesSitio],
+  );
 
   async function upload(file: File) {
     if (!file.type.startsWith('image/')) { setToast({ ok: false, text: 'Usa una imagen (PNG, JPG, WebP…)' }); return; }
@@ -102,16 +124,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
     if (busy || !themeId) return;
     setBusy(true); setToast(null);
     try {
-      const es = { ...(copys['es'] ?? {}) };
-      es['home.whyChooseUs.eyebrow'] = config.eyebrow;
-      es['home.whyChooseUs.title'] = config.title;
-      es['home.whyChooseUs.subtitle'] = config.subtitle;
-      es['home.whyChooseUs.years.num'] = config.yearsNum;
-      es['home.whyChooseUs.years.label'] = config.yearsLabel;
-      config.stats.forEach((s, i) => {
-        es[`home.whyChooseUs.stat${i + 1}.num`] = s.num;
-        es[`home.whyChooseUs.stat${i + 1}.label`] = s.label;
-      });
+      const es = { ...(copys['es'] ?? {}), ...copysDeBanda(config) };
       const body = { tokens: { ...tokens, whyChooseUs: config.wcu, quienesSomos: config.qs }, copys: { ...copys, es } };
       const r2 = await fetch(`/api/admin/themes/${themeId}/draft`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r2.ok) throw new Error('No se pudieron guardar los ajustes');
@@ -255,49 +268,20 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
           ) : null}
         </div>
 
-        {/* PREVIEW */}
+        {/* VISTA PREVIA: el sitio real pinta la sección con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · {tab === 'pagina' ? 'página /quienes-somos' : 'home'}</div>
           {tab === 'pagina' ? (
-            <QsPreview qs={config.qs} reasons={reasons} live={pageLive} />
+            <VistaPreviaSitio key="pagina" vista="pagina.quienes-somos" etiqueta="página /quienes-somos" borrador={borradorPagina} modoInicial={modoTema} />
           ) : (
-          <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: '#f8f9fa', padding: 18 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '0.9fr 1.1fr', gap: 16, alignItems: 'center' }}>
-              {/* Visual */}
-              <div style={{ position: 'relative' }}>
-                <div style={{ position: 'relative', height: 172, borderRadius: 12, overflow: 'hidden', background: w.image ? `#e7e9ee url(${w.image}) center/cover no-repeat` : 'repeating-linear-gradient(135deg,#e7e9ee 0 12px,#eef0f3 12px 24px)' }} />
-                {w.showYearsBadge ? (
-                  <div style={{ position: 'absolute', right: -8, top: 22, background: '#fff', border: '1px solid #e4e6e9', borderRadius: 10, padding: '8px 11px', boxShadow: '0 8px 20px -10px rgba(0,0,0,0.35)' }}>
-                    <div style={{ fontWeight: 800, fontSize: 17, color: '#1A1A1B', lineHeight: 1 }}>{config.yearsNum || '12+'}</div>
-                    <div style={{ fontSize: 8.5, color: '#63696E' }}>{config.yearsLabel || 'Años'}</div>
-                  </div>
-                ) : null}
-              </div>
-              {/* Texto */}
-              <div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: eye, fontWeight: 700, fontSize: 8.5, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 5 }}><span style={{ width: 14, height: 2.5, background: eye }} />{config.eyebrow || 'Eyebrow'}</div>
-                <div style={{ fontSize: 17, fontWeight: 800, textTransform: 'uppercase', color: ttl, lineHeight: 1.05, marginBottom: 7 }}>{config.title || '¿Por qué elegirnos?'}</div>
-                {config.subtitle ? <div style={{ fontSize: 9.5, color: '#63696E', lineHeight: 1.5, marginBottom: 10 }}>{config.subtitle}</div> : null}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px', marginBottom: 12 }}>
-                  {previewReasons.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 9.5, fontWeight: 700, color: '#1A1A1B' }}><span style={{ color: acc, flexShrink: 0 }}>◆</span><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r}</span></div>
-                  ))}
-                </div>
-                {w.showStats ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', background: sBg, borderRadius: 10, overflow: 'hidden' }}>
-                    {config.stats.map((s, i) => (
-                      <div key={i} style={{ padding: '9px 6px', textAlign: 'center', color: sFg, borderRight: i < 2 ? `1px solid color-mix(in srgb, ${sFg} 16%, transparent)` : 'none' }}>
-                        <div style={{ fontWeight: 800, fontSize: 14 }}>{s.num || '0'}</div>
-                        <div style={{ fontSize: 7, marginTop: 1, fontWeight: 500 }}>{s.label || 'Etiqueta'}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
+            <VistaPreviaSitio
+              key="banda"
+              vista="home.why-choose-us"
+              etiqueta="home"
+              borrador={borradorBanda}
+              modoInicial={modoTema}
+              aviso={!w.show ? <><i className="ph ph-eye-slash" /> La sección está oculta en el home.</> : null}
+            />
           )}
-          {tab !== 'pagina' && !w.show ? <p style={{ margin: '12px 2px 0', fontSize: 12, color: D.muted2 }}><i className="ph ph-eye-slash" /> La sección está oculta en el home.</p> : null}
         </div>
       </div>
 
@@ -684,154 +668,5 @@ function QsSections({ qs, setQs }: { qs: QuienesSomos; setQs: (patch: Partial<Qu
         </div>
       </div>
     </>
-  );
-}
-
-/* ===== Preview compacto de la página /quienes-somos ===== */
-const qsStrip = (h: string) => (h || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-const qsSvg = (paths: string, stroke: string, size = 16) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
-const QS_PURPOSE = [
-  '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="4"></circle>',
-  '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle>',
-  '<polygon points="12 2 15.1 8.6 22 9.3 16.8 14.1 18.2 21 12 17.5 5.8 21 7.2 14.1 2 9.3 8.9 8.6"></polygon>',
-];
-const QS_FEATURE = [
-  '<path d="M9 12l2 2 4-4"></path><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"></path>',
-  '<rect x="1" y="6" width="13" height="10" rx="1"></rect><path d="M14 9h4l3 3v4h-7z"></path><circle cx="6" cy="18" r="1.6"></circle><circle cx="17" cy="18" r="1.6"></circle>',
-  '<path d="M4 12a8 8 0 0 1 16 0"></path><rect x="2" y="12" width="4" height="7" rx="1.5"></rect><rect x="18" y="12" width="4" height="7" rx="1.5"></rect>',
-  '<circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"></path>',
-  '<path d="M12 1v22"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>',
-  '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.7 2.7-2.7-.7-.7-2.7z"></path>',
-];
-const clamp = (lines: number): CSSProperties => ({ display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical', overflow: 'hidden' });
-
-/** Preview fiel de /quienes-somos: mismas secciones, contenido e íconos reales. */
-function QsPreview({ qs, reasons, live }: { qs: QuienesSomos; reasons: Reason[]; live: PageLive }) {
-  const INK = '#16202E', GOLD = '#B8860B', AMBER = '#F4B400', MUTE = '#4B5563', LINE = '#EEF0F3', SOFT = '#F8F9FB';
-  const feats = reasons.length ? reasons.slice(0, 6) : [{ id: 0, title: 'Ventaja', text: 'Descripción de la ventaja.', image: null }];
-  const purpose = [
-    { label: 'Misión', text: qsStrip(live.mision), icon: QS_PURPOSE[0] },
-    { label: 'Visión', text: qsStrip(live.vision), icon: QS_PURPOSE[1] },
-    { label: 'Objetivos', text: qsStrip(live.objetivos), icon: QS_PURPOSE[2] },
-  ];
-  const desc = qsStrip(live.descripcion);
-  return (
-    <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, overflow: 'hidden', background: '#fff', color: INK }}>
-      {/* HERO */}
-      <div style={{ padding: 16 }}>
-        <div style={{ fontSize: 7.5, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: GOLD, marginBottom: 5 }}>{live.frase || 'Quiénes somos'}</div>
-        <div style={{ fontSize: 19, fontWeight: 900, lineHeight: 1.03, letterSpacing: '-0.02em', marginBottom: desc ? 7 : 9 }}>{live.titulo || 'Quiénes somos'}</div>
-        {desc ? <div style={{ fontSize: 8.5, lineHeight: 1.5, color: MUTE, marginBottom: 10, ...clamp(3) }}>{desc}</div> : null}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <span style={{ background: AMBER, color: INK, fontSize: 8, fontWeight: 700, padding: '5px 10px', borderRadius: 7 }}>{qs.heroCta || 'Ver catálogo'}</span>
-          <span style={{ border: '1px solid #DADEE4', color: INK, fontSize: 8, fontWeight: 700, padding: '5px 10px', borderRadius: 7 }}>{qs.heroCta2 || 'Contáctanos'}</span>
-        </div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-          {[0, 1].map((i) => (
-            <div key={i} style={{ flex: 1, height: 48, borderRadius: 7, overflow: 'hidden', background: live.imagenes[i] ? '#e7e9ee' : 'repeating-linear-gradient(135deg,#eef0f3 0 8px,#e7eaee 8px 16px)' }}>
-              {live.imagenes[i] ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={live.imagenes[i]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : null}
-            </div>
-          ))}
-          <div style={{ flex: 1, height: 48, borderRadius: 7, background: INK, color: AMBER, display: 'flex', flexDirection: 'column', justifyContent: 'center', paddingLeft: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 900, lineHeight: 1 }}>24/7</span>
-            <span style={{ fontSize: 6, color: 'rgba(255,255,255,.72)', marginTop: 2 }}>Soporte</span>
-          </div>
-        </div>
-      </div>
-
-      {/* STATS */}
-      {qs.stats.length ? (
-        <div style={{ background: INK, display: 'grid', gridTemplateColumns: `repeat(${qs.stats.length},1fr)`, padding: '13px 8px' }}>
-          {qs.stats.map((s, i) => (
-            <div key={i} style={{ textAlign: 'center', borderRight: i < qs.stats.length - 1 ? '1px solid rgba(255,255,255,.1)' : 'none' }}>
-              <div style={{ fontSize: 15, fontWeight: 900, color: AMBER, lineHeight: 1 }}>{s.num || '0'}</div>
-              <div style={{ fontSize: 6, color: 'rgba(255,255,255,.7)', marginTop: 3 }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {/* PROPÓSITO */}
-      <div style={{ padding: 16 }}>
-        <div style={{ textAlign: 'center', marginBottom: 11 }}>
-          <div style={{ fontSize: 7, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: GOLD }}>{qs.propositoEyebrow}</div>
-          <div style={{ fontSize: 15, fontWeight: 900, letterSpacing: '-0.02em' }}>{qs.propositoTitle}</div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
-          {purpose.map((p) => (
-            <div key={p.label} style={{ background: SOFT, border: `1px solid ${LINE}`, borderRadius: 9, padding: 9 }}>
-              <div style={{ width: 24, height: 24, borderRadius: 7, background: INK, display: 'grid', placeItems: 'center', marginBottom: 7 }} dangerouslySetInnerHTML={{ __html: qsSvg(p.icon, AMBER, 13) }} />
-              <div style={{ fontSize: 9.5, fontWeight: 800, marginBottom: 3 }}>{p.label}</div>
-              <div style={{ fontSize: 6.5, lineHeight: 1.45, color: MUTE, ...clamp(4) }}>{p.text || '—'}</div>
-            </div>
-          ))}
-        </div>
-        {qs.values.length ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 5, marginTop: 8 }}>
-            {qs.values.map((v, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${LINE}`, borderRadius: 7, padding: '6px 8px' }}>
-                <span style={{ width: 16, height: 16, borderRadius: 5, background: 'rgba(244,180,0,.16)', color: GOLD, fontSize: 7, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{String(i + 1).padStart(2, '0')}</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 8.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.title}</div>
-                  {v.desc ? <div style={{ fontSize: 6, color: MUTE, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.desc}</div> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      {/* TRAYECTORIA */}
-      {qs.timeline.length ? (
-        <div style={{ background: SOFT, borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, padding: 16 }}>
-          <div style={{ fontSize: 7, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: GOLD, marginBottom: 10 }}>{qs.timelineEyebrow}</div>
-          <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${qs.timeline.length},1fr)` }}>
-            <div style={{ position: 'absolute', left: 0, right: 0, top: 6, height: 2, background: '#E1E5EA' }} />
-            {qs.timeline.map((m, i) => (
-              <div key={i} style={{ position: 'relative', paddingRight: 4 }}>
-                <div style={{ width: 14, height: 14, borderRadius: '50%', background: INK, border: `3px solid ${SOFT}`, marginBottom: 6, display: 'grid', placeItems: 'center' }}><span style={{ width: 4, height: 4, borderRadius: '50%', background: AMBER }} /></div>
-                <div style={{ fontSize: 10, fontWeight: 900, color: GOLD }}>{m.year}</div>
-                <div style={{ fontSize: 7, fontWeight: 700, lineHeight: 1.1 }}>{m.title}</div>
-                {m.desc ? <div style={{ fontSize: 6, color: MUTE, lineHeight: 1.35, marginTop: 2, ...clamp(3) }}>{m.desc}</div> : null}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* POR QUÉ ELEGIRNOS */}
-      <div style={{ padding: 16 }}>
-        <div style={{ textAlign: 'center', marginBottom: 9 }}>
-          <div style={{ fontSize: 7, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color: GOLD }}>{qs.ventajasEyebrow}</div>
-          <div style={{ fontSize: 13, fontWeight: 900 }}>{qs.ventajasTitle}</div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
-          {feats.map((f, i) => (
-            <div key={i} style={{ border: `1px solid ${LINE}`, borderRadius: 9, padding: 9 }}>
-              <div style={{ width: 22, height: 22, borderRadius: 6, background: 'rgba(244,180,0,.16)', display: 'grid', placeItems: 'center', marginBottom: 6 }} dangerouslySetInnerHTML={{ __html: qsSvg(QS_FEATURE[i % QS_FEATURE.length], GOLD, 12) }} />
-              <div style={{ fontSize: 8, fontWeight: 800, lineHeight: 1.15, marginBottom: 3 }}>{f.title}</div>
-              <div style={{ fontSize: 6.5, lineHeight: 1.4, color: MUTE, ...clamp(3) }}>{qsStrip(f.text)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* La banda de marcas se edita y previsualiza en Diseño → Marcas. */}
-
-      {/* CTA */}
-      <div style={{ padding: 14 }}>
-        <div style={{ background: INK, borderRadius: 12, padding: 16 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 900, color: '#fff', marginBottom: 6, lineHeight: 1.15 }}>{qs.ctaTitle}</div>
-          {qs.ctaSubtitle ? <div style={{ fontSize: 7.5, color: 'rgba(255,255,255,.72)', lineHeight: 1.5, marginBottom: 9, ...clamp(2) }}>{qs.ctaSubtitle}</div> : null}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <span style={{ background: AMBER, color: INK, fontSize: 8, fontWeight: 700, padding: '6px 10px', borderRadius: 6 }}>{qs.ctaPrimary}</span>
-            <span style={{ border: '1px solid rgba(255,255,255,.3)', color: '#fff', fontSize: 8, fontWeight: 700, padding: '6px 10px', borderRadius: 6 }}>{qs.ctaSecondary}</span>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }

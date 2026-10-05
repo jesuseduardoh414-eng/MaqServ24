@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Theme } from '@maqserv/config';
+import type { HomeHero, WhyChooseUsItem } from '@maqserv/types';
 import { t, CONTENT_CACHE } from '@/lib/theme';
 import {
   getBlogs,
@@ -49,8 +50,12 @@ function CenterHead({ eyebrow, title, subtitle, eyebrowColor, titleColor }: { ey
 
 /* ============================= HERO ============================= */
 
-export async function Hero({ theme }: { theme: Theme }) {
-  const hero = await getHero().catch(() => null);
+/**
+ * `contenido` lo pasa la vista previa del panel con el texto e imagen sin
+ * publicar (viven en la tabla del hero, no en el tema). El sitio no lo pasa.
+ */
+export async function Hero({ theme, contenido }: { theme: Theme; contenido?: HomeHero | null }) {
+  const hero = contenido !== undefined ? contenido : await getHero().catch(() => null);
   const h = theme.tokens.hero; // ajustes configurables (colores, links, toggles, opacidad)
   const rawTitle = (hero?.title ?? t(theme, 'home.hero.title')).trim();
   const accent = t(theme, 'home.hero.titleAccent').trim();
@@ -295,11 +300,12 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
 
 /* ======================= POR QUÉ ELEGIRNOS ======================= */
 
-export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
+/** `razones` lo pasa la vista previa del panel con la lista recién editada. */
+export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; razones?: WhyChooseUsItem[] }) {
   const cfg = theme.tokens.whyChooseUs;
   if (cfg && cfg.show === false) return null;
   // Solo las razones marcadas para el home (o ambas); las de 'about' se omiten aquí.
-  const items = (await getWhyChooseUs()).filter((w) => w.placement !== 'about');
+  const items = (razones ?? (await getWhyChooseUs())).filter((w) => w.placement !== 'about');
   if (items.length === 0) return null;
 
   // Imagen principal: solo la del token (se sube en «Imagen y estilo»). Las

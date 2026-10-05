@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ANALITICA_ACTIVA, EVENTO_ABRIR_AVISO, guardarConsentimiento, leerConsentimiento } from '@/lib/analitica';
@@ -13,6 +14,8 @@ type Labels = { title: string; text: string; accept: string; reject: string; lin
  */
 export function AvisoCookies({ labels }: { labels: Labels }) {
   const [abierto, setAbierto] = useState(false);
+  // Dentro de la vista previa del panel el aviso tapaba la sección.
+  const enVistaPrevia = usePathname()?.startsWith('/vista-previa') ?? false;
 
   useEffect(() => {
     if (!ANALITICA_ACTIVA) return;
@@ -22,7 +25,7 @@ export function AvisoCookies({ labels }: { labels: Labels }) {
     return () => window.removeEventListener(EVENTO_ABRIR_AVISO, abrir);
   }, []);
 
-  if (!abierto) return null;
+  if (!abierto || enVistaPrevia) return null;
 
   const decidir = (valor: 'aceptado' | 'rechazado') => {
     guardarConsentimiento(valor);

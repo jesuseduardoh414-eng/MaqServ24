@@ -3,6 +3,7 @@
 import { useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Catalog, CtaBlock, Featured, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField, BlockEditor } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -15,6 +16,14 @@ interface Config {
   eyebrow: string; title: string; subtitle: string; allLabel: string; viewAll: string;
   featured: Featured;
   catalog: { banner: CtaBlock; mid: CtaBlock; promo: CtaBlock };
+}
+
+/** Copys de destacados. Los usan «Guardar y publicar» y la vista previa. */
+function copysDestacados(c: Config): Record<string, string> {
+  return {
+    'home.featured.eyebrow': c.eyebrow, 'home.featured.title': c.title, 'home.featured.subtitle': c.subtitle,
+    'home.featured.filterAll': c.allLabel, 'home.featured.viewAll': c.viewAll,
+  };
 }
 
 const TABS = [
@@ -56,10 +65,7 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
     if (busy || !themeId) return;
     setBusy(true); setToast(null);
     try {
-      const es = { ...(copys['es'] ?? {}) };
-      es['home.featured.eyebrow'] = config.eyebrow; es['home.featured.title'] = config.title;
-      es['home.featured.subtitle'] = config.subtitle; es['home.featured.filterAll'] = config.allLabel;
-      es['home.featured.viewAll'] = config.viewAll;
+      const es = { ...(copys['es'] ?? {}), ...copysDestacados(config) };
       const body = { tokens: { ...tokens, featured: config.featured, catalog: config.catalog }, copys: { ...copys, es } };
       const r2 = await fetch(`/api/admin/themes/${themeId}/draft`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!r2.ok) throw new Error('No se pudieron guardar los ajustes');
@@ -71,22 +77,9 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
     } catch (e) { setToast({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
   }
 
-  // Colores efectivos del preview de destacados
-  const eye = f.eyebrowColor ?? '#5b9dff', ttl = f.titleColor ?? '#f5f5f4';
-  const splitTitle = (tt: string) => { const p = (tt || 'Productos destacados').trim().split(' '); const l = p.length > 1 ? p.pop() : null; return { head: l ? p.join(' ') : (tt || 'Productos destacados'), last: l }; };
-  const T = splitTitle(config.title);
-
-  const miniBand = (b: CtaBlock) => b.enabled ? (
-    <div style={{ borderRadius: 12, overflow: 'hidden', marginBottom: 12, background: b.bg ?? 'linear-gradient(135deg,#1b1b22,#0c0c0f)', padding: 14, display: 'grid', gridTemplateColumns: b.image ? '1fr auto' : '1fr', gap: 12, alignItems: 'center' }}>
-      <div style={{ display: 'grid', gap: 5, justifyItems: 'start' }}>
-        {b.eyebrow ? <span style={{ color: b.accentColor ?? D.amber, fontSize: 8, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase' }}>{b.eyebrow}</span> : null}
-        <div style={{ color: b.textColor ?? '#fff', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.06 }}>{b.title || 'Título'}</div>
-        {b.subtitle ? <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 9, lineHeight: 1.4 }}>{b.subtitle}</div> : null}
-        {b.cta ? <span style={{ background: b.accentColor ?? D.amber, color: '#1A1A1B', fontSize: 9, fontWeight: 800, padding: '4px 9px', borderRadius: 6 }}>{b.cta} →</span> : null}
-      </div>
-      {b.image ? <div style={{ width: 74, height: 54, background: `url(${b.image}) center/cover no-repeat`, borderRadius: 6 }} /> : null}
-    </div>
-  ) : null;
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(() => ({ tokens: { featured: config.featured, catalog: config.catalog }, copys: copysDestacados(config) }), [config]);
 
   const seg = (active: boolean): CSSProperties => ({ border: 'none', cursor: 'pointer', borderRadius: 9, padding: '9px 15px', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', background: active ? D.amber : 'transparent', color: active ? '#0a0a0b' : D.muted2 });
 
@@ -175,50 +168,13 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
           ) : null}
         </div>
 
-        {/* PREVIEW */}
+        {/* VISTA PREVIA: el sitio real pinta los destacados (o el catálogo) con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · {tab === 'catalogo' ? 'catálogo' : 'home'}</div>
-          <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: D.previewBg, padding: 18 }}>
-            {tab === 'catalogo' ? (
-              <>
-                {miniBand(config.catalog.banner)}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
-                  {[0, 1, 2].map((i) => <div key={i} style={{ height: 74, borderRadius: 8, background: 'linear-gradient(160deg,#f6f7f9,#e7e9ee)' }} />)}
-                </div>
-                {miniBand(config.catalog.mid)}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
-                  {[0, 1, 2].map((i) => <div key={i} style={{ height: 74, borderRadius: 8, background: 'linear-gradient(160deg,#f6f7f9,#e7e9ee)' }} />)}
-                </div>
-                {miniBand(config.catalog.promo)}
-              </>
-            ) : (
-              <>
-                <div style={{ textAlign: f.align === 'center' ? 'center' : 'left', display: 'grid', justifyItems: f.align === 'center' ? 'center' : 'start', marginBottom: 16 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: eye, fontWeight: 700, fontSize: 9.5, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 6 }}><span style={{ width: 18, height: 3, background: eye }} />{config.eyebrow || 'Eyebrow'}</div>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, textTransform: 'uppercase', color: ttl }}>{T.last ? T.head : (config.title || 'Productos destacados')}{T.last ? <> <span style={{ color: D.amber }}>{T.last}</span></> : null}</h3>
-                </div>
-                {f.showTabs ? (
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 14, justifyContent: f.align === 'center' ? 'center' : 'flex-start', flexWrap: 'wrap' }}>
-                    {[config.allLabel || 'Todos', 'Excavadora', 'Volteo'].map((tName, i) => (
-                      <span key={tName} style={{ fontSize: 9.5, fontWeight: 700, padding: '6px 11px', borderRadius: 8, background: i === 0 ? D.amber : 'transparent', color: i === 0 ? '#0a0a0b' : D.muted2, border: i === 0 ? 'none' : `1px solid ${D.cardBorder}` }}>{tName}</span>
-                    ))}
-                  </div>
-                ) : null}
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(f.limit, 4)}, 1fr)`, gap: 8 }}>
-                  {Array.from({ length: Math.min(f.limit, 4) }).map((_, i) => (
-                    <div key={i} style={{ borderRadius: 8, overflow: 'hidden', border: `1px solid ${D.cardBorder}` }}>
-                      <div style={{ height: 56, background: 'linear-gradient(160deg,#f6f7f9,#e7e9ee)' }} />
-                      <div style={{ padding: '7px 8px', display: 'grid', gap: 3 }}>
-                        <span style={{ fontSize: 9, color: '#5b9dff', fontWeight: 700 }}>MARCA</span>
-                        <span style={{ fontSize: 10, fontWeight: 700 }}>Producto</span>
-                        <span style={{ fontSize: 10, fontWeight: 800 }}>$0,000</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          {tab === 'catalogo' ? (
+            <VistaPreviaSitio key="catalogo" vista="pagina.catalogo" etiqueta="catálogo /servicios" borrador={borrador} modoInicial={modoTema} />
+          ) : (
+            <VistaPreviaSitio key="home" vista="home.featured-products" etiqueta="home" borrador={borrador} modoInicial={modoTema} />
+          )}
         </div>
       </div>
 

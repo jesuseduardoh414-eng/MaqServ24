@@ -52,6 +52,25 @@ export async function middleware(req: NextRequest) {
     }
   }
 
+  /**
+   * La vista previa del panel solo se deja enmarcar por el propio panel
+   * (`admin.` + el dominio de SITE_URL; localhost en desarrollo). Sin
+   * SITE_URL no se pone la cabecera: es mejor una defensa de menos que dejar
+   * el panel sin vista previa.
+   */
+  if (req.nextUrl.pathname === '/vista-previa') {
+    const res = NextResponse.next();
+    const dominio = apex?.replace(/^www\./, '');
+    const local = !dominio || dominio === 'localhost' || /^[\d.]+$/.test(dominio);
+    if (dominio) {
+      res.headers.set(
+        'Content-Security-Policy',
+        local ? "frame-ancestors 'self' http://localhost:* http://127.0.0.1:*" : `frame-ancestors 'self' https://admin.${dominio}`,
+      );
+    }
+    return res;
+  }
+
   // El logout borra las cookies en su propio handler; no renovar aquí.
   if (req.nextUrl.pathname === '/api/auth/logout') return NextResponse.next();
 

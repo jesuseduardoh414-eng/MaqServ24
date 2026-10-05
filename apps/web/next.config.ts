@@ -20,6 +20,24 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
  */
 const standalone = process.env.BUILD_STANDALONE === '1';
 
+/**
+ * Dominios desde los que se aceptan Server Actions además del propio host.
+ *
+ * La única Server Action del sitio es la de /vista-previa (el panel la usa
+ * para pintar las secciones con cambios sin publicar). Next compara el
+ * `Origin` con `x-forwarded-host`/`host`, y detrás del proxy de cPanel el
+ * host puede llegar como la dirección interna de Node (ver lib/origen.ts):
+ * sin esta lista la acción se rechazaría en producción.
+ */
+const dominioPublico = (() => {
+  try {
+    return process.env.SITE_URL ? new URL(process.env.SITE_URL).hostname.replace(/^www\./, '') : null;
+  } catch {
+    return null;
+  }
+})();
+const origenesAcciones = [...new Set([dominioPublico ?? 'maqserv24.com', 'maqserv24.com'])].flatMap((d) => [d, `www.${d}`]);
+
 const nextConfig: NextConfig = {
   ...(standalone ? { output: 'standalone' as const, outputFileTracingRoot: repoRoot } : {}),
   /**
@@ -29,6 +47,14 @@ const nextConfig: NextConfig = {
    * PWA instalada podría quedarse con activos de un despliegue viejo.
    */
   env: { BUILD_STAMP: new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 12) },
+  experimental: {
+    serverActions: {
+      allowedOrigins: origenesAcciones,
+      // La vista previa del hero puede traer la imagen nueva (aún sin subir)
+      // como data URL reducida; el tope por defecto es 1 MB.
+      bodySizeLimit: '4mb',
+    },
+  },
   // @maqserv/ui se consume como fuente TS; Next lo transpila
   transpilePackages: ['@maqserv/ui'],
   images: {

@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brands, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, Field } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -27,6 +28,9 @@ export function BrandsEditor({ themeId, copys, tokens, brands }: {
 
   const set = <K extends keyof Brands>(k: K, v: Brands[K]) => setConfig((c) => ({ ...c, [k]: v }));
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(() => ({ tokens: { brands: config } }), [config]);
 
   function discard() { setConfig(saved); setToast(null); }
 
@@ -79,7 +83,7 @@ export function BrandsEditor({ themeId, copys, tokens, brands }: {
       {/* La vista previa fija de 380px no cabe junto al editor en pantalla
           angosta: bajo 1000px se apilan (mismo patrón que /ordenes/[id]). */}
       <style>{`@media (max-width: 1000px){ .br-ed-grid{ grid-template-columns: 1fr !important; } }`}</style>
-      <div className="br-ed-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 18, alignItems: 'start' }}>
+      <div className="br-ed-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 440px', gap: 18, alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: 18 }}>
           <div style={{ ...cardStyle, display: 'grid', gap: 14, marginBottom: 0 }}>
             <h3 style={h3Style}>Marcas</h3>
@@ -108,21 +112,15 @@ export function BrandsEditor({ themeId, copys, tokens, brands }: {
           </div>
         </div>
 
-        {/* Previsualización: lo que se ve en el inicio. */}
-        <div style={{ ...cardStyle, marginBottom: 0, position: 'sticky', top: 20 }}>
-          <h3 style={{ ...h3Style, marginBottom: 14 }}>Vista previa</h3>
-          <div style={{ background: '#F8F9FA', border: '1px solid #E4E6E9', borderRadius: 10, padding: '18px 12px', textAlign: 'center' }}>
-            <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: '.18em', textTransform: 'uppercase', color: '#8A9099', marginBottom: 12 }}>{config.title}</div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-              {config.list.length === 0 ? (
-                <span style={{ fontSize: 11, color: '#B3BAC4' }}>Sin marcas: la banda no se muestra.</span>
-              ) : (
-                config.list.map((b, i) => (
-                  <span key={i} style={{ flex: '0 0 auto', height: 26, minWidth: 62, padding: '0 8px', border: '1px solid #E4E6E9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 9, color: '#63696E', background: '#fff' }}>{b}</span>
-                ))
-              )}
-            </div>
-          </div>
+        {/* VISTA PREVIA: el sitio real pinta la banda de marcas con los cambios sin publicar. */}
+        <div style={{ position: 'sticky', top: 20, minWidth: 0 }}>
+          <VistaPreviaSitio
+            vista="home.brands"
+            etiqueta="home"
+            borrador={borrador}
+            modoInicial={modoTema}
+            aviso={config.list.length === 0 ? <>Sin marcas: la banda no se muestra en el home.</> : null}
+          />
         </div>
       </div>
 

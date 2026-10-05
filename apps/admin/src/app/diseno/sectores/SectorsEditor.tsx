@@ -4,6 +4,7 @@ import { Modal } from '@/components/Modal';
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Sectors, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -48,10 +49,10 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
   const setS = <K extends keyof Sectors>(k: K, v: Sectors[K]) => setConfig((c) => ({ ...c, sec: { ...c.sec, [k]: v } }));
   const s = config.sec;
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(() => ({ tokens: { sectors: config.sec }, copys: { 'home.sectors.eyebrow': config.eyebrow, 'home.sectors.title': config.title, 'home.sectors.cta': config.cta } }), [config]);
 
-  const eye = s.eyebrowColor ?? '#004A99';
-  const ttl = s.titleColor ?? '#1A1A1B';
-  const cta = s.ctaColor ?? '#FFC107';
 
   function discard() { setConfig(saved); setToast(null); }
   async function publish() {
@@ -73,7 +74,6 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
     } catch (e) { setToast({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
   }
 
-  const shown = sectors.slice(0, s.limit);
 
   return (
     <div style={{ fontFamily: FONT, color: D.text }}>
@@ -139,27 +139,9 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
           ) : null}
         </div>
 
-        {/* PREVIEW */}
+        {/* VISTA PREVIA: el sitio real pinta la sección con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · home</div>
-          <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: '#f8f9fa', padding: 18 }}>
-            <div style={{ textAlign: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: eye, fontWeight: 700, fontSize: 8.5, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 5 }}><span style={{ width: 14, height: 2.5, background: eye }} />{config.eyebrow || 'Eyebrow'}</div>
-              <div style={{ fontSize: 17, fontWeight: 800, textTransform: 'uppercase', color: ttl, lineHeight: 1.05 }}>{config.title || 'Sectores estratégicos'}</div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(s.limit, 2)}, 1fr)`, gap: 8 }}>
-              {(shown.length ? shown : [{ id: 0, title: 'Sector', status: 1, image: null }]).map((sec, i) => (
-                <div key={sec.id ?? i} style={{ position: 'relative', height: Math.round(s.cardHeight * 0.42), borderRadius: 10, overflow: 'hidden', background: sec.image ? `#e7e9ee url(${sec.image}) center/cover no-repeat` : 'repeating-linear-gradient(135deg,#e7e9ee 0 10px,#eef0f3 10px 20px)' }}>
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(26,26,27,.92) 10%, rgba(26,26,27,.15) 60%, transparent)' }} />
-                  <div style={{ position: 'absolute', left: 10, right: 10, bottom: 9, color: '#fff' }}>
-                    <div style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.1, marginBottom: 4 }}>{sec.title}</div>
-                    <div style={{ fontSize: 7.5, fontWeight: 700, color: cta }}>{config.cta || 'Explorar'} →</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          {!s.show ? <p style={{ margin: '12px 2px 0', fontSize: 12, color: D.muted2 }}><i className="ph ph-eye-slash" /> La sección está oculta en el home.</p> : null}
+          <VistaPreviaSitio vista="home.strategic-sectors" etiqueta="home" borrador={borrador} modoInicial={modoTema} aviso={!s.show ? <><i className="ph ph-eye-slash" /> La sección está oculta en el home.</> : null} />
         </div>
       </div>
 

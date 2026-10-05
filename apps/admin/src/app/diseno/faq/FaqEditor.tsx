@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Faq, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -11,7 +12,7 @@ const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
 
 interface Config { eyebrow: string; title: string; faq: Faq }
 
-export function FaqEditor({ themeId, copys, tokens, faqCfg, sample, count }: {
+export function FaqEditor({ themeId, copys, tokens, faqCfg, count }: {
   themeId: number | null; copys: Copys; tokens: ThemeTokens; faqCfg: Faq; sample: string[]; count: number;
 }) {
   const router = useRouter();
@@ -33,11 +34,10 @@ export function FaqEditor({ themeId, copys, tokens, faqCfg, sample, count }: {
   const setF = <K extends keyof Faq>(k: K, v: Faq[K]) => setConfig((c) => ({ ...c, faq: { ...c.faq, [k]: v } }));
   const f = config.faq;
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(() => ({ tokens: { faq: config.faq }, copys: { 'home.faq.eyebrow': config.eyebrow, 'home.faq.title': config.title } }), [config]);
 
-  const eye = f.eyebrowColor ?? '#004A99';
-  const ttl = f.titleColor ?? '#1A1A1B';
-  const acc = f.accentColor ?? '#FFC107';
-  const rows = sample.length ? sample : ['¿Hacen envíos a todo México?', '¿Los precios incluyen operador?', '¿Cuáles son los requisitos para rentar?'];
 
   function discard() { setConfig(saved); setToast(null); }
   async function publish() {
@@ -104,24 +104,9 @@ export function FaqEditor({ themeId, copys, tokens, faqCfg, sample, count }: {
           </div>
         </div>
 
-        {/* PREVIEW */}
+        {/* VISTA PREVIA: el sitio real pinta la sección con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · home</div>
-          <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: '#f8f9fa', padding: 18 }}>
-            <div style={{ textAlign: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: eye, fontWeight: 700, fontSize: 8.5, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 5 }}><span style={{ width: 14, height: 2.5, background: eye }} />{config.eyebrow || 'Eyebrow'}</div>
-              <div style={{ fontSize: 17, fontWeight: 800, textTransform: 'uppercase', color: ttl, lineHeight: 1.05 }}>{config.title || 'Preguntas frecuentes'}</div>
-            </div>
-            <div style={{ display: 'grid', gap: 8 }}>
-              {rows.map((q, i) => (
-                <div key={i} style={{ background: '#fff', border: '1px solid #eef0f3', borderRadius: 9, padding: '11px 13px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: '#1A1A1B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q}</span>
-                  <span style={{ fontSize: 15, fontWeight: 800, color: acc, flexShrink: 0, lineHeight: 1 }}>+</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {!f.show ? <p style={{ margin: '12px 2px 0', fontSize: 12, color: D.muted2 }}><i className="ph ph-eye-slash" /> La sección está oculta en el home.</p> : null}
+          <VistaPreviaSitio vista="home.faq" etiqueta="home" borrador={borrador} modoInicial={modoTema} aviso={!f.show ? <><i className="ph ph-eye-slash" /> La sección está oculta en el home.</> : null} />
         </div>
       </div>
 

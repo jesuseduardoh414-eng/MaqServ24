@@ -90,6 +90,7 @@ export const RUTAS_PRIVADAS = [
   '/vendedor', // también /vendedores (marketplace apagado)
   '/tienda',
   '/rastreo', // herramienta con número de pedido, sin valor para buscar
+  '/vista-previa', // lienzo de la vista previa del panel; no tiene contenido propio
   '/cotizar$', // formulario que exige cuenta; /cotizador (con -dor) sí se indexa
   '/cotizar?',
   '/sin-conexion',

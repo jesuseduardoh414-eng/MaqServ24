@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Reviews, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -12,7 +13,7 @@ const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
 
 interface Config { eyebrow: string; title: string; role: string; rev: Reviews }
 
-export function ReviewsEditor({ themeId, copys, tokens, reviewsCfg, approvedCount, totalCount, sample }: {
+export function ReviewsEditor({ themeId, copys, tokens, reviewsCfg, approvedCount, totalCount }: {
   themeId: number | null; copys: Copys; tokens: ThemeTokens; reviewsCfg: Reviews; approvedCount: number; totalCount: number; sample: Sample[];
 }) {
   const router = useRouter();
@@ -35,15 +36,11 @@ export function ReviewsEditor({ themeId, copys, tokens, reviewsCfg, approvedCoun
   const setR = <K extends keyof Reviews>(k: K, v: Reviews[K]) => setConfig((c) => ({ ...c, rev: { ...c.rev, [k]: v } }));
   const r = config.rev;
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(() => ({ tokens: { reviews: config.rev }, copys: { 'home.reviews.eyebrow': config.eyebrow, 'home.reviews.title': config.title, 'home.reviews.role': config.role } }), [config]);
 
-  const eye = r.eyebrowColor ?? '#004A99';
-  const ttl = r.titleColor ?? '#1A1A1B';
-  const acc = r.accentColor ?? '#FFC107';
 
-  const cards: Sample[] = sample.length ? sample : [
-    { id: -1, author: 'Cliente', rating: 5, review: 'Excelente servicio y maquinaria en óptimas condiciones.' },
-    { id: -2, author: 'Cliente', rating: 5, review: 'Entrega puntual en obra, muy recomendados.' },
-  ];
 
   function discard() { setConfig(saved); setToast(null); }
   async function publish() {
@@ -114,33 +111,9 @@ export function ReviewsEditor({ themeId, copys, tokens, reviewsCfg, approvedCoun
           </div>
         </div>
 
-        {/* PREVIEW */}
+        {/* VISTA PREVIA: el sitio real pinta la sección con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · home</div>
-          <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: '#f8f9fa', padding: 18 }}>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: eye, fontWeight: 700, fontSize: 8.5, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 5 }}><span style={{ width: 14, height: 2.5, background: eye }} />{config.eyebrow || 'Eyebrow'}</div>
-              <div style={{ fontSize: 16, fontWeight: 800, textTransform: 'uppercase', color: ttl, lineHeight: 1.05 }}>{config.title || 'Lo que dicen nuestros clientes'}</div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-              {cards.slice(0, 2).map((c) => (
-                <div key={c.id} style={{ background: '#fff', border: '1px solid #eef0f3', borderRadius: 10, padding: 12 }}>
-                  <div style={{ fontSize: 22, lineHeight: 0.6, color: acc, fontWeight: 800 }}>&ldquo;</div>
-                  <div style={{ color: acc, fontSize: 10, margin: '6px 0 8px', letterSpacing: 1 }}>{'★'.repeat(Math.max(1, Math.min(5, c.rating)))}<span style={{ color: '#e4e6e9' }}>{'★'.repeat(5 - Math.max(1, Math.min(5, c.rating)))}</span></div>
-                  <div style={{ fontSize: 9, lineHeight: 1.5, color: '#1A1A1B', marginBottom: 10, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{c.review}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, borderTop: '1px solid #eef0f3', paddingTop: 8 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#1A1A1B', color: '#fff', fontSize: 9, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{(c.author || 'C').charAt(0).toUpperCase()}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 8.5, fontWeight: 800, color: '#1A1A1B', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.author}</div>
-                      <div style={{ fontSize: 6.5, color: '#8a8f96' }}>{config.role || 'Cliente'}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            {approvedCount === 0 ? <p style={{ margin: '10px 2px 0', fontSize: 10, color: D.muted2 }}>No hay reseñas aprobadas aún — la sección se ocultará hasta que apruebes al menos una.</p> : null}
-          </div>
-          {!r.show ? <p style={{ margin: '12px 2px 0', fontSize: 12, color: D.muted2 }}><i className="ph ph-eye-slash" /> La sección está oculta en el home.</p> : null}
+          <VistaPreviaSitio vista="home.reviews" etiqueta="home" borrador={borrador} modoInicial={modoTema} aviso={!r.show ? <><i className="ph ph-eye-slash" /> La sección está oculta en el home.</> : approvedCount === 0 ? <>No hay reseñas aprobadas aún: la sección no sale hasta que apruebes al menos una.</> : null} />
         </div>
       </div>
 

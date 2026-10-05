@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Footer, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, FONT, cardStyle, inputStyle, h3Style, Field, Toggle } from '@/components/editor-kit';
 
 type Copys = Record<string, Record<string, string>>;
@@ -43,7 +44,9 @@ export function FooterEditor({ themeId, copys, tokens, footer, brand }: {
   }
 
   const year = new Date().getFullYear();
-  const copyPreview = config.copyright.trim() || `© ${year} ${brand}. Todos los derechos reservados.`;
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(() => ({ tokens: { footer: config } }), [config]);
 
   return (
     <div style={{ fontFamily: FONT, color: D.text }}>
@@ -61,7 +64,7 @@ export function FooterEditor({ themeId, copys, tokens, footer, brand }: {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 380px', gap: 24, alignItems: 'start' }} className="ftr-ed-grid">
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 440px', gap: 24, alignItems: 'start' }} className="ftr-ed-grid">
         <div style={{ display: 'grid', gap: 18 }}>
           {/* Boletín */}
           <div style={{ ...cardStyle, display: 'grid', gap: 16, marginBottom: 0 }}>
@@ -125,35 +128,9 @@ export function FooterEditor({ themeId, copys, tokens, footer, brand }: {
           </div>
         </div>
 
-        {/* PREVIEW */}
-        <div style={{ position: 'sticky', top: 12 }} className="ftr-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa</div>
-          <div style={{ background: '#111', borderRadius: 14, padding: 20, border: `1px solid ${D.cardBorder}` }}>
-            {config.showNewsletter ? (
-              <div style={{ background: '#1c1c1c', borderRadius: 10, padding: 16, marginBottom: 18 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '.02em' }}>{config.newsletterTitle || 'Boletín'}</div>
-                <div style={{ fontSize: 10.5, color: 'rgba(255,255,255,.5)', marginTop: 5, lineHeight: 1.4 }}>{config.newsletterSubtitle}</div>
-              </div>
-            ) : null}
-            <div style={{ display: 'grid', gridTemplateColumns: `1.4fr repeat(${Math.min(config.columns.length, 3)}, 1fr)`, gap: 14 }}>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', marginBottom: 8 }}>{brand}</div>
-                <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,.5)', lineHeight: 1.5 }}>{config.tagline.slice(0, 90)}{config.tagline.length > 90 ? '…' : ''}</div>
-                <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                  {config.social.map((s, i) => <span key={i} style={{ width: 24, height: 24, borderRadius: 6, background: 'rgba(255,255,255,.08)', display: 'grid', placeItems: 'center', fontSize: 10, color: '#fff' }}>{s.label}</span>)}
-                </div>
-              </div>
-              {config.columns.slice(0, 3).map((col, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: 9.5, color: '#fff', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 8 }}>{col.title || '—'}</div>
-                  <div style={{ display: 'grid', gap: 6 }}>
-                    {col.links.slice(0, 5).map((l, j) => <div key={j} style={{ fontSize: 10, color: 'rgba(255,255,255,.55)' }}>{l.label || '—'}</div>)}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{ borderTop: '1px solid rgba(255,255,255,.1)', marginTop: 16, paddingTop: 12, fontSize: 9.5, color: 'rgba(255,255,255,.4)' }}>{copyPreview}</div>
-          </div>
+        {/* VISTA PREVIA: el sitio real pinta el pie con los cambios sin publicar. */}
+        <div style={{ position: 'sticky', top: 12, minWidth: 0 }} className="ftr-ed-preview">
+          <VistaPreviaSitio vista="sitio.footer" etiqueta="pie de página" borrador={borrador} modoInicial={modoTema} />
         </div>
       </div>
 

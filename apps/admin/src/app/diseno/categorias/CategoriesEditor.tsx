@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode, type CSSProperties } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { CategoriesSettings, CategoriesView, CtaBlock, ThemeTokens } from '@maqserv/config';
@@ -21,7 +22,6 @@ const D = {
   amber: 'var(--color-primary)', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', previewBg: '#0e0e12', tabsBg: '#101012',
 };
 const FONT = "'Inter', system-ui, sans-serif";
-const PANEL = 'linear-gradient(160deg,#f6f7f9,#e7e9ee)';
 const PRESETS = ['var(--color-primary)', '#5b9dff', '#3fbf8f', '#ff7a59', '#b98cff', '#ffffff', '#c2c6cf'];
 
 // Defaults defensivos: si el @maqserv/config del admin quedó viejo, `view`/`settings`
@@ -64,6 +64,20 @@ function ColorField({ label, value, onChange }: { label: string; value: string |
       </div>
     </div>
   );
+}
+
+/** Ajustes de la sección en el tema. Los usan «Guardar y publicar» y la vista previa. */
+function ajustesCategorias(c: Config): CategoriesSettings {
+  return { show: c.show, perView: c.perView, cardRadius: c.cardRadius, imageHeight: c.imageHeight, eyebrowColor: c.eyebrowColor, titleColor: c.titleColor, cardAccentColor: c.cardAccentColor };
+}
+
+/** Copys del home y de la página /categorias. */
+function copysCategorias(c: Config): Record<string, string> {
+  return {
+    'home.categories.eyebrow': c.eyebrow, 'home.categories.title': c.title, 'home.categories.unit': c.unit,
+    'home.categories.subtitle': c.subtitle, 'home.categories.viewAll': c.viewAll,
+    'home.categoriesPage.eyebrow': c.pageEyebrow, 'home.categoriesPage.title': c.pageTitle, 'home.categoriesPage.subtitle': c.pageSubtitle,
+  };
 }
 
 const TABS = [
@@ -110,18 +124,14 @@ export function CategoriesEditor({
     } catch (e) { setToast({ ok: false, text: (e as Error).message }); } finally { setUploading(null); }
   }
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
-  const step = categories.length % config.perView === 0 ? config.perView : 1;
 
   function discard() { setConfig(saved); setToast(null); }
   async function publish() {
     if (busy || !themeId) return;
     setBusy(true); setToast(null);
     try {
-      const es = { ...(copys['es'] ?? {}) };
-      es['home.categories.eyebrow'] = config.eyebrow; es['home.categories.title'] = config.title; es['home.categories.unit'] = config.unit;
-      es['home.categories.subtitle'] = config.subtitle; es['home.categories.viewAll'] = config.viewAll;
-      es['home.categoriesPage.eyebrow'] = config.pageEyebrow; es['home.categoriesPage.title'] = config.pageTitle; es['home.categoriesPage.subtitle'] = config.pageSubtitle;
-      const nextCat: CategoriesSettings = { show: config.show, perView: config.perView, cardRadius: config.cardRadius, imageHeight: config.imageHeight, eyebrowColor: config.eyebrowColor, titleColor: config.titleColor, cardAccentColor: config.cardAccentColor };
+      const es = { ...(copys['es'] ?? {}), ...copysCategorias(config) };
+      const nextCat = ajustesCategorias(config);
       const r2 = await fetch(`/api/admin/themes/${themeId}/draft`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens: { ...tokens, categories: nextCat, categoriesView: cv }, copys: { ...copys, es } }) });
       if (!r2.ok) throw new Error('No se pudieron guardar los ajustes');
       const r3 = await fetch(`/api/admin/themes/${themeId}/publish`, { method: 'POST' });
@@ -132,13 +142,14 @@ export function CategoriesEditor({
     } catch (e) { setToast({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
   }
 
-  // Colores efectivos para el preview
-  const hAccent = config.cardAccentColor ?? D.amber, hEye = config.eyebrowColor ?? '#5b9dff', hTitle = config.titleColor ?? '#f5f5f4';
-  const vAccent = cv.cardAccentColor ?? D.amber, vEye = cv.eyebrowColor ?? '#5b9dff', vTitle = cv.titleColor ?? '#f5f5f4';
-  const splitTitle = (tt: string) => { const p = (tt || 'Título').trim().split(' '); const l = p.length > 1 ? p.pop() : null; return { head: l ? p.join(' ') : (tt || 'Título'), last: l }; };
-  const homeT = splitTitle(config.title), pageT = splitTitle(config.pageTitle);
   const isVista = tab === 'vista';
-  const featured = cv.featuredSlug ? categories.find((c) => c.slug === cv.featuredSlug) : null;
+  const step = categories.length % config.perView === 0 ? config.perView : 1;
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
+  const borrador = useMemo(
+    () => ({ tokens: { categories: ajustesCategorias(config), categoriesView: config.view ?? VIEW_DEFAULTS }, copys: copysCategorias(config) }),
+    [config],
+  );
   const heroB: CtaBlock = { ...BLOCK_DEFAULTS, ...(cv.hero ?? {}) };
   const promoB: CtaBlock = { ...BLOCK_DEFAULTS, ...(cv.promo ?? {}) };
 
@@ -194,18 +205,6 @@ export function CategoriesEditor({
       </div>
     );
   };
-
-  const miniBand = (b: CtaBlock) => b.enabled ? (
-    <div style={{ borderRadius: 12, overflow: 'hidden', marginBottom: 14, background: b.bg ?? 'linear-gradient(135deg,#1b1b22,#0c0c0f)', padding: 14, display: 'grid', gridTemplateColumns: b.image ? '1fr auto' : '1fr', gap: 12, alignItems: 'center' }}>
-      <div style={{ display: 'grid', gap: 5, justifyItems: 'start' }}>
-        {b.eyebrow ? <span style={{ color: b.accentColor ?? vAccent, fontSize: 8, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase' }}>{b.eyebrow}</span> : null}
-        <div style={{ color: b.textColor ?? '#fff', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', lineHeight: 1.06 }}>{b.title || 'Título'}</div>
-        {b.subtitle ? <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 9, lineHeight: 1.4 }}>{b.subtitle}</div> : null}
-        {b.cta ? <span style={{ background: b.accentColor ?? vAccent, color: '#1A1A1B', fontSize: 9, fontWeight: 800, padding: '4px 9px', borderRadius: 6 }}>{b.cta} →</span> : null}
-      </div>
-      {b.image ? <div style={{ width: 72, height: 56, background: `url(${b.image}) center/contain no-repeat` }} /> : null}
-    </div>
-  ) : null;
 
   return (
     <div style={{ fontFamily: FONT, color: D.text }}>
@@ -325,67 +324,13 @@ export function CategoriesEditor({
           ) : null}
         </div>
 
-        {/* PREVIEW */}
+        {/* VISTA PREVIA: el sitio real pinta la sección (o /categorias) con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2, marginBottom: 14 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · {isVista ? 'página /categorias' : 'home'}</div>
-          <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: D.previewBg, padding: 18 }}>
-            {isVista ? (
-              <>
-                {miniBand(heroB)}
-                <div style={{ textAlign: 'center', marginBottom: 16 }}>
-                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: vEye, fontWeight: 700, fontSize: 9.5, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 6 }}><span style={{ width: 18, height: 3, background: vAccent }} />{config.pageEyebrow || 'Catálogo'}</div>
-                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, textTransform: 'uppercase', color: vTitle }}>{pageT.last ? pageT.head : (config.pageTitle || 'Todas las categorías')}{pageT.last ? <> <span style={{ color: vAccent }}>{pageT.last}</span></> : null}</h3>
-                </div>
-                {featured ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.05fr .95fr', borderRadius: cv.cardRadius, overflow: 'hidden', border: `1px solid ${D.cardBorder}`, marginBottom: 14, background: D.card }}>
-                    <div style={{ minHeight: 110, background: featured.image ? `url(${featured.image}) center/contain no-repeat, ${PANEL}` : PANEL }} />
-                    <div style={{ padding: 14, display: 'grid', alignContent: 'center', gap: 6 }}>
-                      <span style={{ justifySelf: 'start', fontSize: 8.5, fontWeight: 800, color: '#1A1A1B', background: vAccent, padding: '2px 8px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '.06em' }}>★ Destacada</span>
-                      <div style={{ fontSize: 15, fontWeight: 800, color: vTitle, textTransform: 'uppercase', lineHeight: 1.05 }}>{featured.name}</div>
-                      <span style={{ justifySelf: 'start', marginTop: 2, fontSize: 9.5, fontWeight: 800, color: '#1A1A1B', background: vAccent, padding: '4px 10px', borderRadius: 7 }}>Ver equipos →</span>
-                    </div>
-                  </div>
-                ) : null}
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(cv.columns, 3)}, 1fr)`, gap: 10 }}>
-                  {(categories.length ? categories.filter((c) => c.slug !== cv.featuredSlug) : [{ id: 0, name: 'Categoría', slug: '', image: null, productCount: 0 }]).slice(0, Math.min(cv.columns, 3)).map((c) => (
-                    <div key={c.id} style={{ borderRadius: cv.cardRadius, overflow: 'hidden', border: `1px solid ${D.cardBorder}`, background: D.card }}>
-                      <div style={{ height: Math.max(Math.min(cv.imageHeight, 96), 70), background: c.image ? `url(${c.image}) center/contain no-repeat, ${PANEL}` : PANEL }} />
-                      <div style={{ padding: '8px 9px 9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 10.5, fontWeight: 800, color: vTitle, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</div>
-                          <div style={{ fontSize: 8.5, color: D.muted2, marginTop: 1 }}>{c.productCount} {config.unit || 'equipos'}</div>
-                        </div>
-                        <span style={{ flexShrink: 0, width: 20, height: 20, borderRadius: 999, background: vAccent, color: '#1A1A1B', display: 'grid', placeItems: 'center', fontSize: 10, fontWeight: 900 }}>↗</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ marginTop: 14 }}>{miniBand(promoB)}</div>
-              </>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 18 }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: hEye, fontWeight: 700, fontSize: 9.5, letterSpacing: '.14em', textTransform: 'uppercase', marginBottom: 7 }}><span style={{ width: 18, height: 3, background: hAccent }} />{config.eyebrow || 'Eyebrow'}</div>
-                    <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, textTransform: 'uppercase', color: hTitle, lineHeight: 1.05 }}>{homeT.last ? homeT.head : (config.title || 'Título')}{homeT.last ? <> <span style={{ color: hAccent }}>{homeT.last}</span></> : null}</h3>
-                    {config.subtitle ? <p style={{ margin: '9px 0 0', fontSize: 11.5, color: D.muted2, lineHeight: 1.45 }}>{config.subtitle}</p> : null}
-                  </div>
-                  {config.viewAll ? <span style={{ flexShrink: 0, color: hTitle, fontWeight: 700, fontSize: 11 }}>{config.viewAll} <span style={{ color: hAccent }}>↗</span></span> : null}
-                </div>
-                <div style={{ display: 'flex', gap: 14, overflow: 'hidden' }}>
-                  {(categories.length ? categories : [{ id: 0, name: 'Categoría', slug: '', image: null, productCount: 0 }]).slice(0, Math.min(config.perView, 4)).map((c) => (
-                    <div key={c.id} style={{ position: 'relative', flex: '1 1 0', minWidth: 0, height: Math.min(config.imageHeight, 150), borderRadius: config.cardRadius, overflow: 'hidden', border: `1px solid ${D.cardBorder}`, background: c.image ? `center/cover no-repeat url(${c.image})` : 'repeating-linear-gradient(135deg,#1e1e22 0 12px,#161619 12px 24px)' }}>
-                      <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(6,6,8,.9) 2%, rgba(6,6,8,.32) 44%, rgba(6,6,8,0) 72%)' }} />
-                      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '9px 9px 8px', display: 'grid', gap: 3 }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.1 }}>{c.name}</span>
-                        <span style={{ fontSize: 8.5, fontWeight: 700, color: hAccent }}>{c.productCount} {config.unit || 'equipos'}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
+          {isVista ? (
+            <VistaPreviaSitio key="pagina" vista="pagina.categorias" etiqueta="página /categorias" borrador={borrador} modoInicial={modoTema} />
+          ) : (
+            <VistaPreviaSitio key="home" vista="home.categories" etiqueta="home" borrador={borrador} modoInicial={modoTema} aviso={!config.show ? <><i className="ph ph-eye-slash" /> La sección está oculta en el home.</> : null} />
+          )}
         </div>
       </div>
 

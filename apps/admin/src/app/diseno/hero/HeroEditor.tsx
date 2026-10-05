@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo, useState, type ReactNode, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { HeroSettings, ThemeTokens } from '@maqserv/config';
+import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
+import { imagenParaVistaPrevia } from '@/lib/imagen-previa';
 
 type Copys = Record<string, Record<string, string>>;
 interface HeroDto { id?: number; badge: string | null; title: string | null; subtitle: string | null; image: string | null }
@@ -82,6 +84,28 @@ function ColorField({ label, hint: h, value, presets, onChange }: { label: strin
   );
 }
 
+/** Ajustes del hero en el tema. Los usan «Guardar y publicar» y la vista previa. */
+function ajustesHero(c: Config): HeroSettings {
+  return {
+    showBadge: c.showBadge, showTrust: c.showTrust, showStats: c.showStats, overlay: c.overlay,
+    primaryLink: c.primaryLink, secondaryLink: c.secondaryLink,
+    accentColor: c.accentColor, titleColor: c.titleColor, subtitleColor: c.subtitleColor,
+    primaryBg: c.primaryBg, primaryText: c.primaryText, secondaryBorder: c.secondaryBorder,
+  };
+}
+
+/** Copys del hero (acento, botones, distintivos y cifras). */
+function copysHero(c: Config): Record<string, string> {
+  const es: Record<string, string> = {
+    'home.hero.titleAccent': c.accent,
+    'home.hero.ctaPrimary': c.primaryLabel,
+    'home.hero.ctaSecondary': c.secondaryLabel,
+  };
+  c.badges.forEach((b, i) => { es[`home.hero.trust${i + 1}.title`] = b.t; es[`home.hero.trust${i + 1}.text`] = b.d; });
+  c.stats.forEach((s, i) => { es[`home.hero.stat${i + 1}.num`] = s.n; es[`home.hero.stat${i + 1}.label`] = s.l; });
+  return es;
+}
+
 export function HeroEditor({
   hero, themeId, copys, tokens, heroSettings,
 }: { hero: HeroDto | null; themeId: number | null; copys: Copys; tokens: ThemeTokens; heroSettings: HeroSettings }) {
@@ -104,7 +128,6 @@ export function HeroEditor({
   const [config, setConfig] = useState<Config>(initial);
   const [saved, setSaved] = useState<Config>(initial);
   const [tab, setTab] = useState('contenido');
-  const [view, setView] = useState<'full' | 'text' | 'image'>('full');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
@@ -126,6 +149,24 @@ export function HeroEditor({
   function onDrop(e: React.DragEvent) { e.preventDefault(); setDragOver(false); takeFile(e.dataTransfer.files?.[0]); }
   function removeImage() { setFile(null); setImgError(false); set('image', null); }
   const showImage = Boolean(config.image) && !imgError;
+
+  // La imagen nueva (aún sin subir) viaja a la vista previa como data URL.
+  const [imagenPrevia, setImagenPrevia] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    setImagenPrevia(null);
+    if (file) imagenParaVistaPrevia(file).then((u) => { if (vivo) setImagenPrevia(u); });
+    return () => { vivo = false; };
+  }, [file]);
+  const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
+  const borrador = useMemo(() => {
+    const imagen = file ? imagenPrevia : config.image;
+    return {
+      tokens: { hero: ajustesHero(config) },
+      copys: copysHero(config),
+      datos: { hero: { badge: config.badge, title: config.title, subtitle: config.subtitle, image: imagen } },
+    };
+  }, [config, file, imagenPrevia]);
   function discard() { setConfig(saved); setFile(null); setToast(null); }
 
   async function publish() {
@@ -139,18 +180,8 @@ export function HeroEditor({
       const r1 = await fetch('/api/admin/cms/hero', { method: 'PATCH', body: fd });
       if (!r1.ok) throw new Error('No se pudo guardar el contenido');
       if (themeId) {
-        const es = { ...(copys['es'] ?? {}) };
-        es['home.hero.titleAccent'] = config.accent;
-        es['home.hero.ctaPrimary'] = config.primaryLabel;
-        es['home.hero.ctaSecondary'] = config.secondaryLabel;
-        config.badges.forEach((b, i) => { es[`home.hero.trust${i + 1}.title`] = b.t; es[`home.hero.trust${i + 1}.text`] = b.d; });
-        config.stats.forEach((s, i) => { es[`home.hero.stat${i + 1}.num`] = s.n; es[`home.hero.stat${i + 1}.label`] = s.l; });
-        const nextHero: HeroSettings = {
-          showBadge: config.showBadge, showTrust: config.showTrust, showStats: config.showStats, overlay: config.overlay,
-          primaryLink: config.primaryLink, secondaryLink: config.secondaryLink,
-          accentColor: config.accentColor, titleColor: config.titleColor, subtitleColor: config.subtitleColor,
-          primaryBg: config.primaryBg, primaryText: config.primaryText, secondaryBorder: config.secondaryBorder,
-        };
+        const es = { ...(copys['es'] ?? {}), ...copysHero(config) };
+        const nextHero = ajustesHero(config);
         const r2 = await fetch(`/api/admin/themes/${themeId}/draft`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tokens: { ...tokens, hero: nextHero }, copys: { ...copys, es } }) });
         if (!r2.ok) throw new Error('No se pudieron guardar los ajustes');
         const r3 = await fetch(`/api/admin/themes/${themeId}/publish`, { method: 'POST' });
@@ -337,22 +368,9 @@ export function HeroEditor({
             ) : null}
           </div>
 
-          {/* RIGHT: preview */}
+          {/* RIGHT: el sitio real pinta el hero con los cambios sin publicar */}
           <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa en vivo</div>
-              <div style={{ display: 'flex', gap: 3, padding: 3, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 10 }}>
-                {([['full', 'Completo', 'ph-columns'], ['text', 'Texto', 'ph-text-align-left'], ['image', 'Imagen', 'ph-image']] as const).map(([v, lbl, ic]) => (
-                  <button key={v} type="button" onClick={() => setView(v)} title={lbl}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', cursor: 'pointer', borderRadius: 8, padding: '6px 10px', fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', background: view === v ? 'color-mix(in srgb, var(--color-primary) 15%, transparent)' : 'transparent', color: view === v ? D.amber : D.muted2 }}>
-                    <i className={`ph ${ic}`} style={{ fontSize: 15 }} />{lbl}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ border: `1px solid ${D.inputBorder}`, borderRadius: 18, background: D.previewBg, padding: 14 }}>
-              <HeroPreview config={config} view={view} />
-            </div>
+            <VistaPreviaSitio vista="home.hero" etiqueta="home" borrador={borrador} modoInicial={modoTema} />
           </div>
         </div>
       </div>
@@ -363,69 +381,6 @@ export function HeroEditor({
           <i className={`ph-bold ${toast.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} style={{ fontSize: 19, color: toast.ok ? '#3fbf8f' : '#f55' }} /> {toast.text}
         </div>
       ) : null}
-    </div>
-  );
-}
-
-/** Réplica fiel del Hero real (dos columnas, círculo con glow, stats flotantes). */
-function HeroPreview({ config: c, view }: { config: Config; view: 'full' | 'text' | 'image' }) {
-  const showLeft = view !== 'image';
-  const showRight = view !== 'text';
-  return (
-    <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', background: D.heroBg, padding: '28px 24px' }}>
-      {/* glow */}
-      <div aria-hidden style={{ position: 'absolute', right: '-8%', top: '50%', transform: 'translateY(-50%)', width: 260, height: 260, borderRadius: '50%', background: `radial-gradient(circle, ${c.accentColor}, transparent 62%)`, opacity: 0.28 * (c.overlay / 100), filter: 'blur(6px)' }} />
-      <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: view === 'full' ? '1.05fr .95fr' : '1fr', gap: 22, alignItems: 'center' }}>
-        {showLeft ? (
-          <div style={{ position: 'relative', minWidth: 0 }}>
-            {c.showBadge && c.badge ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: `color-mix(in srgb, ${c.accentColor} 13%, transparent)`, color: c.accentColor, border: `1px solid color-mix(in srgb, ${c.accentColor} 38%, transparent)`, borderRadius: 999, padding: '5px 11px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.09em', marginBottom: 12 }}>{c.badge}</span>
-            ) : null}
-            <h2 style={{ margin: 0, fontFamily: FONT, fontWeight: 800, textTransform: 'uppercase', fontSize: view === 'text' ? '2.1rem' : '1.55rem', lineHeight: 1.02, letterSpacing: '-0.01em', color: c.titleColor }}>
-              {c.title || 'Título principal'}{c.accent ? <> <span style={{ color: c.accentColor }}>{c.accent}</span></> : null}
-            </h2>
-            <p style={{ margin: '12px 0 0', fontSize: '.82rem', lineHeight: 1.55, color: c.subtitleColor, maxWidth: 340 }}>{c.subtitle || 'Subtítulo del hero…'}</p>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 18 }}>
-              <span style={{ background: c.primaryBg, color: c.primaryText, borderRadius: 10, padding: '.6em 1.05em', fontSize: '.78rem', fontWeight: 800, display: 'inline-flex', gap: 6, alignItems: 'center' }}>{c.primaryLabel || 'Botón principal'} <i className="ph-bold ph-arrow-right" style={{ fontSize: 13 }} /></span>
-              <span style={{ border: `1px solid ${c.secondaryBorder}`, color: '#fff', borderRadius: 10, padding: '.6em 1.05em', fontSize: '.78rem', fontWeight: 700 }}>{c.secondaryLabel || 'Botón secundario'}</span>
-            </div>
-            {c.showTrust ? (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px 20px', marginTop: 24 }}>
-                {c.badges.map((b, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 118 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: `color-mix(in srgb, ${c.accentColor} 12%, transparent)`, color: c.accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><i className={`ph ${TRUST_ICONS[i]}`} style={{ fontSize: 16 }} /></div>
-                    <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{b.t || `Distintivo ${i + 1}`}</div><div style={{ fontSize: 10.5, color: D.muted3, lineHeight: 1.25 }}>{b.d}</div></div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {showRight ? (
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 220 }}>
-            <div style={{ position: 'relative', width: 220, height: 210, display: 'grid', placeItems: 'center' }}>
-              <div aria-hidden style={{ position: 'absolute', width: 150, height: 150, borderRadius: '50%', background: c.accentColor, opacity: c.overlay / 100, boxShadow: `0 20px 60px -20px ${c.accentColor}` }} />
-              {c.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={c.image} src={c.image} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} style={{ position: 'relative', zIndex: 1, width: '128%', maxHeight: 210, objectFit: 'contain' }} />
-              ) : null}
-            </div>
-            {c.showStats && c.stats[0]?.n ? (
-              <div style={{ position: 'absolute', left: 0, top: 24, background: '#161619', border: `1px solid ${D.cardBorder}`, borderRadius: 12, padding: '11px 14px', boxShadow: '0 12px 30px -14px rgba(0,0,0,.7)' }}>
-                <div style={{ fontFamily: MONO, fontSize: 20, fontWeight: 700, color: '#fff', lineHeight: 1 }}>{c.stats[0].n}</div>
-                <div style={{ fontSize: 10.5, color: '#b8bcc4', marginTop: 3 }}>{c.stats[0].l}</div>
-              </div>
-            ) : null}
-            {c.showStats && c.stats[1]?.n ? (
-              <div style={{ position: 'absolute', right: 0, bottom: 20, background: '#161619', border: `1px solid ${D.cardBorder}`, borderRadius: 12, padding: '11px 14px', boxShadow: '0 12px 30px -14px rgba(0,0,0,.7)' }}>
-                <div style={{ marginBottom: 5, color: c.accentColor, fontSize: 10, letterSpacing: 1 }}>★★★★★</div>
-                <div style={{ fontFamily: MONO, fontSize: 18, fontWeight: 700, color: c.accentColor, lineHeight: 1 }}>{c.stats[1].n}</div>
-                <div style={{ fontSize: 10.5, color: '#b8bcc4', marginTop: 2 }}>{c.stats[1].l}</div>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }

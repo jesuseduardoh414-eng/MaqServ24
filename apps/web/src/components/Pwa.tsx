@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { ANALITICA_ACTIVA, EVENTO_CONSENTIMIENTO, leerConsentimiento } from '@/lib/analitica';
 
@@ -31,6 +32,8 @@ type Labels = { title: string; text: string; cta: string; later: string; brand: 
  */
 export function Pwa({ labels }: { labels: Labels }) {
   const [evento, setEvento] = useState<PromptInstalar | null>(null);
+  // Dentro de la vista previa del panel el aviso de instalar tapaba la sección.
+  const enVistaPrevia = usePathname()?.startsWith('/vista-previa') ?? false;
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
@@ -98,7 +101,7 @@ export function Pwa({ labels }: { labels: Labels }) {
     try { localStorage.setItem(DESCARTE_KEY, String(Date.now())); } catch { /* ignora */ }
   }, [visible]);
 
-  if (!evento || !cookiesDecididas) return null;
+  if (!evento || !cookiesDecididas || enVistaPrevia) return null;
 
   const descartar = () => {
     try { localStorage.setItem(DESCARTE_KEY, String(Date.now())); } catch { /* ignora */ }

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { paginaSeo, migas } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
 import Link from 'next/link';
-import { rutaDeCatalogo, tipoDeCatalogo, type TipoCatalogo } from '@maqserv/config';
+import { rutaDeCatalogo, tipoDeCatalogo, type TipoCatalogo, type Theme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getProducts, getCategories, getSubcategories } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -53,11 +53,16 @@ export async function metadataCatalogo(kind: TipoCatalogo): Promise<Metadata> {
     : paginaSeo(theme, { ruta: '/productos', titulo: t(theme, 'seo.catalog.title'), descripcion: t(theme, 'seo.catalog.description') });
 }
 
-export async function PaginaCatalogo({ sp, kind }: { sp: Search; kind: TipoCatalogo }) {
+/**
+ * `tema` y `marco` existen para la vista previa del panel (Diseño → Productos →
+ * Catálogo): pinta esta misma página con los anuncios sin publicar y sin
+ * encabezado ni pie. El sitio no los pasa.
+ */
+export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Search; kind: TipoCatalogo; tema?: Theme; marco?: boolean }) {
   const base = rutaDeCatalogo(kind);
   const page = Number(sp.page ?? 1) || 1;
   const [theme, todasCategorias, result, subcategories] = await Promise.all([
-    getTheme(),
+    tema ?? getTheme(),
     getCategories(),
     // El catálogo es la página más visitada: si la API no responde conviene
     // enseñar la página con la parrilla vacía antes que un 500.
@@ -119,8 +124,8 @@ export async function PaginaCatalogo({ sp, kind }: { sp: Search; kind: TipoCatal
 
   return (
     <>
-      <SiteHeader theme={theme} />
-      <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: navLabel }])} />
+      {marco ? <SiteHeader theme={theme} /> : null}
+      {marco ? <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: navLabel }])} /> : null}
       <style>{CSS}</style>
       <main className="ms-page" style={{ minHeight: '60vh' }}>
         {/* h1: con banner, es el único encabezado principal del catálogo. */}
@@ -225,7 +230,7 @@ export async function PaginaCatalogo({ sp, kind }: { sp: Search; kind: TipoCatal
         {/* Promo inferior (configurable) */}
         {catalog?.promo?.enabled ? <Band block={catalog.promo} kind="promo" maxWidth={1180} /> : null}
       </main>
-      <SiteFooter theme={theme} />
+      {marco ? <SiteFooter theme={theme} /> : null}
     </>
   );
 }

@@ -159,3 +159,12 @@ export {
   type ReglaContrasena,
   type ContextoContrasena,
 } from './password';
+export {
+  VISTAS_PREVIA,
+  MENSAJE_VISTA_PREVIA,
+  type VistaPrevia,
+  type BorradorVistaPrevia,
+  type HeroVistaPrevia,
+  type RazonVistaPrevia,
+  type InfSitioVistaPrevia,
+} from './vista-previa';
