@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import type { OrderDetail } from '@maqserv/types';
 import { SHIP_METHODS, fulfillmentStep, shipTracker, toShipMethod } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
-import { pedirOr } from '@/lib/api';
+import { pedirOr, rutaCatalogo } from '@/lib/api';
 import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
@@ -71,7 +71,7 @@ function fmtDay(iso: string | null): string {
 
 export default async function OrderPage({ params }: { params: Promise<Params> }) {
   const { orderNumber } = await params;
-  const [theme, order] = await Promise.all([getTheme(), fetchOrder(orderNumber)]);
+  const [theme, order, catalogo] = await Promise.all([getTheme(), fetchOrder(orderNumber), rutaCatalogo()]);
   if (order === 'unauthorized') redirect('/login');
   if (!order) notFound();
 
@@ -255,7 +255,7 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
                 {t(theme, 'account.orders.title')}<Icon name="arrowRight" size={15} />
               </Link>
               <div style={{ textAlign: 'center', marginTop: 14 }}>
-                <Link href="/productos" className="ms-link ms-link-muted">Seguir explorando equipo</Link>
+                <Link href={catalogo} className="ms-link ms-link-muted">Seguir explorando equipo</Link>
               </div>
             </aside>
           </div>

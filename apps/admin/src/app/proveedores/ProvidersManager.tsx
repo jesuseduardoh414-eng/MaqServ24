@@ -877,10 +877,44 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
             onFocus={(e) => e.currentTarget.select()}
             style={{ ...input, fontFamily: 'ui-monospace, monospace', fontSize: 11.5 }}
           />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              style={{ ...botonSec, padding: '7px 13px', fontSize: 12.5 }}
+              onClick={() => { void navigator.clipboard?.writeText(url).then(() => setMsg('Enlace copiado.')); }}
+            >
+              Copiar enlace
+            </button>
+            {waDe(p.phone) ? (
+              <a
+                href={`https://wa.me/${waDe(p.phone)}?text=${encodeURIComponent(
+                  `Hola${p.contactName ? ` ${p.contactName}` : ''}, este es tu acceso al portal de aliados de MAQSER24. Ahí contestas solicitudes y revisas tus equipos y documentos. Sirve 30 días: ${url}`,
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ ...boton, padding: '7px 13px', fontSize: 12.5, textDecoration: 'none' }}
+              >
+                Mandar por WhatsApp
+              </a>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </section>
   );
+}
+
+/**
+ * Teléfono del aliado → número para wa.me (52 + 10 dígitos). Acepta "81 1234
+ * 5678", "+52 81…" y "+52 1 81…" (el "1" de celular viejo ya no se usa y
+ * wa.me no lo quiere). Null si no parece un número mexicano.
+ */
+function waDe(tel: string | null): string | null {
+  const d = (tel ?? '').replace(/\D/g, '');
+  if (d.length === 10) return `52${d}`;
+  if (d.length === 12 && d.startsWith('52')) return d;
+  if (d.length === 13 && d.startsWith('521')) return `52${d.slice(3)}`;
+  return null;
 }
 
 

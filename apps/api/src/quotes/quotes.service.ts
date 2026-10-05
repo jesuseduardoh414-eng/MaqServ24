@@ -98,8 +98,12 @@ export class QuotesService {
     });
     const byId = new Map(products.map((p) => [p.id, p]));
 
-    // Distancia para flete (solo si dieron dirección; degrada a null sin API key)
-    const dist = input.address ? await this.freight.distanceTo(input.address) : null;
+    // Distancia para flete (solo si dieron dirección; degrada a null sin API key).
+    // Y solo si algún equipo la cobra (2026-10-05): sin eso el cliente esperaba
+    // 4-5 s a dos geocodificaciones cuyo resultado no se usaba —en una
+    // solicitud de servicio (pipas, triturados) el flete siempre sale en cero.
+    const cobraFlete = products.some((p) => p.is_rental && Number(p.rental_freight ?? 0) > 0);
+    const dist = input.address && cobraFlete ? await this.freight.distanceTo(input.address) : null;
     const distanceKm = dist?.km ?? 0;
 
     const items: QuoteItem[] = input.items.map((i) => {

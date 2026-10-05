@@ -7,7 +7,7 @@ import { notFound } from 'next/navigation';
 import { parseProductSlug } from '@maqserv/config';
 import type { StrategicSectorDetail } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
-import { getSector } from '@/lib/api';
+import { getSector, rutaCatalogo } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 
@@ -83,7 +83,7 @@ const CSS = `
 
 export default async function SectorPage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  const [theme, sector] = await Promise.all([getTheme(), fetchBySlug(slug)]);
+  const [theme, sector, catalogo] = await Promise.all([getTheme(), fetchBySlug(slug), rutaCatalogo()]);
   if (!sector) notFound();
 
   const teaser = sector.description ? strip(sector.description).slice(0, 170) : '';
@@ -143,7 +143,7 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
                 <p style={{ margin: '0 0 20px', fontSize: '14.5px', lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{t(theme, 'sector.cta.body')}</p>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <Link href="/contacto" className="ms-btn ms-btn-block">{t(theme, 'sector.cta.quote')}</Link>
-                  <Link href="/productos" className="ms-btn ms-btn-sec ms-btn-block">{t(theme, 'sector.cta.catalog')}</Link>
+                  <Link href={catalogo} className="ms-btn ms-btn-sec ms-btn-block">{t(theme, 'sector.cta.catalog')}</Link>
                 </div>
               </div>
             </aside>

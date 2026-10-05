@@ -2,10 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { CheckoutConfig, CheckoutFreight, ThemeTokens } from '@maqserv/config';
+import type { CheckoutConfig, CheckoutFreight } from '@maqserv/config';
 import { D, FONT, cardStyle, inputStyle, h3Style, Field, Toggle } from '@/components/editor-kit';
-
-type Copys = Record<string, Record<string, string>>;
 
 interface TestResult {
   status: string;
@@ -27,8 +25,8 @@ const MODES: Array<{ key: CheckoutFreight['mode']; label: string; icon: string; 
 
 const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function FreightManager({ themeId, copys, tokens, checkout, contactAddress }: {
-  themeId: number | null; copys: Copys; tokens: ThemeTokens; checkout: CheckoutConfig; contactAddress: string;
+export function FreightManager({ checkout, contactAddress }: {
+  checkout: CheckoutConfig; contactAddress: string;
 }) {
   const router = useRouter();
   const [config, setConfig] = useState<CheckoutFreight>(checkout.freight);
@@ -45,14 +43,13 @@ export function FreightManager({ themeId, copys, tokens, checkout, contactAddres
   function discard() { setConfig(saved); setToast(null); }
 
   async function publish() {
-    if (busy || !themeId) return;
+    if (busy) return;
     setBusy(true); setToast(null);
     try {
-      const body = { tokens: { ...tokens, checkout: { ...checkout, freight: config } }, copys };
-      const r2 = await fetch(`/api/admin/themes/${themeId}/draft`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!r2.ok) throw new Error('No se pudieron guardar los ajustes');
-      const r3 = await fetch(`/api/admin/themes/${themeId}/publish`, { method: 'POST' });
-      if (!r3.ok) throw new Error('No se pudo publicar');
+      // Sólo el traslado (2026-10-05): antes se publicaba el tema entero,
+      // borradores de Diseño incluidos.
+      const r = await fetch('/api/admin/checkout-config', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ freight: config }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.message ?? 'No se pudieron guardar los ajustes');
       setSaved(config);
       setToast({ ok: true, text: 'Publicado — aplica al carrito y a los pedidos nuevos.' });
       router.refresh();

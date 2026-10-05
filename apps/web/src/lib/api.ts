@@ -233,6 +233,15 @@ export function getCatalogoResumen(): Promise<{ servicios: number; productos: nu
   return getOr('/catalog/resumen', { servicios: 0, productos: 0 });
 }
 
+/**
+ * A dónde manda un "Ver catálogo" (2026-10-05): `/productos` redirige a
+ * `/servicios` mientras no haya productos, y enlazarlo directo ahorra el salto
+ * (y no le enseña a Google una URL que redirige).
+ */
+export async function rutaCatalogo(): Promise<'/servicios' | '/productos'> {
+  return (await getCatalogoResumen()).productos > 0 ? '/productos' : '/servicios';
+}
+
 
 export function getCategories(): Promise<Category[]> {
   return getOr('/catalog/categories', []);

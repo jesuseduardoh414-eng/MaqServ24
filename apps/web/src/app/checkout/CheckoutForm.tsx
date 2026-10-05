@@ -27,11 +27,14 @@ export function CheckoutForm({
   user,
   config,
   methods,
+  catalogo = '/servicios',
   labels,
 }: {
   user: AuthUser;
   config: CheckoutConfig;
   methods: PaymentMethod[];
+  /** A dónde manda "seguir viendo" con el carrito vacío (ver `rutaCatalogo`). */
+  catalogo?: string;
   labels: {
     title: string;
     contactTitle: string;
@@ -232,7 +235,7 @@ export function CheckoutForm({
         <h2 className="ms-empty-t">{labels.emptyCart}</h2>
         <p className="ms-empty-p">Agrega equipo a tu carrito para poder finalizar la compra.</p>
         <div className="ms-empty-acts">
-          <Link href="/productos" className="ms-btn">{labels.browse}</Link>
+          <Link href={catalogo} className="ms-btn">{labels.browse}</Link>
           <Link href="/carrito" className="ms-link ms-link-muted"><Icon name="arrowLeft" size={14} />Volver al carrito</Link>
         </div>
       </div>,

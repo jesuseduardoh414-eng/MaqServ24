@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import type { PaymentMethod } from '@maqserv/types';
 import { defaultTheme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
-import { pedirOr } from '@/lib/api';
+import { pedirOr, rutaCatalogo } from '@/lib/api';
 import { getSessionUser } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { CheckoutForm } from './CheckoutForm';
@@ -17,7 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CheckoutPage() {
-  const [theme, user] = await Promise.all([getTheme(), getSessionUser()]);
+  const [theme, user, catalogo] = await Promise.all([getTheme(), getSessionUser(), rutaCatalogo()]);
   if (!user) redirect('/login');
 
   const methods = await pedirOr<PaymentMethod[]>(
@@ -35,6 +35,7 @@ export default async function CheckoutPage() {
         user={user}
         config={theme.tokens.checkout ?? defaultTheme.tokens.checkout}
         methods={methods}
+        catalogo={catalogo}
         labels={{
             title: t(theme, 'checkout.title'),
             contactTitle: t(theme, 'checkout.contact.title'),

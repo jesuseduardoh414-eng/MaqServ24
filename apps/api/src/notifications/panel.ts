@@ -14,8 +14,7 @@ import { puedeVerCon, type ModuloAdmin, type PermisosOverride, type RolAdmin } f
  * `user_id` (no son de un cliente) y con `type = "panel:<módulo>:<evento>"`.
  * Así no hace falta SQL, la campana del cliente nunca los ve (filtra por su
  * `user_id`) y cada administrador ve solo los de los módulos que su rol puede
- * abrir. El "leído" es del equipo: si alguien ya atendió la solicitud, al
- * resto se le apaga.
+ * abrir. El "leído" es de cada administrador (2026-10-05, ver más abajo).
  */
 
 const PREFIJO = 'panel:';
@@ -72,23 +71,88 @@ function dondePuede(rol: RolAdmin, permisos: PermisosOverride) {
   };
 }
 
+/**
+ * "LEÍDO" DE CADA ADMINISTRADOR (2026-10-05).
+ *
+ * Antes el leído era del equipo: si Operaciones abría un aviso, a Dirección se
+ * le apagaba aunque nunca lo hubiera visto. Ahora cada quien lleva el suyo.
+ *
+ * Sin tabla nueva (no hay que correr SQL en phpMyAdmin): un renglón de control
+ * por administrador en la misma `notifications`, `user_id NULL` y
+ * `type = "panel-leido:<adminId>"` —no empieza con "panel:<módulo>:", así que
+ * ningún filtro de avisos lo ve, y la campana del cliente filtra por su
+ * `user_id`—. Guarda "leídos hasta el aviso N" más los sueltos que marcó por
+ * encima de N; "Marcar todos" sube N y vacía la lista, así nunca crece.
+ *
+ * La primera vez se arranca desde el leído del equipo que ya existía: lo que
+ * el equipo ya atendió no le vuelve a salir como nuevo a nadie.
+ */
+const MARCA = 'panel-leido:';
+const MAX_SUELTOS = 300;
+
+interface Leido { hasta: number; ids: number[] }
+
+async function leerMarca(adminId: number, where: ReturnType<typeof dondePuede>): Promise<{ rowId: number | null; leido: Leido }> {
+  const row = await prisma.notifications.findFirst({
+    where: { user_id: null, type: `${MARCA}${adminId}` },
+    orderBy: { id: 'asc' },
+    select: { id: true, body: true },
+  });
+  if (row) {
+    try {
+      const d = JSON.parse(row.body ?? '{}') as Partial<Leido>;
+      return { rowId: row.id, leido: { hasta: Number(d.hasta) || 0, ids: Array.isArray(d.ids) ? d.ids.filter(Number.isInteger) : [] } };
+    } catch {
+      return { rowId: row.id, leido: { hasta: 0, ids: [] } };
+    }
+  }
+  // Sin marca todavía: lo que el equipo ya dio por leído cuenta como leído.
+  const leidoEquipo = await prisma.notifications.findFirst({
+    where: { ...where, is_read: true },
+    orderBy: { id: 'desc' },
+    select: { id: true },
+  });
+  return { rowId: null, leido: { hasta: leidoEquipo?.id ?? 0, ids: [] } };
+}
+
+async function guardarMarca(adminId: number, rowId: number | null, leido: Leido): Promise<void> {
+  const ids = [...new Set(leido.ids.filter((i) => i > leido.hasta))].sort((a, b) => b - a).slice(0, MAX_SUELTOS);
+  const body = JSON.stringify({ hasta: leido.hasta, ids });
+  const ahora = new Date();
+  if (rowId) {
+    await prisma.notifications.update({ where: { id: rowId }, data: { body, updated_at: ahora } });
+  } else {
+    await prisma.notifications.create({
+      data: { user_id: null, type: `${MARCA}${adminId}`, title: 'Control de avisos leídos', body, is_read: true, created_at: ahora, updated_at: ahora },
+    });
+  }
+}
+
+/** Avisos que este admin no ha leído: por encima de su marca y fuera de sus sueltos. */
+function noLeidos(where: ReturnType<typeof dondePuede>, leido: Leido) {
+  return { ...where, id: { gt: leido.hasta, ...(leido.ids.length ? { notIn: leido.ids } : {}) } };
+}
+
 export async function avisosDelPanel(
+  adminId: number,
   rol: RolAdmin,
   permisos: PermisosOverride,
   despuesDe?: number,
 ): Promise<{ items: AvisoPanel[]; unread: number; ultimo: number }> {
   const where = dondePuede(rol, permisos);
-  const [rows, unread, ultimo] = await Promise.all([
+  const [rows, { leido }, ultimo] = await Promise.all([
     prisma.notifications.findMany({
       where: despuesDe ? { ...where, id: { gt: despuesDe } } : where,
       orderBy: { id: 'desc' },
       // Al consultar lo nuevo se traen más: si se juntaron más de 30 entre dos vueltas no se pierde ninguno (QA 2026-09-28).
       take: despuesDe ? 200 : LIMITE,
-      select: { id: true, type: true, title: true, body: true, link: true, is_read: true, created_at: true },
+      select: { id: true, type: true, title: true, body: true, link: true, created_at: true },
     }),
-    prisma.notifications.count({ where: { ...where, is_read: false } }),
+    leerMarca(adminId, where),
     prisma.notifications.findFirst({ where, orderBy: { id: 'desc' }, select: { id: true } }),
   ]);
+  const sueltos = new Set(leido.ids);
+  const unread = await prisma.notifications.count({ where: noLeidos(where, leido) });
   return {
     items: rows.map((r) => {
       const [, modulo = '', evento = ''] = (r.type ?? '').split(':');
@@ -99,7 +163,7 @@ export async function avisosDelPanel(
         title: r.title ?? '',
         body: r.body,
         link: r.link,
-        isRead: r.is_read,
+        isRead: r.id <= leido.hasta || sueltos.has(r.id),
         createdAt: r.created_at ? r.created_at.toISOString() : null,
       };
     }),
@@ -108,12 +172,19 @@ export async function avisosDelPanel(
   };
 }
 
-/** Sin `id` marca como leídos todos los que este rol ve. */
-export async function marcarAvisosPanel(rol: RolAdmin, permisos: PermisosOverride, id?: number): Promise<{ unread: number }> {
+/** Sin `id` marca como leídos todos los que este admin ve. Sólo para él. */
+export async function marcarAvisosPanel(adminId: number, rol: RolAdmin, permisos: PermisosOverride, id?: number): Promise<{ unread: number }> {
   const where = dondePuede(rol, permisos);
-  await prisma.notifications.updateMany({
-    where: { ...where, is_read: false, ...(id ? { id } : {}) },
-    data: { is_read: true, updated_at: new Date() },
-  });
-  return { unread: await prisma.notifications.count({ where: { ...where, is_read: false } }) };
+  const { rowId, leido } = await leerMarca(adminId, where);
+  if (id) {
+    // Sólo ids de avisos que este rol puede ver: nada de marcar ajenos.
+    const existe = await prisma.notifications.findFirst({ where: { ...where, id }, select: { id: true } });
+    if (existe && id > leido.hasta) leido.ids.push(id);
+  } else {
+    const ultimo = await prisma.notifications.findFirst({ where, orderBy: { id: 'desc' }, select: { id: true } });
+    leido.hasta = Math.max(leido.hasta, ultimo?.id ?? 0);
+    leido.ids = [];
+  }
+  await guardarMarca(adminId, rowId, leido);
+  return { unread: await prisma.notifications.count({ where: noLeidos(where, leido) }) };
 }

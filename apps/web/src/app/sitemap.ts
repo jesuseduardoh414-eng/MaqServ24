@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { rutaDeCatalogo } from '@maqserv/config';
-import { getBlogs, getProducts, getSectors } from '@/lib/api';
+import { getBlogs, getCatalogoResumen, getProducts, getSectors } from '@/lib/api';
 import { SITE_URL, esRutaPrivada } from '@/lib/seo';
 import { LANDINGS } from '@/lib/landings';
 
@@ -39,7 +39,10 @@ const FIJAS: Array<[ruta: string, freq: Frecuencia, prio: number]> = [
  * página con parámetros y su canonical apunta a /productos.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const entries: MetadataRoute.Sitemap = FIJAS.filter(([ruta]) => !esRutaPrivada(ruta)).map(([ruta, changeFrequency, priority]) => ({
+  // `/productos` redirige a `/servicios` mientras no haya productos: una URL
+  // que redirige no va en el sitemap (Search Console lo marca como error).
+  const conProductos = (await getCatalogoResumen()).productos > 0;
+  const entries: MetadataRoute.Sitemap = FIJAS.filter(([ruta]) => !esRutaPrivada(ruta) && (ruta !== '/productos' || conProductos)).map(([ruta, changeFrequency, priority]) => ({
     url: `${SITE_URL}${ruta === '/' ? '' : ruta}`,
     changeFrequency,
     priority,

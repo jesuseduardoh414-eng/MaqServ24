@@ -340,8 +340,12 @@ export class AdminProvidersController {
    * Mandarle al aliado su enlace de acceso.
    *
    * Es el paso que convierte la red de un directorio que operaciones mantiene
-   * a mano en algo que se mantiene solo. Sin correo del aliado no hay a donde
-   * mandarlo, y se dice asi en vez de fallar en silencio.
+   * a mano en algo que se mantiene solo.
+   *
+   * SIN CORREO (2026-10-05): el botón del panel dice "Generar enlace", pero
+   * aquí se rechazaba con "agrégale correo primero" y no había forma de darle
+   * acceso a un aliado que sólo usa WhatsApp —que es la mayoría—. Ahora el
+   * enlace se genera igual y el panel ofrece mandarlo por WhatsApp.
    */
   @Post(':id/acceso')
   async enviarAcceso(@Param('id', ParseIntPipe) id: number) {
@@ -351,12 +355,18 @@ export class AdminProvidersController {
     });
     if (!p) throw new NotFoundException('Aliado no encontrado');
     if (p.status !== 1) throw new BadRequestException('Este aliado esta dado de baja: su enlace no funcionaria.');
-    if (!p.email?.trim()) {
-      throw new BadRequestException('Este aliado no tiene correo. Agregaselo primero.');
-    }
 
     const token = await firmarAcceso(p.id, p.access_version);
     const url = urlDeAcceso(token);
+
+    if (!p.email?.trim()) {
+      await prisma.providers.update({ where: { id }, data: { access_sent_at: new Date() } });
+      return {
+        estado: 'sin_correo',
+        url,
+        mensaje: 'Este aliado no tiene correo: copia el enlace o mándaselo por WhatsApp. Sirve 30 días.',
+      };
+    }
     const porContestar = await prisma.service_assignments.count({
       where: { provider_id: id, state: 'propuesto' },
     });

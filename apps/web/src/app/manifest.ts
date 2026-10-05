@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { getTheme, t } from '@/lib/theme';
+import { rutaCatalogo } from '@/lib/api';
 
 /**
  * Manifiesto de la PWA (Next lo sirve en /manifest.webmanifest).
@@ -14,7 +15,7 @@ import { getTheme, t } from '@/lib/theme';
  * del launcher y solo garantiza el 80 % central.
  */
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
-  const theme = await getTheme();
+  const [theme, catalogo] = await Promise.all([getTheme(), rutaCatalogo()]);
   const nombre = t(theme, 'site.name');
   const oscuro = theme.tokens.colors.dark;
 
@@ -42,7 +43,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     // Accesos directos al mantener pulsado el icono (Android / Windows).
     shortcuts: [
       { name: t(theme, 'nav.quoter'), url: '/cotizador?origen=pwa', icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
-      { name: t(theme, 'nav.products'), url: '/productos?origen=pwa', icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
+      { name: t(theme, catalogo === '/productos' ? 'nav.products' : 'nav.services'), url: `${catalogo}?origen=pwa`, icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
       { name: t(theme, 'nav.myOrders'), url: '/cuenta/pedidos?origen=pwa', icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
     ],
   };

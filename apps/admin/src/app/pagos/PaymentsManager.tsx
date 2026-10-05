@@ -2,10 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { CheckoutConfig, ThemeTokens } from '@maqserv/config';
+import type { CheckoutConfig } from '@maqserv/config';
 import { D, FONT, cardStyle, inputStyle, h3Style, Field, Toggle } from '@/components/editor-kit';
-
-type Copys = Record<string, Record<string, string>>;
 
 export interface Gateway {
   id: number;
@@ -22,8 +20,8 @@ export interface Gateway {
 
 const textareaStyle: React.CSSProperties = { ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.55, resize: 'vertical', fontFamily: 'inherit', minHeight: 90 };
 
-export function PaymentsManager({ themeId, copys, tokens, checkout, gateways }: {
-  themeId: number | null; copys: Copys; tokens: ThemeTokens; checkout: CheckoutConfig; gateways: Gateway[];
+export function PaymentsManager({ checkout, gateways }: {
+  checkout: CheckoutConfig; gateways: Gateway[];
 }) {
   const router = useRouter();
   const [config, setConfig] = useState<CheckoutConfig>(checkout);
@@ -40,14 +38,14 @@ export function PaymentsManager({ themeId, copys, tokens, checkout, gateways }: 
 
   function discard() { setConfig(saved); setToast(null); }
   async function publish() {
-    if (busy || !themeId) return;
+    if (busy) return;
     setBusy(true); setToast(null);
     try {
-      const body = { tokens: { ...tokens, checkout: config }, copys };
-      const r2 = await fetch(`/api/admin/themes/${themeId}/draft`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!r2.ok) throw new Error('No se pudieron guardar los ajustes');
-      const r3 = await fetch(`/api/admin/themes/${themeId}/publish`, { method: 'POST' });
-      if (!r3.ok) throw new Error('No se pudo publicar');
+      // Sólo lo de esta pantalla (2026-10-05): antes se publicaba el tema
+      // entero, borradores de Diseño incluidos. El traslado es de Traslado.
+      const { tax, operator, note } = config;
+      const r = await fetch('/api/admin/checkout-config', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tax, operator, note }) });
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.message ?? 'No se pudieron guardar los ajustes');
       setSaved(config);
       setToast({ ok: true, text: 'Publicado — aplica al carrito y a los pedidos nuevos.' });
       router.refresh();

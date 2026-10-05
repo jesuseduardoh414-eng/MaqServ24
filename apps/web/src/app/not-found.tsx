@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
+import { rutaCatalogo } from '@/lib/api';
 
 /** 404 del sitio público con marca y en español (antes salía el default de Next en inglés). */
-export default function NotFound() {
+export default async function NotFound() {
+  const catalogo = await rutaCatalogo();
   return (
     <main className="ms-page" style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', background: 'var(--color-bg, #07090C)', color: 'var(--color-text, #E8EDF2)' }}>
       <div className="ms-wrap-narrow" style={{ width: '100%', boxSizing: 'border-box' }}>
@@ -13,7 +15,7 @@ export default function NotFound() {
           <p className="ms-empty-p">Puede que el enlace esté vencido o que el contenido se haya movido.</p>
           <div className="ms-empty-acts">
             <Link href="/" className="ms-btn">Ir al inicio</Link>
-            <Link href="/productos" className="ms-btn ms-btn-sec">Ver catálogo</Link>
+            <Link href={catalogo} className="ms-btn ms-btn-sec">Ver catálogo</Link>
           </div>
         </div>
       </div>

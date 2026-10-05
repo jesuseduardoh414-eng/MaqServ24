@@ -19,7 +19,7 @@ export class AdminAvisosController {
   @Get()
   async lista(@Req() req: AdminRequest, @Query('despues') despues?: string) {
     const n = Number(despues);
-    return avisosDelPanel(req.adminRol, await permisosVigentes(), Number.isInteger(n) && n > 0 ? n : undefined);
+    return avisosDelPanel(req.adminId, req.adminRol, await permisosVigentes(), Number.isInteger(n) && n > 0 ? n : undefined);
   }
 
   @Post('leido')
@@ -27,6 +27,6 @@ export class AdminAvisosController {
     // Un id inválido NO es "marcar todos" (QA 2026-09-25).
     const p = z.object({ id: z.number().int().positive().optional() }).safeParse(body ?? {});
     if (!p.success) throw new BadRequestException('Aviso inválido');
-    return marcarAvisosPanel(req.adminRol, await permisosVigentes(), p.data.id);
+    return marcarAvisosPanel(req.adminId, req.adminRol, await permisosVigentes(), p.data.id);
   }
 }

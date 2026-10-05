@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Get, Logger, NotFoundException, Param,
+  BadRequestException, Body, Controller, Get, NotFoundException, Param,
   ParseIntPipe, Patch, Post, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -8,8 +8,7 @@ import { copysSchema, slugify, themeTokensSchema } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
 import { sinSupabase } from '../common/sin-supabase';
-
-const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';
+import { revalidarSitio } from '../common/revalidar-sitio';
 
 /**
  * Editor de temas (sistema de diseño configurable).
@@ -21,8 +20,6 @@ const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';
 @Controller('admin/themes')
 @UseGuards(AdminGuard)
 export class AdminThemesController {
-  private readonly logger = new Logger(AdminThemesController.name);
-
   @Get()
   async list() {
     const rows = await prisma.theme.findMany({ orderBy: { id: 'asc' } });
@@ -100,33 +97,8 @@ export class AdminThemesController {
       },
     });
 
-    // Invalidación bajo demanda del sitio. El resultado VIAJA al panel: antes
-    // fallaba en silencio total (sin secret se saltaba sin log, y un 503/401
-    // del endpoint no es excepción, así que ni el warn corría) y el admin veía
-    // "publicado" con el sitio viejo — el incidente de REVALIDATE_SECRET.
-    let revalidated = false;
-    let revalidateError: string | null = null;
-    const secret = process.env.REVALIDATE_SECRET;
-    if (!secret) {
-      revalidateError = 'REVALIDATE_SECRET no está configurado en la API: el sitio se actualizará solo por caducidad de caché (~1 min).';
-      this.logger.warn(revalidateError);
-    } else {
-      try {
-        const res = await fetch(
-          `${SITE_URL}/api/revalidate?secret=${encodeURIComponent(secret)}&path=/`,
-          { method: 'POST', signal: AbortSignal.timeout(8_000) },
-        );
-        if (res.ok) {
-          revalidated = true;
-        } else {
-          revalidateError = `El sitio respondió ${res.status} al revalidar (¿REVALIDATE_SECRET distinto en Vercel?). Se actualizará por caducidad de caché (~1 min).`;
-          this.logger.warn(revalidateError);
-        }
-      } catch (err) {
-        revalidateError = `No se pudo contactar al sitio para revalidar: ${(err as Error).message}. Se actualizará por caducidad de caché (~1 min).`;
-        this.logger.warn(revalidateError);
-      }
-    }
+    // Invalidación bajo demanda del sitio (ver revalidar-sitio.ts).
+    const { revalidated, revalidateError } = await revalidarSitio();
     await registrarAccion(req, 'diseno', 'publicar diseño', t.name ?? ('tema ' + id), revalidateError);
     return { ok: true, publishedAt: new Date().toISOString(), revalidated, revalidateError };
   }
