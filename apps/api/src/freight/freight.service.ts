@@ -49,7 +49,7 @@ export interface GeoPoint {
 
 export const ROAD_FACTOR = 1.32; // línea recta → carretera (aprox. México)
 const GEO_TTL_MS = 24 * 60 * 60 * 1000;
-const UA = 'MaqServ24/1.0 (cotizador de traslado)';
+const UA = 'MAQSER24/1.0 (cotizador de traslado)';
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
