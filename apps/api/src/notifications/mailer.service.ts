@@ -54,12 +54,17 @@ export type TipoCorreo =
   | 'quoter_request_internal'  // a MAQSER24: entró una solicitud
   | 'quoter_request_ack'       // al visitante: la recibimos, este es tu folio
   | 'quoter_quote_sent'        // al cliente: aquí está tu cotización
+  // Formulario de /contacto (2026-09-30): antes solo quedaba en el panel.
+  | 'contact_internal'         // a MAQSER24: alguien escribió por el sitio
+  | 'contact_ack'              // a quien escribió: lo recibimos
   | 'prueba';
 
 export interface CorreoParaEnviar {
   kind: TipoCorreo;
   to: string;
   toName?: string | null;
+  /** A dónde va "Responder". Por defecto, al remitente de la plataforma. */
+  replyTo?: string | null;
   subject: string;
   /** Cuerpo en HTML. El texto plano se deriva de aquí. */
   html: string;
@@ -152,6 +157,9 @@ export class MailerService {
         // colar destinatarios o cabeceras. El nombre va como campo aparte.
         to: c.toName ? { name: c.toName.replace(/[\r\n"<>,;]+/g, ' ').trim().slice(0, 120), address: destino } : destino,
         subject: c.subject.replace(/[\r\n]+/g, ' ').slice(0, 250),
+        // "Responder" va a esta dirección (p. ej. al cliente que escribió en
+        // /contacto). Solo si es un correo válido: la escribe un visitante.
+        ...(c.replyTo && CORREO_VALIDO.test(c.replyTo) ? { replyTo: c.replyTo } : {}),
         html: c.html,
         // Muchos clientes de correo y filtros piden la versión de texto; sin
         // ella el mensaje pesa más para el filtro de spam.

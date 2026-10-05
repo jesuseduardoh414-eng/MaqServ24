@@ -14,6 +14,8 @@ import type {
 } from '@maqserv/types';
 import { imageUrl, normLegacyText } from '../catalog/images';
 import { PerfexService } from '../integrations/integrations.module';
+import { MailerService } from '../notifications/mailer.service';
+import { correoAcuseContacto, correoContactoInterno } from '../notifications/email-templates';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -55,7 +57,10 @@ function stripLeadingTitleHeading(html: string, title: string): string {
 
 @Injectable()
 export class ContentService {
-  constructor(private readonly perfex: PerfexService) {}
+  constructor(
+    private readonly perfex: PerfexService,
+    private readonly mailer: MailerService,
+  ) {}
 
   async hero(): Promise<HomeHero | null> {
     const h = await prisma.hero_sections.findFirst({ orderBy: { id: 'desc' } });
@@ -241,6 +246,30 @@ export class ContentService {
       titulo: `Mensaje de ${name}${need ? ` · ${need}` : ''}`,
       cuerpo: message.slice(0, 180),
       link: '/mensajes',
+    });
+
+    // Correos (2026-09-30): antes el mensaje solo quedaba en el panel y nadie se
+    // enteraba fuera de él. Van sin await: el visitante no espera al SMTP, y un
+    // fallo queda en el registro de Correo del panel (el mailer nunca lanza).
+    const phone = String(data.phone ?? '').trim().slice(0, 40) || null;
+    const company = String(data.company ?? '').trim().slice(0, 190) || null;
+    // Al buzón desde el que sale la plataforma: el único que se sabe que existe
+    // (el publicado en el sitio no tiene buzón). Mismo criterio que el cotizador.
+    const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;
+    if (interno) {
+      const panel = (process.env.ADMIN_URL ?? '').replace(/\/+$/, '');
+      void this.mailer.enviar({
+        kind: 'contact_internal',
+        to: interno,
+        replyTo: email,
+        ...correoContactoInterno({ nombre: name, correo: email, telefono: phone, empresa: company, tema: need || null, mensaje: message, url: panel ? `${panel}/mensajes` : null }),
+      });
+    }
+    void this.mailer.enviar({
+      kind: 'contact_ack',
+      to: email,
+      toName: name,
+      ...correoAcuseContacto({ nombre: name, mensaje: message, telefono: phone }),
     });
 
     // `crm_pushed` se sella solo si Perfex confirmó. Los que queden en false son

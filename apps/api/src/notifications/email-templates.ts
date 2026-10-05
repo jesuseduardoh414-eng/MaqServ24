@@ -421,6 +421,48 @@ export function correoEquipoPropuesto(d: {
   };
 }
 
+/**
+ * A MAQSER24: alguien escribió en /contacto. Lleva todo lo necesario para
+ * contestar desde el propio correo (Responder va directo al cliente, ver
+ * `replyTo` en el envío) y el enlace a Mensajes para marcarlo atendido.
+ */
+export function correoContactoInterno(d: {
+  nombre: string;
+  correo: string;
+  telefono: string | null;
+  empresa: string | null;
+  tema: string | null;
+  mensaje: string;
+  url: string | null;
+}): { subject: string; html: string } {
+  return {
+    subject: `Mensaje del sitio · ${d.nombre}${d.tema ? ` · ${d.tema}` : ''}`,
+    html: marco(
+      `${titulo('Nuevo mensaje desde el sitio')}
+      <p style="margin:0;"><strong style="color:${TINTA};">${esc(d.nombre)}</strong> escribió por el formulario de contacto.</p>
+      ${datos(filas([['Correo', d.correo], ['Teléfono', d.telefono], ['Empresa', d.empresa], ['Tema', d.tema]]))}
+      <div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.mensaje)}</div>
+      ${d.url ? boton('Verlo en el panel', d.url) : ''}`,
+      'Para contestar, responde a este correo: la respuesta le llega a quien escribió.',
+    ),
+  };
+}
+
+/** A quien escribió en /contacto: lo recibimos y qué sigue. */
+export function correoAcuseContacto(d: { nombre: string; mensaje: string; telefono: string | null }): { subject: string; html: string } {
+  return {
+    subject: 'Recibimos tu mensaje · MAQSER24',
+    html: marco(
+      `${titulo(`Hola, ${d.nombre}`)}
+      <p style="margin:0 0 12px;">Recibimos tu mensaje. Un asesor de MAQSER24 te contesta en horario de atención, de lunes a sábado de 8:00 a 18:00.</p>
+      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Esto fue lo que nos escribiste:</p>
+      <div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${BORDE};background:${FONDO};color:${TINTA2};white-space:pre-wrap;">${esc(d.mensaje)}</div>
+      ${d.telefono ? '' : `<p style="margin:14px 0 0;">Si nos dejas un teléfono respondiendo a este correo, podemos llamarte.</p>`}`,
+      'Si no escribiste en maqserv24.com, ignora este correo.',
+    ),
+  };
+}
+
 /** Al aliado: su equipo ya está publicado. */
 export function correoEquipoPublicado(d: { contacto: string | null; equipo: string }): { subject: string; html: string } {
   return {
