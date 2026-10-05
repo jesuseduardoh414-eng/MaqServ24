@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ESTADOS_COBERTURA, MUNICIPIOS_NORTE } from '@maqserv/config';
+import { ESTADOS_COBERTURA, MUNICIPIOS_NORTE, defaultTheme } from '@maqserv/config';
+import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 import { getTheme, t } from '@/lib/theme';
 import { getCategories } from '@/lib/api';
 import { categoryHref } from '@/lib/category-link';
@@ -191,6 +192,16 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
                   </Link>
                 </div>
               </div>
+              {/* Las redes de MAQSER24 (Diseño → Footer), también desde cada solución. */}
+              {redesParaMostrar((theme.tokens.footer ?? defaultTheme.tokens.footer).social).length ? (
+                <div className="ms-panel" style={{ marginTop: 16 }}>
+                  <p className="ms-h3" style={{ margin: '0 0 4px' }}>Síguenos</p>
+                  <p style={{ margin: '0 0 14px', fontSize: 13.5, lineHeight: 1.55, color: 'var(--color-text-muted)' }}>
+                    Obras, equipo en acción y promociones.
+                  </p>
+                  <RedesSociales redes={(theme.tokens.footer ?? defaultTheme.tokens.footer).social} />
+                </div>
+              ) : null}
             </aside>
           </div>
 

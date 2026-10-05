@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { paginaSeo, sinHtml, telefonoE164, SITE_URL, IMAGEN_OG } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
+import { redesParaMostrar } from '@/components/RedesSociales';
 import type { Metadata } from 'next';
 import { defaultTheme, type Theme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
@@ -66,6 +67,13 @@ async function datosEstructurados(theme: Theme, faqEncendida: boolean) {
       logo: `${SITE_URL}/brand/maqser24-logo.png`,
       image: `${SITE_URL}${IMAGEN_OG}`,
       description: t(theme, 'site.tagline'),
+      // Perfiles oficiales (Diseño → Footer): le dicen a Google que son de MAQSER24.
+      ...(() => {
+        const redes = redesParaMostrar((theme.tokens.footer ?? defaultTheme.tokens.footer).social)
+          .filter((r) => r.red !== 'whatsapp' && r.red !== 'web')
+          .map((r) => r.href);
+        return redes.length ? { sameAs: redes } : {};
+      })(),
       ...(tel || c.email
         ? { contactPoint: [{ '@type': 'ContactPoint', contactType: 'sales', availableLanguage: 'es', ...(tel ? { telephone: tel } : {}), ...(c.email ? { email: c.email } : {}) }] }
         : {}),

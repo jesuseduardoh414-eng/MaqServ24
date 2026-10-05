@@ -412,10 +412,12 @@ export const footerSchema = z
       ] },
     ]),
     social: z.array(footerSocialSchema).default([
-      { label: 'f', href: '' },
-      { label: 'in', href: '' },
-      { label: 'ig', href: '' },
-      { label: 'wa', href: '' },
+      { label: 'Facebook', href: 'https://www.facebook.com/share/1C3bfRiEGX/' },
+      { label: 'Instagram', href: 'https://www.instagram.com/maqser24' },
+      { label: 'TikTok', href: 'https://www.tiktok.com/@maqser24' },
+      { label: 'YouTube', href: 'https://www.youtube.com/@maqser24' },
+      { label: 'LinkedIn', href: 'https://www.linkedin.com/company/maqser24/' },
+      { label: 'WhatsApp', href: '' },
     ]),
     copyright: z.string().default(''), // vacío ⇒ "© {año} {marca}. Todos los derechos reservados."
   })

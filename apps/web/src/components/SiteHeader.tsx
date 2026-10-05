@@ -11,6 +11,7 @@ import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
 import { LANDINGS } from '@/lib/landings';
 import { telHref } from '@/lib/telefono';
+import { RedesSociales } from '@/components/RedesSociales';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
 //
@@ -303,13 +304,8 @@ export function SiteFooter({ theme }: { theme: Theme }) {
               )}
             </div>
             <p style={{ fontSize: '14px', lineHeight: 1.6, maxWidth: 300, margin: '0 0 20px' }}>{f.tagline}</p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {f.social.map((s, i) => (
-                <a key={i} href={s.href || '#'} target={s.href ? '_blank' : undefined} rel={s.href ? 'noopener noreferrer' : undefined} aria-label={s.label} className="sf-soc" style={{ minWidth: 36, height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>
-                  {s.label}
-                </a>
-              ))}
-            </div>
+            {/* Redes con su icono; las que no tienen enlace no se pintan (antes llevaban a "#"). */}
+            <RedesSociales redes={f.social} whatsapp={(theme.tokens.contact ?? defaultTheme.tokens.contact).whatsapp} tono="claro" />
           </div>
 
           {columns.map((col) => (

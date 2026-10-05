@@ -7,6 +7,7 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon, type IconName } from '@/components/Icon';
 import { ContactForm } from './ContactForm';
 import { telHref, whatsappHref } from '@/lib/telefono';
+import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
@@ -31,6 +32,7 @@ a.ct-ch:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2p
 .ct-ch-l{ display:block; font-size:13px; color:var(--color-text-muted); }
 .ct-ch-v{ display:block; margin-top:2px; font-size:16px; font-weight:600; overflow-wrap:anywhere; }
 .ct-urg{ margin-top:16px; }
+.ct-redes{ margin-top:18px; }
 .ct-urg-t{ margin:4px 0 16px; font-family:var(--font-display); font-size:19px; font-weight:700; letter-spacing:-.015em; line-height:1.25; }
 .ct-br{ padding:0; overflow:hidden; }
 .ct-br-img{ height:150px; display:grid; place-items:center; background:color-mix(in srgb, var(--color-text) 3%, var(--color-bg)); border-bottom:1px solid var(--color-border); color:var(--color-text-muted); }
@@ -113,6 +115,14 @@ export default async function ContactPage() {
                     : <div key={ch.label} className="ct-ch">{inner}</div>;
                 })}
               </div>
+
+              {/* Redes: las mismas del pie (Diseño → Footer). Si no hay ninguna con enlace, no se pinta. */}
+              {redesParaMostrar((theme.tokens.footer ?? defaultTheme.tokens.footer).social).length ? (
+                <div className="ct-redes">
+                  <p className="ms-h3" style={{ margin: '0 0 10px' }}>Síguenos</p>
+                  <RedesSociales redes={(theme.tokens.footer ?? defaultTheme.tokens.footer).social} conNombre />
+                </div>
+              ) : null}
 
               {c.urgent.show ? (
                 <div className="ms-panel ct-urg">
