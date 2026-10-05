@@ -261,7 +261,7 @@ export const defaultTheme: Theme = {
       // inventadas y la línea de tiempo era una historia de empresa que no
       // ocurrió. Se quedan solo hechos verificables.
       stats: [
-        { num: '6', label: 'Categorías de servicio' },
+        { num: '5', label: 'Categorías de servicio' },
         { num: 'MTY', label: 'Monterrey y zona metro' },
         { num: '1', label: 'Marca, una experiencia' },
       ],
@@ -311,7 +311,7 @@ export const defaultTheme: Theme = {
     offer: {
       show: true,
       image: null,
-      ctaLink: '/productos',
+      ctaLink: '/cotizador/maquinaria',
       bg: null,
       accentColor: null,
       titleColor: null,
@@ -338,7 +338,7 @@ export const defaultTheme: Theme = {
       subtitle: 'Cotizaciones, disponibilidad de equipo o soporte técnico. Elige el canal que más te acomode.',
       stats: [
         { value: '<24h', label: 'Tiempo de respuesta' },
-        { value: '32', label: 'Estados de cobertura' },
+        { value: 'NL', label: 'Cobertura en todo Nuevo León' },
         { value: '3', label: 'Sucursales' },
         { value: '+15 años', label: 'De experiencia' },
       ],
@@ -511,11 +511,12 @@ export const defaultTheme: Theme = {
       'home.whyChooseUs.stat2.label': 'Monterrey y zona metro',
       'home.whyChooseUs.stat3.num': '',
       'home.whyChooseUs.stat3.label': '',
+      // Promoción vigente (2026-10-05, pedida por el cliente).
       'home.offer.badge': 'Oferta de temporada',
-      'home.offer.title': 'Renta 3 meses y el 4.º con 50% de descuento',
+      'home.offer.title': 'Flete gratis al rentar 1 mes',
       'home.offer.subtitle':
-        'Aplica en equipo seleccionado de excavación y volteo. Tiempo limitado, sujeto a disponibilidad.',
-      'home.offer.cta': 'Ver la oferta',
+        'Aplica en la renta de 1 mes de retroexcavadora, rodillo de 10 ton o motoconformadora.',
+      'home.offer.cta': 'Cotizar maquinaria',
       'home.reviews.eyebrow': 'Opiniones verificadas por compra',
       'home.reviews.title': 'Lo que dicen nuestros clientes',
       'home.brands.title': 'Marcas presentes en la red',
@@ -787,15 +788,15 @@ export const defaultTheme: Theme = {
       'seo.sector.title': 'Maquinaria y servicios para {sector}',
       // Páginas de aterrizaje por servicio (apps/web/src/lib/landings.ts).
       'seo.landing.machinery.title': 'Renta de maquinaria pesada en Monterrey',
-      'seo.landing.machinery.description': 'Renta excavadoras, retroexcavadoras, motoconformadoras y más con operador en Monterrey, Nuevo León, Coahuila y Chihuahua. Cotiza en línea al momento.',
+      'seo.landing.machinery.description': 'Renta excavadoras, retroexcavadoras, motoconformadoras y más con operador en Monterrey y todo Nuevo León. Cotiza en línea al momento.',
       'seo.landing.transport.title': 'Pipas de agua y camiones de volteo en Monterrey',
-      'seo.landing.transport.description': 'Agua en pipas para obra y camiones de volteo para acarreos y escombro en Monterrey, Nuevo León, Coahuila y Chihuahua. Solicita tu cotización en línea.',
+      'seo.landing.transport.description': 'Agua en pipas para obra y camiones de volteo para acarreos y escombro en Monterrey y todo Nuevo León. Solicita tu cotización en línea.',
       'seo.landing.aggregates.title': 'Grava, arena y base hidráulica en Monterrey',
-      'seo.landing.aggregates.description': 'Compra grava, arena, base hidráulica y triturados por tonelada o por viaje puesto en obra en Monterrey, Nuevo León, Coahuila y Chihuahua. Cotiza en línea.',
+      'seo.landing.aggregates.description': 'Compra grava, arena, base hidráulica y triturados por tonelada o por viaje puesto en obra en Monterrey y todo Nuevo León. Cotiza en línea.',
       'seo.landing.materials.title': 'Materiales para construcción en Monterrey',
-      'seo.landing.materials.description': 'Concreto premezclado, acero de refuerzo, block y cemento para tu obra en Monterrey, Nuevo León, Coahuila y Chihuahua. Pide todo en una sola solicitud.',
+      'seo.landing.materials.description': 'Concreto premezclado, acero de refuerzo, block y cemento para tu obra en Monterrey y todo Nuevo León. Pide todo en una sola solicitud.',
       'seo.landing.asphalt.title': 'Carpeta asfáltica y pavimentación en Monterrey',
-      'seo.landing.asphalt.description': 'Suministro y aplicación de carpeta asfáltica para estacionamientos, calles y patios en Monterrey, Nuevo León, Coahuila y Chihuahua. Solicita tu cotización.',
+      'seo.landing.asphalt.description': 'Suministro y aplicación de carpeta asfáltica para estacionamientos, calles y patios en Monterrey y todo Nuevo León. Solicita tu cotización.',
       'seo.terms.title': 'Términos y condiciones de uso de la plataforma',
       'seo.terms.description': 'Condiciones de uso de la plataforma MAQSER24: cuentas, cotizaciones, pedidos, pagos, entregas y las responsabilidades de clientes, proveedores y la plataforma.',
       'nav.about': 'Quiénes somos',

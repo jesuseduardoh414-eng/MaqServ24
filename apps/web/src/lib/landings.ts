@@ -36,7 +36,9 @@ export interface Landing {
   cotizar: { href: string; texto: string };
 }
 
-const ZONA = 'Monterrey y su zona metropolitana, el resto de Nuevo León, Coahuila y Chihuahua';
+// Cobertura que se anuncia (2026-10-05): todo Nuevo León. Coahuila y Chihuahua
+// vuelven aquí y en ESTADOS_COBERTURA cuando el cliente active el norte.
+const ZONA = 'Monterrey, su zona metropolitana y el resto de Nuevo León';
 
 export const LANDINGS: Landing[] = [
   {

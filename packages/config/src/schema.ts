@@ -206,7 +206,7 @@ export const quienesSomosSchema = z
     // exige datos verificados. Se sustituyen por hechos de la arquitectura de
     // marca. Cuando el cliente entregue cifras reales, van aquí.
     stats: z.array(qsStatSchema).default([
-      { num: '6', label: 'Categorías de servicio' },
+      { num: '5', label: 'Categorías de servicio' },
       { num: 'MTY', label: 'Monterrey y zona metro' },
       { num: '1', label: 'Marca, una experiencia' },
     ]),
@@ -291,7 +291,7 @@ export const offerSchema = z
   .object({
     show: z.boolean().default(true),
     image: z.string().nullable().default(null), // imagen del lado derecho (null ⇒ patrón decorativo)
-    ctaLink: z.string().default('/productos'),
+    ctaLink: z.string().default('/cotizador/maquinaria'),
     bg: z.string().nullable().default(null), // fondo de la banda; null ⇒ var(--color-secondary)
     accentColor: z.string().nullable().default(null), // badge + botón; null ⇒ var(--color-primary)
     titleColor: z.string().nullable().default(null), // null ⇒ #fff
@@ -365,7 +365,7 @@ export const contactSchema = z
     subtitle: z.string().default('Cotizaciones, disponibilidad de equipo o soporte técnico. Elige el canal que más te acomode.'),
     stats: z.array(contactStatSchema).default([
       { value: '<24h', label: 'Tiempo de respuesta' },
-      { value: '32', label: 'Estados de cobertura' },
+      { value: 'NL', label: 'Cobertura en todo Nuevo León' },
       { value: '3', label: 'Sucursales' },
       { value: '+15 años', label: 'De experiencia' },
     ]),

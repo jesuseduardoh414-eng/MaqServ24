@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ESTADOS_OPERACION, MUNICIPIOS_NORTE } from '@maqserv/config';
+import { ESTADOS_COBERTURA, MUNICIPIOS_NORTE } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getCategories } from '@/lib/api';
 import { categoryHref } from '@/lib/category-link';
@@ -42,7 +42,7 @@ const CSS = `
 `;
 
 /** Municipios por estado, sin el sufijo ", Coah." / ", Chih." (solo desambigua en el cotizador). */
-function municipiosDe(estado: (typeof ESTADOS_OPERACION)[number]): string[] {
+function municipiosDe(estado: string): string[] {
   const sufijo = estado === 'Coahuila' ? ', Coah.' : estado === 'Chihuahua' ? ', Chih.' : null;
   return MUNICIPIOS_NORTE.filter((m) => (sufijo ? m.endsWith(sufijo) : !/, (Coah|Chih)\.$/.test(m)))
     .map((m) => (sufijo ? m.slice(0, -sufijo.length) : m))
@@ -65,7 +65,7 @@ function datosEstructurados(l: Landing, sitio: string, descripcion: string, inic
       description: descripcion,
       url: `${SITE_URL}${l.ruta}`,
       provider: { '@type': 'Organization', '@id': `${SITE_URL}/#organization`, name: sitio, url: SITE_URL },
-      areaServed: ESTADOS_OPERACION.map((e) => ({ '@type': 'State', name: e, containedInPlace: { '@type': 'Country', name: 'México' } })),
+      areaServed: ESTADOS_COBERTURA.map((e) => ({ '@type': 'State', name: e, containedInPlace: { '@type': 'Country', name: 'México' } })),
     },
     {
       '@context': 'https://schema.org',
@@ -149,7 +149,7 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
               <section className="ms-section">
                 <div className="ms-sec-head"><h2 className="ms-h2">Zonas de servicio</h2></div>
                 <div className="ls-zonas">
-                  {ESTADOS_OPERACION.map((estado) => (
+                  {ESTADOS_COBERTURA.map((estado) => (
                     <div key={estado} className="ms-panel" style={{ padding: 18 }}>
                       <h3 className="ms-h3" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                         <Icon name="mapPin" size={16} style={{ color: 'var(--color-primary)' }} />{estado}

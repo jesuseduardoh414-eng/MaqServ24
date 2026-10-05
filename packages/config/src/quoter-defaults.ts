@@ -69,6 +69,14 @@ export const MUNICIPIOS_NORTE: readonly string[] = [
 /** Los estados donde opera MAQSER24 (2026-09-28). */
 export const ESTADOS_OPERACION = ['Nuevo León', 'Coahuila', 'Chihuahua'] as const;
 
+/**
+ * Lo que el SITIO PÚBLICO dice que cubre (2026-10-05): hoy, todo Nuevo León.
+ * Coahuila y Chihuahua siguen en `ESTADOS_OPERACION` (alta de aliados,
+ * municipios del cotizador) pero no se anuncian hasta que el cliente active el
+ * norte. Para anunciarlos, se agregan aquí y en el texto `ZONA` de landings.ts.
+ */
+export const ESTADOS_COBERTURA = ['Nuevo León'] as const;
+
 export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
   tipo: 'maquinaria',
   version: '2026-09-17',
