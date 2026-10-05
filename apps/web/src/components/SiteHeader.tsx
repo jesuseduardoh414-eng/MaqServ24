@@ -241,16 +241,32 @@ export function SiteFooter({ theme }: { theme: Theme }) {
 
   // Pie (sistema de diseño 2026-09-30): fondo de banda, tipo oración, enlaces
   // de 14 px con peso normal y piezas de radio 8. Hover/foco en `.sf-*`.
-  const linkStyle: React.CSSProperties = { color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '14px' };
 
   return (
     <footer style={{ background: 'var(--band)', color: 'rgba(255,255,255,.7)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
       <style>{`
         .sf-a{ transition:color .18s ease; }
         .sf-a:hover{ color:#fff !important; }
-        .sf-a:focus-visible, .sf-soc:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; border-radius:4px; }
-        .sf-soc{ transition:border-color .18s ease, color .18s ease; }
-        .sf-soc:hover{ border-color:rgba(255,255,255,.4) !important; color:#fff !important; }
+        .sf-a:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; border-radius:4px; }
+        /* Franja superior: marca a la izquierda, contacto rápido a la derecha. */
+        .sf-top{ display:flex; justify-content:space-between; align-items:flex-end; gap:24px 48px; flex-wrap:wrap; padding-bottom:36px; border-bottom:1px solid rgba(255,255,255,.08); }
+        .sf-marca{ min-width:0; max-width:560px; }
+        .sf-tag{ font-size:14.5px; line-height:1.6; margin:16px 0 0; max-width:56ch; }
+        .sf-contacto{ display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
+        .sf-ct{ display:inline-flex; align-items:center; gap:10px; color:rgba(255,255,255,.78); text-decoration:none; font-size:14.5px; }
+        .sf-ct svg{ color:var(--color-primary); flex-shrink:0; }
+        /* Columnas parejas. Mismo ritmo vertical en todas (incluida Síguenos). */
+        .sf-cols{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap:32px 40px; padding:36px 0 44px; }
+        .sf-h{ margin:0 0 14px; color:#fff; font-weight:600; font-size:14.5px; }
+        .sf-list{ list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+        .sf-list a{ color:rgba(255,255,255,.7); text-decoration:none; font-size:14px; line-height:20px; }
+        .sf-cols .rs-lista{ gap:10px; }
+        .sf-cols .rs-lista a{ line-height:20px; }
+        @media (max-width:640px){
+          .sf-top{ align-items:flex-start; }
+          .sf-cols{ grid-template-columns:repeat(2, minmax(0,1fr)); gap:28px 20px; }
+          .sf-cols > :first-child{ grid-column:1 / -1; }
+        }
       `}</style>
       <div style={{ ...CONTAINER, paddingTop: 56 }}>
         {/* El boletín no está en el modelo MAQSER24: apagado por código aunque
@@ -268,16 +284,12 @@ export function SiteFooter({ theme }: { theme: Theme }) {
           />
         ) : null}
 
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
-            gap: '32px 40px',
-            paddingBottom: 44,
-          }}
-        >
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 18 }}>
+        {/* Franja superior (2026-10-05): la marca con su descripción a lo ancho y,
+            a la derecha, el contacto directo. Antes la marca era una columna
+            angosta y la descripción se partía en cuatro renglones. */}
+        <div className="sf-top">
+          <div className="sf-marca">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               {footerLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={footerLogo} alt={brand} style={{ height: 42, width: 'auto', maxWidth: 240, objectFit: 'contain', display: 'block' }} />
@@ -304,41 +316,51 @@ export function SiteFooter({ theme }: { theme: Theme }) {
                 </>
               )}
             </div>
-            <p style={{ fontSize: '14px', lineHeight: 1.6, maxWidth: 300, margin: 0 }}>{f.tagline}</p>
+            <p className="sf-tag">{f.tagline}</p>
           </div>
+          {contactoPie.phone || contactoPie.email ? (
+            <div className="sf-contacto">
+              {contactoPie.phone ? <a href={telHref(contactoPie.phone)} className="sf-a sf-ct"><Icon name="phone" size={16} />{contactoPie.phone}</a> : null}
+              {contactoPie.email ? <a href={`mailto:${contactoPie.email}`} className="sf-a sf-ct"><Icon name="mail" size={16} />{contactoPie.email}</a> : null}
+              {contactoPie.hours ? <span className="sf-ct"><Icon name="clock" size={16} />{contactoPie.hours}</span> : null}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Columnas parejas. Soluciones va por código (lib/landings.ts) y no en
+            las columnas del tema, para que ningún cambio en Diseño deje a las
+            páginas de servicio sin enlaces internos; antes era una tira suelta. */}
+        <div className="sf-cols">
+          <nav aria-label="Soluciones">
+            <p className="sf-h">Soluciones</p>
+            <ul className="sf-list">
+              {LANDINGS.map((l) => (
+                <li key={l.ruta}><Link href={l.ruta} className="sf-a">{l.nombre}</Link></li>
+              ))}
+            </ul>
+          </nav>
 
           {columns.map((col) => (
             <div key={col.title}>
-              <div style={{ color: '#fff', fontWeight: 600, fontSize: '14.5px', marginBottom: 16 }}>{col.title}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 11, alignItems: 'flex-start' }}>
+              <p className="sf-h">{col.title}</p>
+              <ul className="sf-list">
                 {col.links.map((l, i) => (
-                  <Link key={`${l.label}-${i}`} href={l.href} className="sf-a" style={linkStyle}>{l.label}</Link>
+                  <li key={`${l.label}-${i}`}><Link href={l.href} className="sf-a">{l.label}</Link></li>
                 ))}
-              </div>
+              </ul>
             </div>
           ))}
 
-          {/* Redes como una columna más, en lista con icono y nombre (2026-10-05):
-              en fila de iconos, con 6 redes se partían en dos renglones desparejos.
-              Las que no tienen enlace no se pintan; si no hay ninguna, no sale la columna. */}
+          {/* Redes en lista, como las demás columnas. Las que no tienen enlace no
+              se pintan; si no hay ninguna, no sale la columna. */}
           {redesParaMostrar(f.social, contactoPie.whatsapp).length ? (
             <div>
-              <div style={{ color: '#fff', fontWeight: 600, fontSize: '14.5px', marginBottom: 16 }}>Síguenos</div>
+              <p className="sf-h">Síguenos</p>
               <RedesSociales redes={f.social} whatsapp={contactoPie.whatsapp} tono="claro" forma="lista" />
             </div>
           ) : null}
         </div>
       </div>
-
-      {/* Enlaces fijos a las páginas de aterrizaje (lib/landings.ts): van por código y
-          no en las columnas del tema para que ningún cambio en Diseño las deje sin enlaces internos. */}
-      <nav aria-label="Servicios" style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
-        <div style={{ ...CONTAINER, display: 'flex', flexWrap: 'wrap', gap: '10px 22px', paddingTop: 18, paddingBottom: 18, fontSize: '13px' }}>
-          {LANDINGS.map((l) => (
-            <Link key={l.ruta} href={l.ruta} className="sf-a" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none' }}>{l.nombre}</Link>
-          ))}
-        </div>
-      </nav>
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
         <div style={{ ...CONTAINER, display: 'flex', justifyContent: 'space-between', gap: '12px 16px', flexWrap: 'wrap', paddingTop: 20, paddingBottom: 20, fontSize: '13px', color: 'rgba(255,255,255,.55)' }}>
