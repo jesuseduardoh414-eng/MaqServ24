@@ -5,6 +5,7 @@ import type { QuoteDetail, QuoteItem, QuoteRequestInput, QuoteSummary } from '@m
 import { formatearCantidad } from '@maqserv/config';
 import { imageUrl } from '../catalog/images';
 import { FreightService } from '../freight/freight.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { estadoCotizacion, sePuedeAceptar, diasParaVencer } from './quote-validity';
 import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './service-flow';
 import { resolverClienteYObra } from './client-resolver';
@@ -27,7 +28,10 @@ export function newQuoteNumber(): string {
 
 @Injectable()
 export class QuotesService {
-  constructor(private readonly freight: FreightService) {}
+  constructor(
+    private readonly freight: FreightService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private toSummary(q: {
     id: bigint; quote_number: string; status: string;
@@ -76,6 +80,15 @@ export class QuotesService {
     // totales dan cero y `cart_data` sale como un objeto vacío.
     if (input.items.length === 0 && !input.service) {
       throw new BadRequestException('La solicitud no tiene productos');
+    }
+
+    // La fecha de inicio o entrega no puede ser pasada (2026-10-05): antes se
+    // aceptaba y la solicitud llegaba vencida al panel. Se compara contra el
+    // día de hoy en Monterrey, no en UTC (a las 19:00 de aquí UTC ya es mañana).
+    const fecha = (input.requirements as Record<string, unknown> | null | undefined)?.fecha_inicio;
+    if (typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+      const hoy = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date());
+      if (fecha < hoy) throw new BadRequestException('La fecha ya pasó. Elige hoy o una fecha posterior.');
     }
 
     const ids = input.items.map((i) => i.productId);
@@ -203,6 +216,16 @@ export class QuotesService {
       titulo: `Cotización a la medida ${q.quote_number} de ${customer.name}`,
       cuerpo: `${q.product_interested || 'Sin equipo elegido'}${customer.company ? ` · ${customer.company}` : ''}`,
       link: '/cotizaciones',
+    });
+
+    // Y al cliente, en su campana (2026-10-05): antes no recibía nada y no
+    // sabía si la solicitud había llegado. El enlace abre su detalle.
+    void this.notifications.push({
+      userId,
+      type: 'quote_answered',
+      title: `Recibimos tu solicitud ${q.quote_number}`,
+      body: 'Un asesor de MAQSER24 la revisa y te enviamos la cotización con precio y vigencia.',
+      link: `/cuenta/cotizaciones/${q.quote_number}`,
     });
 
     return {

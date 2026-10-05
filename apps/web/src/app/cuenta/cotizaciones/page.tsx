@@ -92,11 +92,11 @@ export default async function MyQuotesPage() {
               q.freightCost > 0 ? `traslado ${formatPrice(q.freightCost)}${q.freightDistance ? ` (${q.freightDistance} km)` : ''}` : null,
               q.tax > 0 ? `impuesto ${formatPrice(q.tax)}` : null,
             ].filter(Boolean);
-            // Ya existe página de detalle: ahí se ve la vigencia, qué incluye,
-            // qué no, y se acepta. Mientras nadie responde no hay nada que abrir.
-            const abrir = q.state !== 'pendiente';
-            const contenido = (
-              <>
+            // Todas se abren (2026-10-05): la pendiente también, para ver lo que
+            // se pidió y su estado; antes era una tarjeta muerta sin enlace.
+            const pendiente = q.state === 'pendiente';
+            return (
+              <Link key={q.id} href={`/cuenta/cotizaciones/${q.quoteNumber}`} className="ac-row">
                 <div style={{ minWidth: 0 }}>
                   <div className="ac-folio">{q.quoteNumber}</div>
                   <div className="ac-meta">
@@ -105,22 +105,17 @@ export default async function MyQuotesPage() {
                   </div>
                   <div className="ac-chips">
                     <span className="ac-chip" style={{ color: c.fg, background: c.bg, border: `1px solid ${c.border}` }}>{st.text}</span>
-                    {!abrir ? <span className="ac-meta" style={{ marginTop: 0, alignSelf: 'center' }}>Un asesor te contactará</span> : null}
+                    {pendiente ? <span className="ac-meta" style={{ marginTop: 0, alignSelf: 'center' }}>Un asesor te contactará</span> : null}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div className="ac-amount">
-                    {formatPrice(q.total)}
-                    <small>{abrir ? (q.state === 'vigente' ? 'Ver y aceptar' : 'Ver detalle') : 'Total'}</small>
+                    {pendiente ? 'Por cotizar' : formatPrice(q.total)}
+                    <small>{q.state === 'vigente' ? 'Ver y aceptar' : pendiente ? 'Ver solicitud' : 'Ver detalle'}</small>
                   </div>
-                  {abrir ? <span aria-hidden style={{ color: 'var(--color-text-muted)', display: 'flex' }}><Icon name="chevronRight" size={18} /></span> : null}
+                  <span aria-hidden style={{ color: 'var(--color-text-muted)', display: 'flex' }}><Icon name="chevronRight" size={18} /></span>
                 </div>
-              </>
-            );
-            return abrir ? (
-              <Link key={q.id} href={`/cuenta/cotizaciones/${q.quoteNumber}`} className="ac-row">{contenido}</Link>
-            ) : (
-              <article key={q.id} className="ac-row">{contenido}</article>
+              </Link>
             );
           })}
         </div>

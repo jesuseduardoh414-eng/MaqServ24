@@ -15,15 +15,17 @@ import { ServicesBoard, type ServicioRow } from './ServicesBoard';
  * equipo y cuál es el estatus de la operación"— y esta pantalla es donde se
  * cierra.
  */
-export default async function AdminServicios() {
+export default async function AdminServicios({ searchParams }: { searchParams: Promise<{ historial?: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'servicios');
-  const servicios = (await adminFetch<ServicioRow[]>('/admin/services')) ?? [];
+  // ?historial=1 trae también cerrados y cancelados (la API ya lo sabía hacer con ?todos=1).
+  const historial = (await searchParams).historial === '1';
+  const servicios = (await adminFetch<ServicioRow[]>(`/admin/services${historial ? '?todos=1' : ''}`)) ?? [];
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <ServicesBoard initial={servicios} />
+      <ServicesBoard initial={servicios} historial={historial} />
     </AdminShell>
   );
 }

@@ -7,7 +7,7 @@ import type { RequestForm } from '@maqserv/config';
 import { requestAnswersToText } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
 import { Icon } from '@/components/Icon';
-import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA } from './RequirementFields';
+import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA, hoyLocal } from './RequirementFields';
 import { SitePicker, type ObraCliente } from './SitePicker';
 import { Stepper } from './Stepper';
 
@@ -488,6 +488,7 @@ export function QuoteForm({
                 id="qf-fecha"
                 className="ms-input"
                 type="date"
+                min={hoyLocal()}
                 value={reqs.fecha_inicio ?? ''}
                 onChange={(e) => setReqs((r) => ({ ...r, fecha_inicio: e.target.value }))}
               />

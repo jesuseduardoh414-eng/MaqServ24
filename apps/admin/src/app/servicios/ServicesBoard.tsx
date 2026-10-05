@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Incidencias } from './Incidencias';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 
 /**
@@ -92,7 +93,15 @@ function fecha(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export function ServicesBoard({ initial }: { initial: ServicioRow[] }) {
+/** Pestaña del tablero: activa con borde de acento, inactiva neutra. */
+const pestana = (on: boolean): CSSProperties => ({
+  fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '7px 13px', borderRadius: 999,
+  border: `1px solid ${on ? 'color-mix(in srgb, var(--color-primary) 55%, transparent)' : 'rgba(255,255,255,.12)'}`,
+  background: on ? 'color-mix(in srgb, var(--color-primary) 14%, transparent)' : 'transparent',
+  color: on ? '#fff' : 'rgba(255,255,255,.62)',
+});
+
+export function ServicesBoard({ initial, historial = false }: { initial: ServicioRow[]; historial?: boolean }) {
   const router = useRouter();
   const [filtro, setFiltro] = useState('');
   const [ocupado, setOcupado] = useState<number | null>(null);
@@ -187,8 +196,13 @@ export function ServicesBoard({ initial }: { initial: ServicioRow[] }) {
         <h1 style={{ margin: 0, fontSize: 25, fontWeight: 800, letterSpacing: '-0.02em' }}>Servicios</h1>
         <p style={{ margin: '7px 0 0', fontSize: 13.5, color: C.muted, lineHeight: 1.6, maxWidth: 640 }}>
           Lo que pasa después de que el cliente acepta: a quién se le asignó, en qué va y con qué se cerró.
-          Los cerrados y cancelados no aparecen aquí.
+          {historial ? ' Estás viendo también los cerrados y cancelados.' : ' Los cerrados y cancelados se consultan en el historial.'}
         </p>
+        {/* Historial (2026-10-05): antes un servicio cerrado desaparecía y no había forma de verlo. */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <Link href="/servicios" style={pestana(!historial)} aria-current={!historial ? 'page' : undefined}>En curso</Link>
+          <Link href="/servicios?historial=1" style={pestana(historial)} aria-current={historial ? 'page' : undefined}>Todos, con cerrados y cancelados</Link>
+        </div>
       </header>
 
       <input

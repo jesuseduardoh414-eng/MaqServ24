@@ -766,15 +766,36 @@ function ExpedienteModal({
         {/* Eliminar: para altas duplicadas o por error. Con historial solo se da de baja. */}
         <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 20, paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, maxWidth: 420 }}>
-            Si se dio de alta por error o está duplicado, elimínalo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.
+            {p.status === 1
+              ? 'Si se dio de alta por error o está duplicado, elimínalo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.'
+              : 'Este aliado está dado de baja: no se le ofrecen servicios y su enlace no abre. Reactívalo para que vuelva a trabajar con MAQSER24.'}
           </span>
-          <button
-            type="button"
-            onClick={() => { if (window.confirm(`¿Eliminar a «${p.name}»? Si no tiene historial se borra por completo.`)) onEliminar(); }}
-            style={{ background: 'transparent', color: C.bad, border: `1px solid color-mix(in srgb, ${C.bad} 45%, transparent)`, borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            Eliminar aliado
-          </button>
+          {p.status === 1 ? (
+            <button
+              type="button"
+              onClick={() => { if (window.confirm(`¿Eliminar a «${p.name}»? Si no tiene historial se borra por completo.`)) onEliminar(); }}
+              style={{ background: 'transparent', color: C.bad, border: `1px solid color-mix(in srgb, ${C.bad} 45%, transparent)`, borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Eliminar aliado
+            </button>
+          ) : (
+            // Reactivar (2026-10-05): antes un aliado dado de baja no tenía regreso.
+            // Su enlace anterior sigue revocado; hay que mandarle uno nuevo.
+            <button
+              type="button"
+              disabled={ocupado === -1}
+              onClick={async () => {
+                if (!window.confirm(`¿Reactivar a «${p.name}»? Volverá a recibir ofertas. Después mándale su enlace de acceso.`)) return;
+                setOcupado(-1);
+                const r = await fetch(`/api/admin/providers/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }) });
+                setOcupado(null);
+                onRevisado(r.ok ? `«${p.name}» está activo otra vez. Mándale su enlace de acceso.` : 'No se pudo reactivar. Inténtalo de nuevo.');
+              }}
+              style={{ background: 'transparent', color: C.ok, border: `1px solid color-mix(in srgb, ${C.ok} 45%, transparent)`, borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: ocupado === -1 ? 'wait' : 'pointer', fontFamily: 'inherit' }}
+            >
+              {ocupado === -1 ? 'Reactivando…' : 'Reactivar aliado'}
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -20,6 +20,15 @@ import type { RequestForm } from '@maqserv/config';
  * Estilos: piezas del sistema de diseño (`ms-panel`, `ms-field`, `ms-input`…);
  * lo propio lleva el prefijo `rq-`.
  */
+/**
+ * Hoy en Monterrey como AAAA-MM-DD: el mínimo de los campos de fecha. Una
+ * solicitud con fecha pasada llegaba vencida al panel (la API también la
+ * rechaza; esto evita que el cliente la elija).
+ */
+export function hoyLocal(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date());
+}
+
 /** Claves que el asistente saca a sus propios pasos (ubicación y fecha). */
 export const CLAVES_UBICACION = ['obra_ubicacion', 'destino', 'origen'];
 export const CLAVES_FECHA = ['fecha_inicio', 'duracion', 'periodo', 'ventana', 'frecuencia', 'horario', 'horarios'];
@@ -98,7 +107,7 @@ export function RequirementFields({
                   {...comun}
                   className="ms-input"
                   type={f.type === 'fecha' ? 'date' : f.type === 'numero' ? 'number' : 'text'}
-                  min={f.type === 'numero' ? 0 : undefined}
+                  min={f.type === 'numero' ? 0 : f.type === 'fecha' ? hoyLocal() : undefined}
                   onChange={(e) => onChange(f.key, e.target.value)}
                 />
               )}
