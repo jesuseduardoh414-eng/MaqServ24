@@ -62,13 +62,11 @@ export function migas(items: Array<{ nombre: string; ruta?: string }>) {
   };
 }
 
-/** `833 224 56 78` → `+528332245678` (E.164, como pide schema.org). Vacío si no parece un número mexicano. */
-export function telefonoE164(valor: string | null | undefined): string | undefined {
-  const d = (valor ?? '').replace(/\D/g, '');
-  if (d.length === 10) return `+52${d}`;
-  if (d.length === 12 && d.startsWith('52')) return `+${d}`;
-  return undefined;
-}
+/**
+ * `81 4021 3277` → `+528140213277` (E.164, como pide schema.org). Vacío si no
+ * parece un número mexicano. Vive en lib/telefono.ts (también acepta el "+52 1").
+ */
+export { telefonoE164 } from './telefono';
 
 /**
  * Qué NO debe aparecer en buscadores. Fuente única para robots.txt (no se

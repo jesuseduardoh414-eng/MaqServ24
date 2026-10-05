@@ -369,8 +369,8 @@ export const contactSchema = z
       { value: '3', label: 'Sucursales' },
       { value: '+15 años', label: 'De experiencia' },
     ]),
-    phone: z.string().default('833 224 56 78'),
-    whatsapp: z.string().default('833 224 56 78'),
+    phone: z.string().default('+52 1 81 4021 3277'),
+    whatsapp: z.string().default('+52 1 81 4021 3277'),
     email: z.string().default('info@maqserv24.com'),
     hours: z.string().default('Lun–Sáb · 8:00–18:00'),
     address: z.string().default(''), // dirección principal / origen del cálculo de fletes

@@ -24,7 +24,7 @@ const EMPRESA: EmpresaCotizador = {
   nombre: 'MAQSER24',
   rfc: '',
   direccion: '',
-  telefono: '833 224 56 78',
+  telefono: '+52 1 81 4021 3277',
   correo: 'info@maqserv24.com',
   web: 'maqserv24.com',
 };
@@ -33,7 +33,7 @@ const EMPRESA: EmpresaCotizador = {
 const FIRMA: FirmaCotizador = {
   nombre: '',
   puesto: 'Gerencia de Operaciones',
-  telefono: '833 224 56 78',
+  telefono: '+52 1 81 4021 3277',
 };
 
 /** Área de cobertura declarada en el sitio: Monterrey y zona metropolitana. */
