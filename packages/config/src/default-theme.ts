@@ -1,7 +1,10 @@
 import type { Theme } from './schema';
 
-/** Carpeta pública del bucket `media` de Supabase, donde viven los activos de marca. */
-const STORAGE = 'https://kxewnuotuolwloccusqx.supabase.co/storage/v1/object/public/media/uploads';
+/**
+ * Carpeta pública donde viven los activos de marca: nuestro servidor de fotos
+ * (antes el bucket `media` de Supabase; mismos archivos, misma ruta).
+ */
+const STORAGE = 'https://media.maqserv24.com/uploads';
 
 /**
  * Tema por defecto: "maquinaria" (el sector activo del sitio actual).
@@ -104,7 +107,7 @@ export const defaultTheme: Theme = {
     // (el vertical original mide 1.35:1 y en la cabecera de 46 px el wordmark
     // quedaría ilegible). Siguen siendo sustituibles desde el admin
     // (Diseño del sitio → Identidad de marca).
-    // OJO: URLs absolutas de Supabase Storage, NO rutas `/brand/...` del
+    // OJO: URLs absolutas del servidor de fotos (antes Supabase Storage), NO rutas `/brand/...` del
     // `public/` de la app. Con rutas locales el logo sale roto (404) hasta que
     // pasa un deploy, y el ADMIN es otra app con su propio `public/`. En el
     // bucket funcionan para los dos y desde el primer momento. Se suben con

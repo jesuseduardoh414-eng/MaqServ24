@@ -7,6 +7,7 @@ import { Prisma, prisma } from '@maqserv/db';
 import { copysSchema, slugify, themeTokensSchema } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
+import { sinSupabase } from '../common/sin-supabase';
 
 const SITE_URL = process.env.SITE_URL ?? 'http://localhost:3000';
 
@@ -44,9 +45,10 @@ export class AdminThemesController {
       slug: t.slug,
       name: t.name,
       active: t.active,
-      // El editor trabaja sobre el borrador si existe; si no, sobre lo publicado
-      tokens: t.draftTokens ?? t.tokens,
-      copys: t.draftCopys ?? t.copys,
+      // El editor trabaja sobre el borrador si existe; si no, sobre lo publicado.
+      // Con las imágenes de Supabase ya traducidas: al guardar, la base se corrige.
+      tokens: sinSupabase(t.draftTokens ?? t.tokens),
+      copys: sinSupabase(t.draftCopys ?? t.copys),
       hasDraft: t.draftTokens !== null || t.draftCopys !== null,
       publishedAt: t.publishedAt ? t.publishedAt.toISOString() : null,
     };
