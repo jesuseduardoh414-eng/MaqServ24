@@ -14,6 +14,14 @@ const THEME_CACHE: RequestInit =
 export const metadata = { title: 'Admin — MAQSER24' };
 
 /**
+ * Sin esto las páginas estáticas del panel (login, olvidé contraseña) se
+ * quedaban PARA SIEMPRE con el tema del momento del build (s-maxage de un año):
+ * el logo seguía saliendo de Supabase aunque la API ya lo traducía. Igual que
+ * en la web: se regeneran como mucho cada minuto.
+ */
+export const revalidate = 60;
+
+/**
  * Tope por Promise.race (un fetch con `next.revalidate` no admite `signal`):
  * sin él, un miss de caché con la API de Render dormida deja al panel ENTERO
  * esperando pese al try/catch — la conexión colgada nunca rechaza.
