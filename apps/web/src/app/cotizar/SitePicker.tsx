@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Icon } from '@/components/Icon';
 
 /**
  * "¿PARA CUÁL DE TUS OBRAS?"
@@ -34,11 +35,10 @@ export interface ObraCliente {
 }
 
 export function SitePicker({
-  onElegir, estilos,
+  onElegir,
 }: {
   /** Devuelve la obra elegida, o null al volver a "otra dirección". */
   onElegir: (obra: ObraCliente | null) => void;
-  estilos: { tarjeta: React.CSSProperties; leyenda: React.CSSProperties };
 }) {
   const [obras, setObras] = useState<ObraCliente[]>([]);
   const [elegida, setElegida] = useState<number | null>(null);
@@ -59,54 +59,52 @@ export function SitePicker({
     onElegir(o);
   };
 
-  const boton = (activo: boolean): React.CSSProperties => ({
-    textAlign: 'left',
-    border: `1px solid ${activo ? 'var(--color-primary)' : 'var(--color-border)'}`,
-    background: activo ? 'color-mix(in srgb, var(--color-primary) 8%, transparent)' : 'transparent',
-    color: 'var(--color-text)',
-    borderRadius: 'var(--radius-md)',
-    padding: '12px 14px',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    width: '100%',
-  });
-
+  // Opciones como tarjetas seleccionables (radio 8, borde 1 px); la elegida
+  // se marca con borde y fondo azul tenue más una palomita, no solo con color.
   return (
-    <div style={estilos.tarjeta}>
-      <h2 style={estilos.leyenda}>¿Para cuál de tus obras?</h2>
-      <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-        Elige una y llenamos la dirección por ti.
-      </p>
+    <section className="ms-panel">
+      <style>{`
+        .sp-list{ display:grid; gap:10px; margin-top:18px; }
+        .sp-opc{ display:flex; gap:12px; align-items:flex-start; width:100%; text-align:left; padding:13px 14px; border-radius:8px; border:1px solid var(--color-border); background:transparent; color:var(--color-text); font:inherit; cursor:pointer; transition:border-color .18s ease, background-color .18s ease; }
+        .sp-opc:hover{ border-color:color-mix(in srgb, var(--color-text) 30%, var(--color-border)); }
+        .sp-opc[aria-pressed="true"]{ border-color:var(--color-primary); background:color-mix(in srgb, var(--color-primary) 8%, transparent); }
+        .sp-opc:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+        .sp-marca{ width:20px; height:20px; flex-shrink:0; margin-top:1px; border-radius:50%; border:1.5px solid var(--color-border); display:grid; place-items:center; color:var(--color-primary-fg); }
+        .sp-opc[aria-pressed="true"] .sp-marca{ background:var(--color-primary); border-color:var(--color-primary); }
+        .sp-txt{ min-width:0; display:grid; gap:3px; }
+        .sp-nom{ font-size:14.5px; font-weight:600; }
+        .sp-sub{ font-size:13px; line-height:1.45; color:var(--color-text-muted); overflow-wrap:anywhere; }
+      `}</style>
+      <h2 className="ms-h2">¿Para cuál de tus obras?</h2>
+      <p className="ms-h2-desc">Elige una y llenamos la dirección por ti.</p>
 
-      <div style={{ display: 'grid', gap: 9 }}>
+      <div className="sp-list">
         {obras.map((o) => {
           const activo = elegida === o.id;
           return (
-            <button key={o.id} type="button" onClick={() => escoger(o)} aria-pressed={activo} style={boton(activo)}>
-              <span style={{ display: 'block', fontWeight: 700, fontSize: 14.5 }}>{o.name}</span>
-              {o.address ? (
-                <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 3 }}>
-                  {o.address}
-                </span>
-              ) : null}
-              {o.requirements.length > 0 ? (
-                // Se le recuerdan sus propios requisitos: es lo que evita la
-                // llamada de "¿y traen inducción?" con la máquina en la puerta.
-                <span style={{ display: 'block', fontSize: 12, color: 'var(--color-primary)', marginTop: 5 }}>
-                  Pide: {o.requirements.join(' · ')}
-                </span>
-              ) : null}
+            <button key={o.id} type="button" onClick={() => escoger(o)} aria-pressed={activo} className="sp-opc">
+              <span className="sp-marca" aria-hidden>{activo ? <Icon name="check" size={12} /> : null}</span>
+              <span className="sp-txt">
+                <span className="sp-nom">{o.name}</span>
+                {o.address ? <span className="sp-sub">{o.address}</span> : null}
+                {o.requirements.length > 0 ? (
+                  // Se le recuerdan sus propios requisitos: es lo que evita la
+                  // llamada de "¿y traen inducción?" con la máquina en la puerta.
+                  <span className="sp-sub">Pide: {o.requirements.join(' · ')}</span>
+                ) : null}
+              </span>
             </button>
           );
         })}
 
-        <button type="button" onClick={() => escoger(null)} aria-pressed={elegida === null} style={boton(elegida === null)}>
-          <span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>Es otra dirección</span>
-          <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 3 }}>
-            La escribo abajo y queda guardada como obra nueva.
+        <button type="button" onClick={() => escoger(null)} aria-pressed={elegida === null} className="sp-opc">
+          <span className="sp-marca" aria-hidden>{elegida === null ? <Icon name="check" size={12} /> : null}</span>
+          <span className="sp-txt">
+            <span className="sp-nom">Es otra dirección</span>
+            <span className="sp-sub">La escribo abajo y queda guardada como obra nueva.</span>
           </span>
         </button>
       </div>
-    </div>
+    </section>
   );
 }

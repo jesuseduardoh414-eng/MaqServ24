@@ -57,21 +57,16 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
   return (
     <>
       <SiteHeader theme={theme} />
-      <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <style>{`
-          @media (max-width: 760px){
-            .qf-wrap{ padding-left:22px !important; padding-right:22px !important; }
-            .qf-title{ font-size:34px !important; }
-            .qf-two{ grid-template-columns:1fr !important; }
-          }
-          .qf-field:focus{ border-color: var(--color-text) !important; }
-          .qf-hit:hover{ background: color-mix(in srgb, var(--color-text) 5%, transparent) !important; }
-        `}</style>
-        <main className="qf-wrap" style={{ maxWidth: 820, margin: '0 auto', padding: '44px 40px 60px' }}>
-          <div style={{ borderBottom: '2px solid var(--color-text)', paddingBottom: 20, marginBottom: 28 }}>
-            <h1 className="qf-title" style={{ fontFamily: 'var(--font-display)', margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>{t(theme, 'quote.form.title')}</h1>
-            <p style={{ color: 'var(--color-text-muted)', margin: '10px 0 0', fontSize: 15, lineHeight: 1.6 }}>{t(theme, 'quote.form.subtitle')}</p>
-          </div>
+      {/* Pantalla de trabajo: contenedor angosto y encabezado `.ms-head`
+          del sistema de diseño (ver components/EstilosSistema.tsx). */}
+      <div className="ms-page">
+        <main className="ms-wrap-narrow">
+          <header className="ms-head">
+            <div className="ms-head-txt">
+              <h1 className="ms-title">{t(theme, 'quote.form.title')}</h1>
+              <p className="ms-desc">{t(theme, 'quote.form.subtitle')}</p>
+            </div>
+          </header>
           {!user ? (
             <QuoteGate theme={theme} next={next} />
           ) : (

@@ -11,34 +11,10 @@ import { Icon } from '@/components/Icon';
 import { FREIGHT_ADDRESS_KEY, freightCostOf, useFreightQuote } from '@/components/useFreightQuote';
 import { formatPrice } from '@/lib/format';
 
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
-
 const STEPS: Array<[string, string]> = [['1', 'Carrito'], ['2', 'Datos'], ['3', 'Pago']];
 const ACTIVE_STEP = 1; // Datos
 
 const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
-
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '13px 14px',
-  fontSize: 14.5,
-  fontFamily: 'inherit',
-  color: 'var(--color-text)',
-  background: 'var(--color-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-};
-
-const legendStyle: React.CSSProperties = {
-  fontFamily: MONO,
-  fontSize: 11,
-  letterSpacing: '0.14em',
-  color: 'var(--color-text-muted)',
-  textTransform: 'uppercase',
-  margin: '0 0 14px',
-};
 
 /** Las instrucciones del gateway vienen con HTML legacy (`<font>`): se muestran como texto. */
 function plainText(html: string | null, max = 130): string {
@@ -46,15 +22,6 @@ function plainText(html: string | null, max = 130): string {
   const s = html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
   return s.length > max ? `${s.slice(0, max).trimEnd()}…` : s;
 }
-
-const rowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 12,
-  padding: '8px 0',
-  fontSize: 14,
-  color: 'var(--color-text-muted)',
-};
 
 export function CheckoutForm({
   user,
@@ -227,41 +194,31 @@ export function CheckoutForm({
     router.push(`/pedido/${data.order.orderNumber}`);
   }
 
-  const shell = (children: React.ReactNode) => (
-    <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-      <style>{`
-        @media (max-width: 900px){
-          .co-grid{ grid-template-columns:1fr !important; gap:32px !important; }
-          .co-wrap{ padding-left:22px !important; padding-right:22px !important; }
-          .co-title{ font-size:36px !important; }
-          .co-aside{ position:static !important; }
-        }
-        @media (max-width: 560px){ .co-two{ grid-template-columns:1fr !important; } }
-        .co-field:focus{ border-color: var(--color-text) !important; }
-      `}</style>
-      <main className="co-wrap" style={{ maxWidth: 1280, margin: '0 auto', padding: '44px 40px 60px' }}>
-        {/* Stepper */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' }}>
-          {STEPS.map(([n, name], i) => {
-            const done = i < ACTIVE_STEP;
-            const on = i === ACTIVE_STEP;
-            const strong = done || on;
-            return (
-              <div key={n} style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'grid', placeItems: 'center', gap: 6 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 14, fontWeight: 700, background: on ? 'var(--color-text)' : 'transparent', color: on ? 'var(--color-bg)' : strong ? 'var(--color-text)' : 'var(--color-text-muted)', border: `1px solid ${strong ? 'var(--color-text)' : 'var(--color-border)'}` }}>{done ? <Icon name="check" size={14} /> : n}</span>
-                  <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: strong ? 'var(--color-text)' : 'var(--color-text-muted)' }}>{name}</span>
-                </div>
-                {i < STEPS.length - 1 ? <span style={{ width: 90, height: 1, background: i < ACTIVE_STEP ? 'var(--color-text)' : 'var(--color-border)', margin: '0 4px 18px' }} /> : null}
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16, borderBottom: '2px solid var(--color-text)', paddingBottom: 20, marginBottom: 28, flexWrap: 'wrap' }}>
-          <h1 className="co-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 48, fontWeight: 800, letterSpacing: '-0.04em' }}>{labels.title}</h1>
-          <Link href="/carrito" style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textDecoration: 'none', marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Icon name="arrowLeft" size={12} />VOLVER AL CARRITO</Link>
-        </div>
+  /**
+   * Contenedor de la página: mismo encabezado que el carrito (título a la
+   * izquierda, pasos arriba a la derecha) con el paso 2 activo y el 1 hecho.
+   */
+  const shell = (children: React.ReactNode, vacio = false) => (
+    <div className="ms-page">
+      <style>{CSS}</style>
+      <main className="ms-wrap">
+        <header className="ms-head">
+          <div className="ms-head-txt">
+            <h1 className="ms-title">{labels.title}</h1>
+            <p className="ms-desc">
+              {vacio ? 'No hay equipos seleccionados para pagar.' : `${units} ${units === 1 ? 'equipo' : 'equipos'} · confirma tus datos y elige cómo pagar.`}
+            </p>
+          </div>
+          {!vacio ? (
+            <ol className="ms-steps" aria-label="Pasos de la compra">
+              {STEPS.map(([n, name], i) => (
+                <li key={n} data-on={i === ACTIVE_STEP} data-done={i < ACTIVE_STEP} aria-current={i === ACTIVE_STEP ? 'step' : undefined}>
+                  <span>{i < ACTIVE_STEP ? <Icon name="check" size={12} /> : n}</span>{name}
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </header>
 
         {children}
       </main>
@@ -270,153 +227,230 @@ export function CheckoutForm({
 
   if (items.length === 0) {
     return shell(
-      <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-        <div style={{ fontSize: 56, marginBottom: 20 }}>🛒</div>
-        <h2 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 30, fontWeight: 700 }}>{labels.emptyCart}</h2>
-        <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted)' }}>Agrega equipo a tu carrito para poder finalizar la compra.</p>
-        <Link href="/productos" style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-text)', color: 'var(--color-bg)', textDecoration: 'none', padding: '15px 30px', borderRadius: 'var(--radius-button)' }}>{labels.browse}</Link>
+      <div className="ms-empty co-empty">
+        <span className="ms-ico ms-ico-lg" aria-hidden><Icon name="cart" size={22} /></span>
+        <h2 className="ms-empty-t">{labels.emptyCart}</h2>
+        <p className="ms-empty-p">Agrega equipo a tu carrito para poder finalizar la compra.</p>
+        <div className="ms-empty-acts">
+          <Link href="/productos" className="ms-btn">{labels.browse}</Link>
+          <Link href="/carrito" className="ms-link ms-link-muted"><Icon name="arrowLeft" size={14} />Volver al carrito</Link>
+        </div>
       </div>,
+      true,
     );
   }
 
   return shell(
-    <form onSubmit={onSubmit} className="co-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 56, alignItems: 'start' }}>
+    <form onSubmit={onSubmit} className="ms-split">
       {/* Columna izquierda: datos + método de pago */}
-      <div style={{ display: 'grid', gap: 34 }}>
-        <section>
-          <h2 style={legendStyle}>{labels.contactTitle}</h2>
-          <div style={{ display: 'grid', gap: 12 }}>
-            <input className="co-field" name="name" required defaultValue={user.name} placeholder={labels.name} aria-label={labels.name} autoComplete="name" style={fieldStyle} />
-            <div className="co-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input className="co-field" name="email" type="email" required defaultValue={user.email} placeholder={labels.email} aria-label={labels.email} autoComplete="email" style={fieldStyle} />
-              <input className="co-field" name="phone" required minLength={7} defaultValue={user.phone ?? ''} placeholder={labels.phone} aria-label={labels.phone} autoComplete="tel" style={fieldStyle} />
+      <div className="co-main">
+        <section className="ms-panel" aria-labelledby="co-contacto">
+          <h2 id="co-contacto" className="co-sec-t">{labels.contactTitle}</h2>
+          <div className="ms-grid2">
+            <div className="ms-field ms-span">
+              <label className="ms-label" htmlFor="co-name">{labels.name}</label>
+              <input id="co-name" className="ms-input" name="name" required defaultValue={user.name} autoComplete="name" />
             </div>
-            <input className="co-field" name="address" required minLength={4} value={addr} onChange={(e) => setAddr(e.target.value)} placeholder={labels.address} aria-label={labels.address} autoComplete="street-address" style={fieldStyle} />
-            <div className="co-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input className="co-field" name="city" required value={city} onChange={(e) => setCity(e.target.value)} placeholder={labels.city} aria-label={labels.city} style={fieldStyle} />
-              <input className="co-field" name="zip" required value={zip} onChange={(e) => setZip(e.target.value)} placeholder={labels.zip} aria-label={labels.zip} autoComplete="postal-code" style={fieldStyle} />
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="co-email">{labels.email}</label>
+              <input id="co-email" className="ms-input" name="email" type="email" required defaultValue={user.email} autoComplete="email" />
             </div>
-            <textarea className="co-field" name="note" placeholder={labels.note} aria-label={labels.note} rows={3} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.55 }} />
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="co-phone">{labels.phone}</label>
+              <input id="co-phone" className="ms-input" name="phone" required minLength={7} defaultValue={user.phone ?? ''} autoComplete="tel" />
+            </div>
+            <div className="ms-field ms-span">
+              <label className="ms-label" htmlFor="co-address">{labels.address}</label>
+              <input id="co-address" className="ms-input" name="address" required minLength={4} value={addr} onChange={(e) => setAddr(e.target.value)} autoComplete="street-address" />
+              {/* La dirección alimenta el cotizador de traslado. */}
+              {freightCfg.enabled && freightCfg.mode === 'km' ? (
+                <p className="ms-hint co-freight-hint">
+                  <Icon name="mapPin" size={14} />
+                  {freightLoading
+                    ? 'Calculando traslado…'
+                    : freight?.km != null
+                      ? `Traslado calculado a ${freight.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km${freight.estimated ? ' (aprox.)' : ''}`
+                      : 'Tu dirección define el costo del traslado'}
+                </p>
+              ) : null}
+            </div>
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="co-city">{labels.city}</label>
+              <input id="co-city" className="ms-input" name="city" required value={city} onChange={(e) => setCity(e.target.value)} autoComplete="address-level2" />
+            </div>
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="co-zip">{labels.zip}</label>
+              <input id="co-zip" className="ms-input" name="zip" required value={zip} onChange={(e) => setZip(e.target.value)} autoComplete="postal-code" />
+            </div>
+            <div className="ms-field ms-span">
+              <label className="ms-label" htmlFor="co-note">{labels.note}</label>
+              <textarea id="co-note" className="ms-textarea co-note" name="note" rows={3} />
+            </div>
           </div>
-          {/* La dirección alimenta el cotizador de traslado. */}
-          {freightCfg.enabled && freightCfg.mode === 'km' ? (
-            <p style={{ margin: '12px 0 0', display: 'flex', alignItems: 'center', gap: 8, fontFamily: MONO, fontSize: 11, letterSpacing: '0.04em', color: 'var(--color-text-muted)' }}>
-              <span aria-hidden>📍</span>
-              {freightLoading
-                ? 'CALCULANDO TRASLADO…'
-                : freight?.km != null
-                  ? `TRASLADO CALCULADO A ${freight.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} KM${freight.estimated ? ' (APROX.)' : ''}`
-                  : 'TU DIRECCIÓN DEFINE EL COSTO DEL TRASLADO'}
-            </p>
-          ) : null}
         </section>
 
-        <section>
-          <h2 style={legendStyle}>{labels.methodTitle}</h2>
-          <div style={{ display: 'grid', gap: 10 }}>
+        <section className="ms-panel" aria-labelledby="co-metodo">
+          <h2 id="co-metodo" className="co-sec-t">{labels.methodTitle}</h2>
+          <div className="co-methods" role="radiogroup" aria-labelledby="co-metodo">
             {available.map((m) => {
               const on = method === m.id;
               const hint = plainText(m.instructions);
               return (
-                <label key={m.id} style={{ display: 'flex', gap: 13, alignItems: 'flex-start', border: `1px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'color-mix(in srgb, var(--color-text) 4%, transparent)' : 'transparent', borderRadius: 4, padding: '15px 16px', cursor: 'pointer' }}>
-                  <input type="radio" name="method" value={m.id} checked={on} onChange={() => setMethod(m.id)} style={{ marginTop: 3, accentColor: 'var(--color-text)' }} />
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: 'block', fontWeight: 700, fontSize: 15 }}>{m.title}</span>
-                    {hint ? <span style={{ display: 'block', fontSize: 12.5, color: 'var(--color-text-muted)', marginTop: 4, lineHeight: 1.5 }}>{hint}</span> : null}
+                <label key={m.id} className="co-method" data-on={on}>
+                  <input type="radio" name="method" value={m.id} checked={on} onChange={() => setMethod(m.id)} />
+                  <span className="co-method-txt">
+                    <span className="co-method-t">{m.title}</span>
+                    {hint ? <span className="co-method-d">{hint}</span> : null}
                   </span>
                 </label>
               );
             })}
             {available.length === 0 ? (
-              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--color-text-muted)' }}>Por el momento no hay métodos de pago disponibles. Escríbenos y con gusto te ayudamos a completar tu pedido.</p>
+              <div className="ms-alert ms-alert-warn">
+                <span className="co-alert-ico co-warn"><Icon name="warning" size={16} /></span>
+                <span>Por el momento no hay métodos de pago disponibles. Escríbenos y con gusto te ayudamos a completar tu pedido.</span>
+              </div>
             ) : null}
           </div>
         </section>
+
+        <Link href="/carrito" className="ms-link ms-link-muted co-back"><Icon name="arrowLeft" size={15} />Volver al carrito</Link>
       </div>
 
-      {/* Columna derecha: resumen */}
-      <aside className="co-aside" style={{ position: 'sticky', top: 20, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden' }}>
-        <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', color: 'var(--color-text-muted)', padding: '18px 24px 0', textTransform: 'uppercase' }}>{labels.summaryTitle}</div>
+      {/* Columna derecha: resumen (380 px, como en el carrito) */}
+      <aside className="ms-panel co-sum" aria-label={labels.summaryTitle}>
+        <h2 className="co-sum-t">{labels.summaryTitle} <span>{units} {units === 1 ? 'equipo' : 'equipos'}</span></h2>
 
-        <div style={{ padding: '14px 24px 0' }}>
+        <div className="co-items">
           {items.map((i) => (
-            <div key={cartLineKey(i)} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '8px 0' }}>
-              <span style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 3, overflow: 'hidden', background: 'var(--color-bg)', backgroundImage: i.image ? undefined : stripe, display: 'block' }}>
+            <div key={cartLineKey(i)} className="co-item">
+              <span className="co-thumb" style={i.image ? undefined : { backgroundImage: stripe }}>
                 {i.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={i.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={i.image} alt="" />
                 ) : null}
               </span>
-              <span style={{ minWidth: 0, flex: 1 }}>
-                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.name}</span>
-                <span style={{ display: 'block', fontFamily: MONO, fontSize: 10.5, color: 'var(--color-text-muted)', marginTop: 2 }}>{i.qty} × {formatPrice(i.price)} / {i.unitLabel ?? 'MES'}</span>
+              <span className="co-item-txt">
+                <span className="co-item-n">{i.name}</span>
+                <span className="co-item-d">{i.qty} × {formatPrice(i.price)} / {(i.unitLabel ?? 'mes').toLowerCase()}</span>
               </span>
-              <span style={{ fontWeight: 700, fontSize: 13.5, flexShrink: 0 }}>{formatPrice(cartLineTotal(i))}</span>
+              <b className="co-item-p">{formatPrice(cartLineTotal(i))}</b>
             </div>
           ))}
         </div>
 
-        <div style={{ padding: '14px 24px 0', borderTop: '1px solid var(--color-border)', marginTop: 14 }}>
-          {/* Cupón: previsualiza el descuento; el servidor lo recalcula al confirmar */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-            <input value={couponInput} onChange={(e) => setCouponInput(e.target.value)} placeholder={labels.couponLabel} aria-label={labels.couponLabel} style={{ ...fieldStyle, flex: 1, minWidth: 0, padding: '9px 11px', fontSize: 13 }} />
-            <button type="button" onClick={applyCoupon} style={{ border: '1px solid var(--color-border)', background: 'transparent', color: 'var(--color-text)', borderRadius: 4, padding: '0 14px', fontFamily: MONO, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{labels.couponApply}</button>
+        {/* Cupón: previsualiza el descuento; el servidor lo recalcula al confirmar */}
+        <div className="ms-field co-sep">
+          <label className="ms-label" htmlFor="co-coupon">{labels.couponLabel}</label>
+          <div className="co-inline">
+            <input id="co-coupon" className="ms-input" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} placeholder="Escribe tu código" />
+            <button type="button" onClick={applyCoupon} className="ms-btn ms-btn-sec">{labels.couponApply}</button>
           </div>
-          {couponError ? <p role="alert" style={{ color: 'var(--color-error)', margin: '0 0 6px', fontSize: 12.5 }}>{couponError}</p> : null}
+          {couponError ? <p role="alert" className="ms-error">{couponError}</p> : null}
+        </div>
 
-          <div style={{ paddingTop: 8 }}>
-            <div style={rowStyle}><span>Subtotal</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(subtotal)}</span></div>
+        <div className="co-sep">
+          <div className="ms-kv"><span>Subtotal</span><b>{formatPrice(subtotal)}</b></div>
 
-            {discount > 0 ? (
-              <div style={{ ...rowStyle, color: 'var(--color-success)' }}>
-                <span>{labels.couponApplied} {coupon?.code ? `· ${coupon.code}` : ''}</span>
-                <span style={{ fontWeight: 600 }}>−{formatPrice(discount)}</span>
-              </div>
-            ) : null}
-
-            {operatorCost > 0 ? (
-              <div style={rowStyle}><span>{config.operator.label} ({units})</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(operatorCost)}</span></div>
-            ) : null}
-
-            {/* Traslado: antes del impuesto, porque el impuesto se calcula sobre él. */}
-            {freightCfg.enabled ? (
-              <div style={rowStyle}>
-                <span>
-                  {freightCfg.label}
-                  {freight?.km != null ? <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, opacity: 0.75, letterSpacing: '0.06em' }}>{freight.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} KM{freight.estimated ? ' APROX.' : ''}</span> : null}
-                </span>
-                {freightCost > 0
-                  ? <span style={{ color: 'var(--color-text)', fontWeight: 600, flexShrink: 0 }}>{formatPrice(freightCost)}</span>
-                  : <span style={{ fontFamily: MONO, fontSize: 11, textAlign: 'right', lineHeight: 1.5 }}>{freightLoading ? 'CALCULANDO…' : (freight?.message || freightCfg.quoteText).toUpperCase()}</span>}
-              </div>
-            ) : null}
-
-            {taxAdds ? (
-              <div style={rowStyle}><span>{config.tax.label} ({config.tax.rate}%)</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(tax)}</span></div>
-            ) : null}
-            {includedTax > 0 ? (
-              <div style={rowStyle}><span>{config.tax.label} incluido ({config.tax.rate}%)</span><span style={{ fontFamily: MONO, fontSize: 12 }}>{formatPrice(includedTax)}</span></div>
-            ) : null}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '18px 0 20px', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
-            <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700 }}>{labels.total}</span>
-            <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(finalTotal)}</span>
-          </div>
-
-          {error ? (
-            <p role="alert" style={{ color: 'var(--color-error)', margin: '0 0 12px', fontSize: 13, textAlign: 'center' }}>{error}</p>
+          {discount > 0 ? (
+            <div className="ms-kv co-ok">
+              <span>{labels.couponApplied} {coupon?.code ? `· ${coupon.code}` : ''}</span>
+              <b>−{formatPrice(discount)}</b>
+            </div>
           ) : null}
 
-          <button type="submit" disabled={loading || available.length === 0} style={{ display: 'block', textAlign: 'center', width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', cursor: loading || available.length === 0 ? 'default' : 'pointer', opacity: loading || available.length === 0 ? 0.6 : 1 }}>
-            {loading ? 'Procesando…' : labels.submit}
-          </button>
+          {operatorCost > 0 ? (
+            <div className="ms-kv"><span>{config.operator.label} ({units})</span><b>{formatPrice(operatorCost)}</b></div>
+          ) : null}
 
-          {config.note ? (
-            <p style={{ margin: '16px 0 20px', fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6, textTransform: 'uppercase' }}>{config.note}</p>
-          ) : <div style={{ height: 20 }} />}
+          {/* Traslado: antes del impuesto, porque el impuesto se calcula sobre él. */}
+          {freightCfg.enabled ? (
+            <div className="ms-kv">
+              <span>
+                {freightCfg.label}
+                {freight?.km != null ? <small className="co-small">{freight.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km{freight.estimated ? ' aprox.' : ''}</small> : null}
+              </span>
+              {freightCost > 0
+                ? <b>{formatPrice(freightCost)}</b>
+                : <span className="co-note-r">{freightLoading ? 'Calculando…' : (freight?.message || freightCfg.quoteText)}</span>}
+            </div>
+          ) : null}
+
+          {taxAdds ? (
+            <div className="ms-kv"><span>{config.tax.label} ({config.tax.rate}%)</span><b>{formatPrice(tax)}</b></div>
+          ) : null}
+          {includedTax > 0 ? (
+            <div className="ms-kv"><span>{config.tax.label} incluido ({config.tax.rate}%)</span><span className="ms-num">{formatPrice(includedTax)}</span></div>
+          ) : null}
         </div>
+
+        <div className="co-total">
+          <span>{labels.total}</span>
+          <strong>{formatPrice(finalTotal)}</strong>
+        </div>
+
+        {error ? (
+          <div role="alert" className="ms-alert ms-alert-bad co-err">
+            <span className="co-alert-ico"><Icon name="warning" size={16} /></span>
+            <span>{error}</span>
+          </div>
+        ) : null}
+
+        <button type="submit" disabled={loading || available.length === 0} className="ms-btn ms-btn-lg ms-btn-block">
+          {loading ? 'Procesando…' : labels.submit}
+        </button>
+
+        {config.note ? <p className="ms-hint co-fine">{config.note}</p> : null}
       </aside>
     </form>,
   );
 }
+
+/* Estilos propios del checkout (prefijo `co-`). Lo común sale de `ms-*`. */
+const CSS = `
+.co-main{ display:grid; grid-template-columns:minmax(0,1fr); gap:16px; min-width:0; }
+.co-sec-t{ margin:0 0 18px; font-family:var(--font-display); font-size:17px; font-weight:700; letter-spacing:-.01em; }
+.co-note{ min-height:96px; }
+.co-freight-hint{ display:flex; align-items:center; gap:6px; }
+.co-freight-hint svg{ color:var(--color-primary); flex-shrink:0; }
+.co-methods{ display:grid; gap:10px; }
+.co-method{ display:flex; gap:12px; align-items:flex-start; padding:15px 16px; border:1px solid var(--color-border); border-radius:12px; background:var(--color-bg); cursor:pointer; transition:border-color .18s ease, background .18s ease; }
+.co-method:hover{ border-color:color-mix(in srgb, var(--color-text) 30%, var(--color-border)); }
+.co-method[data-on="true"]{ border-color:color-mix(in srgb, var(--color-primary) 55%, var(--color-border)); background:color-mix(in srgb, var(--color-primary) 7%, var(--color-surface)); }
+.co-method input{ margin:3px 0 0; width:16px; height:16px; flex-shrink:0; accent-color:var(--color-primary); }
+.co-method input:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+.co-method-txt{ min-width:0; display:grid; gap:3px; }
+.co-method-t{ font-size:14.5px; font-weight:600; }
+.co-method-d{ font-size:13px; line-height:1.5; color:var(--color-text-muted); }
+.co-alert-ico{ color:var(--color-error); flex-shrink:0; margin-top:2px; display:inline-flex; }
+.co-warn{ color:var(--color-warning); }
+.co-back{ margin-top:4px; justify-self:start; }
+
+.co-sum{ position:sticky; top:104px; padding:20px 22px 22px; }
+.co-sum-t{ margin:0 0 12px; font-size:16px; font-weight:700; display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
+.co-sum-t span{ font-size:13px; font-weight:500; color:var(--color-text-muted); }
+.co-items{ display:grid; gap:10px; }
+.co-item{ display:flex; gap:12px; align-items:center; min-width:0; }
+.co-thumb{ width:48px; height:48px; flex-shrink:0; border-radius:8px; overflow:hidden; background:var(--color-bg); border:1px solid var(--color-border); display:block; }
+.co-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.co-item-txt{ min-width:0; flex:1; display:grid; gap:2px; }
+.co-item-n{ font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.co-item-d{ font-size:12.5px; color:var(--color-text-muted); font-variant-numeric:tabular-nums; }
+.co-item-p{ font-size:13.5px; font-weight:600; flex-shrink:0; font-variant-numeric:tabular-nums; }
+.co-sep{ border-top:1px solid var(--color-border); margin-top:14px; padding-top:14px; }
+.co-inline{ display:flex; gap:8px; }
+.co-inline .ms-input{ flex:1; min-width:0; }
+.co-ok, .co-ok b{ color:var(--color-success) !important; }
+.co-small{ display:block; font-size:12px; opacity:.85; }
+.co-note-r{ font-size:12.5px; text-align:right; max-width:60%; line-height:1.45; }
+.co-total{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin:12px 0 16px; padding-top:14px; border-top:1px solid var(--color-border); }
+.co-total span{ font-size:15px; font-weight:600; }
+.co-total strong{ font-family:var(--font-display); font-size:28px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums; }
+.co-err{ margin-bottom:12px; font-size:13.5px; }
+.co-fine{ margin-top:14px; text-align:center; }
+.co-empty{ max-width:760px; }
+
+@media (max-width: 960px){
+  .co-sum{ position:static; }
+}
+`;

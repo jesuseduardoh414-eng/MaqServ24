@@ -1,9 +1,11 @@
 'use client';
 
 import { REGLAS_CONTRASENA, type ContextoContrasena } from '@maqserv/config';
+import { Icon } from '@/components/Icon';
 
 const COLOR = ['var(--color-error)', 'var(--color-error)', 'var(--color-warning)', 'var(--color-primary)', 'var(--color-success)'];
-const ETIQUETA = ['MUY DÉBIL', 'DÉBIL', 'REGULAR', 'CASI LISTA', 'SEGURA'];
+// Tipo oración (estándar 2026-09-30): nada de etiquetas en mayúsculas espaciadas.
+const ETIQUETA = ['Muy débil', 'Débil', 'Regular', 'Casi lista', 'Segura'];
 
 /**
  * Medidor + lista que se palomea mientras se escribe. Las reglas son las de
@@ -25,13 +27,15 @@ export function ReglasContrasena({ password, ...ctx }: { password: string } & Co
               <span key={i} style={{ flex: 1, height: 4, borderRadius: 3, background: i < nivel ? COLOR[nivel] : 'var(--color-border)', transition: 'background .2s ease' }} />
             ))}
           </div>
-          <div style={{ fontSize: 11, color: COLOR[nivel], marginTop: 6, letterSpacing: '0.06em', fontWeight: 700 }}>{ETIQUETA[nivel]}</div>
+          <div style={{ fontSize: 12.5, color: COLOR[nivel], marginTop: 6, fontWeight: 600 }}>{ETIQUETA[nivel]}</div>
         </div>
       ) : null}
       <ul aria-label="Requisitos de la contraseña" style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 4 }}>
         {estado.map((r) => (
           <li key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12.5, lineHeight: 1.4, color: r.cumple ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-            <span aria-hidden style={{ width: 14, flexShrink: 0, textAlign: 'center', fontWeight: 700 }}>{r.cumple ? '✓' : '○'}</span>
+            <span aria-hidden style={{ width: 14, height: 17, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+              <Icon name={r.cumple ? 'check' : 'dot'} size={r.cumple ? 13 : 14} />
+            </span>
             <span>{r.texto}<span className="sr-only">{r.cumple ? ' — cumple' : ' — falta'}</span></span>
           </li>
         ))}

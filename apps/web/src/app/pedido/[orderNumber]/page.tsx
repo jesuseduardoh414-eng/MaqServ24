@@ -16,8 +16,6 @@ import { formatPrice } from '@/lib/format';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
 const STEPS: Array<[string, string]> = [['1', 'Carrito'], ['2', 'Datos'], ['3', 'Pago']];
 const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
 
@@ -42,30 +40,23 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   return { robots: NOINDEX, title: `${t(theme, 'order.title')} ${orderNumber} — ${t(theme, 'site.name')}` };
 }
 
-const cardStyle: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  padding: '22px 24px',
-};
-
-const legendStyle: React.CSSProperties = {
-  fontFamily: MONO,
-  fontSize: 11,
-  letterSpacing: '0.14em',
-  color: 'var(--color-text-muted)',
-  textTransform: 'uppercase',
-  margin: '0 0 16px',
-};
-
-const rowStyle: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: 12,
-  padding: '8px 0',
-  fontSize: 14,
-  color: 'var(--color-text-muted)',
-};
+/** Estilos propios de la confirmación del pedido (prefijo `or-`). */
+const CSS = `
+.or-steps{ margin-bottom:28px; }
+.or-title-row{ display:flex; align-items:center; gap:14px; }
+.or-ok{ color:var(--color-success); background:color-mix(in srgb, var(--color-success) 10%, transparent); border-color:color-mix(in srgb, var(--color-success) 30%, transparent); }
+.or-col{ display:grid; gap:16px; min-width:0; }
+.or-card-t{ margin:0 0 12px; }
+.or-line{ border-top:1px solid var(--color-border); }
+.or-kv-v{ color:var(--color-text); font-weight:600; text-align:right; min-width:0; overflow-wrap:anywhere; }
+.or-item{ display:flex; gap:14px; align-items:center; padding:12px 0; border-top:1px solid var(--color-border); }
+.or-thumb{ width:56px; height:56px; flex-shrink:0; border-radius:8px; overflow:hidden; background:var(--color-bg); border:1px solid var(--color-border); display:block; }
+.or-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.or-aside{ position:sticky; top:20px; }
+.or-total{ display:flex; justify-content:space-between; align-items:baseline; gap:12px; padding:16px 0 20px; border-top:1px solid var(--color-border); margin-top:8px; }
+.or-instr{ line-height:1.7; color:var(--color-text-muted); font-size:14px; overflow-wrap:anywhere; }
+@media (max-width: 960px){ .or-aside{ position:static; } }
+`;
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
@@ -100,61 +91,51 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
   return (
     <>
       <SiteHeader theme={theme} />
-      <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        <style>{`
-          @media (max-width: 900px){
-            .or-grid{ grid-template-columns:1fr !important; gap:32px !important; }
-            .or-wrap{ padding-left:22px !important; padding-right:22px !important; }
-            .or-title{ font-size:34px !important; }
-            .or-aside{ position:static !important; }
-          }
-        `}</style>
-
-        <main className="or-wrap" style={{ maxWidth: 1280, margin: '0 auto', padding: '44px 40px 60px' }}>
-          {/* Stepper: el pedido ya se creó, los tres pasos están cumplidos. */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 40, flexWrap: 'wrap' }}>
+      <style>{CSS}</style>
+      <div className="ms-page">
+        <main className="ms-wrap">
+          {/* Pasos: el pedido ya se creó, los tres están cumplidos. */}
+          <ol className="ms-steps or-steps" aria-label="Pasos de la compra">
             {STEPS.map(([n, name], i) => (
-              <div key={n} style={{ display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'grid', placeItems: 'center', gap: 6 }}>
-                  <span style={{ width: 34, height: 34, borderRadius: '50%', display: 'grid', placeItems: 'center', fontFamily: MONO, fontSize: 14, fontWeight: 700, background: i === 2 ? 'var(--color-text)' : 'transparent', color: i === 2 ? 'var(--color-bg)' : 'var(--color-text)', border: '1px solid var(--color-text)' }}>{i === 2 ? n : <Icon name="check" size={14} />}</span>
-                  <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.06em', color: 'var(--color-text)' }}>{name}</span>
-                </div>
-                {i < STEPS.length - 1 ? <span style={{ width: 90, height: 1, background: 'var(--color-text)', margin: '0 4px 18px' }} /> : null}
-              </div>
+              <li key={n} data-done={i < 2} data-on={i === 2}>
+                <span>{i === 2 ? n : <Icon name="check" size={12} />}</span>
+                {name}
+              </li>
             ))}
-          </div>
+          </ol>
 
           {/* Confirmación */}
-          <div style={{ borderBottom: '2px solid var(--color-text)', paddingBottom: 22, marginBottom: 28 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-              <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--color-success)', color: 'var(--color-bg)', fontSize: 21, fontWeight: 800 }} aria-hidden><Icon name="check" size={21} /></span>
-              <h1 className="or-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 44, fontWeight: 800, letterSpacing: '-0.04em' }}>{t(theme, 'order.thanks')}</h1>
+          <header className="ms-head">
+            <div className="ms-head-txt">
+              <div className="or-title-row">
+                <span className="ms-ico or-ok" aria-hidden><Icon name="check" size={20} /></span>
+                <h1 className="ms-title">{t(theme, 'order.thanks')}</h1>
+              </div>
+              <p className="ms-desc">
+                {t(theme, 'order.number')}: <strong className="ms-num" style={{ color: 'var(--color-text)' }}>{order.orderNumber}</strong> · {fmtDate(order.createdAt)}
+              </p>
             </div>
-            <p style={{ margin: 0, fontFamily: MONO, fontSize: 12.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)' }}>
-              {t(theme, 'order.number').toUpperCase()}: <strong style={{ color: 'var(--color-text)' }}>{order.orderNumber}</strong> · {fmtDate(order.createdAt)}
-            </p>
-          </div>
+          </header>
 
-          <div className="or-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 56, alignItems: 'start' }}>
+          <div className="ms-split">
             {/* Izquierda */}
-            <div style={{ display: 'grid', gap: 20 }}>
-              <section style={cardStyle}>
-                <h2 style={legendStyle}>Estado del pedido</h2>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--color-border)' }}>
-                  <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>Pedido</span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: stc.fg, background: stc.bg, border: `1px solid ${stc.border}`, borderRadius: 'var(--radius-button)', padding: '5px 12px' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: 999, background: stc.fg }} />
-                    {st.text}
-                  </span>
+            <div className="or-col">
+              <section className="ms-panel">
+                <h2 className="ms-h3 or-card-t">Estado del pedido</h2>
+                <div className="ms-kv" style={{ alignItems: 'center', padding: '10px 0' }}>
+                  <span>Pedido</span>
+                  <span className="ms-chip ms-chip-dot" style={{ color: stc.fg, background: stc.bg, borderColor: stc.border }}>{st.text}</span>
                 </div>
                 {/* El pago se actualiza solo cuando el webhook confirma. */}
-                <OrderStatusLive orderNumber={order.orderNumber} label={t(theme, 'order.paymentStatus')} initialPaymentStatus={order.paymentStatus} />
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: '1px solid var(--color-border)' }}>
-                  <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{t(theme, 'order.method')}</span>
-                  <strong style={{ fontSize: 14 }}>{order.method || '—'}</strong>
+                <div className="or-line">
+                  <OrderStatusLive orderNumber={order.orderNumber} label={t(theme, 'order.paymentStatus')} initialPaymentStatus={order.paymentStatus} />
+                </div>
+                <div className="ms-kv or-line" style={{ alignItems: 'center', padding: '10px 0' }}>
+                  <span>{t(theme, 'order.method')}</span>
+                  <span className="or-kv-v">{order.method || '—'}</span>
                 </div>
                 {step ? (
-                  <p style={{ margin: 0, padding: '12px 0 0', borderTop: '1px solid var(--color-border)', fontSize: 14, lineHeight: 1.55, color: 'var(--color-text-muted)' }}>
+                  <p className="or-line" style={{ margin: 0, padding: '12px 0 0', fontSize: 14, lineHeight: 1.55, color: 'var(--color-text-muted)' }}>
                     {step.hint}
                   </p>
                 ) : null}
@@ -162,68 +143,68 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
 
               {/* Envío: qué pasa con el equipo y cómo lo sigue el cliente. */}
               {ship && shipMethod && ship.state !== 'cancelado' ? (
-                <section style={cardStyle}>
-                  <h2 style={legendStyle}>Envío</h2>
-                  <div style={rowStyle}>
+                <section className="ms-panel">
+                  <h2 className="ms-h3 or-card-t">Envío</h2>
+                  <div className="ms-kv">
                     <span>Entrega</span>
-                    <span style={{ color: 'var(--color-text)', fontWeight: 600, textAlign: 'right' }}>{SHIP_METHODS[shipMethod].label}</span>
+                    <span className="or-kv-v">{SHIP_METHODS[shipMethod].label}</span>
                   </div>
                   {shipDetail ? (
-                    <div style={rowStyle}>
+                    <div className="ms-kv">
                       <span>{shipDetail.label}</span>
-                      <span style={{ fontFamily: MONO, color: 'var(--color-text)', fontWeight: 700, textAlign: 'right', maxWidth: '60%' }}>{shipDetail.value}</span>
+                      <span className="or-kv-v ms-num" style={{ maxWidth: '60%' }}>{shipDetail.value}</span>
                     </div>
                   ) : null}
                   {ship.scheduledAt ? (
-                    <div style={rowStyle}>
+                    <div className="ms-kv">
                       <span>Fecha estimada</span>
-                      <span style={{ color: 'var(--color-text)', fontWeight: 600, textAlign: 'right' }}>{fmtDay(ship.scheduledAt)}</span>
+                      <span className="or-kv-v">{fmtDay(ship.scheduledAt)}</span>
                     </div>
                   ) : null}
                   {ship.notes ? (
-                    <div style={{ ...rowStyle, borderTop: '1px solid var(--color-border)', marginTop: 6, paddingTop: 14 }}>
+                    <div className="ms-kv or-line" style={{ marginTop: 6, paddingTop: 14 }}>
                       <span>Indicaciones</span>
-                      <span style={{ color: 'var(--color-text)', textAlign: 'right', maxWidth: '65%', lineHeight: 1.55 }}>{ship.notes}</span>
+                      <span className="or-kv-v" style={{ maxWidth: '65%', lineHeight: 1.55, fontWeight: 400 }}>{ship.notes}</span>
                     </div>
                   ) : null}
-                  <Link href={`/rastreo?orden=${encodeURIComponent(order.orderNumber)}&email=${encodeURIComponent(cust.email ?? '')}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, fontFamily: MONO, fontSize: 12, letterSpacing: '0.06em', fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}>
-                    VER SEGUIMIENTO COMPLETO<Icon name="arrowRight" size={12} />
+                  <Link href={`/rastreo?orden=${encodeURIComponent(order.orderNumber)}&email=${encodeURIComponent(cust.email ?? '')}`} className="ms-link" style={{ marginTop: 14 }}>
+                    Ver seguimiento completo<Icon name="arrowRight" size={14} />
                   </Link>
                 </section>
               ) : null}
 
               {order.items.length > 0 ? (
-                <section style={cardStyle}>
-                  <h2 style={legendStyle}>{t(theme, 'order.items.title')}</h2>
+                <section className="ms-panel">
+                  <h2 className="ms-h3 or-card-t">{t(theme, 'order.items.title')}</h2>
                   {order.items.map((i) => (
-                    <div key={i.productId} style={{ display: 'flex', gap: 14, alignItems: 'center', padding: '12px 0', borderTop: '1px solid var(--color-border)' }}>
-                      <span style={{ width: 60, height: 60, flexShrink: 0, borderRadius: 3, overflow: 'hidden', background: 'var(--color-bg)', backgroundImage: i.image ? undefined : stripe, display: 'block' }}>
+                    <div key={i.productId} className="or-item">
+                      <span className="or-thumb" style={{ backgroundImage: i.image ? undefined : stripe }}>
                         {i.image ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={i.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <img src={i.image} alt="" />
                         ) : null}
                       </span>
                       <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontFamily: DISPLAY, fontSize: 17, fontWeight: 700, letterSpacing: '-0.01em' }}>{i.name}</span>
-                        <span style={{ display: 'block', fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>
+                        <span style={{ display: 'block', fontSize: 15.5, fontWeight: 600, overflowWrap: 'anywhere' }}>{i.name}</span>
+                        <span className="ms-small ms-muted ms-num" style={{ display: 'block', marginTop: 3 }}>
                           {i.qty} × {formatPrice(i.price)}{i.unitLabel ? ` / ${i.unitLabel}` : ''}
                         </span>
                       </span>
-                      <strong style={{ fontSize: 15, flexShrink: 0 }}>{formatPrice(i.price * i.qty)}</strong>
+                      <strong className="ms-num" style={{ fontSize: 15, flexShrink: 0 }}>{formatPrice(i.price * i.qty)}</strong>
                     </div>
                   ))}
                 </section>
               ) : null}
 
               {/* Datos de entrega: de aquí salió el cálculo del traslado. */}
-              <section style={cardStyle}>
-                <h2 style={legendStyle}>Datos de entrega</h2>
-                <div style={rowStyle}><span>Nombre</span><span style={{ color: 'var(--color-text)', fontWeight: 600, textAlign: 'right' }}>{cust.name || '—'}</span></div>
-                <div style={rowStyle}><span>Contacto</span><span style={{ color: 'var(--color-text)', fontWeight: 600, textAlign: 'right' }}>{[cust.phone, cust.email].filter(Boolean).join(' · ') || '—'}</span></div>
-                <div style={rowStyle}><span>Dirección</span><span style={{ color: 'var(--color-text)', fontWeight: 600, textAlign: 'right', maxWidth: '60%' }}>{shipping || '—'}</span></div>
+              <section className="ms-panel">
+                <h2 className="ms-h3 or-card-t">Datos de entrega</h2>
+                <div className="ms-kv"><span>Nombre</span><span className="or-kv-v">{cust.name || '—'}</span></div>
+                <div className="ms-kv"><span>Contacto</span><span className="or-kv-v">{[cust.phone, cust.email].filter(Boolean).join(' · ') || '—'}</span></div>
+                <div className="ms-kv"><span>Dirección</span><span className="or-kv-v" style={{ maxWidth: '60%' }}>{shipping || '—'}</span></div>
                 {order.note ? (
-                  <div style={{ ...rowStyle, borderTop: '1px solid var(--color-border)', marginTop: 6, paddingTop: 14 }}>
-                    <span>Notas</span><span style={{ color: 'var(--color-text)', textAlign: 'right', maxWidth: '65%', lineHeight: 1.55 }}>{order.note}</span>
+                  <div className="ms-kv or-line" style={{ marginTop: 6, paddingTop: 14 }}>
+                    <span>Notas</span><span className="or-kv-v" style={{ maxWidth: '65%', lineHeight: 1.55, fontWeight: 400 }}>{order.note}</span>
                   </div>
                 ) : null}
               </section>
@@ -232,51 +213,49 @@ export default async function OrderPage({ params }: { params: Promise<Params> })
             </div>
 
             {/* Derecha: lo que se cobró (congelado al crear la orden) */}
-            <aside className="or-aside" style={{ position: 'sticky', top: 20, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 4, overflow: 'hidden' }}>
-              <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', color: 'var(--color-text-muted)', padding: '18px 24px 0', textTransform: 'uppercase' }}>Desglose cobrado</div>
-              <div style={{ padding: '10px 24px 0' }}>
-                {tot ? (
-                  <>
-                    <div style={rowStyle}><span>Subtotal</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(tot.subtotal)}</span></div>
-                    {tot.discount > 0 ? (
-                      <div style={{ ...rowStyle, color: 'var(--color-success)' }}><span>Descuento</span><span style={{ fontWeight: 600 }}>−{formatPrice(tot.discount)}</span></div>
-                    ) : null}
-                    {tot.operator > 0 ? (
-                      <div style={rowStyle}><span>Operador</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(tot.operator)}</span></div>
-                    ) : null}
-                    <div style={rowStyle}>
-                      <span>
-                        {tot.freightLabel || 'Traslado'}
-                        {tot.freightKm != null ? <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, opacity: 0.75, letterSpacing: '0.06em' }}>{tot.freightKm.toLocaleString('es-MX', { maximumFractionDigits: 1 })} KM</span> : null}
-                      </span>
-                      {tot.freight > 0
-                        ? <span style={{ color: 'var(--color-text)', fontWeight: 600, flexShrink: 0 }}>{formatPrice(tot.freight)}</span>
-                        : <span style={{ fontFamily: MONO, fontSize: 11, textAlign: 'right', lineHeight: 1.5, maxWidth: 160 }}>{(tot.freightNote || 'A cotizar').toUpperCase()}</span>}
-                    </div>
-                    {tot.tax > 0 ? (
-                      <div style={rowStyle}><span>{tot.taxLabel} ({tot.taxRate}%)</span><span style={{ color: 'var(--color-text)', fontWeight: 600 }}>{formatPrice(tot.tax)}</span></div>
-                    ) : null}
-                    {tot.taxIncluded ? (
-                      <div style={rowStyle}><span>{tot.taxLabel} incluido ({tot.taxRate}%)</span><span style={{ fontFamily: MONO, fontSize: 12 }}>—</span></div>
-                    ) : null}
-                  </>
-                ) : (
-                  <p style={{ margin: '0 0 6px', fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-                    Este pedido viene del sistema anterior; solo se conserva el total cobrado.
-                  </p>
-                )}
+            <aside className="ms-panel or-aside">
+              <h2 className="ms-h3 or-card-t">Desglose cobrado</h2>
+              {tot ? (
+                <>
+                  <div className="ms-kv"><span>Subtotal</span><b>{formatPrice(tot.subtotal)}</b></div>
+                  {tot.discount > 0 ? (
+                    <div className="ms-kv" style={{ color: 'var(--color-success)' }}><span>Descuento</span><b style={{ color: 'var(--color-success)' }}>−{formatPrice(tot.discount)}</b></div>
+                  ) : null}
+                  {tot.operator > 0 ? (
+                    <div className="ms-kv"><span>Operador</span><b>{formatPrice(tot.operator)}</b></div>
+                  ) : null}
+                  <div className="ms-kv">
+                    <span>
+                      {tot.freightLabel || 'Traslado'}
+                      {tot.freightKm != null ? <span className="ms-num" style={{ display: 'block', fontSize: 12.5, opacity: 0.8 }}>{tot.freightKm.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km</span> : null}
+                    </span>
+                    {tot.freight > 0
+                      ? <b style={{ flexShrink: 0 }}>{formatPrice(tot.freight)}</b>
+                      : <span style={{ fontSize: 13, textAlign: 'right', lineHeight: 1.5, maxWidth: 170 }}>{tot.freightNote || 'A cotizar'}</span>}
+                  </div>
+                  {tot.tax > 0 ? (
+                    <div className="ms-kv"><span>{tot.taxLabel} ({tot.taxRate}%)</span><b>{formatPrice(tot.tax)}</b></div>
+                  ) : null}
+                  {tot.taxIncluded ? (
+                    <div className="ms-kv"><span>{tot.taxLabel} incluido ({tot.taxRate}%)</span><span>—</span></div>
+                  ) : null}
+                </>
+              ) : (
+                <p className="ms-small ms-muted" style={{ margin: '0 0 6px', lineHeight: 1.55 }}>
+                  Este pedido viene del sistema anterior; solo se conserva el total cobrado.
+                </p>
+              )}
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '18px 0 20px', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
-                  <span style={{ fontFamily: DISPLAY, fontSize: 20, fontWeight: 700 }}>{t(theme, 'cart.total')}</span>
-                  <span style={{ fontFamily: DISPLAY, fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em' }}>{formatPrice(order.total)}</span>
-                </div>
+              <div className="or-total">
+                <span style={{ fontSize: 16, fontWeight: 600 }}>{t(theme, 'cart.total')}</span>
+                <span className="ms-stat-n" style={{ fontSize: 28 }}>{formatPrice(order.total)}</span>
+              </div>
 
-                <Link href="/cuenta/pedidos" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textAlign: 'center', width: '100%', boxSizing: 'border-box', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: 15, borderRadius: 'var(--radius-button)' }}>
-                  {t(theme, 'account.orders.title')}<Icon name="arrowRight" size={15} />
-                </Link>
-                <Link href="/productos" style={{ display: 'block', textAlign: 'center', margin: '12px 0 20px', fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textDecoration: 'none', textTransform: 'uppercase' }}>
-                  Seguir explorando equipo
-                </Link>
+              <Link href="/cuenta/pedidos" className="ms-btn ms-btn-block">
+                {t(theme, 'account.orders.title')}<Icon name="arrowRight" size={15} />
+              </Link>
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <Link href="/productos" className="ms-link ms-link-muted">Seguir explorando equipo</Link>
               </div>
             </aside>
           </div>
@@ -301,10 +280,10 @@ async function InstructionsBlock({ theme, method }: { theme: Awaited<ReturnType<
   const instructions = methods.find((m) => m.id === 'transferencia')?.instructions;
   if (!instructions) return null;
   return (
-    <section style={{ ...cardStyle, borderColor: 'color-mix(in srgb, var(--color-primary) 40%, var(--color-border))' }}>
-      <h2 style={legendStyle}>{t(theme, 'order.instructions.title')}</h2>
+    <section className="ms-panel" style={{ borderColor: 'color-mix(in srgb, var(--color-primary) 40%, var(--color-border))' }}>
+      <h2 className="ms-h3 or-card-t">{t(theme, 'order.instructions.title')}</h2>
       {/* HTML del panel (contenido del administrador), por eso se pinta tal cual. */}
-      <div style={{ lineHeight: 1.7, color: 'var(--color-text-muted)', fontSize: 14 }} dangerouslySetInnerHTML={{ __html: instructions }} />
+      <div className="or-instr" dangerouslySetInnerHTML={{ __html: instructions }} />
     </section>
   );
 }

@@ -49,45 +49,32 @@ export function ProviderTrust({ p, tamano = 'lista' }: { p: Aliado; tamano?: 'li
     p.monthsInNetwork !== null ? `${p.monthsInNetwork} meses en la red` : null,
   ].filter(Boolean) as string[];
 
+  // Tarjeta del sistema (radio 12, borde 1 px) con icono en recuadro y chip
+  // en tipo oración: verde si está verificado; neutro si no, pero dicho.
   return (
-    <div
-      style={{
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        background: 'var(--color-surface)',
-        padding: '14px 16px',
-        display: 'grid',
-        gap: 6,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span
-          style={{
-            fontSize: 10.5,
-            fontWeight: 700,
-            letterSpacing: '0.1em',
-            color,
-            border: `1px solid color-mix(in srgb, ${color} 40%, transparent)`,
-            background: `color-mix(in srgb, ${color} 12%, transparent)`,
-            borderRadius: 'var(--radius-sm)',
-            padding: '3px 8px',
-          }}
-        >
-          {p.verified ? 'PROVEEDOR VERIFICADO' : 'PROVEEDOR SIN VERIFICAR'}
-        </span>
-        <strong style={{ fontSize: 15 }}>{p.name}</strong>
+    <div className="ms-panel" style={{ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+      <span className={p.verified ? 'ms-ico' : 'ms-ico ms-ico-muted'} style={p.verified ? { color: 'var(--color-success)', background: 'color-mix(in srgb, var(--color-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--color-success) 30%, transparent)' } : undefined}>
+        <Icon name="shield" size={18} />
+      </span>
+      <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 15, fontWeight: 600 }}>{p.name}</strong>
+          <span className={p.verified ? 'ms-chip ms-chip-ok' : 'ms-chip'}>
+            {p.verified ? 'Proveedor verificado' : 'Proveedor sin verificar'}
+          </span>
+        </div>
+        {senales.length > 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
+            {senales.join(' · ')}
+          </div>
+        ) : null}
+        {/* Un expediente vencido es justo lo que el manual pide no disimular. */}
+        {p.docsStatus === 'vencido' ? (
+          <div style={{ fontSize: 13, color: 'var(--color-warning)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Icon name="warning" size={14} /> Documentación pendiente de renovar.
+          </div>
+        ) : null}
       </div>
-      {senales.length > 0 ? (
-        <div style={{ fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-          {senales.join(' · ')}
-        </div>
-      ) : null}
-      {/* Un expediente vencido es justo lo que el manual pide no disimular. */}
-      {p.docsStatus === 'vencido' ? (
-        <div style={{ fontSize: 12, color: 'var(--color-warning)' }}>
-          Documentación pendiente de renovar.
-        </div>
-      ) : null}
     </div>
   );
 }

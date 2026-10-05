@@ -17,8 +17,8 @@ export default async function PrivacidadPage() {
   return (
     <LegalPage
       theme={theme}
-      eyebrow="PRIVACIDAD"
-      title="Aviso de Privacidad"
+      eyebrow="Privacidad"
+      title="Aviso de privacidad"
       updated={doc.updated || 'Julio 2026'}
       intro={doc.intro}
       sections={doc.sections}

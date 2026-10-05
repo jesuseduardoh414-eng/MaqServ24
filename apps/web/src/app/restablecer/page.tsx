@@ -18,7 +18,8 @@ export default async function RestablecerPage({ searchParams }: { searchParams: 
   return (
     <>
       <SiteHeader theme={theme} />
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '3rem 1.5rem 4rem' }}>
+      {/* Tarjeta centrada de ~440 px (la tarjeta fija su ancho). */}
+      <main className="ms-wrap">
         <ResetPasswordCard token={token} />
       </main>
       <SiteFooter theme={theme} />

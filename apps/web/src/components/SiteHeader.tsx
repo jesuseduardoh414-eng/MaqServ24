@@ -10,6 +10,7 @@ import { FooterNewsletter } from '@/components/FooterNewsletter';
 import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
 import { LANDINGS } from '@/lib/landings';
+import { telHref } from '@/lib/telefono';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
 //
@@ -79,7 +80,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
         <div className="tb-row" style={{ ...CONTAINER, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', paddingTop: 9, paddingBottom: 9 }}>
           <div className="tb-left" style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
             {cPhone ? (
-              <a href={`tel:${cPhone.replace(/\s+/g, '')}`} style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 7 }}>
+              <a href={telHref(cPhone)} style={{ color: 'inherit', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 7 }}>
                 <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="phone" size={14} /></span>{cPhone}
               </a>
             ) : null}
@@ -236,11 +237,20 @@ export function SiteFooter({ theme }: { theme: Theme }) {
   const columns = f.columns;
   const copyright = f.copyright.trim() || `© ${year} ${brand}. ${t(theme, 'footer.rights')}.`;
 
-  const linkStyle: React.CSSProperties = { color: 'rgba(255,255,255,.66)', textDecoration: 'none', fontSize: '13.5px', fontWeight: 300 };
+  // Pie (sistema de diseño 2026-09-30): fondo de banda, tipo oración, enlaces
+  // de 14 px con peso normal y piezas de radio 8. Hover/foco en `.sf-*`.
+  const linkStyle: React.CSSProperties = { color: 'rgba(255,255,255,.7)', textDecoration: 'none', fontSize: '14px' };
 
   return (
-    <footer style={{ background: 'var(--band)', color: 'rgba(255,255,255,.66)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
-      <div style={{ ...CONTAINER, paddingTop: 64 }}>
+    <footer style={{ background: 'var(--band)', color: 'rgba(255,255,255,.7)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
+      <style>{`
+        .sf-a{ transition:color .18s ease; }
+        .sf-a:hover{ color:#fff !important; }
+        .sf-a:focus-visible, .sf-soc:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; border-radius:4px; }
+        .sf-soc{ transition:border-color .18s ease, color .18s ease; }
+        .sf-soc:hover{ border-color:rgba(255,255,255,.4) !important; color:#fff !important; }
+      `}</style>
+      <div style={{ ...CONTAINER, paddingTop: 56 }}>
         {/* El boletín no está en el modelo MAQSER24: apagado por código aunque
             el tema lo tenga encendido (ver newsletter.ts en @maqserv/config). */}
         {f.showNewsletter && NEWSLETTER_ACTIVO ? (
@@ -259,9 +269,9 @@ export function SiteFooter({ theme }: { theme: Theme }) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: 40,
-            paddingBottom: 48,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))',
+            gap: '32px 40px',
+            paddingBottom: 44,
           }}
         >
           <div>
@@ -275,26 +285,27 @@ export function SiteFooter({ theme }: { theme: Theme }) {
                     style={{
                       width: 42,
                       height: 42,
-                      borderRadius: 'var(--radius-md)',
+                      borderRadius: 10,
                       background: 'var(--color-primary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: 'var(--color-primary-fg)',
                       fontFamily: 'var(--font-display)',
+                      fontWeight: 700,
                       fontSize: '20px',
                     }}
                   >
                     {brand.charAt(0).toUpperCase()}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontSize: '19px', color: '#fff', textTransform: 'uppercase' }}>{brand}</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '19px', letterSpacing: '-.015em', color: '#fff' }}>{brand}</span>
                 </>
               )}
             </div>
-            <p style={{ fontSize: '13.5px', lineHeight: 1.6, maxWidth: 290, margin: '0 0 20px', fontWeight: 300 }}>{f.tagline}</p>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <p style={{ fontSize: '14px', lineHeight: 1.6, maxWidth: 300, margin: '0 0 20px' }}>{f.tagline}</p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {f.social.map((s, i) => (
-                <a key={i} href={s.href || '#'} target={s.href ? '_blank' : undefined} rel={s.href ? 'noopener noreferrer' : undefined} aria-label={s.label} style={{ width: 38, height: 38, borderRadius: 'var(--radius-sm)', background: 'rgba(255,255,255,.07)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', color: 'inherit', textDecoration: 'none' }}>
+                <a key={i} href={s.href || '#'} target={s.href ? '_blank' : undefined} rel={s.href ? 'noopener noreferrer' : undefined} aria-label={s.label} className="sf-soc" style={{ minWidth: 36, height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid rgba(255,255,255,.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, color: 'inherit', textDecoration: 'none' }}>
                   {s.label}
                 </a>
               ))}
@@ -303,10 +314,10 @@ export function SiteFooter({ theme }: { theme: Theme }) {
 
           {columns.map((col) => (
             <div key={col.title}>
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: '14px', marginBottom: 18 }}>{col.title}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ color: '#fff', fontWeight: 600, fontSize: '14.5px', marginBottom: 16 }}>{col.title}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 11, alignItems: 'flex-start' }}>
                 {col.links.map((l, i) => (
-                  <Link key={`${l.label}-${i}`} href={l.href} style={linkStyle}>{l.label}</Link>
+                  <Link key={`${l.label}-${i}`} href={l.href} className="sf-a" style={linkStyle}>{l.label}</Link>
                 ))}
               </div>
             </div>
@@ -319,17 +330,17 @@ export function SiteFooter({ theme }: { theme: Theme }) {
       <nav aria-label="Servicios" style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
         <div style={{ ...CONTAINER, display: 'flex', flexWrap: 'wrap', gap: '10px 22px', paddingTop: 18, paddingBottom: 18, fontSize: '13px' }}>
           {LANDINGS.map((l) => (
-            <Link key={l.ruta} href={l.ruta} style={{ color: 'rgba(255,255,255,.66)', textDecoration: 'none', fontWeight: 300 }}>{l.nombre}</Link>
+            <Link key={l.ruta} href={l.ruta} className="sf-a" style={{ color: 'rgba(255,255,255,.7)', textDecoration: 'none' }}>{l.nombre}</Link>
           ))}
         </div>
       </nav>
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
-        <div style={{ ...CONTAINER, display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', paddingTop: 20, paddingBottom: 20, fontSize: '13px', opacity: 0.55, fontWeight: 300 }}>
+        <div style={{ ...CONTAINER, display: 'flex', justifyContent: 'space-between', gap: '12px 16px', flexWrap: 'wrap', paddingTop: 20, paddingBottom: 20, fontSize: '13px', color: 'rgba(255,255,255,.55)' }}>
           <span>{copyright}</span>
-          <span style={{ display: 'flex', gap: 20 }}>
-            <Link href="/terminos" style={{ color: 'rgba(255,255,255,.55)' }}>{t(theme, 'footer.terms')}</Link>
-            <Link href="/privacidad" style={{ color: 'rgba(255,255,255,.55)' }}>{t(theme, 'footer.privacy')}</Link>
+          <span style={{ display: 'flex', gap: '8px 20px', flexWrap: 'wrap' }}>
+            <Link href="/terminos" className="sf-a" style={{ color: 'rgba(255,255,255,.55)', textDecoration: 'none' }}>{t(theme, 'footer.terms')}</Link>
+            <Link href="/privacidad" className="sf-a" style={{ color: 'rgba(255,255,255,.55)', textDecoration: 'none' }}>{t(theme, 'footer.privacy')}</Link>
             <CookiesPreferencias label={t(theme, 'cookies.preferences')} />
           </span>
         </div>

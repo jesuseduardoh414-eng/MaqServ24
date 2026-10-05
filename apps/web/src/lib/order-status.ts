@@ -60,7 +60,7 @@ export function toneColors(tone: Tone): { fg: string; bg: string; border: string
   const base =
     tone === 'ok' ? 'var(--color-success)'
       : tone === 'bad' ? 'var(--color-error)'
-        : tone === 'warn' ? 'var(--color-primary)'
+        : tone === 'warn' ? 'var(--color-warning)' // ámbar advierte (identidad MAQSER24); el azul es solo acción/datos
           : 'var(--color-text-muted)';
   return {
     fg: base,

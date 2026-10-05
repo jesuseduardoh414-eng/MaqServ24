@@ -61,15 +61,18 @@ export default async function DocumentoCotizacion({ params }: { params: Promise<
   return (
     <>
       <SiteHeader theme={theme} />
-      <main style={{ background: 'var(--color-bg)', color: 'var(--color-text)', minHeight: '60vh' }}>
-        <div style={{ maxWidth: 980, margin: '0 auto', padding: '40px clamp(20px, 5vw, 40px) 60px' }}>
-          <Link href={`/cuenta/cotizaciones/${d.quoteNumber}`} style={{ fontSize: 13, color: 'var(--color-text-muted)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Icon name="arrowLeft" size={13} />Solicitud {d.quoteNumber}
+      <main className="ms-page" style={{ minHeight: '60vh' }}>
+        {/* Marco con las piezas comunes; el documento imprimible va tal cual. */}
+        <div className="ms-wrap" style={{ maxWidth: 980 }}>
+          <Link href={`/cuenta/cotizaciones/${d.quoteNumber}`} className="ms-link ms-link-muted" style={{ marginBottom: 18 }}>
+            <Icon name="arrowLeft" size={14} />Solicitud {d.quoteNumber}
           </Link>
-          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 30, margin: '16px 0 4px', letterSpacing: '-0.02em' }}>Cotización {d.folio}</h1>
-          <p style={{ color: 'var(--color-text-muted)', margin: '0 0 22px', fontSize: 14.5 }}>
-            Imprímela o guárdala en PDF con el botón de arriba del documento.
-          </p>
+          <header className="ms-head" style={{ marginBottom: 22 }}>
+            <div className="ms-head-txt">
+              <h1 className="ms-title">Cotización {d.folio}</h1>
+              <p className="ms-desc">Imprímela o guárdala en PDF con el botón de arriba del documento.</p>
+            </div>
+          </header>
           <DocumentoCliente
             datos={{
               titulo: 'Cotización de servicio',

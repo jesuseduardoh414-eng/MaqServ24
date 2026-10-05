@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { Icon } from '@/components/Icon';
 
 interface QA {
   id: number;
@@ -44,49 +45,59 @@ export function ProductQuestions({ productId }: { productId: number }) {
     } catch (e) { setMsg({ ok: false, text: (e as Error).message }); } finally { setBusy(false); }
   }
 
-  const inputStyle: React.CSSProperties = { width: '100%', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'var(--color-bg)', color: 'var(--color-text)', padding: '11px 13px', fontFamily: 'inherit', fontSize: '14.5px', lineHeight: 1.5, resize: 'vertical' };
-
   return (
-    <section style={{ display: 'grid', gap: '1rem' }}>
-      <h2 style={{ fontSize: 'var(--text-xl)', margin: 0 }}>Preguntas y respuestas</h2>
+    <section style={{ display: 'grid', gap: 16, maxWidth: 760 }}>
+      <div>
+        <h2 className="ms-h2">Preguntas y respuestas</h2>
+        <p className="ms-h2-desc">Pregunta lo que necesites saber antes de cotizar; la respuesta aparece aquí.</p>
+      </div>
 
       {/* Preguntar */}
       {loggedIn ? (
-        <div style={{ display: 'grid', gap: '.6rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '1rem 1.1rem' }}>
-          <strong style={{ fontSize: '14.5px' }}>¿Tienes una duda sobre este equipo?</strong>
-          <textarea value={q} onChange={(e) => setQ(e.target.value)} rows={2} maxLength={500} placeholder="Escribe tu pregunta…" style={inputStyle} />
+        <div className="ms-panel" style={{ display: 'grid', gap: 10, padding: 18 }}>
+          <label className="ms-field">
+            <span className="ms-label">¿Tienes una duda sobre este equipo?</span>
+            <textarea value={q} onChange={(e) => setQ(e.target.value)} rows={2} maxLength={500} placeholder="Escribe tu pregunta…" className="ms-textarea" style={{ minHeight: 88 }} />
+          </label>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button type="button" onClick={ask} disabled={busy} style={{ border: 'none', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', borderRadius: 'var(--radius-md)', padding: '10px 20px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', fontFamily: 'inherit' }}>{busy ? 'Enviando…' : 'Preguntar'}</button>
-            {msg ? <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: msg.ok ? 'var(--color-success)' : 'var(--color-error)' }}>{msg.text}</span> : null}
+            <button type="button" onClick={ask} disabled={busy} className="ms-btn">{busy ? 'Enviando…' : 'Preguntar'}</button>
+            {msg ? (
+              <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, fontWeight: 500, color: msg.ok ? 'var(--color-success)' : 'var(--color-error)' }}>
+                <Icon name={msg.ok ? 'check' : 'warning'} size={15} />{msg.text}
+              </span>
+            ) : null}
           </div>
         </div>
       ) : (
-        <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
-          <Link href="/login" style={{ color: 'var(--color-primary)', fontWeight: 600, textDecoration: 'none' }}>Inicia sesión</Link> para hacer una pregunta sobre este equipo.
-        </p>
+        <div className="ms-alert">
+          <span className="ms-ico" style={{ width: 32, height: 32, borderRadius: 8 }}><Icon name="chat" size={16} /></span>
+          <p style={{ margin: 0, alignSelf: 'center', color: 'var(--color-text-muted)' }}>
+            <Link href="/login" className="ms-link" style={{ display: 'inline' }}>Inicia sesión</Link> para hacer una pregunta sobre este equipo.
+          </p>
+        </div>
       )}
 
       {/* Lista de Q&A respondidas */}
       {list.length === 0 ? (
-        <p style={{ color: 'var(--color-text-muted)', margin: 0, fontSize: 'var(--text-sm)' }}>Aún no hay preguntas respondidas. ¡Sé el primero en preguntar!</p>
+        <div className="ms-empty" style={{ padding: '32px 24px' }}>
+          <p className="ms-empty-t" style={{ marginTop: 0 }}>Aún no hay preguntas respondidas</p>
+          <p className="ms-empty-p">Sé el primero en preguntar sobre este equipo.</p>
+        </div>
       ) : (
-        <div style={{ display: 'grid', gap: '.8rem' }}>
+        <div style={{ display: 'grid', gap: 10 }}>
           {list.map((item) => (
-            <div key={item.id} style={{ display: 'grid', gap: '.5rem', padding: '1rem 1.1rem', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <span style={{ color: 'var(--color-primary)', fontWeight: 800, flexShrink: 0 }}>P:</span>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontWeight: 600, fontSize: '14.5px', color: 'var(--color-text)' }}>{item.question}</p>
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{item.author}{item.date ? ` · ${fmt(item.date)}` : ''}</span>
-                </div>
+            <article key={item.id} className="ms-panel" style={{ display: 'grid', gap: 12, padding: '16px 18px' }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ margin: 0, fontWeight: 600, fontSize: '15px', color: 'var(--color-text)' }}>{item.question}</p>
+                <span style={{ fontSize: '12.5px', color: 'var(--color-text-muted)' }}>{item.author}{item.date ? ` · ${fmt(item.date)}` : ''}</span>
               </div>
               {item.answer ? (
-                <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: '.6rem' }}>
-                  <span style={{ color: 'var(--color-text-muted)', fontWeight: 800, flexShrink: 0 }}>R:</span>
-                  <p style={{ margin: 0, fontSize: '14px', lineHeight: 1.6, color: 'var(--color-text)' }}>{item.answer}</p>
+                <div style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 8, padding: '10px 12px' }}>
+                  <span style={{ display: 'block', fontSize: 12.5, fontWeight: 500, color: 'var(--color-text-muted)', marginBottom: 2 }}>Respuesta de MAQSER24</span>
+                  <p style={{ margin: 0, fontSize: '14.5px', lineHeight: 1.6, color: 'var(--color-text)' }}>{item.answer}</p>
                 </div>
               ) : null}
-            </div>
+            </article>
           ))}
         </div>
       )}

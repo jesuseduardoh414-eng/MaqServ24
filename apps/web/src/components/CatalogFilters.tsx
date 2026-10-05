@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FILTER_DEFS } from '@/lib/catalog-filters';
+import { Icon } from '@/components/Icon';
 
 /**
  * Filtros del catálogo. La selección va a la URL y el servidor la consulta contra
@@ -41,29 +42,30 @@ export function CatalogFilters() {
   }
 
   return (
-    <div ref={ref} className="cat-filters" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+    <div ref={ref} className="cf">
+      <style>{CSS}</style>
       {FILTER_DEFS.map((d) => {
         const isOpen = open === d.id;
         const current = params.get(d.id) ?? '';
         const cur = d.options.find((o) => o[0] === current) ?? d.options[0];
         const active = current !== '';
         return (
-          <div key={d.id} style={{ position: 'relative' }}>
+          <div key={d.id} className="cf-item">
             <button
               type="button"
+              className="cf-btn"
+              data-on={isOpen || active ? 'true' : undefined}
               onClick={() => setOpen((o) => (o === d.id ? null : d.id))}
               aria-haspopup="listbox"
               aria-expanded={isOpen}
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, minWidth: 168, background: 'var(--color-surface)', border: `1px solid ${isOpen || active ? 'var(--color-text)' : 'var(--color-border)'}`, borderRadius: 13, padding: '9px 16px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 2px rgba(16,24,40,.03)', transition: 'border-color .15s', opacity: pending === d.id ? 0.6 : 1 }}
+              style={{ opacity: pending === d.id ? 0.6 : 1 }}
             >
-              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '.02em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{d.label}</span>
-              <span className="cf-value" style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: '100%' }}>
-                <span style={{ fontSize: '14.5px', fontWeight: active ? 700 : 600, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cur[1]}</span>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'transform .18s', transform: isOpen ? 'rotate(180deg)' : 'none' }}><polyline points="6 9 12 15 18 9" /></svg>
-              </span>
+              <span className="cf-label">{d.label}</span>
+              <span className="cf-value" data-active={active ? 'true' : undefined}>{cur[1]}</span>
+              <span className="cf-chev"><Icon name="chevronDown" size={14} style={{ transition: 'transform .18s', transform: isOpen ? 'rotate(180deg)' : 'none' }} /></span>
             </button>
             {isOpen ? (
-              <div role="listbox" style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, minWidth: '100%', width: 'max-content', maxWidth: 280, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 14, boxShadow: '0 12px 32px rgba(16,24,40,.18)', padding: 6, zIndex: 40 }}>
+              <div role="listbox" aria-label={d.label} className="cf-menu">
                 {d.options.map((o) => {
                   const selected = o[0] === current;
                   return (
@@ -72,12 +74,11 @@ export function CatalogFilters() {
                       type="button"
                       role="option"
                       aria-selected={selected}
-                      className="filter-opt"
+                      className="cf-opt"
                       onClick={() => choose(d.id, o[0])}
-                      style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, border: 'none', background: selected ? 'color-mix(in srgb, var(--color-primary) 14%, transparent)' : 'transparent', fontFamily: 'inherit', fontSize: 14, fontWeight: selected ? 700 : 600, color: 'var(--color-text)', textAlign: 'left', padding: '10px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap' }}
                     >
                       <span>{o[1]}</span>
-                      {selected ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg> : null}
+                      {selected ? <Icon name="check" size={15} style={{ color: 'var(--color-primary)' }} /> : null}
                     </button>
                   );
                 })}
@@ -89,3 +90,29 @@ export function CatalogFilters() {
     </div>
   );
 }
+
+/** Estilos propios de la barra (prefijo `cf-`): controles de 44 px y radio 8 como `.ms-select`. */
+const CSS = `
+.cf{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.cf-item{ position:relative; min-width:0; }
+.cf-btn{ display:flex; align-items:center; gap:8px; min-height:44px; padding:0 12px 0 13px; background:var(--color-bg); border:1px solid var(--color-border); border-radius:8px; color:var(--color-text); font-family:inherit; font-size:14px; cursor:pointer; text-align:left; transition:border-color .18s ease, opacity .18s ease; max-width:100%; width:100%; }
+.cf-btn:hover{ border-color:color-mix(in srgb, var(--color-text) 28%, var(--color-border)); }
+.cf-btn[data-on="true"]{ border-color:color-mix(in srgb, var(--color-primary) 60%, var(--color-border)); }
+.cf-btn:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+.cf-label{ color:var(--color-text-muted); white-space:nowrap; }
+.cf-value{ font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1; }
+.cf-value[data-active="true"]{ font-weight:600; }
+.cf-menu{ position:absolute; top:calc(100% + 6px); left:0; min-width:100%; width:max-content; max-width:min(280px, calc(100vw - 32px)); background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:0 16px 36px -12px rgba(0,0,0,.5); padding:6px; z-index:40; }
+.cf-chev{ display:flex; flex-shrink:0; color:var(--color-text-muted); }
+.cf-opt{ width:100%; display:flex; align-items:center; justify-content:space-between; gap:16px; border:none; background:transparent; font-family:inherit; font-size:14px; font-weight:500; color:var(--color-text); text-align:left; padding:10px 12px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+.cf-opt:hover{ background:color-mix(in srgb, var(--color-text) 6%, transparent); }
+.cf-opt[aria-selected="true"]{ background:color-mix(in srgb, var(--color-primary) 12%, transparent); font-weight:600; }
+@media (max-width: 640px){
+  .cf{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .cf-btn{ flex-wrap:wrap; gap:0 6px; padding:6px 10px 6px 12px; position:relative; }
+  .cf-label{ width:100%; font-size:12px; }
+  .cf-chev{ position:absolute; right:10px; top:50%; transform:translateY(-50%); }
+  .cf-value{ padding-right:16px; }
+  .cf-item:nth-child(even) .cf-menu{ left:auto; right:0; }
+}
+`;

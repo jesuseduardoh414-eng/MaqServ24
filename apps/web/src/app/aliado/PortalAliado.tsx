@@ -6,6 +6,7 @@ import { esLineaServicio } from '@maqserv/config';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
 import { Icon, type IconName } from '@/components/Icon';
 import { OfrecerEquipo } from './OfrecerEquipo';
+import { telHref } from '@/lib/telefono';
 
 /**
  * EL PANEL DEL ALIADO (rediseño 2026-09-24).
@@ -120,30 +121,122 @@ export interface ContactoMaqser {
   hours: string | null;
 }
 
+
 // ───────────────────────── estilos ─────────────────────────
 
-const card: React.CSSProperties = {
-  border: '1px solid var(--color-border)',
-  borderRadius: 'var(--radius-lg, 14px)',
-  background: 'var(--color-surface)',
-  padding: '18px 20px',
-};
-const btn: React.CSSProperties = {
-  border: 'none', background: 'var(--color-primary)', color: 'var(--color-primary-fg)',
-  borderRadius: 'var(--radius-button, 10px)', padding: '12px 20px', fontWeight: 700, fontSize: 15,
-  cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-};
-const btnSec: React.CSSProperties = {
-  ...btn, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', fontWeight: 600,
-};
-/** 16px o más: por debajo de eso, iOS hace zoom al enfocar el campo. */
-const campo: React.CSSProperties = {
-  border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)',
-  borderRadius: 'var(--radius-md, 10px)', padding: '11px 13px', fontSize: 16, fontFamily: 'inherit',
-  width: '100%', boxSizing: 'border-box',
-};
-const etiqueta: React.CSSProperties = { fontSize: 13, color: 'var(--color-text-muted)' };
-const muted: React.CSSProperties = { color: 'var(--color-text-muted)' };
+/**
+ * Estandarización (2026-09-30): el portal usa las piezas `ms-*` del sistema
+ * de diseño (EstilosSistema) como la cuenta del cliente. Aquí solo va lo
+ * propio del portal, con prefijo `al-`.
+ *
+ * Los campos van a 16 px en teléfono: por debajo de eso, iOS hace zoom al
+ * enfocar el campo (el sistema los deja en 14.5 px).
+ */
+const CSS = `
+.al-cols{ display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:32px; align-items:start; }
+.al-main, .al-side{ min-width:0; }
+.al-sec{ margin-bottom:40px; scroll-margin-top:84px; }
+.al-dos{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 16px; }
+.al-side .al-dos{ grid-template-columns:minmax(0,1fr); }
+.al-stack{ display:grid; gap:12px; }
+
+.al-head{ display:flex; gap:16px; align-items:center; margin-bottom:24px; }
+.al-avatar{ width:56px; height:56px; border-radius:12px; flex-shrink:0; display:grid; place-items:center; background:var(--color-surface); color:var(--color-text); font-family:var(--font-display); font-weight:700; font-size:19px; letter-spacing:.02em; border:1px solid var(--color-border); }
+.al-head-txt{ min-width:0; }
+.al-chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.al-meta{ display:flex; gap:6px 18px; flex-wrap:wrap; }
+.al-meta span{ display:inline-flex; align-items:flex-start; gap:6px; min-width:0; overflow-wrap:anywhere; }
+.al-meta svg{ flex-shrink:0; margin-top:3px; }
+
+.al-kpis{ padding:18px 22px; margin-bottom:32px; }
+.al-kpi{ display:block; color:inherit; text-decoration:none; border-radius:8px; padding:4px 6px; margin:-4px -6px; transition:background .18s ease; }
+.al-kpi:hover{ background:color-mix(in srgb, var(--color-text) 5%, transparent); }
+.al-kpi:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+.al-kpi .ms-stat-l{ display:flex; align-items:center; gap:6px; margin:0 0 4px; }
+.al-stat-txt{ font-size:20px; line-height:1.5; }
+
+.al-msg{ margin-bottom:20px; }
+.al-msg-ico{ display:flex; margin-top:2px; }
+.al-msg[data-ok="true"] .al-msg-ico{ color:var(--color-success); }
+.al-msg[data-ok="false"] .al-msg-ico{ color:var(--color-error); }
+
+.al-barra{ height:6px; border-radius:999px; background:color-mix(in srgb, var(--color-text) 10%, transparent); overflow:hidden; }
+.al-barra > span{ display:block; height:100%; border-radius:999px; }
+
+.al-pasos{ list-style:none; padding:0; margin:16px 0 0; display:grid; gap:12px; }
+.al-pasos li{ display:flex; gap:11px; align-items:flex-start; }
+.al-paso-ico{ width:22px; height:22px; border-radius:50%; flex-shrink:0; display:grid; place-items:center; margin-top:1px; border:1.5px solid var(--color-border); }
+.al-paso-ico[data-on="true"]{ background:var(--color-success); border-color:var(--color-success); color:var(--color-bg); }
+.al-paso-t{ font-size:14.5px; font-weight:600; }
+.al-paso-t[data-on="true"]{ text-decoration:line-through; color:var(--color-text-muted); font-weight:500; }
+.al-paso-a{ display:block; font-size:13px; color:var(--color-text-muted); margin-top:2px; line-height:1.5; }
+
+.al-card-top{ display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+.al-card-top > div{ min-width:0; }
+.al-nueva{ border-color:color-mix(in srgb, var(--color-primary) 55%, var(--color-border)); }
+.al-folio{ font-size:13px; color:var(--color-text-muted); }
+.al-card-t{ margin:8px 0 0; font-size:18px; font-weight:700; line-height:1.3; overflow-wrap:anywhere; }
+.al-importe{ text-align:right; }
+.al-importe b{ display:block; font-family:var(--font-display); font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+.al-detalle{ margin-top:14px; padding:12px 14px; border-radius:8px; background:var(--color-bg); border:1px solid var(--color-border); font-size:14px; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere; }
+.al-acciones{ display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+.al-acciones > .ms-btn{ flex:1 1 150px; }
+.al-acciones > .ms-btn-sec.al-cancelar{ flex:0 1 auto; }
+.al-form{ display:grid; gap:14px; margin-top:16px; }
+
+.al-dato-l{ font-size:13px; color:var(--color-text-muted); }
+.al-dato-v{ font-size:14.5px; margin-top:3px; overflow-wrap:anywhere; }
+.al-dato-v a{ color:var(--color-primary); font-weight:600; }
+
+.al-exige{ margin-top:12px; font-size:13px; color:var(--color-warning); display:flex; gap:6px; align-items:flex-start; }
+.al-exige svg{ flex-shrink:0; margin-top:2px; }
+.al-avance{ margin-top:16px; display:grid; gap:6px; }
+
+.al-equipo{ grid-template-columns:minmax(0,1fr) auto; }
+.al-equipo-t{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.al-equipo-t b{ font-size:15px; overflow-wrap:anywhere; }
+.al-equipo-m{ font-size:13px; margin-top:6px; display:flex; gap:4px 14px; flex-wrap:wrap; color:var(--color-text-muted); }
+.al-equipo-m span{ display:inline-flex; align-items:center; gap:5px; }
+.al-equipo-m .al-viejo{ color:var(--color-warning); }
+.al-equipo-acts{ display:flex; gap:8px; flex-wrap:wrap; }
+
+.al-lista{ padding:0; overflow:hidden; }
+.al-lista-h{ padding:16px 20px 12px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.al-lista-i{ display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; padding:13px 20px; border-top:1px solid var(--color-border); }
+.al-lista-i > div, .al-lista-i > span{ min-width:0; }
+.al-lista-i img{ width:44px; height:44px; object-fit:cover; border-radius:8px; border:1px solid var(--color-border); flex-shrink:0; }
+.al-lista-t{ font-size:14px; font-weight:600; overflow-wrap:anywhere; }
+.al-lista-s{ display:block; font-size:13px; color:var(--color-text-muted); overflow-wrap:anywhere; }
+.al-lista-pie{ padding:16px 20px; border-top:1px solid var(--color-border); }
+.al-revision{ border-color:color-mix(in srgb, var(--color-warning) 40%, var(--color-border)); }
+
+.al-cifras{ display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:12px; margin-top:18px; }
+.al-cifra{ padding:12px 14px; border-radius:8px; background:var(--color-bg); border:1px solid var(--color-border); }
+.al-cifra .ms-stat-n{ font-size:24px; }
+.al-cifra .ms-stat-l{ margin:0 0 2px; }
+
+.al-contacto .ms-btn{ white-space:normal; overflow-wrap:anywhere; text-align:center; min-width:0; }
+.al-vacio{ padding:28px 24px 30px; }
+
+@media (max-width: 980px){
+  .al-cols{ grid-template-columns:minmax(0,1fr); gap:0; }
+}
+@media (max-width: 720px){
+  .al-dos{ grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width: 640px){
+  .al-root .ms-input, .al-root .ms-textarea, .al-root .ms-select{ font-size:16px; }
+  .al-head{ align-items:flex-start; }
+  .al-avatar{ width:48px; height:48px; font-size:17px; }
+  .al-kpis{ padding:16px 18px; }
+  .al-stats{ grid-template-columns:repeat(2, minmax(0,1fr)); }
+  .al-sec{ margin-bottom:32px; }
+  .al-equipo{ grid-template-columns:minmax(0,1fr); }
+  .al-equipo-acts > .ms-btn{ flex:1 1 140px; }
+  .al-lista-h, .al-lista-i, .al-lista-pie{ padding-left:16px; padding-right:16px; }
+  .al-importe{ text-align:left; }
+}
+`;
 
 /**
  * El siguiente paso que el aliado reporta, según dónde va el servicio
@@ -155,6 +248,17 @@ const SIGUIENTE: Record<string, { estado: string; texto: string; ayuda: string }
   en_sitio: { estado: 'en_curso', texto: 'Empecé el trabajo', ayuda: 'Desde aquí corre el servicio o la renta.' },
   en_curso: { estado: 'terminado', texto: 'Terminé el trabajo', ayuda: 'MAQSER24 registra horas o viajes y cierra el servicio.' },
 };
+
+/** Icono de cada paso de avance (solo presentación). */
+const ICONO_AVANCE: Record<string, IconName> = {
+  en_traslado: 'truck',
+  en_sitio: 'mapPin',
+  en_curso: 'clock',
+  terminado: 'check',
+};
+
+/** Tono del chip: verde ok, ámbar advierte, rojo vencido, azul dato; '' neutro. */
+type Tono = 'ok' | 'warn' | 'bad' | 'info' | '';
 
 const VERDE = 'var(--color-success)';
 const AMBAR = 'var(--color-warning)';
@@ -189,49 +293,42 @@ function mananaOcho(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T08:00`;
 }
 
-const ESTADO_EQUIPO: Record<string, { label: string; color: string }> = {
-  disponible: { label: 'Disponible', color: VERDE },
-  limitada: { label: 'Disponible', color: VERDE },
-  'por-confirmar': { label: 'Por confirmar', color: AMBAR },
-  reservado: { label: 'Reservado', color: AZUL },
-  'en-traslado': { label: 'En traslado', color: AZUL },
-  'en-servicio': { label: 'En servicio', color: AZUL },
-  mantenimiento: { label: 'Mantenimiento', color: AMBAR },
-  inactivo: { label: 'Inactivo', color: ROJO },
-  agotado: { label: 'Sin unidades', color: ROJO },
+const ESTADO_EQUIPO: Record<string, { label: string; tono: Tono }> = {
+  disponible: { label: 'Disponible', tono: 'ok' },
+  limitada: { label: 'Disponible', tono: 'ok' },
+  'por-confirmar': { label: 'Por confirmar', tono: 'warn' },
+  reservado: { label: 'Reservado', tono: 'info' },
+  'en-traslado': { label: 'En traslado', tono: 'info' },
+  'en-servicio': { label: 'En servicio', tono: 'info' },
+  mantenimiento: { label: 'Mantenimiento', tono: 'warn' },
+  inactivo: { label: 'Inactivo', tono: 'bad' },
+  agotado: { label: 'Sin unidades', tono: 'bad' },
 };
 
-const ESTADO_DOCS: Record<string, { label: string; color: string }> = {
-  'al-dia': { label: 'Al día', color: VERDE },
-  'por-vencer': { label: 'Por vencer', color: AMBAR },
-  vencido: { label: 'Vencido', color: ROJO },
-  'sin-documentos': { label: 'Sin papeles', color: ROJO },
+const ESTADO_DOCS: Record<string, { label: string; tono: Tono; color: string }> = {
+  'al-dia': { label: 'Al día', tono: 'ok', color: VERDE },
+  'por-vencer': { label: 'Por vencer', tono: 'warn', color: AMBAR },
+  vencido: { label: 'Vencido', tono: 'bad', color: ROJO },
+  'sin-documentos': { label: 'Sin papeles', tono: 'bad', color: ROJO },
 };
 
 // ───────────────────────── piezas ─────────────────────────
 
-function Chip({ children, color }: { children: React.ReactNode; color: string }) {
-  return (
-    <span
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
-        color, background: `color-mix(in srgb, ${color} 12%, transparent)`,
-        border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`, borderRadius: 999, padding: '3px 10px',
-      }}
-    >
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
-      {children}
-    </span>
-  );
+function Chip({ children, tono = '' }: { children: React.ReactNode; tono?: Tono }) {
+  return <span className={`ms-chip ms-chip-dot${tono ? ` ms-chip-${tono}` : ''}`}>{children}</span>;
 }
 
-function Titulo({ icono, children, extra }: { icono: IconName; children: React.ReactNode; extra?: React.ReactNode }) {
+/** Encabezado de sección: título en tipo oración, descripción y acción opcional. */
+function Titulo({ children, desc, extra, chip }: { children: React.ReactNode; desc?: React.ReactNode; extra?: React.ReactNode; chip?: React.ReactNode }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '0 0 12px' }}>
-      <h2 style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 17, fontWeight: 700, margin: 0 }}>
-        <span style={{ color: AZUL, display: 'flex' }}><Icon name={icono} size={17} /></span>
-        {children}
-      </h2>
+    <div className="ms-sec-head">
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <h2 className="ms-h2">{children}</h2>
+          {chip}
+        </div>
+        {desc ? <p className="ms-h2-desc">{desc}</p> : null}
+      </div>
       {extra}
     </div>
   );
@@ -239,17 +336,17 @@ function Titulo({ icono, children, extra }: { icono: IconName; children: React.R
 
 function Barra({ valor, color = AZUL }: { valor: number; color?: string }) {
   return (
-    <div style={{ height: 6, borderRadius: 999, background: 'color-mix(in srgb, var(--color-text) 10%, transparent)', overflow: 'hidden' }}>
-      <div style={{ width: `${Math.round(Math.max(0, Math.min(1, valor)) * 100)}%`, height: '100%', background: color, borderRadius: 999 }} />
+    <div className="al-barra">
+      <span style={{ width: `${Math.round(Math.max(0, Math.min(1, valor)) * 100)}%`, background: color }} />
     </div>
   );
 }
 
 function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
   return (
-    <div>
-      <div style={{ fontSize: 11.5, letterSpacing: '0.06em', textTransform: 'uppercase', ...muted }}>{label}</div>
-      <div style={{ fontSize: 14.5, marginTop: 3, wordBreak: 'break-word' }}>{valor || '—'}</div>
+    <div style={{ minWidth: 0 }}>
+      <div className="al-dato-l">{label}</div>
+      <div className="al-dato-v">{valor || '—'}</div>
     </div>
   );
 }
@@ -395,8 +492,13 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
     { hecho: equipos.length > 0 && equiposConfirmados === equipos.length, texto: 'Disponibilidad confirmada', ayuda: 'Toca "Sigue libre" en cada equipo al menos cada 14 días.' },
   ];
   const listos = pasos.filter((p) => p.hecho).length;
-  const docs = ESTADO_DOCS[documentos.estado] ?? { label: documentos.estado, color: AMBAR };
+  const docs = ESTADO_DOCS[documentos.estado] ?? { label: documentos.estado, tono: 'warn' as Tono, color: AMBAR };
   const iniciales = aliado.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
+  const meses = aliado.monthsInNetwork === null
+    ? null
+    : aliado.monthsInNetwork === 0
+      ? 'Nuevo en la red'
+      : `${aliado.monthsInNetwork} ${aliado.monthsInNetwork === 1 ? 'mes' : 'meses'} en la red`;
 
   const kpis: Array<{ n: number | string; label: string; color: string; icono: IconName; ancla: string }> = [
     { n: porContestar.length, label: 'Por contestar', color: porContestar.length ? AZUL : 'var(--color-text-muted)', icono: 'bell', ancla: '#solicitudes' },
@@ -406,101 +508,69 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   ];
 
   return (
-    <div style={{ maxWidth: 1240, margin: '0 auto', padding: '22px clamp(14px, 2.5vw, 24px) 56px' }}>
+    <div className="ms-wrap al-root">
       {/* Escritorio: dos columnas, lo accionable a la izquierda (solicitudes,
           lo que trae, equipos) y la consulta a la derecha (papeles, cómo va,
           sus datos). En tableta y teléfono, una sola columna en ese orden. */}
-      <style>{`
-        .pa-kpis{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
-        .pa-dos{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-        .pa-cols{ display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr); gap:22px; align-items:start; }
-        .pa-side .pa-dos{ grid-template-columns:1fr; }
-        .pa-kpi:hover{ border-color: var(--color-primary) !important; }
-        @media (max-width: 980px){
-          .pa-cols{ grid-template-columns:1fr; }
-        }
-        @media (max-width: 720px){
-          .pa-kpis{ grid-template-columns:repeat(2,minmax(0,1fr)); }
-          .pa-dos{ grid-template-columns:1fr; }
-        }
-      `}</style>
+      <style>{CSS}</style>
 
       {/* ── Encabezado ── */}
-      <header style={{ ...card, padding: '22px 22px', marginBottom: 16, background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 14%, var(--color-surface)), var(--color-surface) 60%)' }}>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ width: 56, height: 56, borderRadius: 14, display: 'grid', placeItems: 'center', background: AZUL, color: 'var(--color-primary-fg)', fontWeight: 800, fontSize: 20, flexShrink: 0 }}>
-            {iniciales || 'A'}
+      <header className="al-head">
+        <span className="al-avatar" aria-hidden>{iniciales || 'A'}</span>
+        <div className="al-head-txt">
+          <p className="ms-kicker">Panel de aliado</p>
+          <h1 className="ms-title">{aliado.name}</h1>
+          <div className="al-chips">
+            {aliado.verified ? <Chip tono="ok">Verificado</Chip> : <Chip>Sin sello</Chip>}
+            <Chip>Nivel {aliado.level}</Chip>
           </div>
-          <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-            <div style={{ fontSize: 11.5, letterSpacing: '0.14em', textTransform: 'uppercase', ...muted }}>Panel de aliado · MAQSER24</div>
-            <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 'clamp(24px, 5vw, 32px)', margin: '4px 0 0', letterSpacing: '-0.02em', lineHeight: 1.1 }}>
-              {aliado.name}
-            </h1>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-              {aliado.verified ? <Chip color={VERDE}>Verificado</Chip> : <Chip color={AMBAR}>Sin sello</Chip>}
-              <Chip color={AZUL}>Nivel {aliado.level}</Chip>
-              {aliado.monthsInNetwork !== null ? (
-                <Chip color="var(--color-text-muted)">
-                  {aliado.monthsInNetwork === 0 ? 'Nuevo en la red' : `${aliado.monthsInNetwork} ${aliado.monthsInNetwork === 1 ? 'mes' : 'meses'} en la red`}
-                </Chip>
-              ) : null}
-            </div>
+          <div className="ms-desc al-meta">
+            <span><Icon name="mapPin" size={14} />{aliado.coverage.length ? aliado.coverage.join(', ') : 'Sin zonas registradas'}</span>
+            {lineas.length ? <span><Icon name="grid" size={14} />{lineas.join(' · ')}</span> : null}
+            {meses ? <span><Icon name="clock" size={14} />{meses}</span> : null}
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 16, fontSize: 13.5, ...muted }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Icon name="mapPin" size={14} />{aliado.coverage.length ? aliado.coverage.join(', ') : 'Sin zonas registradas'}
-          </span>
-          {lineas.length ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="grid" size={14} />{lineas.join(' · ')}</span>
-          ) : null}
         </div>
       </header>
 
       {msg ? (
-        <div role="status" style={{ ...card, marginBottom: 16, borderColor: msg.ok ? VERDE : ROJO, fontSize: 14.5, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <span style={{ color: msg.ok ? VERDE : ROJO, display: 'flex', marginTop: 1 }}><Icon name={msg.ok ? 'check' : 'warning'} size={16} /></span>
-          {msg.texto}
+        <div role="status" className={`ms-alert al-msg ${msg.ok ? 'ms-alert-ok' : 'ms-alert-bad'}`} data-ok={msg.ok}>
+          <span className="al-msg-ico"><Icon name={msg.ok ? 'check' : 'warning'} size={16} /></span>
+          <span>{msg.texto}</span>
         </div>
       ) : null}
 
       {/* ── Resumen ── */}
-      <nav className="pa-kpis" style={{ marginBottom: 22 }} aria-label="Resumen">
-        {kpis.map((k) => (
-          <a key={k.label} href={k.ancla} className="pa-kpi" style={{ ...card, padding: '14px 16px', textDecoration: 'none', color: 'inherit', transition: 'border-color .15s' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...muted, fontSize: 12.5 }}>
-              {k.label}<Icon name={k.icono} size={15} />
-            </div>
-            <div style={{ fontSize: typeof k.n === 'number' ? 28 : 18, fontWeight: 800, marginTop: 6, color: k.color, lineHeight: 1.1 }}>{k.n}</div>
-          </a>
-        ))}
+      <nav className="ms-panel al-kpis" aria-label="Resumen">
+        <div className="ms-stats al-stats">
+          {kpis.map((k) => (
+            <a key={k.label} href={k.ancla} className="al-kpi">
+              <span className="ms-stat-l"><Icon name={k.icono} size={14} />{k.label}</span>
+              <span className={`ms-stat-n${typeof k.n === 'number' ? '' : ' al-stat-txt'}`} style={{ color: k.color }}>{k.n}</span>
+            </a>
+          ))}
+        </div>
       </nav>
 
-      <div className="pa-cols">
-      <div className="pa-main">
+      <div className="al-cols">
+      <div className="al-main">
 
       {/* ── Para recibir trabajo ── */}
       {listos < pasos.length ? (
-        <section style={{ ...card, marginBottom: 26 }}>
-          <Titulo icono="check" extra={<span style={{ fontSize: 13, ...muted }}>{listos} de {pasos.length}</span>}>
-            Para empezar a recibir trabajo
-          </Titulo>
+        <section className="ms-panel al-sec">
+          <div className="al-card-top" style={{ alignItems: 'center', marginBottom: 12 }}>
+            <h2 className="ms-h3">Para empezar a recibir trabajo</h2>
+            <span className="ms-small ms-muted ms-num">{listos} de {pasos.length}</span>
+          </div>
           <Barra valor={listos / pasos.length} color={VERDE} />
-          <ol style={{ listStyle: 'none', padding: 0, margin: '14px 0 0', display: 'grid', gap: 10 }}>
+          <ol className="al-pasos">
             {pasos.map((p) => (
-              <li key={p.texto} style={{ display: 'flex', gap: 11, alignItems: 'flex-start' }}>
-                <span
-                  style={{
-                    width: 22, height: 22, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', marginTop: 1,
-                    background: p.hecho ? VERDE : 'transparent', color: 'var(--color-bg)',
-                    border: p.hecho ? 'none' : '1.5px solid var(--color-border)',
-                  }}
-                >
+              <li key={p.texto}>
+                <span className="al-paso-ico" data-on={p.hecho} aria-hidden>
                   {p.hecho ? <Icon name="check" size={13} /> : null}
                 </span>
                 <span>
-                  <span style={{ fontSize: 14.5, fontWeight: 600, ...(p.hecho ? { textDecoration: 'line-through', ...muted } : {}) }}>{p.texto}</span>
-                  {!p.hecho ? <span style={{ display: 'block', fontSize: 13, ...muted, marginTop: 2 }}>{p.ayuda}</span> : null}
+                  <span className="al-paso-t" data-on={p.hecho}>{p.texto}</span>
+                  {!p.hecho ? <span className="al-paso-a">{p.ayuda}</span> : null}
                 </span>
               </li>
             ))}
@@ -509,98 +579,90 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
       ) : null}
 
       {/* ── Solicitudes por contestar ── */}
-      <section id="solicitudes" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
-        <Titulo icono="bell">
+      <section id="solicitudes" className="al-sec">
+        <Titulo>
           {porContestar.length > 0
             ? `${porContestar.length} solicitud${porContestar.length === 1 ? '' : 'es'} esperando tu respuesta`
             : 'Solicitudes de trabajo'}
         </Titulo>
 
         {porContestar.length === 0 ? (
-          <div style={{ ...card, display: 'flex', gap: 14, alignItems: 'center' }}>
-            <span style={{ width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'color-mix(in srgb, var(--color-primary) 12%, transparent)', color: AZUL, flexShrink: 0 }}>
-              <Icon name="bell" size={19} />
-            </span>
-            <div style={{ fontSize: 14, lineHeight: 1.55 }}>
-              <strong>Nada pendiente por ahora.</strong>
-              <span style={{ display: 'block', ...muted }}>Cuando un cliente pida uno de tus equipos, aparece aquí y te avisamos por correo al instante.</span>
-            </div>
+          <div className="ms-empty al-vacio">
+            <span className="ms-ico" aria-hidden><Icon name="bell" size={19} /></span>
+            <p className="ms-h3" style={{ marginTop: 10 }}>Nada pendiente por ahora</p>
+            <p className="ms-empty-p">Cuando un cliente pida uno de tus equipos, aparece aquí y te avisamos por correo al instante.</p>
           </div>
         ) : null}
 
-        <div style={{ display: 'grid', gap: 14 }}>
+        <div className="al-stack">
           {porContestar.map((s) => {
             const abierta = respondiendo?.id === s.assignmentId ? respondiendo.modo : null;
             return (
-              <article key={s.assignmentId} style={{ ...card, borderColor: AZUL, boxShadow: '0 0 0 1px color-mix(in srgb, var(--color-primary) 25%, transparent)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                  <div style={{ minWidth: 0 }}>
+              <article key={s.assignmentId} className="ms-panel al-nueva">
+                <div className="al-card-top">
+                  <div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <Chip color={AZUL}>Nueva</Chip>
-                      <span style={{ fontSize: 12.5, ...muted }}>{hace(s.offeredAt)} · Folio {s.quoteNumber}</span>
+                      <Chip tono="info">Nueva</Chip>
+                      <span className="al-folio">{hace(s.offeredAt)} · Folio {s.quoteNumber}</span>
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 800, marginTop: 8 }}>{s.category ?? 'Servicio'}</div>
+                    <h3 className="al-card-t">{s.category ?? 'Servicio'}</h3>
                   </div>
                   {dinero(s.total) ? (
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: 11.5, letterSpacing: '0.06em', textTransform: 'uppercase', ...muted }}>Importe</div>
-                      <div style={{ fontSize: 22, fontWeight: 800 }}>{dinero(s.total)}</div>
+                    <div className="al-importe">
+                      <span className="al-dato-l">Importe</span>
+                      <b>{dinero(s.total)}</b>
                     </div>
                   ) : null}
                 </div>
 
-                <div className="pa-dos" style={{ marginTop: 14 }}>
+                <div className="al-dos" style={{ marginTop: 16 }}>
                   <Dato label="Obra" valor={s.site} />
                   <Dato label="Dirección" valor={s.address ?? 'Por confirmar'} />
                 </div>
 
-                {s.detail ? (
-                  <div style={{ marginTop: 14, padding: '12px 14px', borderRadius: 10, background: 'var(--color-bg)', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                    {s.detail}
-                  </div>
-                ) : null}
+                {s.detail ? <div className="al-detalle">{s.detail}</div> : null}
 
                 {s.requirements.length > 0 ? (
-                  <div style={{ marginTop: 12, padding: '10px 12px', border: `1px solid color-mix(in srgb, ${AMBAR} 40%, transparent)`, borderRadius: 10, fontSize: 13.5, display: 'flex', gap: 8 }}>
-                    <span style={{ color: AMBAR, display: 'flex', marginTop: 1 }}><Icon name="warning" size={15} /></span>
+                  <div className="ms-alert ms-alert-warn" style={{ marginTop: 12, fontSize: 13.5 }}>
+                    <span style={{ color: AMBAR, display: 'flex', marginTop: 2 }}><Icon name="warning" size={15} /></span>
                     <span><strong>Esta obra exige:</strong> {s.requirements.join(' · ')}</span>
                   </div>
                 ) : null}
 
                 {abierta === 'aceptar' ? (
-                  <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={etiqueta}>¿Cuándo llegas a la obra?</span>
-                      <input type="datetime-local" value={llegada} onChange={(e) => setLlegada(e.target.value)} style={campo} />
+                  <div className="al-form">
+                    <label className="ms-field">
+                      <span className="ms-label">¿Cuándo llegas a la obra?</span>
+                      <input type="datetime-local" value={llegada} onChange={(e) => setLlegada(e.target.value)} className="ms-input" />
+                      <span className="ms-hint">Es tu compromiso con el cliente y contra él medimos tu puntualidad.</span>
                     </label>
-                    <p style={{ margin: 0, fontSize: 12.5, ...muted }}>Es tu compromiso con el cliente y contra él medimos tu puntualidad.</p>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <button type="button" style={{ ...btn, flex: '1 1 160px', opacity: ocupado === s.assignmentId ? 0.6 : 1 }} disabled={ocupado === s.assignmentId} onClick={() => contestar(s.assignmentId, 'aceptado')}>
+                    <div className="al-acciones" style={{ marginTop: 0 }}>
+                      <button type="button" className="ms-btn" disabled={ocupado === s.assignmentId} onClick={() => contestar(s.assignmentId, 'aceptado')}>
                         <Icon name="check" size={16} />Confirmar que lo tomo
                       </button>
-                      <button type="button" style={{ ...btnSec, flex: '0 1 auto' }} onClick={() => setRespondiendo(null)}>Cancelar</button>
+                      <button type="button" className="ms-btn ms-btn-sec al-cancelar" onClick={() => setRespondiendo(null)}>Cancelar</button>
                     </div>
                   </div>
                 ) : abierta === 'rechazar' ? (
-                  <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={etiqueta}>¿Por qué no puedes tomarlo?</span>
-                      <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="La máquina está en otra obra, no llego a esa zona…" style={{ ...campo, resize: 'vertical' }} />
+                  <div className="al-form">
+                    <label className="ms-field">
+                      <span className="ms-label">¿Por qué no puedes tomarlo?</span>
+                      <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} placeholder="La máquina está en otra obra, no llego a esa zona…" className="ms-textarea" style={{ minHeight: 80 }} />
                     </label>
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <button type="button" style={{ ...btn, flex: '1 1 160px', background: 'var(--color-text)', color: 'var(--color-bg)', opacity: ocupado === s.assignmentId ? 0.6 : 1 }} disabled={ocupado === s.assignmentId} onClick={() => contestar(s.assignmentId, 'rechazado')}>
+                    <div className="al-acciones" style={{ marginTop: 0 }}>
+                      <button type="button" className="ms-btn" disabled={ocupado === s.assignmentId} onClick={() => contestar(s.assignmentId, 'rechazado')}>
                         Enviar respuesta
                       </button>
-                      <button type="button" style={{ ...btnSec, flex: '0 1 auto' }} onClick={() => setRespondiendo(null)}>Cancelar</button>
+                      <button type="button" className="ms-btn ms-btn-sec al-cancelar" onClick={() => setRespondiendo(null)}>Cancelar</button>
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-                    <button type="button" style={{ ...btn, flex: '1 1 150px' }} onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'aceptar' }); setMsg(null); }}>
+                  <div className="al-acciones">
+                    <button type="button" className="ms-btn" onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'aceptar' }); setMsg(null); }}>
                       <Icon name="check" size={16} />Sí puedo
                     </button>
-                    <button type="button" style={{ ...btnSec, flex: '1 1 150px' }} onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'rechazar' }); setMotivo(''); setMsg(null); }}>
-                      No puedo
+                    <button type="button" className="ms-btn ms-btn-sec" onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'rechazar' }); setMotivo(''); setMsg(null); }}>
+                      <Icon name="x" size={16} />No puedo
                     </button>
                   </div>
                 )}
@@ -612,64 +674,67 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
 
       {/* ── En curso ── */}
       {enCurso.length > 0 ? (
-        <section id="en-curso" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
-          <Titulo icono="truck">Lo que traes ahora</Titulo>
-          <div style={{ display: 'grid', gap: 12 }}>
-            {enCurso.map((s) => (
-              <article key={s.quoteNumber} style={card}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 16, fontWeight: 700 }}>{s.site ?? s.category ?? 'Servicio'}</div>
-                    <div style={{ fontSize: 12.5, ...muted, marginTop: 2 }}>
-                      {s.category ?? ''}{s.category ? ' · ' : ''}Folio {s.quoteNumber}{dinero(s.total) ? ` · ${dinero(s.total)}` : ''}
+        <section id="en-curso" className="al-sec">
+          <Titulo desc="Reporta cada avance: el cliente y MAQSER24 se enteran al instante.">Lo que traes ahora</Titulo>
+          <div className="al-stack">
+            {enCurso.map((s) => {
+              const sig = SIGUIENTE[s.state ?? 'asignado'];
+              return (
+                <article key={s.quoteNumber} className="ms-panel">
+                  <div className="al-card-top" style={{ alignItems: 'center' }}>
+                    <div>
+                      <h3 className="al-card-t" style={{ margin: 0, fontSize: 16 }}>{s.site ?? s.category ?? 'Servicio'}</h3>
+                      <div className="al-folio" style={{ marginTop: 2 }}>
+                        {s.category ?? ''}{s.category ? ' · ' : ''}Folio {s.quoteNumber}{dinero(s.total) ? ` · ${dinero(s.total)}` : ''}
+                      </div>
                     </div>
+                    <Chip tono="info">{s.stateLabel ?? 'Asignado'}</Chip>
                   </div>
-                  <Chip color={AZUL}>{s.stateLabel ?? 'Asignado'}</Chip>
-                </div>
-                <div style={{ marginTop: 12 }}><Barra valor={s.progress ?? 0} /></div>
-                <div className="pa-dos" style={{ marginTop: 14 }}>
-                  <Dato label="Llegada comprometida" valor={fechaHora(s.committedAt)} />
-                  <Dato label="Dirección" valor={s.address} />
-                  <Dato label="Quién te recibe" valor={s.contactName} />
-                  <Dato
-                    label="Teléfono en obra"
-                    valor={s.contactPhone ? <a href={`tel:${s.contactPhone}`} style={{ color: AZUL }}>{s.contactPhone}</a> : null}
-                  />
-                </div>
-                {s.requirements.length > 0 ? (
-                  <div style={{ marginTop: 12, fontSize: 13, color: AMBAR, display: 'flex', gap: 6 }}>
-                    <Icon name="warning" size={14} />Exige: {s.requirements.join(' · ')}
+                  <div style={{ marginTop: 14 }}><Barra valor={s.progress ?? 0} /></div>
+                  <div className="al-dos" style={{ marginTop: 16 }}>
+                    <Dato label="Llegada comprometida" valor={fechaHora(s.committedAt)} />
+                    <Dato label="Dirección" valor={s.address} />
+                    <Dato label="Quién te recibe" valor={s.contactName} />
+                    <Dato
+                      label="Teléfono en obra"
+                      valor={s.contactPhone ? <a href={`tel:${s.contactPhone}`}>{s.contactPhone}</a> : null}
+                    />
                   </div>
-                ) : null}
-                {/* Reporta el avance: el cliente y MAQSER24 se enteran al instante. */}
-                {SIGUIENTE[s.state ?? 'asignado'] ? (
-                  <div style={{ marginTop: 14, display: 'grid', gap: 6 }}>
-                    <button
-                      type="button"
-                      style={{ ...btn, width: '100%', opacity: ocupado === s.quoteNumber ? 0.6 : 1 }}
-                      disabled={ocupado === s.quoteNumber}
-                      onClick={() => void reportarAvance(s.quoteNumber, SIGUIENTE[s.state ?? 'asignado']!.estado)}
-                    >
-                      {SIGUIENTE[s.state ?? 'asignado']!.texto}
-                    </button>
-                    <span style={{ fontSize: 12.5, ...muted }}>{SIGUIENTE[s.state ?? 'asignado']!.ayuda}</span>
-                  </div>
-                ) : s.state === 'terminado' ? (
-                  <div style={{ marginTop: 14, fontSize: 13, ...muted }}>Reportaste que terminaste. MAQSER24 registra horas o viajes y cierra el servicio.</div>
-                ) : null}
-              </article>
-            ))}
+                  {s.requirements.length > 0 ? (
+                    <div className="al-exige">
+                      <Icon name="warning" size={14} /><span>Exige: {s.requirements.join(' · ')}</span>
+                    </div>
+                  ) : null}
+                  {/* Reporta el avance: el cliente y MAQSER24 se enteran al instante. */}
+                  {sig ? (
+                    <div className="al-avance">
+                      <button
+                        type="button"
+                        className="ms-btn ms-btn-block"
+                        disabled={ocupado === s.quoteNumber}
+                        onClick={() => void reportarAvance(s.quoteNumber, sig.estado)}
+                      >
+                        <Icon name={ICONO_AVANCE[sig.estado] ?? 'arrowRight'} size={16} />{sig.texto}
+                      </button>
+                      <span className="ms-hint">{sig.ayuda}</span>
+                    </div>
+                  ) : s.state === 'terminado' ? (
+                    <p className="ms-hint" style={{ marginTop: 14, fontSize: 13 }}>Reportaste que terminaste. MAQSER24 registra horas o viajes y cierra el servicio.</p>
+                  ) : null}
+                </article>
+              );
+            })}
           </div>
         </section>
       ) : null}
 
       {/* ── Equipos ── */}
-      <section id="equipos" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
+      <section id="equipos" className="al-sec">
         <Titulo
-          icono="box"
+          desc={equipos.length > 0 ? 'Si confirmas seguido, te llegan más solicitudes: solo proponemos lo que sabemos que está libre.' : undefined}
           extra={!ofreciendo && lineasOferta.length > 0 ? (
-            <button type="button" style={{ ...btn, padding: '8px 14px', fontSize: 13.5 }} onClick={() => { setOfreciendo(true); setMsg(null); }}>
-              + {botonOfrecer}
+            <button type="button" className="ms-btn ms-btn-sm" onClick={() => { setOfreciendo(true); setMsg(null); }}>
+              <Icon name="box" size={15} />{botonOfrecer}
             </button>
           ) : null}
         >
@@ -691,88 +756,85 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         ) : null}
 
         {propuestas.length > 0 ? (
-          <div style={{ ...card, marginBottom: 12, padding: 0, overflow: 'hidden', borderColor: AMBAR }}>
-            <div style={{ padding: '11px 18px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', color: AMBAR }}>
-              En revisión por MAQSER24
+          <div className="ms-panel al-lista al-revision" style={{ marginBottom: 12 }}>
+            <div className="al-lista-h">
+              <h3 className="ms-h3">En revisión por MAQSER24</h3>
             </div>
             {propuestas.map((e) => (
-              <div key={e.id} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 18px', borderTop: '1px solid var(--color-border)' }}>
+              <div key={e.id} className="al-lista-i" style={{ flexWrap: 'nowrap' }}>
                 {e.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.image} alt="" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8 }} />
+                  <img src={e.image} alt="" />
                 ) : null}
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{e.name}</div>
-                  <div style={{ fontSize: 12.5, ...muted }}>{e.brand ? `${e.brand} · ` : ''}enviado {hace(e.createdAt)}</div>
+                <div style={{ flex: 1 }}>
+                  <div className="al-lista-t">{e.name}</div>
+                  <span className="al-lista-s">{e.brand ? `${e.brand} · ` : ''}enviado {hace(e.createdAt)}</span>
                 </div>
-                <Chip color={AMBAR}>Por revisar</Chip>
+                <Chip tono="warn">Por revisar</Chip>
               </div>
             ))}
           </div>
         ) : null}
         {equipos.length === 0 ? (
-          <div style={{ ...card, fontSize: 14, lineHeight: 1.6, ...muted }}>
-            Todavía no tienes {queOfrece} publicados. Toca <strong style={{ color: 'var(--color-text)' }}>&quot;{botonOfrecer}&quot;</strong>,
-            responde las preguntas y sube fotos: MAQSER24 lo revisa y, al publicarlo, aparece aquí para que confirmes si sigue libre.
+          <div className="ms-empty al-vacio">
+            <span className="ms-ico" aria-hidden><Icon name="box" size={19} /></span>
+            <p className="ms-h3" style={{ marginTop: 10 }}>Todavía no tienes {queOfrece} publicados</p>
+            <p className="ms-empty-p">
+              Toca <strong style={{ color: 'var(--color-text)' }}>&quot;{botonOfrecer}&quot;</strong>, responde las preguntas y sube fotos:
+              MAQSER24 lo revisa y, al publicarlo, aparece aquí para que confirmes si sigue libre.
+            </p>
           </div>
         ) : (
-          <>
-            <p style={{ margin: '0 0 12px', fontSize: 13.5, ...muted, lineHeight: 1.6 }}>
-              Si confirmas seguido, te llegan más solicitudes: solo proponemos lo que sabemos que está libre.
-            </p>
-            <div style={{ display: 'grid', gap: 10 }}>
-              {equipos.map((e) => {
-                const viejo = e.diasSinConfirmar === null || e.diasSinConfirmar > 14;
-                const est = ESTADO_EQUIPO[e.state] ?? { label: e.state, color: AMBAR };
-                return (
-                  <div key={e.id} style={{ ...card, padding: '14px 16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <div style={{ minWidth: 0, flex: '1 1 220px' }}>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 15, fontWeight: 700 }}>{e.name}</span>
-                          <Chip color={est.color}>{est.label}</Chip>
-                        </div>
-                        <div style={{ fontSize: 12.5, marginTop: 5, display: 'flex', gap: 14, flexWrap: 'wrap', color: viejo ? AMBAR : 'var(--color-text-muted)' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Icon name="clock" size={13} />{e.confirmacion}</span>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--color-text-muted)' }}><Icon name="mapPin" size={13} />{e.location || 'Sin ubicación'}</span>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button type="button" style={{ ...btnSec, padding: '9px 14px', fontSize: 13.5 }} onClick={() => moverEquipo(e.id, e.location)} disabled={ocupado === e.id}>
-                          Dónde está
-                        </button>
-                        <button type="button" style={{ ...btn, padding: '9px 14px', fontSize: 13.5, opacity: ocupado === e.id ? 0.6 : 1 }} onClick={() => confirmar(e.id)} disabled={ocupado === e.id}>
-                          Sigue libre
-                        </button>
-                      </div>
+          <div className="ms-rows">
+            {equipos.map((e) => {
+              const viejo = e.diasSinConfirmar === null || e.diasSinConfirmar > 14;
+              const est = ESTADO_EQUIPO[e.state] ?? { label: e.state, tono: 'warn' as Tono };
+              return (
+                <div key={e.id} className="ms-row al-equipo">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="al-equipo-t">
+                      <b>{e.name}</b>
+                      <Chip tono={est.tono}>{est.label}</Chip>
+                    </div>
+                    <div className="al-equipo-m">
+                      <span className={viejo ? 'al-viejo' : undefined}><Icon name={viejo ? 'warning' : 'clock'} size={13} />{e.confirmacion}</span>
+                      <span><Icon name="mapPin" size={13} />{e.location || 'Sin ubicación'}</span>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </>
+                  <div className="al-equipo-acts">
+                    <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" onClick={() => moverEquipo(e.id, e.location)} disabled={ocupado === e.id}>
+                      <Icon name="mapPin" size={14} />Dónde está
+                    </button>
+                    <button type="button" className="ms-btn ms-btn-sm" onClick={() => confirmar(e.id)} disabled={ocupado === e.id}>
+                      <Icon name="check" size={14} />Sigue libre
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 
       {/* ── Cómo vas + historial ── */}
-      <section style={{ marginBottom: 28 }}>
-        <Titulo icono="star">Cómo vas con nosotros</Titulo>
-        <div style={card}>
+      <section className="al-sec">
+        <Titulo>Cómo vas con nosotros</Titulo>
+        <div className="ms-panel">
           <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6 }}>{cumplimiento.resumen}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 12, marginTop: 16 }}>
+          <div className="al-cifras">
             {([
               ['Te ofrecimos', cumplimiento.ofrecidos, 'var(--color-text)'],
               ['Aceptaste', cumplimiento.aceptados, AZUL],
               ['Completaste', cumplimiento.completados, VERDE],
               ['Cancelaste', cumplimiento.cancelados, cumplimiento.cancelados ? ROJO : 'var(--color-text)'],
             ] as const).map(([t, n, c]) => (
-              <div key={t} style={{ padding: '12px 14px', borderRadius: 10, background: 'var(--color-bg)' }}>
-                <div style={{ fontSize: 12, ...muted }}>{t}</div>
-                <div style={{ fontSize: 24, fontWeight: 800, marginTop: 2, color: c }}>{n}</div>
+              <div key={t} className="al-cifra">
+                <span className="ms-stat-l">{t}</span>
+                <span className="ms-stat-n" style={{ color: c }}>{n}</span>
               </div>
             ))}
           </div>
-          <p style={{ margin: '14px 0 0', fontSize: 13, ...muted, lineHeight: 1.6 }}>
+          <p className="ms-hint" style={{ marginTop: 14, fontSize: 13, lineHeight: 1.6 }}>
             {cumplimiento.minutosRespuestaReal !== null
               ? `Contestas en ~${cumplimiento.minutosRespuestaReal} min${cumplimiento.minutosRespuestaDeclarado !== null ? ` (tenemos anotado ${cumplimiento.minutosRespuestaDeclarado})` : ''}. `
               : ''}
@@ -781,21 +843,21 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         </div>
 
         {recientes.length > 0 ? (
-          <div style={{ ...card, marginTop: 12, padding: 0, overflow: 'hidden' }}>
-            <div style={{ padding: '12px 20px', fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase', ...muted }}>Tus últimos trabajos</div>
+          <div className="ms-panel al-lista" style={{ marginTop: 12 }}>
+            <div className="al-lista-h"><h3 className="ms-h3">Tus últimos trabajos</h3></div>
             {recientes.map((r) => {
               const acepto = r.answer === 'aceptado';
               return (
-                <div key={`${r.quoteNumber}-${r.respondedAt}`} style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', padding: '12px 20px', borderTop: '1px solid var(--color-border)' }}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{r.site ?? r.category ?? 'Servicio'}</div>
-                    <div style={{ fontSize: 12.5, ...muted }}>
+                <div key={`${r.quoteNumber}-${r.respondedAt}`} className="al-lista-i">
+                  <div>
+                    <div className="al-lista-t">{r.site ?? r.category ?? 'Servicio'}</div>
+                    <span className="al-lista-s">
                       Folio {r.quoteNumber}{r.respondedAt ? ` · ${hace(r.respondedAt)}` : ''}{!acepto && r.reason ? ` · “${r.reason}”` : ''}
-                    </div>
+                    </span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {acepto && dinero(r.total) ? <span style={{ fontSize: 13.5, fontWeight: 700 }}>{dinero(r.total)}</span> : null}
-                    <Chip color={acepto ? (r.stateLabel === 'Cerrado' ? VERDE : AZUL) : 'var(--color-text-muted)'}>
+                    {acepto && dinero(r.total) ? <span className="ms-num" style={{ fontSize: 13.5, fontWeight: 700 }}>{dinero(r.total)}</span> : null}
+                    <Chip tono={acepto ? (r.stateLabel === 'Cerrado' ? 'ok' : 'info') : ''}>
                       {acepto ? r.stateLabel : r.answer === 'retirado' ? 'Te retiraste' : 'No lo tomaste'}
                     </Chip>
                   </div>
@@ -808,46 +870,47 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
 
       </div>
 
-      <aside className="pa-side">
+      <aside className="al-side">
 
       {/* ── Papeles ── */}
-      <section id="papeles" style={{ marginBottom: 28, scrollMarginTop: 16 }}>
-        <Titulo icono="shield" extra={<Chip color={docs.color}>{docs.label}</Chip>}>Tus papeles</Titulo>
-        <p style={{ margin: '0 0 12px', fontSize: 13.5, ...muted, lineHeight: 1.6 }}>
-          Con tus papeles vigentes obtienes el sello de verificado y sales primero en las propuestas. Si uno
-          vence, pierdes el sello; sube el renovado aquí y vuelve solo.
-        </p>
+      <section id="papeles" className="al-sec">
+        <Titulo
+          chip={<Chip tono={docs.tono}>{docs.label}</Chip>}
+          desc="Con tus papeles vigentes obtienes el sello de verificado y sales primero en las propuestas. Si uno vence, pierdes el sello; sube el renovado aquí y vuelve solo."
+        >
+          Tus papeles
+        </Titulo>
 
         {documentos.avisos.length > 0 ? (
-          <div style={{ ...card, display: 'grid', gap: 8, marginBottom: 12, borderColor: AMBAR }}>
+          <div className={`ms-alert ${documentos.avisos.some((d) => d.urgencia === 'vencido') ? 'ms-alert-bad' : 'ms-alert-warn'}`} style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
             {documentos.avisos.map((d) => (
               <div key={d.documentId} style={{ fontSize: 13.5, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                <Chip color={d.urgencia === 'vencido' ? ROJO : AMBAR}>{d.texto}</Chip>
+                <Chip tono={d.urgencia === 'vencido' ? 'bad' : 'warn'}>{d.texto}</Chip>
                 <span>{d.name || d.kind}</span>
               </div>
             ))}
           </div>
         ) : null}
 
-        <div style={{ ...card, display: 'grid', gap: 0, padding: 0, overflow: 'hidden' }}>
+        <div className="ms-panel al-lista">
           {documentos.lista.length === 0 ? (
-            <div style={{ padding: '16px 20px', fontSize: 14, ...muted, lineHeight: 1.6 }}>
+            <p className="ms-muted" style={{ margin: 0, padding: '18px 20px', fontSize: 14, lineHeight: 1.6 }}>
               Todavía no tienes papeles entregados. Empieza por la <strong style={{ color: 'var(--color-text)' }}>póliza de seguro</strong> y la{' '}
               <strong style={{ color: 'var(--color-text)' }}>constancia de situación fiscal</strong>.
-            </div>
+            </p>
           ) : (
             documentos.lista.map((d, i) => {
               const vencido = d.expiresAt ? new Date(`${d.expiresAt}T23:59:59`) < new Date() : false;
               return (
-                <div key={d.id} style={{ display: 'flex', gap: 12, justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', padding: '13px 20px', borderTop: i ? '1px solid var(--color-border)' : 'none' }}>
-                  <span style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
-                    <span style={{ color: vencido ? ROJO : VERDE, display: 'flex' }}><Icon name={vencido ? 'warning' : 'check'} size={15} /></span>
-                    <span>
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>{d.kindLabel}</span>
-                      {d.name && d.name !== d.kindLabel ? <span style={{ display: 'block', fontSize: 12.5, ...muted }}>{d.name}</span> : null}
+                <div key={d.id} className="al-lista-i" style={i ? undefined : { borderTop: 'none' }}>
+                  <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span style={{ color: vencido ? ROJO : VERDE, display: 'flex', flexShrink: 0 }}><Icon name={vencido ? 'warning' : 'check'} size={15} /></span>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="al-lista-t">{d.kindLabel}</span>
+                      {d.name && d.name !== d.kindLabel ? <span className="al-lista-s">{d.name}</span> : null}
                     </span>
                   </span>
-                  <span style={{ fontSize: 13, color: vencido ? ROJO : 'var(--color-text-muted)' }}>
+                  <span className="ms-num" style={{ fontSize: 13, color: vencido ? ROJO : 'var(--color-text-muted)' }}>
                     {d.expiresAt ? `${vencido ? 'Venció' : 'Vence'} ${d.expiresAt}` : 'Sin vencimiento'}
                   </span>
                 </div>
@@ -855,15 +918,15 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
             })
           )}
 
-          <div style={{ padding: '14px 20px', borderTop: '1px solid var(--color-border)' }}>
+          <div className="al-lista-pie">
             {!subiendoDoc ? (
-              <button type="button" style={{ ...btnSec, width: '100%' }} onClick={() => setSubiendoDoc(true)}>
-                Subir o renovar un papel
+              <button type="button" className="ms-btn ms-btn-sec ms-btn-block" onClick={() => setSubiendoDoc(true)}>
+                <Icon name="shield" size={15} />Subir o renovar un papel
               </button>
             ) : (
-              <form onSubmit={subirDocumento} style={{ display: 'grid', gap: 12 }}>
-                <label style={{ display: 'grid', gap: 5 }}>
-                  <span style={etiqueta}>¿Qué papel es?</span>
+              <form onSubmit={subirDocumento} style={{ display: 'grid', gap: 14 }}>
+                <label className="ms-field">
+                  <span className="ms-label">¿Qué papel es?</span>
                   <ShSelect value={tipoDoc} onValueChange={setTipoDoc}>
                     <ShSelectTrigger aria-label="Tipo de papel"><ShSelectValue /></ShSelectTrigger>
                     <ShSelectContent>
@@ -871,20 +934,21 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                     </ShSelectContent>
                   </ShSelect>
                 </label>
-                <label style={{ display: 'grid', gap: 5 }}>
-                  <span style={etiqueta}>¿Hasta cuándo vale? Si no vence, déjalo vacío.</span>
-                  <input type="date" name="expiresAt" style={campo} />
+                <label className="ms-field">
+                  <span className="ms-label">¿Hasta cuándo vale?</span>
+                  <input type="date" name="expiresAt" className="ms-input" />
+                  <span className="ms-hint">Si no vence, déjalo vacío.</span>
                 </label>
-                <label style={{ display: 'grid', gap: 5 }}>
-                  <span style={etiqueta}>Foto del documento</span>
+                <label className="ms-field">
+                  <span className="ms-label">Foto del documento</span>
                   {/* Foto y no archivo: en obra se le toma foto a la póliza. */}
-                  <input type="file" name="file" accept="image/*" style={campo} />
+                  <input type="file" name="file" accept="image/*" className="ms-input" style={{ padding: '10px 13px' }} />
                 </label>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button type="submit" style={{ ...btn, opacity: guardando ? 0.6 : 1 }} disabled={guardando}>
+                <div className="al-acciones" style={{ marginTop: 0 }}>
+                  <button type="submit" className="ms-btn" disabled={guardando}>
                     {guardando ? 'Subiendo…' : 'Subir'}
                   </button>
-                  <button type="button" style={btnSec} onClick={() => setSubiendoDoc(false)}>Cancelar</button>
+                  <button type="button" className="ms-btn ms-btn-sec al-cancelar" onClick={() => setSubiendoDoc(false)}>Cancelar</button>
                 </div>
               </form>
             )}
@@ -893,25 +957,25 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
       </section>
 
       {/* ── Datos + contacto ── */}
-      <div className="pa-dos" style={{ alignItems: 'start', gap: 28 }}>
-        <section>
-          <Titulo icono="user">Tus datos</Titulo>
-          <div style={card}>
+      <div className="al-dos" style={{ alignItems: 'start', gap: 0 }}>
+        <section className="al-sec">
+          <Titulo>Tus datos</Titulo>
+          <div className="ms-panel">
             {!editando ? (
               <>
-                <div style={{ display: 'grid', gap: 12 }}>
+                <div style={{ display: 'grid', gap: 14 }}>
                   <Dato label="Contacto" valor={aliado.contactName} />
                   <Dato label="Teléfono" valor={aliado.phone} />
                   <Dato label="Correo" valor={aliado.email} />
                   <Dato label="Ciudad" valor={aliado.city} />
                   <Dato label="Zonas que cubres" valor={aliado.coverage.join(', ')} />
                 </div>
-                <button type="button" style={{ ...btnSec, marginTop: 16, width: '100%' }} onClick={() => setEditando(true)}>
-                  Corregir mis datos
+                <button type="button" className="ms-btn ms-btn-sec ms-btn-block" style={{ marginTop: 18 }} onClick={() => setEditando(true)}>
+                  <Icon name="user" size={15} />Corregir mis datos
                 </button>
               </>
             ) : (
-              <form onSubmit={guardarDatos} style={{ display: 'grid', gap: 12 }}>
+              <form onSubmit={guardarDatos} style={{ display: 'grid', gap: 14 }}>
                 {([
                   ['contactName', 'Nombre de quien contesta', aliado.contactName, 'text'],
                   ['phone', 'Teléfono', aliado.phone, 'tel'],
@@ -919,49 +983,50 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                   ['city', 'Ciudad', aliado.city, 'text'],
                   ['address', 'Dirección de tu base', aliado.address, 'text'],
                 ] as const).map(([name, label, valor, tipo]) => (
-                  <label key={name} style={{ display: 'grid', gap: 5 }}>
-                    <span style={etiqueta}>{label}</span>
-                    <input name={name} type={tipo} defaultValue={valor ?? ''} style={campo} />
+                  <label key={name} className="ms-field">
+                    <span className="ms-label">{label}</span>
+                    <input name={name} type={tipo} defaultValue={valor ?? ''} className="ms-input" />
                   </label>
                 ))}
-                <label style={{ display: 'grid', gap: 5 }}>
-                  <span style={etiqueta}>Zonas que cubres, separadas por coma</span>
-                  <input name="coverage" defaultValue={aliado.coverage.join(', ')} placeholder="Apodaca, Escobedo, García" style={campo} />
+                <label className="ms-field">
+                  <span className="ms-label">Zonas que cubres</span>
+                  <input name="coverage" defaultValue={aliado.coverage.join(', ')} placeholder="Apodaca, Escobedo, García" className="ms-input" />
+                  <span className="ms-hint">Separadas por coma.</span>
                 </label>
-                <p style={{ margin: 0, fontSize: 12.5, ...muted, lineHeight: 1.55 }}>
+                <p className="ms-hint">
                   Para cambiar las líneas de servicio que atiendes, escríbenos: eso lo revisamos con tu expediente.
                 </p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button type="submit" style={{ ...btn, opacity: guardando ? 0.6 : 1 }} disabled={guardando}>
+                <div className="al-acciones" style={{ marginTop: 0 }}>
+                  <button type="submit" className="ms-btn" disabled={guardando}>
                     {guardando ? 'Guardando…' : 'Guardar'}
                   </button>
-                  <button type="button" style={btnSec} onClick={() => setEditando(false)}>Cancelar</button>
+                  <button type="button" className="ms-btn ms-btn-sec al-cancelar" onClick={() => setEditando(false)}>Cancelar</button>
                 </div>
               </form>
             )}
           </div>
         </section>
 
-        <section>
-          <Titulo icono="chat">¿Dudas? Estamos para ayudarte</Titulo>
-          <div style={{ ...card, display: 'grid', gap: 12 }}>
-            <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, ...muted }}>
+        <section className="al-sec">
+          <Titulo>¿Dudas? Estamos para ayudarte</Titulo>
+          <div className="ms-panel al-contacto" style={{ display: 'grid', gap: 12 }}>
+            <p className="ms-muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
               Para cambiar tus líneas de servicio, corregir un equipo publicado o aclarar una solicitud, contacta a MAQSER24.
             </p>
             {contacto?.phone ? (
-              <a href={`tel:${contacto.phone.replace(/\s+/g, '')}`} style={{ ...btn, textDecoration: 'none' }}>
+              <a href={telHref(contacto.phone)} className="ms-btn">
                 <Icon name="phone" size={16} />{contacto.phone}
               </a>
             ) : null}
             {contacto?.email ? (
-              <a href={`mailto:${contacto.email}`} style={{ ...btnSec, textDecoration: 'none' }}>
+              <a href={`mailto:${contacto.email}`} className="ms-btn ms-btn-sec">
                 <Icon name="mail" size={16} />{contacto.email}
               </a>
             ) : null}
             {contacto?.hours ? (
-              <div style={{ fontSize: 13, ...muted, display: 'flex', gap: 6, alignItems: 'center' }}><Icon name="clock" size={14} />{contacto.hours}</div>
+              <div className="ms-small ms-muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}><Icon name="clock" size={14} />{contacto.hours}</div>
             ) : null}
-            <p style={{ margin: 0, fontSize: 12, ...muted, lineHeight: 1.55 }}>
+            <p className="ms-hint" style={{ fontSize: 12 }}>
               Este enlace es personal: no lo compartas. Quien lo tenga entra como tú.
             </p>
           </div>

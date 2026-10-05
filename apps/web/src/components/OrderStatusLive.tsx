@@ -3,8 +3,6 @@ import { useEffect, useState } from 'react';
 import { paymentStatusLabel, toneColors } from '@/lib/order-status';
 import { evento } from '@/lib/analitica';
 
-const MONO = 'var(--font-sans)';
-
 /** Cada cuánto se vuelve a preguntar mientras la pestaña está visible. */
 const CADA_MS = 15_000;
 /** Estados que ya no cambian: cuando se llega a uno, se deja de preguntar. */
@@ -67,14 +65,14 @@ export function OrderStatusLive({
   const st = paymentStatusLabel(paymentStatus);
   const c = toneColors(st.tone);
 
+  // Misma fila que el resto del bloque de estado (`ms-kv`) y chip común (`ms-chip`).
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '10px 0' }}>
-      <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+    <div className="ms-kv" style={{ alignItems: 'center', padding: '10px 0' }}>
+      <span>
         {label}
-        {live ? <span style={{ color: 'var(--color-primary)', marginLeft: 6 }} title="Se actualiza solo">· EN VIVO</span> : null}
+        {live ? <span style={{ color: 'var(--color-primary)', marginLeft: 6 }} title="Se actualiza solo">· En vivo</span> : null}
       </span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 700, color: c.fg, background: c.bg, border: `1px solid ${c.border}`, borderRadius: 'var(--radius-button)', padding: '5px 12px' }}>
-        <span style={{ width: 6, height: 6, borderRadius: 999, background: c.fg }} />
+      <span className="ms-chip ms-chip-dot" style={{ color: c.fg, background: c.bg, borderColor: c.border }}>
         {st.text}
       </span>
     </div>

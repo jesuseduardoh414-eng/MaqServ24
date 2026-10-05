@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getTheme, t } from '@/lib/theme';
+import { Icon } from '@/components/Icon';
 import { Reintentar } from './Reintentar';
 
 /**
@@ -20,20 +21,20 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function SinConexionPage() {
   const theme = await getTheme();
   return (
-    <main style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--color-bg, #07090C)', color: 'var(--color-text, #F5F7FA)', padding: '60px 24px' }}>
-      <div style={{ textAlign: 'center', maxWidth: 480 }}>
+    <main className="ms-page" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', background: 'var(--color-bg, #07090C)', color: 'var(--color-text, #F5F7FA)', padding: '60px 16px', boxSizing: 'border-box' }}>
+      {/* Las clases `ms-*` viajan en un <style> dentro del HTML del layout,
+          así que también llegan a esta página servida desde caché. */}
+      <div style={{ width: '100%', maxWidth: 520 }}>
         {/* Logo LOCAL (no el de la BD): es lo único que seguro está en caché. */}
-        <img src="/brand/maqser24-logo.png" alt={t(theme, 'site.name')} width={151} height={36} style={{ height: 36, width: 'auto', marginBottom: 36 }} />
-        <p style={{ fontFamily: 'var(--font-sans, Inter, sans-serif)', fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-text-muted, #A9B0B7)', margin: '0 0 14px' }}>
-          {t(theme, 'pwa.offline.title')}
-        </p>
-        <h1 style={{ fontFamily: 'var(--font-display, Inter, sans-serif)', fontSize: 32, fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 12px' }}>
-          {t(theme, 'pwa.offline.title')}
-        </h1>
-        <p style={{ margin: '0 0 28px', color: 'var(--color-text-muted, #A9B0B7)', lineHeight: 1.6 }}>
-          {t(theme, 'pwa.offline.text')}
-        </p>
-        <Reintentar label={t(theme, 'pwa.offline.retry')} />
+        <img src="/brand/maqser24-logo.png" alt={t(theme, 'site.name')} width={151} height={36} style={{ height: 36, width: 'auto', marginBottom: 28, display: 'block' }} />
+        <div className="ms-empty">
+          <span className="ms-ico ms-ico-lg ms-ico-muted" aria-hidden><Icon name="link" size={22} /></span>
+          <h1 className="ms-empty-t">{t(theme, 'pwa.offline.title')}</h1>
+          <p className="ms-empty-p">{t(theme, 'pwa.offline.text')}</p>
+          <div className="ms-empty-acts">
+            <Reintentar label={t(theme, 'pwa.offline.retry')} />
+          </div>
+        </div>
       </div>
     </main>
   );

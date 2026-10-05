@@ -4,13 +4,9 @@ import { evento } from '@/lib/analitica';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ShButton, ShInput, ShLabel } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
 import { ReglasContrasena } from '@/components/ReglasContrasena';
 import { contrasenaSegura, problemaContrasena } from '@maqserv/config';
-
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
 
 type View = 'login' | 'register' | 'forgot' | 'success' | 'verificar';
 
@@ -36,8 +32,6 @@ const ERRORES: Record<string, string> = {
 /** Con qué contesta la API cuando la cuenta existe pero no ha confirmado su correo. */
 const CODIGO_NO_VERIFICADO = 'email_no_verificado';
 
-const errStyle: React.CSSProperties = { fontSize: 12.5, color: 'var(--color-error)', marginTop: 6 };
-
 /** Logotipo oficial de Google. Va en color a propósito: es marca de un tercero. */
 function LogoGoogle() {
   return (
@@ -50,7 +44,8 @@ function LogoGoogle() {
   );
 }
 
-function OjoIcono({ abierto }: { abierto: boolean }) {
+/** Ojo de "mostrar contraseña". Lo reutiliza también la tarjeta de restablecer. */
+export function OjoIcono({ abierto }: { abierto: boolean }) {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       {abierto ? (
@@ -205,72 +200,17 @@ export function AuthCard({
   const showTabs = view === 'login' || view === 'register';
   const showSocial = (view === 'login' || view === 'register') && googleActivo;
 
-  /**
-   * Pestañas.
-   *
-   * La activa era BLANCA con letra negra (`--color-text` de fondo) y sobre el
-   * sitio oscuro parecía un recorte pegado. Ahora usa el acento de la marca,
-   * que es lo que el manual reserva para "estado interactivo".
-   */
-  const tabStyle = (on: boolean): React.CSSProperties => ({
-    flex: 1, cursor: 'pointer', fontFamily: DISPLAY, fontWeight: 700, fontSize: 14.5,
-    padding: '11px 8px', borderRadius: 'calc(var(--radius-button) - 2px)', border: '1px solid transparent',
-    background: on ? 'var(--color-surface)' : 'transparent',
-    borderColor: on ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)' : 'transparent',
-    color: on ? 'var(--color-primary)' : 'var(--color-text-muted)',
-    transition: 'color .18s ease, background .18s ease, border-color .18s ease',
-  });
-
-  const checkbox = (on: boolean): React.CSSProperties => ({
-    width: 21, height: 21, flexShrink: 0, borderRadius: 6, cursor: 'pointer',
-    border: on ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-    background: on ? 'var(--color-primary)' : 'var(--surface-2)',
-    color: 'var(--color-primary-fg)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-    transition: 'background .15s ease, border-color .15s ease',
-  });
-
-  const pwToggle: React.CSSProperties = {
-    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-    background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)',
-    display: 'grid', placeItems: 'center', width: 32, height: 32, borderRadius: 8,
-  };
-
-  const eyebrow: React.CSSProperties = {
-    fontFamily: MONO, fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase',
-    color: 'var(--color-primary)', marginBottom: 10, fontWeight: 700,
-  };
-  const heading: React.CSSProperties = {
-    fontFamily: DISPLAY, margin: '0 0 26px', fontSize: 'clamp(26px, 5vw, 32px)',
-    fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--color-text)',
-  };
-
-  /** Aviso de error: caja legible, no una línea roja de 11 px al pie. */
+  /** Aviso de error del servidor: caja legible (sistema `.ms-alert`). */
   const alerta = serverErr ? (
-    <div
-      role="alert"
-      style={{
-        display: 'flex', alignItems: 'flex-start', gap: 9, padding: '11px 13px',
-        borderRadius: 10, fontSize: 13.5, lineHeight: 1.5,
-        color: 'var(--color-text)',
-        background: 'color-mix(in srgb, var(--color-error) 12%, transparent)',
-        border: '1px solid color-mix(in srgb, var(--color-error) 40%, transparent)',
-      }}
-    >
-      <span style={{ color: 'var(--color-error)', flexShrink: 0, marginTop: 1 }}>
-        <Icon name="warning" size={15} />
-      </span>
+    <div role="alert" className="ms-alert ms-alert-bad au-alert">
+      <span className="au-alert-ico"><Icon name="warning" size={16} /></span>
       <span>
         {serverErr}
         {/* Cuenta sin confirmar: reenviar el enlace desde aquí mismo. */}
         {sinVerificar ? (
           <>
             {' '}
-            <button
-              type="button"
-              onClick={() => void reenviar()}
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontWeight: 700, color: 'var(--color-primary)', cursor: 'pointer', textDecoration: 'underline' }}
-            >
+            <button type="button" onClick={() => void reenviar()} className="au-inline-link">
               {reenviado ? 'Enlace reenviado, revisa tu correo.' : 'Reenviar el enlace'}
             </button>
           </>
@@ -279,80 +219,54 @@ export function AuthCard({
     </div>
   ) : null;
 
-  const campo = (contenido: React.ReactNode) => <div style={{ display: 'grid', gap: 7 }}>{contenido}</div>;
+  /** Campo de contraseña con el ojo de mostrar/ocultar dentro. */
+  const ojo = (
+    <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} className="au-eye">
+      <OjoIcono abierto={showPw} />
+    </button>
+  );
 
   return (
-    <div
-      style={{
-        position: 'relative', background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
-        padding: 'clamp(24px, 5vw, 38px)', boxShadow: 'var(--shadow)',
-      }}
-    >
-      {/* Marcas de esquina (firma del diseño). En el acento y más finas: en
-          blanco puro competían con el contenido en vez de enmarcarlo. */}
-      {[['14px', 'auto', 'auto', '14px'], ['14px', '14px', 'auto', 'auto'], ['auto', 'auto', '14px', '14px'], ['auto', '14px', '14px', 'auto']].map((pos, i) => (
-        <span
-          key={i}
-          aria-hidden
-          style={{
-            position: 'absolute', top: pos[0], right: pos[1], bottom: pos[2], left: pos[3],
-            width: 12, height: 12, opacity: 0.55, pointerEvents: 'none',
-            borderTop: i < 2 ? '1.5px solid var(--color-primary)' : undefined,
-            borderBottom: i >= 2 ? '1.5px solid var(--color-primary)' : undefined,
-            borderLeft: i % 2 === 0 ? '1.5px solid var(--color-primary)' : undefined,
-            borderRight: i % 2 === 1 ? '1.5px solid var(--color-primary)' : undefined,
-          }}
-        />
-      ))}
+    <div className="ms-panel ms-panel-lg au-card">
+      <style>{CSS}</style>
 
       {showTabs ? (
-        <div
-          style={{
-            display: 'flex', gap: 4, background: 'var(--surface-2)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-button)', padding: 4, marginBottom: 28,
-          }}
-        >
-          <button type="button" onClick={() => go('login')} style={tabStyle(view === 'login')} aria-pressed={view === 'login'}>{L.tabLogin}</button>
-          <button type="button" onClick={() => go('register')} style={tabStyle(view === 'register')} aria-pressed={view === 'register'}>{L.tabRegister}</button>
+        <div className="ms-tabs au-tabs" role="tablist" aria-label="Acceso">
+          <button type="button" role="tab" className="ms-tab" onClick={() => go('login')} aria-selected={view === 'login'}>{L.tabLogin}</button>
+          <button type="button" role="tab" className="ms-tab" onClick={() => go('register')} aria-selected={view === 'register'}>{L.tabRegister}</button>
         </div>
       ) : null}
 
       {/* LOGIN */}
       {view === 'login' ? (
         <div>
-          <div style={eyebrow}>{L.loginEyebrow}</div>
-          <h1 style={heading}>{L.loginHeading}</h1>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
-            {campo(
-              <>
-                <ShLabel htmlFor="login-email">{L.fieldEmail}</ShLabel>
-                <ShInput id="login-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} className="h-12 text-[15px]" />
-                {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
-              </>,
-            )}
-            {campo(
-              <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
-                  <ShLabel htmlFor="login-password">{L.fieldPassword}</ShLabel>
-                  <button type="button" onClick={() => go('forgot')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--color-primary)', padding: 0 }}>{L.forgotLink}</button>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <ShInput id="login-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password" aria-invalid={passErr} className="h-12 pr-12 text-[15px]" />
-                  <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}><OjoIcono abierto={showPw} /></button>
-                </div>
-                {passErr ? <div style={errStyle}>Ingresa tu contraseña.</div> : null}
-              </>,
-            )}
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10, userSelect: 'none' }}>
-              <button type="button" role="checkbox" aria-checked={remember} aria-label={L.remember} onClick={() => setRemember((v) => !v)} style={checkbox(remember)}>{remember ? <Icon name="check" size={12} /> : null}</button>
-              <span onClick={() => setRemember((v) => !v)} style={{ fontSize: 13.5, color: 'var(--color-text-muted)', cursor: 'pointer' }}>{L.remember}</span>
+          <p className="ms-kicker">{L.loginEyebrow}</p>
+          <h1 className="au-title">{L.loginHeading}</h1>
+          <div className="au-stack">
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="login-email">{L.fieldEmail}</label>
+              <input id="login-email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
+              {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
+            </div>
+            <div className="ms-field">
+              <div className="au-label-row">
+                <label className="ms-label" htmlFor="login-password">{L.fieldPassword}</label>
+                <button type="button" onClick={() => go('forgot')} className="ms-link au-small-link">{L.forgotLink}</button>
+              </div>
+              <div className="au-pw">
+                <input id="login-password" className="ms-input" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password" aria-invalid={passErr} />
+                {ojo}
+              </div>
+              {passErr ? <p className="ms-error">Ingresa tu contraseña.</p> : null}
+            </div>
+            <span className="au-checkrow">
+              <button type="button" role="checkbox" aria-checked={remember} aria-label={L.remember} onClick={() => setRemember((v) => !v)} className="ms-check">{remember ? <Icon name="check" size={12} /> : null}</button>
+              <span onClick={() => setRemember((v) => !v)} className="au-checktxt">{L.remember}</span>
             </span>
             {alerta}
-            <ShButton onClick={submitLogin} disabled={loading} className="h-12 w-full text-[15px]">
+            <button type="button" onClick={submitLogin} disabled={loading} className="ms-btn ms-btn-lg ms-btn-block">
               {loading ? 'Entrando…' : L.loginSubmit}
-            </ShButton>
+            </button>
           </div>
         </div>
       ) : null}
@@ -360,50 +274,44 @@ export function AuthCard({
       {/* REGISTER */}
       {view === 'register' ? (
         <div>
-          <div style={eyebrow}>{L.registerEyebrow}</div>
-          <h1 style={heading}>{L.registerHeading}</h1>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
-            {campo(
-              <>
-                <ShLabel htmlFor="reg-name">{L.fieldName}</ShLabel>
-                <ShInput id="reg-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" aria-invalid={nameErr} className="h-12 text-[15px]" />
-                {nameErr ? <div style={errStyle}>Ingresa tu nombre.</div> : null}
-              </>,
-            )}
-            {campo(
-              <>
-                <ShLabel htmlFor="reg-email">{L.fieldEmail}</ShLabel>
-                <ShInput id="reg-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} className="h-12 text-[15px]" />
-                {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
-              </>,
-            )}
-            {campo(
-              <>
-                <ShLabel htmlFor="reg-password">{L.fieldPassword}</ShLabel>
-                <div style={{ position: 'relative' }}>
-                  <ShInput id="reg-password" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 10 caracteres" autoComplete="new-password" aria-invalid={passErr} className="h-12 pr-12 text-[15px]" />
-                  <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} style={pwToggle}><OjoIcono abierto={showPw} /></button>
-                </div>
-                <ReglasContrasena password={password} nombre={name} correo={email} />
-                {passErr ? <div style={errStyle}>{problemaContrasena(password, { nombre: name, correo: email })}</div> : null}
-              </>,
-            )}
-            {campo(
-              <>
-                <ShLabel htmlFor="reg-password2">Confirmar contraseña</ShLabel>
-                <ShInput id="reg-password2" value={password2} onChange={(e) => setPassword2(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Escríbela otra vez" autoComplete="new-password" aria-invalid={pass2Err} className="h-12 text-[15px]" />
-                {pass2Err ? <div style={errStyle}>Las contraseñas no coinciden.</div> : null}
-              </>,
-            )}
-            <span style={{ display: 'flex', alignItems: 'flex-start', gap: 10, userSelect: 'none' }}>
-              <button type="button" role="checkbox" aria-checked={terms} aria-label="Acepto los términos y el aviso de privacidad" onClick={() => setTerms((v) => !v)} style={checkbox(terms)}>{terms ? <Icon name="check" size={12} /> : null}</button>
-              <span onClick={() => setTerms((v) => !v)} style={{ fontSize: 13, color: 'var(--color-text-muted)', lineHeight: 1.5, cursor: 'pointer' }}>Acepto los <Link href="/terminos" style={{ color: 'var(--color-primary)', fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>Términos</Link> y el <Link href="/privacidad" style={{ color: 'var(--color-primary)', fontWeight: 600 }} onClick={(e) => e.stopPropagation()}>Aviso de privacidad</Link>.</span>
-            </span>
-            {termsErr ? <div style={errStyle}>Debes aceptar los términos.</div> : null}
+          <p className="ms-kicker">{L.registerEyebrow}</p>
+          <h1 className="au-title">{L.registerHeading}</h1>
+          <div className="au-stack">
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="reg-name">{L.fieldName}</label>
+              <input id="reg-name" className="ms-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" aria-invalid={nameErr} />
+              {nameErr ? <p className="ms-error">Ingresa tu nombre.</p> : null}
+            </div>
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="reg-email">{L.fieldEmail}</label>
+              <input id="reg-email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
+              {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
+            </div>
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="reg-password">{L.fieldPassword}</label>
+              <div className="au-pw">
+                <input id="reg-password" className="ms-input" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 10 caracteres" autoComplete="new-password" aria-invalid={passErr} />
+                {ojo}
+              </div>
+              {passErr ? <p className="ms-error">{problemaContrasena(password, { nombre: name, correo: email })}</p> : null}
+              <ReglasContrasena password={password} nombre={name} correo={email} />
+            </div>
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="reg-password2">Confirmar contraseña</label>
+              <input id="reg-password2" className="ms-input" value={password2} onChange={(e) => setPassword2(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Escríbela otra vez" autoComplete="new-password" aria-invalid={pass2Err} />
+              {pass2Err ? <p className="ms-error">Las contraseñas no coinciden.</p> : null}
+            </div>
+            <div className="ms-field">
+              <span className="au-checkrow au-checkrow-top">
+                <button type="button" role="checkbox" aria-checked={terms} aria-label="Acepto los términos y el aviso de privacidad" onClick={() => setTerms((v) => !v)} className="ms-check">{terms ? <Icon name="check" size={12} /> : null}</button>
+                <span onClick={() => setTerms((v) => !v)} className="au-checktxt">Acepto los <Link href="/terminos" onClick={(e) => e.stopPropagation()}>Términos</Link> y el <Link href="/privacidad" onClick={(e) => e.stopPropagation()}>Aviso de privacidad</Link>.</span>
+              </span>
+              {termsErr ? <p className="ms-error">Debes aceptar los términos.</p> : null}
+            </div>
             {alerta}
-            <ShButton onClick={submitRegister} disabled={loading} className="h-12 w-full text-[15px]">
+            <button type="button" onClick={submitRegister} disabled={loading} className="ms-btn ms-btn-lg ms-btn-block">
               {loading ? 'Creando…' : L.registerSubmit}
-            </ShButton>
+            </button>
           </div>
         </div>
       ) : null}
@@ -411,77 +319,61 @@ export function AuthCard({
       {/* FORGOT */}
       {view === 'forgot' ? (
         <div>
-          <div style={eyebrow}>{L.forgotEyebrow}</div>
-          <h1 style={{ ...heading, marginBottom: 10 }}>{L.forgotTitle}</h1>
-          <p style={{ margin: '0 0 24px', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>{L.forgotHint}</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 17 }}>
-            {campo(
-              <>
-                <ShLabel htmlFor="forgot-email">{L.fieldEmail}</ShLabel>
-                <ShInput id="forgot-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} className="h-12 text-[15px]" />
-                {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
-              </>,
-            )}
+          <p className="ms-kicker">{L.forgotEyebrow}</p>
+          <h1 className="au-title au-title-tight">{L.forgotTitle}</h1>
+          <p className="ms-desc au-desc">{L.forgotHint}</p>
+          <div className="au-stack">
+            <div className="ms-field">
+              <label className="ms-label" htmlFor="forgot-email">{L.fieldEmail}</label>
+              <input id="forgot-email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
+              {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
+            </div>
             {alerta}
-            <ShButton onClick={submitForgot} disabled={loading} className="h-12 w-full text-[15px]">
+            <button type="button" onClick={submitForgot} disabled={loading} className="ms-btn ms-btn-lg ms-btn-block">
               {loading ? 'Enviando…' : L.forgotSubmit}
-            </ShButton>
-            <ShButton variant="ghost" onClick={() => go('login')} className="w-full">
+            </button>
+            <button type="button" onClick={() => go('login')} className="ms-btn ms-btn-sec ms-btn-block">
               <Icon name="arrowLeft" size={14} />{L.forgotBack}
-            </ShButton>
+            </button>
           </div>
         </div>
       ) : null}
 
-      {/* SUCCESS (forgot) */}
       {/* Registro hecho: la cuenta se activa desde el correo (2026-09-23). */}
       {view === 'verificar' ? (
-        <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}><Icon name="check" size={30} /></div>
-          <h1 style={{ ...heading, marginBottom: 12 }}>Confirma tu correo</h1>
-          <p style={{ margin: '0 0 8px', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
-            Te mandamos un enlace a <strong style={{ color: 'var(--color-text)' }}>{email.trim()}</strong>. Ábrelo para activar tu cuenta: entras directo y sigues donde ibas.
+        <div className="au-done">
+          <span className="ms-ico ms-ico-lg" aria-hidden><Icon name="mail" size={22} /></span>
+          <h1 className="au-title au-title-tight">Confirma tu correo</h1>
+          <p className="ms-desc">
+            Te mandamos un enlace a <strong className="au-strong">{email.trim()}</strong>. Ábrelo para activar tu cuenta: entras directo y sigues donde ibas.
           </p>
-          <p style={{ margin: '0 0 22px', fontSize: 13, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
-            Si no lo ves en unos minutos, revisa la carpeta de no deseados.
-          </p>
-          <ShButton variant="outline" onClick={() => void reenviar()} className="h-12 w-full text-[15px]">
+          <p className="ms-hint au-hint">Si no lo ves en unos minutos, revisa la carpeta de no deseados.</p>
+          <button type="button" onClick={() => void reenviar()} className="ms-btn ms-btn-sec ms-btn-lg ms-btn-block">
             {reenviado ? 'Enlace reenviado' : 'Reenviar el enlace'}
-          </ShButton>
+          </button>
         </div>
       ) : null}
 
+      {/* SUCCESS (forgot) */}
       {view === 'success' ? (
-        <div style={{ textAlign: 'center', padding: '12px 0' }}>
-          <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}><Icon name="check" size={30} /></div>
-          <h1 style={{ ...heading, marginBottom: 12 }}>{L.doneTitle}</h1>
-          <p style={{ margin: '0 0 26px', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>{L.doneBody}</p>
-          <ShButton onClick={() => go('login')} className="h-12 w-full text-[15px]">{L.forgotBack}</ShButton>
+        <div className="au-done">
+          <span className="ms-ico ms-ico-lg" aria-hidden><Icon name="check" size={22} /></span>
+          <h1 className="au-title au-title-tight">{L.doneTitle}</h1>
+          <p className="ms-desc au-desc">{L.doneBody}</p>
+          <button type="button" onClick={() => go('login')} className="ms-btn ms-btn-lg ms-btn-block">{L.forgotBack}</button>
         </div>
       ) : null}
 
       {/* Entrar con Google. Solo aparece si el servidor tiene credenciales. */}
       {showSocial ? (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, margin: '24px 0' }}>
-            <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
-            <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.1em' }}>O CONTINÚA CON</span>
-            <span style={{ flex: 1, height: 1, background: 'var(--color-border)' }} />
-          </div>
+          <div className="au-or"><span>O continúa con</span></div>
           {/*
             Enlace, NO botón con fetch: el navegador tiene que NAVEGAR de verdad
             a accounts.google.com. Un fetch lo bloquearía el propio Google (no
             permite que su pantalla de consentimiento se cargue por XHR).
           */}
-          <a
-            href={`/api/auth/google?next=${encodeURIComponent(redirectTo || '/')}`}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-              height: 48, borderRadius: 'var(--radius-button)', textDecoration: 'none',
-              border: '1px solid var(--color-border)', background: 'var(--surface-2)',
-              color: 'var(--color-text)', fontWeight: 700, fontSize: 14.5,
-            }}
-          >
+          <a href={`/api/auth/google?next=${encodeURIComponent(redirectTo || '/')}`} className="ms-btn ms-btn-sec ms-btn-lg ms-btn-block">
             <LogoGoogle /> Continuar con Google
           </a>
         </div>
@@ -489,3 +381,41 @@ export function AuthCard({
     </div>
   );
 }
+
+/* Estilos propios de la tarjeta de acceso (prefijo `au-`). Lo común sale de `ms-*`. */
+const CSS = `
+.au-card{ width:100%; max-width:440px; margin:0 auto; box-sizing:border-box; }
+.au-tabs{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:26px; }
+.au-tabs .ms-tab{ justify-content:center; min-height:40px; }
+.au-title{ margin:0 0 24px; font-family:var(--font-display); font-size:28px; font-weight:700; letter-spacing:-.025em; line-height:1.15; color:var(--color-text); text-wrap:balance; }
+.au-title-tight{ margin-bottom:8px; }
+.au-desc{ margin:0 0 22px; }
+.au-stack{ display:grid; gap:18px; }
+.au-label-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.au-small-link{ font-size:13px; }
+.au-pw{ position:relative; }
+.au-pw .ms-input{ padding-right:46px; }
+.au-eye{ position:absolute; right:6px; top:50%; transform:translateY(-50%); width:34px; height:34px; display:grid; place-items:center; background:none; border:none; border-radius:8px; color:var(--color-text-muted); cursor:pointer; }
+.au-eye:hover{ color:var(--color-text); }
+.au-eye:focus-visible{ outline:2px solid var(--color-primary); outline-offset:1px; }
+.au-checkrow{ display:flex; align-items:center; gap:10px; user-select:none; }
+.au-checkrow-top{ align-items:flex-start; }
+.au-checkrow-top .ms-check{ margin-top:1px; }
+.au-checktxt{ font-size:13.5px; line-height:1.5; color:var(--color-text-muted); cursor:pointer; }
+.au-checktxt a{ color:var(--color-primary); font-weight:600; text-decoration:none; }
+.au-checktxt a:hover{ text-decoration:underline; }
+.au-alert{ font-size:13.5px; }
+.au-alert-ico{ color:var(--color-error); flex-shrink:0; margin-top:2px; display:inline-flex; }
+.au-inline-link{ background:none; border:none; padding:0; font:inherit; font-weight:600; color:var(--color-primary); cursor:pointer; text-decoration:underline; }
+.au-done{ display:grid; justify-items:start; gap:10px; }
+.au-done .au-title{ margin-top:8px; }
+.au-done .ms-desc{ margin:0; }
+.au-done .ms-btn{ margin-top:10px; }
+.au-hint{ margin:0; }
+.au-strong{ color:var(--color-text); font-weight:600; word-break:break-all; }
+.au-or{ display:flex; align-items:center; gap:14px; margin:24px 0 18px; font-size:13px; color:var(--color-text-muted); }
+.au-or::before, .au-or::after{ content:''; flex:1; height:1px; background:var(--color-border); }
+@media (max-width: 640px){
+  .au-title{ font-size:25px; }
+}
+`;

@@ -66,15 +66,14 @@ export function Carousel({
   }
 
   const arrow = (apagada: boolean): React.CSSProperties => ({
-    width: 46,
-    height: 46,
-    borderRadius: 'var(--radius-md)',
+    width: 44,
+    height: 44,
+    borderRadius: 8,
     border: '1px solid var(--color-border)',
     background: 'var(--color-surface)',
     color: apagada ? 'var(--color-text-muted)' : 'var(--color-text)',
     cursor: apagada ? 'default' : 'pointer',
     opacity: apagada ? 0.4 : 1,
-    boxShadow: apagada ? 'none' : 'var(--shadow-sm)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -93,9 +92,10 @@ export function Carousel({
           flexWrap: 'wrap',
         }}
       >
-        <div>
-          <Eyebrow color={eyebrowColor} tickColor={eyebrowColor}>{eyebrow}</Eyebrow>
-          <h2 style={{ fontSize: 'clamp(1.9rem, 3.6vw, 2.4rem)', textTransform: 'uppercase', letterSpacing: '-.005em', margin: 0, ...(titleColor ? { color: titleColor } : {}) }}>
+        <div style={{ minWidth: 0 }}>
+          <Eyebrow color={eyebrowColor}>{eyebrow}</Eyebrow>
+          {/* Título de sección del home: tipo oración, hasta 34 px (sistema 2026-09-30). */}
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(26px, 3.2vw, 34px)', fontWeight: 700, letterSpacing: '-.015em', lineHeight: 1.15, margin: 0, textWrap: 'balance', ...(titleColor ? { color: titleColor } : {}) }}>
             {title}
           </h2>
         </div>
@@ -131,26 +131,16 @@ export function Carousel({
 }
 
 /**
- * Etiqueta pequeña con guion (se reutiliza en varias secciones).
- * `color` y `tickColor` permiten override por sección (default = tokens del tema).
+ * Kicker de sección (se reutiliza en varias secciones del home y en
+ * `CategoryStrip`). Sistema de diseño 2026-09-30: 13 px, azul, tipo oración,
+ * sin MAYÚSCULAS espaciadas ni la raya gruesa de antes (equivale a `.ms-kicker`).
+ * `color` permite override por sección (default = tokens del tema).
+ * `tickColor` se conserva por compatibilidad con quien lo pase; ya no se pinta.
  */
-export function Eyebrow({ children, color, tickColor }: { children: ReactNode; color?: string; tickColor?: string }) {
+export function Eyebrow({ children, color }: { children: ReactNode; color?: string; tickColor?: string }) {
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        color: color ?? 'var(--color-accent)',
-        fontWeight: 700,
-        fontSize: '12.5px',
-        letterSpacing: '.16em',
-        textTransform: 'uppercase',
-        marginBottom: 12,
-      }}
-    >
-      <span style={{ width: 24, height: 3, background: tickColor ?? 'var(--color-primary)', display: 'inline-block' }} />
+    <p className="ms-kicker" style={color ? { color } : undefined}>
       {children}
-    </div>
+    </p>
   );
 }

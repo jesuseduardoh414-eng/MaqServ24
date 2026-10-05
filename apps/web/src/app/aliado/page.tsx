@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { ALIADO_COOKIE } from '@/lib/cookies';
 import { getTheme } from '@/lib/theme';
 import { SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 import { PortalAliado, type DatosPortal } from './PortalAliado';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -67,7 +68,7 @@ export default async function AliadoPage({
   return (
     <>
       <EncabezadoAliado theme={theme} />
-      <main style={{ background: 'var(--color-bg)', color: 'var(--color-text)', minHeight: '100vh' }}>
+      <main className="ms-page" style={{ minHeight: '100vh' }}>
         <PortalAliado datos={datos} contacto={contacto} />
       </main>
       <SiteFooter theme={theme} />
@@ -108,7 +109,7 @@ function EncabezadoAliado({ theme }: { theme: Awaited<ReturnType<typeof getTheme
             // eslint-disable-next-line @next/next/no-img-element
             <img className="hdr-logo-img" src={(claro ?? oscuro) as string} alt={alt} style={img} />
           ) : (
-            <strong style={{ fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '0.04em' }}>{alt}</strong>
+            <strong style={{ fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '-0.01em' }}>{alt}</strong>
           )}
         </Link>
       </div>
@@ -120,14 +121,23 @@ function SinAcceso({ theme, motivo }: { theme: Awaited<ReturnType<typeof getThem
   return (
     <>
       <EncabezadoAliado theme={theme} />
-      <main style={{ background: 'var(--color-bg)', color: 'var(--color-text)', minHeight: '70vh', display: 'grid', placeItems: 'center', padding: 24 }}>
-        <div style={{ maxWidth: 440, textAlign: 'center' }}>
-          <h1 style={{ fontFamily: 'var(--font-heading)', fontSize: 28, margin: '0 0 12px' }}>
-            No pudimos abrir tu panel
-          </h1>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: 15, lineHeight: 1.65, margin: 0 }}>
-            {motivo} Escríbenos o llámanos y te mandamos uno nuevo en un minuto.
-          </p>
+      <main className="ms-page" style={{ minHeight: '70vh', display: 'grid', alignItems: 'center' }}>
+        <div className="ms-wrap-narrow" style={{ width: '100%', boxSizing: 'border-box' }}>
+          <div className="ms-empty">
+            <span className="ms-ico ms-ico-lg" aria-hidden><Icon name="link" size={22} /></span>
+            <h1 className="ms-empty-t">No pudimos abrir tu panel</h1>
+            <p className="ms-empty-p">
+              {motivo} Escríbenos o llámanos y te mandamos uno nuevo en un minuto.
+            </p>
+            <div className="ms-empty-acts">
+              <Link href="/contacto" className="ms-btn">
+                <Icon name="chat" size={16} />Contactar a MAQSER24
+              </Link>
+              <Link href="/" className="ms-link ms-link-muted">
+                Ir al sitio<Icon name="arrowRight" size={14} />
+              </Link>
+            </div>
+          </div>
         </div>
       </main>
       <SiteFooter theme={theme} />

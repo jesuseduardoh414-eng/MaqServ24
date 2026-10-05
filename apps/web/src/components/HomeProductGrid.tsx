@@ -42,23 +42,10 @@ export function HomeProductGrid({
       .catch(() => {});
   }, []);
 
-  const tabBtn = (active: boolean): React.CSSProperties => ({
-    // Los dos evitan que el filtro se parta: sin `flexShrink` las pestañas se
-    // aplastan hasta quedar ilegibles antes de desbordar, y sin `nowrap` una
-    // etiqueta larga ("Plataformas de elevación") se corta en dos renglones
-    // dentro de su propia píldora.
-    flexShrink: 0,
-    whiteSpace: 'nowrap',
-    border: active ? 'none' : '1px solid var(--color-border)',
-    background: active ? 'var(--color-primary)' : 'var(--color-surface)',
-    color: active ? 'var(--color-primary-fg)' : 'var(--color-text)',
-    fontWeight: active ? 700 : 600,
-    fontSize: '13.5px',
-    padding: '11px 20px',
-    borderRadius: 'var(--radius-md)',
-    cursor: 'pointer',
-    fontFamily: 'var(--font-sans)',
-  });
+  // Pestañas del sistema (`.ms-tab`, `aria-selected` marca la activa).
+  // `flexShrink: 0` evita que se aplasten antes de desbordar; `.ms-tab` ya
+  // trae `white-space: nowrap`.
+  const tabBtn: React.CSSProperties = { flexShrink: 0 };
 
   return (
     <>
@@ -74,6 +61,7 @@ export function HomeProductGrid({
       {showTabs ? (
         <div
           className="no-sb"
+          role="tablist"
           style={{
             display: 'flex',
             // `safe center`: centra mientras quepa y, en cuanto no cabe, se
@@ -81,21 +69,21 @@ export function HomeProductGrid({
             // reparte por los dos lados y la primera pestaña —"Todos", la
             // activa por defecto— nacía cortada por la izquierda.
             justifyContent: align === 'left' ? 'flex-start' : 'safe center',
-            gap: 10,
+            gap: 6,
             flexWrap: 'nowrap',
             overflowX: 'auto',
             overscrollBehaviorX: 'contain',
             // Aire al final para que la última pestaña no quede pegada al
             // borde cuando se llega al tope del desplazamiento.
             padding: '2px 2px 2px 0',
-            margin: '28px 0 34px',
+            margin: '24px 0 28px',
           }}
         >
-          <button type="button" style={tabBtn(tab === 'all')} onClick={() => setTab('all')}>
+          <button type="button" role="tab" className="ms-tab" aria-selected={tab === 'all'} style={tabBtn} onClick={() => setTab('all')}>
             {t(theme, 'home.featured.filterAll')}
           </button>
           {tabs.map((c) => (
-            <button key={c.slug} type="button" style={tabBtn(tab === c.slug)} onClick={() => setTab(c.slug)}>
+            <button key={c.slug} type="button" role="tab" className="ms-tab" aria-selected={tab === c.slug} style={tabBtn} onClick={() => setTab(c.slug)}>
               {c.name}
             </button>
           ))}
@@ -104,7 +92,7 @@ export function HomeProductGrid({
         <div style={{ height: 34 }} />
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 22 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: 16 }}>
         {visible.map((p) => (
           <ProductCard key={p.id} product={p} theme={theme} initialFaved={wish.has(p.id)} />
         ))}

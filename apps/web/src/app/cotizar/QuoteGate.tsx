@@ -25,39 +25,37 @@ import { Icon } from '@/components/Icon';
  */
 export function QuoteGate({ theme, next }: { theme: Theme; next: string }) {
   const q = `?next=${encodeURIComponent(next)}`;
-  const boton: React.CSSProperties = {
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15.5,
-    padding: '15px 26px', borderRadius: 'var(--radius-button)', textDecoration: 'none',
-    flex: '1 1 200px',
-  };
+  // Tarjeta del sistema de diseño (`ms-panel-lg`); lo propio lleva prefijo `qg-`.
   return (
-    <section
-      style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 4, padding: '34px 30px', maxWidth: 620, margin: '0 auto',
-      }}
-    >
-      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--color-accent)', fontWeight: 700 }}>
-        {t(theme, 'quote.gate.eyebrow')}
+    <section className="ms-panel ms-panel-lg qg-caja">
+      <style>{`
+        .qg-caja{ max-width:640px; display:grid; gap:0; }
+        .qg-cab{ display:flex; gap:14px; align-items:center; margin-bottom:16px; }
+        .qg-cab .ms-kicker{ margin:0; }
+        .qg-titulo{ font-size:24px; }
+        .qg-cuerpo{ margin:10px 0 0; font-size:15px; line-height:1.6; color:var(--color-text-muted); max-width:60ch; }
+        .qg-acts{ display:flex; gap:12px; flex-wrap:wrap; margin-top:24px; }
+        .qg-notas{ display:grid; gap:4px; margin-top:18px; }
+        @media (max-width: 640px){ .qg-acts .ms-btn{ flex:1 1 100%; } .qg-titulo{ font-size:21px; } }
+      `}</style>
+      <div className="qg-cab">
+        <span className="ms-ico" aria-hidden><Icon name="user" size={20} /></span>
+        <p className="ms-kicker">{t(theme, 'quote.gate.eyebrow')}</p>
       </div>
-      <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 800, letterSpacing: '-0.03em', margin: '10px 0 12px', lineHeight: 1.1 }}>
-        {t(theme, 'quote.gate.title')}
-      </h2>
-      <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 15, lineHeight: 1.65 }}>
-        {t(theme, 'quote.gate.body')}
-      </p>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 24 }}>
-        <Link href={`/registro${q}`} style={{ ...boton, background: 'var(--color-primary)', color: 'var(--color-primary-fg)' }}>
-          {t(theme, 'quote.gate.register')}<Icon name="arrowRight" size={15} />
+      <h2 className="ms-h2 qg-titulo">{t(theme, 'quote.gate.title')}</h2>
+      <p className="qg-cuerpo">{t(theme, 'quote.gate.body')}</p>
+      <div className="qg-acts">
+        <Link href={`/registro${q}`} className="ms-btn">
+          {t(theme, 'quote.gate.register')}<Icon name="arrowRight" size={16} />
         </Link>
-        <Link href={`/login${q}`} style={{ ...boton, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}>
+        <Link href={`/login${q}`} className="ms-btn ms-btn-sec">
           {t(theme, 'quote.gate.login')}
         </Link>
       </div>
-      <p style={{ margin: '18px 0 0', fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-        {t(theme, 'quote.gate.hint')}<br />{t(theme, 'quote.gate.keep')}
-      </p>
+      <div className="qg-notas">
+        <p className="ms-hint">{t(theme, 'quote.gate.hint')}</p>
+        <p className="ms-hint">{t(theme, 'quote.gate.keep')}</p>
+      </div>
     </section>
   );
 }

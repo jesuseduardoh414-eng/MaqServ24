@@ -18,8 +18,8 @@ export default async function TerminosPage() {
   return (
     <LegalPage
       theme={theme}
-      eyebrow="LEGAL"
-      title="Términos y Condiciones"
+      eyebrow="Legal"
+      title="Términos y condiciones"
       updated={doc.updated || 'Julio 2026'}
       intro={doc.intro}
       sections={doc.sections}

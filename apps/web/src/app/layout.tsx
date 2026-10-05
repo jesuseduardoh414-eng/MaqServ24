@@ -11,6 +11,7 @@ import { Pwa } from '@/components/Pwa';
 import { IMAGEN_OG, SITE_URL } from '@/lib/seo';
 import './globals.css';
 import { RecortarEspacios } from '@maqserv/ui';
+import { EstilosSistema } from '@/components/EstilosSistema';
 
 /**
  * CADUCIDAD DE LAS PÁGINAS (red de seguridad del panel).
@@ -92,6 +93,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {googleFontsHrefs(fontSans, [fontHeading, fontDisplay]).map((href) => (
           <link key={href} rel="stylesheet" href={href} />
         ))}
+        {/* Piezas comunes de todas las pantallas (ver EstilosSistema). */}
+        <EstilosSistema />
         <style
           id="theme-tokens"
           dangerouslySetInnerHTML={{ __html: themeToCss(theme.tokens) }}

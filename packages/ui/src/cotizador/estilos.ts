@@ -119,12 +119,12 @@ export const COTIZADOR_CSS = `
 
 /* ---- Campos ---- */
 .cz-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:13px; }
-.cz-field{ display:grid; gap:6px; min-width:0; }
+.cz-field{ display:grid; gap:6px; min-width:0; align-content:start; }
 .cz-field.full{ grid-column:1/-1; }
-.cz-lbl{ font-size:11.5px; font-weight:700; color:var(--cz-muted); letter-spacing:.02em; }
+.cz-lbl{ font-size:13px; font-weight:500; color:var(--cz-text, inherit); }
 .cz-lbl .req{ color:var(--cz-accent); }
 .cz-input, .cz-select, .cz-textarea{
-  width:100%; height:44px; padding:0 13px; border-radius:10px; font-size:14px; font-family:inherit;
+  width:100%; height:44px; padding:0 13px; border-radius:8px; font-size:14px; font-family:inherit;
   border:1px solid var(--cz-border); background:var(--cz-surface-2); color:var(--cz-text); outline:none;
 }
 .cz-textarea{ height:auto; min-height:86px; padding:11px 13px; line-height:1.55; resize:vertical; }
@@ -168,7 +168,7 @@ export const COTIZADOR_CSS = `
 .cz-line-h .nm{ flex:1; min-width:0; }
 .cz-line-h .nm b{ display:block; font-size:14px; }
 .cz-line-h .nm span{ display:block; font-size:11.5px; color:var(--cz-muted); margin-top:2px; }
-.cz-tier{ font-size:10.5px; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+.cz-tier{ font-size:12px; font-weight:600;
   color:var(--cz-accent); background:var(--cz-accent-soft); padding:4px 9px; border-radius:999px; white-space:nowrap; }
 .cz-rm{ border:none; background:transparent; color:var(--cz-muted); cursor:pointer; font-size:17px; line-height:1; padding:2px 4px; }
 .cz-rm:hover{ color:var(--cz-bad); }

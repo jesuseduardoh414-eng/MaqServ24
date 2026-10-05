@@ -32,19 +32,19 @@ export function Band({ block, kind, maxWidth = 1240, titleTag: Title = 'h2' }: {
       ) : null}
 
       {/* Contenido encima */}
-      <div style={{ position: 'relative', maxWidth, marginLeft: 'auto', marginRight: 'auto', paddingLeft: 26, paddingRight: 26, paddingTop: big ? 60 : 48, paddingBottom: big ? 60 : 48, minHeight: hasImg ? minH : undefined, display: 'grid', alignContent: 'center' }}>
-        <div style={{ display: 'grid', gap: '1.15rem', maxWidth: 620, justifyItems: 'start' }}>
+      <div style={{ position: 'relative', maxWidth, marginLeft: 'auto', marginRight: 'auto', paddingLeft: 'clamp(16px, 4vw, 26px)', paddingRight: 'clamp(16px, 4vw, 26px)', paddingTop: big ? 60 : 48, paddingBottom: big ? 60 : 48, minHeight: hasImg ? minH : undefined, display: 'grid', alignContent: 'center' }}>
+        {/* Sistema de diseño 2026-09-30: kicker en tipo oración (sin raya ni
+            MAYÚSCULAS espaciadas), titular hasta 48 px y botón `ms-btn`. */}
+        <div style={{ display: 'grid', gap: 14, maxWidth: 620, justifyItems: 'start', minWidth: 0 }}>
           {block.eyebrow ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: accent, fontWeight: 700, fontSize: '12.5px', letterSpacing: '.16em', textTransform: 'uppercase' }}>
-              <span style={{ width: 22, height: 3, background: accent }} />{block.eyebrow}
-            </span>
+            <span className="ms-kicker" style={{ color: accent, margin: 0 }}>{block.eyebrow}</span>
           ) : null}
-          <Title style={{ margin: 0, fontSize: big ? 'clamp(2.2rem, 5vw, 3.8rem)' : 'clamp(1.7rem, 3.6vw, 2.6rem)', textTransform: 'uppercase', color: textColor, lineHeight: 1.01, letterSpacing: '-.01em', textShadow: hasImg ? '0 2px 24px rgba(0,0,0,.45)' : undefined }}>{block.title}</Title>
+          <Title style={{ margin: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: big ? 'clamp(32px, 4.4vw, 48px)' : 'clamp(26px, 3.2vw, 34px)', color: textColor, lineHeight: 1.1, letterSpacing: '-.03em', textWrap: 'balance', textShadow: hasImg ? '0 2px 24px rgba(0,0,0,.45)' : undefined }}>{block.title}</Title>
           {block.subtitle ? (
-            <p style={{ margin: 0, color: `color-mix(in srgb, ${textColor} 78%, transparent)`, fontSize: big ? 17.5 : 16, lineHeight: 1.6, fontWeight: 300, maxWidth: 480 }}>{block.subtitle}</p>
+            <p style={{ margin: 0, color: `color-mix(in srgb, ${textColor} 78%, transparent)`, fontSize: big ? 16.5 : 15.5, lineHeight: 1.6, maxWidth: 500 }}>{block.subtitle}</p>
           ) : null}
           {block.cta ? (
-            <Link href={block.ctaLink || '/productos'} style={{ marginTop: '.55rem', display: 'inline-flex', alignItems: 'center', gap: 9, background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, paddingTop: 15, paddingBottom: 15, paddingLeft: 30, paddingRight: 30, borderRadius: 'var(--radius-md)', textDecoration: 'none', fontSize: 15, boxShadow: `0 16px 34px -16px color-mix(in srgb, ${accent} 80%, transparent)` }}>{block.cta}<Icon name="arrowRight" size={17} /></Link>
+            <Link href={block.ctaLink || '/productos'} className="ms-btn ms-btn-lg" style={{ marginTop: 6, background: accent }}>{block.cta}<Icon name="arrowRight" size={17} /></Link>
           ) : null}
         </div>
       </div>

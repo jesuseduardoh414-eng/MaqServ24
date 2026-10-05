@@ -6,6 +6,7 @@ import { IconoCotizador } from '@maqserv/ui';
 import { getTheme, t } from '@/lib/theme';
 import { getQuoterCatalog } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { Icon } from '@/components/Icon';
 
 /**
  * Siempre en servidor, nunca horneada.
@@ -45,118 +46,93 @@ export default async function CotizadorHome() {
   const catalogos = await Promise.all(COTIZADOR_TIPOS.map((tipo) => getQuoterCatalog(tipo)));
   const disponibles = COTIZADOR_TIPOS.filter((_, i) => catalogos[i] !== null);
 
+  // Página de presentación: `.ms-hero` + secciones del sistema de diseño
+  // (components/EstilosSistema.tsx). Lo propio lleva el prefijo `cz-`.
   return (
     <>
       <SiteHeader theme={theme} />
-      <main style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        {/* Banda de entrada. `--band` = negro tecnológico en oscuro, grafito en claro. */}
-        <section style={{ background: 'var(--band)', borderBottom: '1px solid var(--color-border)' }}>
-          <div style={{ maxWidth: 1240, margin: '0 auto', padding: '58px clamp(16px, 4vw, 26px) 52px' }}>
-            <span
-              style={{
-                display: 'inline-block', fontSize: 11.5, fontWeight: 800, letterSpacing: '.16em',
-                textTransform: 'uppercase', color: 'var(--color-primary)', marginBottom: 14,
-              }}
-            >
-              Cotizador en línea
-            </span>
-            <h1
-              style={{
-                fontFamily: 'var(--font-display)', margin: 0, color: '#fff',
-                fontSize: 'clamp(32px, 6vw, 58px)', lineHeight: 1.03, letterSpacing: '-0.04em',
-                textTransform: 'uppercase', maxWidth: '16ch',
-              }}
-            >
-              Tu cotización, <span style={{ color: 'var(--color-primary)' }}>paso a paso</span>
-            </h1>
-            <p style={{ color: 'rgba(255,255,255,.72)', margin: '18px 0 0', fontSize: 16, maxWidth: '58ch', lineHeight: 1.65, fontWeight: 300 }}>
+      <main className="ms-page">
+        <style>{`
+          .cz-wrap{ padding-top:0; }
+          .cz-wrap .ms-hero + .ms-section{ margin-top:0; }
+          .cz-cards{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap:16px; margin-top:20px; }
+          .cz-card{ display:grid; gap:0; align-content:start; }
+          .cz-card .ms-ico{ margin-bottom:18px; }
+          .cz-card-t{ font-size:19px; }
+          .cz-card p{ margin:8px 0 0; font-size:14.5px; line-height:1.6; color:var(--color-text-muted); }
+          .cz-card .ms-link{ margin-top:18px; }
+          .cz-pasos{ list-style:none; margin:20px 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fit, minmax(min(230px, 100%), 1fr)); gap:16px; }
+          .cz-paso{ display:grid; gap:6px; align-content:start; }
+          .cz-paso-n{ width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-size:13px; font-weight:700; color:var(--color-primary); border:1px solid color-mix(in srgb, var(--color-primary) 45%, var(--color-border)); margin-bottom:6px; font-variant-numeric:tabular-nums; }
+          .cz-paso p{ margin:0; font-size:14px; line-height:1.55; color:var(--color-text-muted); }
+          .cz-otro{ margin:28px 0 0; font-size:14.5px; line-height:1.65; color:var(--color-text-muted); max-width:70ch; }
+          .cz-otro a{ color:var(--color-primary); font-weight:600; text-decoration:none; }
+          .cz-otro a:hover{ text-decoration:underline; }
+        `}</style>
+        <div className="ms-wrap cz-wrap">
+          <header className="ms-hero">
+            <p className="ms-kicker">Cotizador en línea</p>
+            <h1 className="ms-hero-title">Tu cotización, paso a paso</h1>
+            <p className="ms-hero-desc">
               Sin llamadas ni idas y vueltas por correo: eliges, capturas cantidades y ves el documento
               completo antes de enviarlo.
             </p>
-          </div>
-        </section>
+          </header>
 
-        <div style={{ maxWidth: 1240, margin: '0 auto', padding: '46px clamp(16px, 4vw, 26px) 20px' }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 22px', fontSize: 'clamp(22px, 3.4vw, 30px)', letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
-            ¿Qué vas a cotizar?
-          </h2>
+          <section className="ms-section">
+            <h2 className="ms-h2">¿Qué vas a cotizar?</h2>
 
-          {disponibles.length === 0 ? (
-            <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '28px 24px', background: 'var(--color-surface)', maxWidth: 620 }}>
-              <p style={{ margin: '0 0 16px', color: 'var(--color-text-muted)', fontSize: 15, lineHeight: 1.6 }}>
-                El cotizador en línea no está disponible en este momento. Mándanos tu requerimiento y te
-                respondemos con una propuesta.
-              </p>
-              <Link href="/cotizar" style={botonPrimario}>
-                {t(theme, 'quote.form.title')}
-              </Link>
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 18 }}>
-              {disponibles.map((tipo) => {
-                const meta = COTIZADORES_META[tipo];
-                return (
-                  <Link
-                    key={tipo}
-                    href={meta.ruta}
-                    style={{
-                      display: 'block', padding: '28px 26px 26px', textDecoration: 'none',
-                      color: 'var(--color-text)', background: 'var(--color-surface)',
-                      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-                    }}
-                  >
-                    <span
-                      style={{
-                        display: 'grid', placeItems: 'center', width: 58, height: 58, marginBottom: 18,
-                        borderRadius: 'var(--radius-md)', color: 'var(--color-primary)',
-                        background: 'color-mix(in srgb, var(--color-primary) 13%, transparent)',
-                      }}
-                    >
-                      <IconoCotizador nombre={meta.icono} size={32} />
-                    </span>
-                    <h3 style={{ fontFamily: 'var(--font-display)', margin: '0 0 9px', fontSize: 23, letterSpacing: '-0.025em', textTransform: 'uppercase' }}>
-                      {meta.titulo}
-                    </h3>
-                    <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 14.5, lineHeight: 1.65 }}>{meta.resumen}</p>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 20, fontWeight: 700, fontSize: 14.5, color: 'var(--color-primary)' }}>
-                      Empezar →
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+            {disponibles.length === 0 ? (
+              <div className="ms-empty" style={{ marginTop: 20 }}>
+                <span className="ms-ico ms-ico-lg ms-ico-muted" aria-hidden><Icon name="calculator" size={22} /></span>
+                <p className="ms-empty-t">El cotizador en línea no está disponible</p>
+                <p className="ms-empty-p">
+                  No está disponible en este momento. Mándanos tu requerimiento y te respondemos con una
+                  propuesta.
+                </p>
+                <div className="ms-empty-acts">
+                  <Link href="/cotizar" className="ms-btn">{t(theme, 'quote.form.title')}</Link>
+                </div>
+              </div>
+            ) : (
+              <div className="cz-cards">
+                {disponibles.map((tipo) => {
+                  const meta = COTIZADORES_META[tipo];
+                  return (
+                    <Link key={tipo} href={meta.ruta} className="ms-panel cz-card">
+                      <span className="ms-ico ms-ico-lg" aria-hidden>
+                        <IconoCotizador nombre={meta.icono} size={26} />
+                      </span>
+                      <h3 className="ms-h2 cz-card-t">{meta.titulo}</h3>
+                      <p>{meta.resumen}</p>
+                      <span className="ms-link">Empezar<Icon name="arrowRight" size={16} /></span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="ms-section">
+            <h2 className="ms-h2">Cómo funciona</h2>
+            <ol className="cz-pasos">
+              {PASOS.map((p, i) => (
+                <li key={p.n} className="ms-panel cz-paso">
+                  <span className="cz-paso-n" aria-hidden>{i + 1}</span>
+                  <h3 className="ms-h3">{p.titulo}</h3>
+                  <p>{p.texto}</p>
+                </li>
+              ))}
+            </ol>
+            <p className="cz-otro">
+              ¿Necesitas algo que no está en el cotizador —agua en pipas, volteos, concreto premezclado, acero, block, cemento o carpeta asfáltica?{' '}
+              <Link href="/cotizar">Mándanos tu requerimiento</Link>{' '}
+              y un asesor lo arma contigo.
+            </p>
+          </section>
         </div>
-
-        <section style={{ maxWidth: 1240, margin: '0 auto', padding: '36px clamp(16px, 4vw, 26px) 64px' }}>
-          <h2 style={{ fontFamily: 'var(--font-display)', margin: '0 0 22px', fontSize: 'clamp(20px, 3vw, 26px)', letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
-            Cómo funciona
-          </h2>
-          <ol style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 18, listStyle: 'none', margin: 0, padding: 0 }}>
-            {PASOS.map((p) => (
-              <li key={p.n} style={{ borderTop: '2px solid var(--color-primary)', paddingTop: 16 }}>
-                <span style={{ display: 'block', fontFamily: 'var(--font-display)', fontSize: 28, color: 'var(--color-primary)', letterSpacing: '-0.03em' }}>{p.n}</span>
-                <b style={{ display: 'block', margin: '8px 0 6px', fontSize: 15.5 }}>{p.titulo}</b>
-                <span style={{ color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1.6 }}>{p.texto}</span>
-              </li>
-            ))}
-          </ol>
-          <p style={{ marginTop: 28, color: 'var(--color-text-muted)', fontSize: 14, lineHeight: 1.7, maxWidth: '70ch' }}>
-            ¿Necesitas algo que no está en el cotizador —agua en pipas, volteos, concreto premezclado, acero, block, cemento o carpeta asfáltica?{' '}
-            <Link href="/cotizar" style={{ color: 'var(--color-primary)', fontWeight: 600 }}>
-              Mándanos tu requerimiento
-            </Link>{' '}
-            y un asesor lo arma contigo.
-          </p>
-        </section>
       </main>
       <SiteFooter theme={theme} />
     </>
   );
 }
-
-const botonPrimario = {
-  display: 'inline-flex', alignItems: 'center', gap: 8, height: 46, padding: '0 22px',
-  borderRadius: 'var(--radius-button)', background: 'var(--color-primary)',
-  color: 'var(--color-primary-fg)', fontWeight: 700, textDecoration: 'none', fontSize: 14.5,
-} as const;

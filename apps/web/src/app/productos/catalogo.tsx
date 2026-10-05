@@ -15,7 +15,28 @@ import { filtersToQuery, hasFilters, type CatalogSearch } from '@/lib/catalog-fi
 
 export type Search = { q?: string; categoria?: string; subcategoria?: string; page?: string } & CatalogSearch;
 
-const CONTAINER: React.CSSProperties = { maxWidth: 1320, margin: '0 auto', padding: '0 clamp(16px, 4vw, 26px)' };
+/**
+ * Estilos propios del listado (prefijo `cl-`). Lo común —contenedor,
+ * encabezado, chips, tarjetas, vacío— sale del sistema `ms-*`.
+ */
+const CSS = `
+.cl-head{ align-items:flex-end; }
+.cl-search{ position:relative; display:flex; gap:8px; width:min(100%, 440px); }
+.cl-search-box{ position:relative; flex:1; min-width:0; }
+.cl-search-box svg{ position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--color-text-muted); pointer-events:none; }
+.cl-search-box .ms-input{ padding-left:40px; }
+.cl-tabs{ padding-bottom:16px; border-bottom:1px solid var(--color-border); }
+.cl-sub{ margin-top:12px; }
+.cl-sub .ms-tab{ min-height:32px; padding:0 12px; font-size:13px; font-weight:500; }
+.cl-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px 16px; flex-wrap:wrap; margin:20px 0 20px; }
+.cl-count{ margin:0; font-size:14px; color:var(--color-text-muted); }
+.cl-count b{ color:var(--color-text); font-weight:600; }
+.cl-mid{ margin:48px 0; }
+@media (max-width: 640px){
+  .cl-search{ width:100%; }
+  .cl-bar{ flex-direction:column; align-items:stretch; }
+}
+`;
 
 /**
  * LISTADO DEL CATÁLOGO. Lo comparten /servicios y /productos (2026-09-25):
@@ -61,6 +82,7 @@ export async function PaginaCatalogo({ sp, kind }: { sp: Search; kind: TipoCatal
   const catalog = theme.tokens.catalog;
   const hasBanner = !!catalog?.banner?.enabled;
   const navLabel = t(theme, kind === 'servicio' ? 'nav.services' : 'nav.products');
+  const descripcion = t(theme, kind === 'servicio' ? 'seo.services.description' : 'seo.catalog.description');
   const plural = kind === 'servicio' ? 'servicios' : 'productos';
 
   // Grupos: 8 fichas → anuncio intermedio → resto → promo. Solo se parte si el
@@ -91,101 +113,90 @@ export async function PaginaCatalogo({ sp, kind }: { sp: Search; kind: TipoCatal
     return `${base}${qs ? `?${qs}` : ''}`;
   };
 
-  // Buscador (form GET ?q=). `floating` = flotando sobre el borde del banner.
-  const searchForm = (floating: boolean) => (
-    <form
-      action={base}
-      method="get"
-      style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-        borderRadius: 16, boxShadow: '0 30px 60px -24px rgba(0,0,0,.55)', padding: 8,
-        ...(floating
-          ? { position: 'absolute', left: '50%', bottom: -32, transform: 'translateX(-50%)', zIndex: 6, width: 'min(680px, 90%)' }
-          : { width: '100%', maxWidth: 680, marginLeft: 'auto', marginRight: 'auto' }),
-      }}
-    >
-      {sp.categoria ? <input type="hidden" name="categoria" value={sp.categoria} /> : null}
-      <span style={{ paddingLeft: 14, color: 'var(--color-text-muted)', fontSize: 20, flexShrink: 0 }}>⌕</span>
-      <input
-        type="search" name="q" defaultValue={sp.q ?? ''} placeholder={searchPh}
-        style={{ flex: 1, minWidth: 0, height: 52, border: 'none', background: 'transparent', color: 'var(--color-text)', padding: '0 14px', fontSize: '16px', fontFamily: 'inherit' }}
-      />
-      <button type="submit" style={{ flexShrink: 0, height: 52, padding: '0 28px', border: 'none', borderRadius: 'var(--radius-md)', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontWeight: 800, fontSize: '15px', cursor: 'pointer', fontFamily: 'inherit' }}>Buscar</button>
-    </form>
-  );
+  // Con banner, el h1 es el del banner; el encabezado de trabajo va como h2
+  // para no tener dos encabezados principales.
+  const HeadTitle = hasBanner ? 'h2' : 'h1';
 
   return (
     <>
       <SiteHeader theme={theme} />
       <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: navLabel }])} />
-      <main style={{ background: 'var(--color-bg)', minHeight: '60vh' }}>
-        {/* Banner + buscador flotante sobre su borde inferior */}
-        {hasBanner ? (
-          <div style={{ position: 'relative' }}>
-            {/* h1: es el único encabezado principal del catálogo (el grid no tiene otro). */}
-            <Band block={catalog!.banner} kind="hero" maxWidth={1320} titleTag="h1" />
-            {searchForm(true)}
-          </div>
-        ) : null}
+      <style>{CSS}</style>
+      <main className="ms-page" style={{ minHeight: '60vh' }}>
+        {/* h1: con banner, es el único encabezado principal del catálogo. */}
+        {hasBanner ? <Band block={catalog!.banner} kind="hero" maxWidth={1180} titleTag="h1" /> : null}
 
-        <div style={{ ...CONTAINER, paddingTop: hasBanner ? 74 : 40, paddingBottom: split ? 52 : 56 }}>
-          {/* Si no hay banner, el buscador va aquí arriba */}
-          {!hasBanner ? <div style={{ marginBottom: 30 }}>{searchForm(false)}</div> : null}
+        <div className="ms-wrap" style={{ paddingBottom: split ? 0 : undefined }}>
+          <header className="ms-head cl-head">
+            <div className="ms-head-txt">
+              <HeadTitle className="ms-title">{navLabel}</HeadTitle>
+              {descripcion ? <p className="ms-desc">{descripcion}</p> : null}
+            </div>
+            {/* Buscador (form GET ?q=). Conserva la categoría elegida. */}
+            <form action={base} method="get" role="search" className="cl-search">
+              {sp.categoria ? <input type="hidden" name="categoria" value={sp.categoria} /> : null}
+              <div className="cl-search-box">
+                <Icon name="search" size={17} />
+                <input type="search" name="q" defaultValue={sp.q ?? ''} placeholder={searchPh} aria-label={searchPh} className="ms-input" />
+              </div>
+              <button type="submit" className="ms-btn">Buscar</button>
+            </form>
+          </header>
 
-          {/* Filtro por categoría — fila con scroll horizontal (una línea) */}
-          <div className="cat-scroll" style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 12 }}>
-            <Chip href={`${base}${sp.q ? `?q=${encodeURIComponent(sp.q)}` : ''}`} active={!sp.categoria}>{allLabel}</Chip>
+          {/* Filtro por categoría */}
+          <nav aria-label="Categorías" className="ms-tabs cl-tabs">
+            <Link href={`${base}${sp.q ? `?q=${encodeURIComponent(sp.q)}` : ''}`} className="ms-tab" aria-current={!sp.categoria ? 'page' : undefined}>{allLabel}</Link>
             {categories.map((c) => (
-              <Chip key={c.id} href={`${base}?categoria=${c.slug}${q}`} active={sp.categoria === c.slug}>{c.name}</Chip>
+              <Link key={c.id} href={`${base}?categoria=${c.slug}${q}`} className="ms-tab" aria-current={sp.categoria === c.slug ? 'page' : undefined}>{c.name}</Link>
             ))}
-          </div>
+          </nav>
 
           {/* Subcategorías de la categoría activa (si hay) */}
           {subcategories.length > 0 ? (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', marginTop: 16 }}>
+            <nav aria-label="Subcategorías" className="ms-tabs cl-sub">
               {subcategories.map((s) => (
                 <Link
                   key={s.id}
                   href={`${base}?categoria=${sp.categoria}&subcategoria=${s.slug}${q}`}
-                  style={{
-                    fontSize: '13px', fontWeight: sp.subcategoria === s.slug ? 700 : 500, textDecoration: 'none',
-                    padding: '7px 13px', borderRadius: 'var(--radius-sm)',
-                    color: sp.subcategoria === s.slug ? 'var(--color-text)' : 'var(--color-text-muted)',
-                    background: sp.subcategoria === s.slug ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : 'transparent',
-                  }}
+                  className="ms-tab"
+                  aria-current={sp.subcategoria === s.slug ? 'page' : undefined}
                 >
                   {s.name}
                 </Link>
               ))}
-            </div>
+            </nav>
           ) : null}
 
           {/* Barra: conteo (izq) + filtros/orden (der) */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', margin: '26px 0 22px' }}>
-            <div style={{ fontSize: '13.5px', color: 'var(--color-text-muted)', fontWeight: 300 }}>
-              Mostrando <b style={{ color: 'var(--color-text)', fontWeight: 700 }}>{result.total}</b> {plural}
-              {sp.q ? <> para «<b style={{ color: 'var(--color-text)' }}>{sp.q}</b>»</> : null}
-            </div>
+          <div className="cl-bar">
+            <p className="cl-count">
+              Mostrando <b className="ms-num">{result.total}</b> {plural}
+              {sp.q ? <> para «<b>{sp.q}</b>»</> : null}
+            </p>
             <CatalogFilters />
           </div>
 
           {items.length === 0 ? (
-            <div style={{ padding: '3rem 0', textAlign: 'center' }}>
-              <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>{t(theme, 'catalog.empty')}</p>
-              {/* Con filtros puestos, "no hay nada" sin salida es un callejón. */}
-              {hasFilters(sp) ? (
-                <Link
-                  href={`${base}${sp.q ? `?q=${encodeURIComponent(sp.q)}` : ''}`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, fontSize: 14, fontWeight: 700, color: 'var(--color-primary)', textDecoration: 'none' }}
-                >
-                  Quitar los filtros
-                  <Icon name="arrowRight" size={14} />
-                </Link>
-              ) : null}
+            <div className="ms-empty">
+              <span className="ms-ico ms-ico-lg ms-ico-muted"><Icon name="search" size={22} /></span>
+              <p className="ms-empty-t">{sp.q ? `Sin resultados para «${sp.q}»` : `Sin ${plural} con estos filtros`}</p>
+              <p className="ms-empty-p">{t(theme, 'catalog.empty')}</p>
+              <div className="ms-empty-acts">
+                {/* Con filtros puestos, "no hay nada" sin salida es un callejón. */}
+                {hasFilters(sp) ? (
+                  <Link href={`${base}${sp.q ? `?q=${encodeURIComponent(sp.q)}` : ''}`} className="ms-link">
+                    Quitar los filtros <Icon name="arrowRight" size={14} />
+                  </Link>
+                ) : null}
+                {sp.q || sp.categoria ? (
+                  <Link href={base} className={hasFilters(sp) ? 'ms-link ms-link-muted' : 'ms-link'}>
+                    Ver todos los {plural} <Icon name="arrowRight" size={14} />
+                  </Link>
+                ) : null}
+              </div>
             </div>
           ) : (
-            <div className="prod-grid">
+            <div className="ms-cards">
               {firstGroup.map((p) => (
                 <ProductCard key={p.id} product={p} theme={theme} />
               ))}
@@ -197,12 +208,12 @@ export async function PaginaCatalogo({ sp, kind }: { sp: Search; kind: TipoCatal
         </div>
 
         {/* Anuncio intermedio (full-bleed) entre los dos grupos */}
-        {split ? <Band block={catalog!.mid} kind="promo" maxWidth={1320} /> : null}
+        {split ? <div className="cl-mid"><Band block={catalog!.mid} kind="promo" maxWidth={1180} /></div> : null}
 
         {/* Segundo grupo + paginación */}
         {split ? (
-          <div style={{ ...CONTAINER, paddingTop: 44, paddingBottom: 56 }}>
-            <div className="prod-grid">
+          <div className="ms-wrap" style={{ paddingTop: 0 }}>
+            <div className="ms-cards">
               {restGroup.map((p) => (
                 <ProductCard key={p.id} product={p} theme={theme} />
               ))}
@@ -212,28 +223,9 @@ export async function PaginaCatalogo({ sp, kind }: { sp: Search; kind: TipoCatal
         ) : null}
 
         {/* Promo inferior (configurable) */}
-        {catalog?.promo?.enabled ? <Band block={catalog.promo} kind="promo" maxWidth={1320} /> : null}
+        {catalog?.promo?.enabled ? <Band block={catalog.promo} kind="promo" maxWidth={1180} /> : null}
       </main>
       <SiteFooter theme={theme} />
     </>
-  );
-}
-
-/** Chip de categoría (filtro). Activo = oscuro (tinta); inactivo = texto tenue. */
-function Chip({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className={active ? undefined : 'cat-chip-quiet'}
-      style={{
-        flexShrink: 0, display: 'inline-flex', alignItems: 'center', textDecoration: 'none', whiteSpace: 'nowrap',
-        fontSize: '14px', fontWeight: active ? 700 : 600,
-        padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px solid transparent',
-        background: active ? 'var(--color-secondary)' : 'transparent',
-        color: active ? '#fff' : 'var(--color-text-muted)',
-      }}
-    >
-      {children}
-    </Link>
   );
 }

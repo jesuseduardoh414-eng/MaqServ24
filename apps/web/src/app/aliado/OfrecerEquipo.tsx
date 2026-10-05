@@ -19,23 +19,48 @@ import { Icon } from '@/components/Icon';
  * precio que ve el cliente lo pone MAQSER24.
  */
 
-const card: React.CSSProperties = {
-  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg, 14px)',
-  background: 'var(--color-surface)', padding: '20px 20px',
-};
-const campo: React.CSSProperties = {
-  border: '1px solid var(--color-border)', background: 'var(--color-bg)', color: 'var(--color-text)',
-  borderRadius: 'var(--radius-md, 10px)', padding: '11px 13px', fontSize: 16, fontFamily: 'inherit',
-  width: '100%', boxSizing: 'border-box',
-};
-const btn: React.CSSProperties = {
-  border: 'none', background: 'var(--color-primary)', color: 'var(--color-primary-fg)',
-  borderRadius: 'var(--radius-button, 10px)', padding: '12px 20px', fontWeight: 700, fontSize: 15,
-  cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-};
-const btnSec: React.CSSProperties = { ...btn, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', fontWeight: 600 };
-const etiqueta: React.CSSProperties = { fontSize: 13.5, fontWeight: 600 };
-const ayuda: React.CSSProperties = { fontSize: 12.5, color: 'var(--color-text-muted)' };
+/**
+ * Estandarización (2026-09-30): campos, botones y pasos usan las piezas
+ * `ms-*` del sistema de diseño. Aquí solo lo propio del asistente (`of-`).
+ * En teléfono los campos van a 16 px para que iOS no haga zoom al enfocar.
+ */
+const CSS = `
+.of-box{ border-color:color-mix(in srgb, var(--color-primary) 55%, var(--color-border)); }
+.of-top{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; }
+.of-cerrar{ background:none; border:1px solid transparent; border-radius:8px; color:var(--color-text-muted); cursor:pointer; display:grid; place-items:center; width:36px; height:36px; }
+.of-cerrar:hover{ color:var(--color-text); border-color:var(--color-border); }
+.of-cerrar:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+.of-steps{ margin-bottom:22px; row-gap:10px; }
+.of-cuerpo{ display:grid; gap:16px; }
+.of-opciones{ display:grid; gap:8px; }
+.of-opcion{ display:flex; gap:12px; align-items:flex-start; width:100%; text-align:left; padding:13px 14px; border-radius:8px; border:1px solid var(--color-border); background:transparent; color:var(--color-text); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; transition:border-color .18s ease, background .18s ease; }
+.of-opcion:hover{ border-color:color-mix(in srgb, var(--color-text) 28%, var(--color-border)); }
+.of-opcion[aria-pressed="true"]{ border-color:color-mix(in srgb, var(--color-primary) 60%, var(--color-border)); background:color-mix(in srgb, var(--color-primary) 10%, transparent); }
+.of-opcion:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+.of-opcion .ms-check{ margin-top:1px; pointer-events:none; }
+.of-opcion small{ display:block; margin-top:2px; font-size:13px; font-weight:400; color:var(--color-text-muted); line-height:1.45; }
+.of-dos{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:12px; }
+.of-corto{ max-width:260px; }
+.of-precio{ display:grid; grid-template-columns:minmax(0,1fr) 170px; gap:10px; align-items:center; }
+.of-pesos{ position:relative; }
+.of-pesos span{ position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--color-text-muted); }
+.of-pesos .ms-input{ padding-left:26px; }
+.of-fotos{ display:grid; grid-template-columns:repeat(auto-fill, minmax(86px, 1fr)); gap:8px; }
+.of-fotos img{ width:100%; aspect-ratio:1; object-fit:cover; border-radius:8px; border:1px solid var(--color-border); }
+.of-fotos img:first-child{ border:2px solid var(--color-primary); }
+.of-resumen{ border-top:1px solid var(--color-border); }
+.of-resumen .ms-kv{ border-bottom:1px solid var(--color-border); padding:9px 0; }
+.of-resumen .ms-kv b{ text-align:right; overflow-wrap:anywhere; min-width:0; }
+.of-botones{ display:flex; gap:10px; flex-wrap:wrap; margin-top:4px; }
+.of-botones .of-sigue{ flex:1 1 180px; }
+@media (max-width: 640px){
+  .of-box .ms-input, .of-box .ms-textarea{ font-size:16px; }
+  .of-steps li:not([data-on="true"]) .of-step-t{ display:none; }
+  .of-steps{ gap:5px; }
+  .of-steps li + li::before{ width:8px; }
+  .of-precio{ grid-template-columns:minmax(0,1fr) 140px; }
+}
+`;
 
 /** Qué pedir en "qué es" según la línea: el ejemplo tiene que sonarle a su negocio. */
 const EJEMPLO: Record<string, { nombre: string; modalidad: 'renta' | 'venta' }> = {
@@ -183,97 +208,82 @@ export function OfrecerEquipo({
   const llenos = preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).length;
 
   return (
-    <div style={{ ...card, borderColor: 'var(--color-primary)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-        <strong style={{ fontSize: 17 }}>{ambos ? 'Ofrecer' : esProducto ? 'Ofrecer un producto' : 'Ofrecer un servicio'}</strong>
-        <button type="button" onClick={onCerrar} aria-label="Cerrar" style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer', display: 'flex' }}>
+    <div className="ms-panel of-box">
+      <style>{CSS}</style>
+      <div className="of-top">
+        <h3 className="ms-h3" style={{ fontSize: 17 }}>{ambos ? 'Ofrecer' : esProducto ? 'Ofrecer un producto' : 'Ofrecer un servicio'}</h3>
+        <button type="button" onClick={onCerrar} aria-label="Cerrar" className="of-cerrar">
           <Icon name="x" size={18} />
         </button>
       </div>
 
-      {/* Pasos: se ve dónde va y lo que falta. */}
-      <ol style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {/* Pasos: se ve dónde va y lo que falta. En teléfono solo se nombra el actual. */}
+      <ol className="ms-steps of-steps" aria-label="Pasos">
         {pasos.map((k, n) => (
-          <li
-            key={k}
-            style={{
-              fontSize: 12, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
-              color: n === i ? 'var(--color-primary-fg)' : n < i ? 'var(--color-success)' : 'var(--color-text-muted)',
-              background: n === i ? 'var(--color-primary)' : 'transparent',
-              border: `1px solid ${n === i ? 'var(--color-primary)' : 'var(--color-border)'}`,
-            }}
-          >
-            {n < i ? '✓ ' : `${n + 1}. `}{TITULO[tipo][k]}
+          <li key={k} data-on={n === i} data-done={n < i} aria-current={n === i ? 'step' : undefined}>
+            <span>{n < i ? <Icon name="check" size={12} /> : n + 1}</span>
+            <em className="of-step-t" style={{ fontStyle: 'normal' }}>{TITULO[tipo][k]}</em>
           </li>
         ))}
       </ol>
 
-      <div style={{ display: 'grid', gap: 14 }}>
+      <div className="of-cuerpo">
         {paso === 'tipo' ? (
-          <>
-            <span style={etiqueta}>¿Qué vas a ofrecer?</span>
-            <div style={{ display: 'grid', gap: 8 }}>
+          <div className="ms-field">
+            <span className="ms-label">¿Qué vas a ofrecer?</span>
+            <div className="of-opciones">
               {([
                 ['servicio', 'Un servicio', 'Renta de maquinaria, fletes, surtido de material… se cotiza por obra.'],
                 ['producto', 'Un producto', 'Algo que vendes a precio fijo y se envía o se recoge.'],
               ] as const).map(([v, t, a]) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => elegirTipo(v)}
-                  style={{ ...btnSec, display: 'grid', justifyItems: 'start', justifyContent: 'stretch', textAlign: 'left', gap: 2, borderColor: tipo === v ? 'var(--color-primary)' : 'var(--color-border)', background: tipo === v ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}
-                >
-                  <span>{tipo === v ? '✓ ' : ''}{t}</span>
-                  <span style={{ ...ayuda, fontWeight: 500 }}>{a}</span>
+                <button key={v} type="button" onClick={() => elegirTipo(v)} className="of-opcion" aria-pressed={tipo === v}>
+                  <span className="ms-check" data-on={tipo === v} aria-hidden>{tipo === v ? <Icon name="check" size={13} /> : null}</span>
+                  <span>{t}<small>{a}</small></span>
                 </button>
               ))}
             </div>
-          </>
+          </div>
         ) : null}
 
         {paso === 'linea' ? (
-          <>
-            <span style={etiqueta}>{esProducto ? '¿En qué categoría va?' : '¿En qué línea de servicio va?'}</span>
-            <div style={{ display: 'grid', gap: 8 }}>
+          <div className="ms-field">
+            <span className="ms-label">{esProducto ? '¿En qué categoría va?' : '¿En qué línea de servicio va?'}</span>
+            <div className="of-opciones">
               {opciones.map((l) => (
-                <button
-                  key={l.slug}
-                  type="button"
-                  onClick={() => elegirLinea(l.slug)}
-                  style={{ ...btnSec, justifyContent: 'flex-start', borderColor: linea === l.slug ? 'var(--color-primary)' : 'var(--color-border)', background: linea === l.slug ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}
-                >
-                  {linea === l.slug ? <Icon name="check" size={15} /> : null}{l.label}
+                <button key={l.slug} type="button" onClick={() => elegirLinea(l.slug)} className="of-opcion" aria-pressed={linea === l.slug}>
+                  <span className="ms-check" data-on={linea === l.slug} aria-hidden>{linea === l.slug ? <Icon name="check" size={13} /> : null}</span>
+                  <span>{l.label}</span>
                 </button>
               ))}
             </div>
-          </>
+          </div>
         ) : null}
 
         {paso === 'queEs' ? (
           <>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={etiqueta}>¿Qué es?</span>
-              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={EJEMPLO[linea]?.nombre ?? (esProducto ? 'Nombre del producto' : 'Nombre del equipo o servicio')} style={campo} />
-              <span style={ayuda}>{esProducto ? 'Como lo buscaría un cliente: qué es y su medida o presentación.' : 'Como lo buscaría un cliente: tipo y tamaño. Ej. "Excavadora 20 t".'}</span>
+            <label className="ms-field">
+              <span className="ms-label">¿Qué es?</span>
+              <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={EJEMPLO[linea]?.nombre ?? (esProducto ? 'Nombre del producto' : 'Nombre del equipo o servicio')} className="ms-input" />
+              <span className="ms-hint">{esProducto ? 'Como lo buscaría un cliente: qué es y su medida o presentación.' : 'Como lo buscaría un cliente: tipo y tamaño. Ej. "Excavadora 20 t".'}</span>
             </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={etiqueta}>Marca y modelo <span style={ayuda}>(opcional)</span></span>
-              <input value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="CAT 320, John Deere 310L…" style={campo} />
+            <label className="ms-field">
+              <span className="ms-label">Marca y modelo <span className="ms-muted" style={{ fontWeight: 400 }}>(opcional)</span></span>
+              <input value={marca} onChange={(e) => setMarca(e.target.value)} placeholder="CAT 320, John Deere 310L…" className="ms-input" />
             </label>
           </>
         ) : null}
 
         {paso === 'ficha' ? (
           preguntas.length === 0 ? (
-            <p style={{ margin: 0, ...ayuda, fontSize: 14 }}>Esta línea no tiene ficha técnica. Sigue al siguiente paso.</p>
+            <p className="ms-hint" style={{ fontSize: 14 }}>Esta línea no tiene ficha técnica. Sigue al siguiente paso.</p>
           ) : (
             <>
-              <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>
+              <p className="ms-hint" style={{ fontSize: 13.5 }}>
                 Con estos datos te proponemos solo en las obras donde tu equipo sirve. Llena lo que sepas: {llenos} de {preguntas.length}.
               </p>
               {preguntas.map((q) => (
-                <label key={q.clave} style={{ display: 'grid', gap: 6 }}>
-                  <span style={etiqueta}>{q.label}{q.unidad ? ` (${q.unidad})` : ''}</span>
+                <label key={q.clave} className="ms-field">
+                  <span className="ms-label">{q.label}{q.unidad ? ` (${q.unidad})` : ''}</span>
                   {q.tipo === 'opcion' && q.opciones ? (
                     <ShSelect value={atributos[q.clave] ?? ''} onValueChange={(v) => setAtributos((a) => ({ ...a, [q.clave]: v }))}>
                       <ShSelectTrigger aria-label={q.label}><ShSelectValue placeholder="Elige una opción" /></ShSelectTrigger>
@@ -287,10 +297,10 @@ export function OfrecerEquipo({
                       inputMode={q.tipo === 'numero' ? 'decimal' : undefined}
                       value={atributos[q.clave] ?? ''}
                       onChange={(e) => setAtributos((a) => ({ ...a, [q.clave]: e.target.value }))}
-                      style={campo}
+                      className="ms-input"
                     />
                   )}
-                  {q.hint ? <span style={ayuda}>{q.hint}</span> : null}
+                  {q.hint ? <span className="ms-hint">{q.hint}</span> : null}
                 </label>
               ))}
             </>
@@ -299,17 +309,17 @@ export function OfrecerEquipo({
 
         {paso === 'donde' ? (
           <>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={etiqueta}>{esProducto ? '¿Desde dónde se envía o se recoge?' : '¿Dónde está?'}</span>
-              <input value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} placeholder={esProducto ? 'Bodega en Apodaca…' : 'Patio en García, banco en Escobedo…'} style={campo} />
+            <label className="ms-field">
+              <span className="ms-label">{esProducto ? '¿Desde dónde se envía o se recoge?' : '¿Dónde está?'}</span>
+              <input value={ubicacion} onChange={(e) => setUbicacion(e.target.value)} placeholder={esProducto ? 'Bodega en Apodaca…' : 'Patio en García, banco en Escobedo…'} className="ms-input" />
             </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={etiqueta}>Algo más que el cliente deba saber <span style={ayuda}>(opcional)</span></span>
-              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} placeholder={esProducto ? 'Presentación, garantía, condiciones…' : 'Incluye operador y diésel, condiciones…'} style={{ ...campo, resize: 'vertical' }} />
+            <label className="ms-field">
+              <span className="ms-label">Algo más que el cliente deba saber <span className="ms-muted" style={{ fontWeight: 400 }}>(opcional)</span></span>
+              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} placeholder={esProducto ? 'Presentación, garantía, condiciones…' : 'Incluye operador y diésel, condiciones…'} className="ms-textarea" style={{ minHeight: 96 }} />
             </label>
-            {esProducto ? null : <div style={{ display: 'grid', gap: 8 }}>
-              <span style={etiqueta}>¿Qué días atiendes?</span>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {esProducto ? null : <div className="ms-field">
+              <span className="ms-label">¿Qué días atiendes?</span>
+              <div className="ms-tabs">
                 {DIAS_SEMANA.map((d, i) => {
                   const on = horario.dias.includes(i);
                   return (
@@ -317,34 +327,35 @@ export function OfrecerEquipo({
                       key={d}
                       type="button"
                       aria-pressed={on}
+                      data-on={on}
+                      className="ms-tab"
                       onClick={() => setHorario((h) => ({ ...h, dias: on ? h.dias.filter((x) => x !== i) : [...h.dias, i].sort() }))}
-                      style={{ ...btnSec, padding: '9px 12px', fontSize: 13.5, borderColor: on ? 'var(--color-primary)' : 'var(--color-border)', background: on ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'transparent' }}
                     >
                       {d}
                     </button>
                   );
                 })}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={etiqueta}>Desde</span>
-                  <input type="time" value={horario.desde} onChange={(e) => setHorario((h) => ({ ...h, desde: e.target.value }))} style={campo} />
+              <div className="of-dos" style={{ marginTop: 6 }}>
+                <label className="ms-field">
+                  <span className="ms-label">Desde</span>
+                  <input type="time" value={horario.desde} onChange={(e) => setHorario((h) => ({ ...h, desde: e.target.value }))} className="ms-input" />
                 </label>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={etiqueta}>Hasta</span>
-                  <input type="time" value={horario.hasta} onChange={(e) => setHorario((h) => ({ ...h, hasta: e.target.value }))} style={campo} />
+                <label className="ms-field">
+                  <span className="ms-label">Hasta</span>
+                  <input type="time" value={horario.hasta} onChange={(e) => setHorario((h) => ({ ...h, hasta: e.target.value }))} className="ms-input" />
                 </label>
               </div>
-              <span style={ayuda}>Solo te proponemos trabajos que caigan en este horario.</span>
+              <span className="ms-hint">Solo te proponemos trabajos que caigan en este horario.</span>
             </div>}
             {/* PRECIO ÚNICO (2026-09-28): el servicio se cobra con el tabulador
                 de MAQSER24, así que al aliado ya no se le pregunta cuánto
                 cobra; solo cuántas unidades iguales tiene. */}
             {esProducto ? null : (
-              <label style={{ display: 'grid', gap: 6, maxWidth: 260 }}>
-                <span style={etiqueta}>¿Cuántas iguales tienes?</span>
-                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} style={campo} />
-                <span style={ayuda}>Para saber cuántas se pueden apartar a la vez.</span>
+              <label className="ms-field of-corto">
+                <span className="ms-label">¿Cuántas iguales tienes?</span>
+                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} className="ms-input" />
+                <span className="ms-hint">Para saber cuántas se pueden apartar a la vez.</span>
               </label>
             )}
           </>
@@ -352,115 +363,127 @@ export function OfrecerEquipo({
 
         {paso === 'precios' ? (
           <>
-            <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>
+            <p className="ms-hint" style={{ fontSize: 13.5 }}>
               {esProducto
                 ? 'El precio al que lo vendes. Con eso MAQSER24 arma el precio al cliente.'
                 : 'Lo que cobras. Con eso MAQSER24 arma el precio al cliente. Llena las unidades que manejes.'}
             </p>
             <div style={{ display: 'grid', gap: 10 }}>
               {unidadesPrecio.map((u) => (
-                <label key={u.clave} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
-                  <span style={etiqueta}>Por {u.singular}</span>
-                  <div style={{ position: 'relative', width: 170 }}>
-                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }}>$</span>
+                <label key={u.clave} className="of-precio">
+                  <span className="ms-label">Por {u.singular}</span>
+                  <div className="of-pesos">
+                    <span aria-hidden>$</span>
                     <input
                       type="number" min={0} step="1" inputMode="decimal"
                       value={costos[u.clave] ?? ''}
                       onChange={(e) => setCostos((c) => ({ ...c, [u.clave]: e.target.value }))}
                       placeholder="0"
-                      style={{ ...campo, paddingLeft: 26 }}
+                      className="ms-input"
                     />
                   </div>
                 </label>
               ))}
             </div>
             {Object.keys(costosNumericos).length > 1 ? (
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={etiqueta}>¿Cuál es la unidad principal?</span>
+              <label className="ms-field">
+                <span className="ms-label">¿Cuál es la unidad principal?</span>
                 <ShSelect value={unidadElegida} onValueChange={setUnidadPrincipal}>
                   <ShSelectTrigger aria-label="Unidad principal"><ShSelectValue /></ShSelectTrigger>
                   <ShSelectContent>
                     {unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => <ShSelectItem key={u.clave} value={u.clave}>Por {u.singular}</ShSelectItem>)}
                   </ShSelectContent>
                 </ShSelect>
-                <span style={ayuda}>Es la que se enseña en el catálogo.</span>
+                <span className="ms-hint">Es la que se enseña en el catálogo.</span>
               </label>
             ) : null}
             {esProducto ? (
-              <label style={{ display: 'grid', gap: 6, maxWidth: 260 }}>
-                <span style={etiqueta}>¿Cuántas tienes en existencia?</span>
-                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} style={campo} />
-                <span style={ayuda}>Se descuentan al venderse.</span>
+              <label className="ms-field of-corto">
+                <span className="ms-label">¿Cuántas tienes en existencia?</span>
+                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} className="ms-input" />
+                <span className="ms-hint">Se descuentan al venderse.</span>
               </label>
-            ) : <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={etiqueta}>Mínimo</span>
-                <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={campo} />
-                <span style={ayuda}>{unidadElegida ? `En ${unidadesPrecio.find((u) => u.clave === unidadElegida)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}</span>
+            ) : <div className="of-dos">
+              <label className="ms-field">
+                <span className="ms-label">Mínimo</span>
+                <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="ms-input" />
+                <span className="ms-hint">{unidadElegida ? `En ${unidadesPrecio.find((u) => u.clave === unidadElegida)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}</span>
               </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={etiqueta}>¿Cuántas iguales tienes?</span>
-                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} style={campo} />
-                <span style={ayuda}>Para saber cuántas se pueden apartar a la vez.</span>
+              <label className="ms-field">
+                <span className="ms-label">¿Cuántas iguales tienes?</span>
+                <input type="number" min={1} step="1" value={unidades} onChange={(e) => setUnidades(e.target.value)} className="ms-input" />
+                <span className="ms-hint">Para saber cuántas se pueden apartar a la vez.</span>
               </label>
             </div>}
           </>
         ) : null}
 
         {paso === 'fotos' ? (
-          <>
-            <span style={etiqueta}>Fotos <span style={ayuda}>(hasta 6; la primera es la principal)</span></span>
+          <label className="ms-field">
+            <span className="ms-label">Fotos <span className="ms-muted" style={{ fontWeight: 400 }}>(hasta 6; la primera es la principal)</span></span>
             <input
               type="file"
               accept="image/*"
               multiple
               onChange={(e) => setFotos(Array.from(e.target.files ?? []).slice(0, 6))}
-              style={campo}
+              className="ms-input"
+              style={{ padding: '10px 13px' }}
             />
             {previews.length ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(86px,1fr))', gap: 8 }}>
+              <div className="of-fotos" style={{ marginTop: 6 }}>
                 {previews.map((u, i) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={u} src={u} alt={`Foto ${i + 1}`} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, border: i === 0 ? '2px solid var(--color-primary)' : '1px solid var(--color-border)' }} />
+                  <img key={u} src={u} alt={`Foto ${i + 1}`} />
                 ))}
               </div>
             ) : null}
-          </>
+          </label>
         ) : null}
 
         {paso === 'enviar' ? (
-          <div style={{ display: 'grid', gap: 10, fontSize: 14 }}>
-            <p style={{ margin: 0, ...ayuda, fontSize: 13.5 }}>Revisa y envía. MAQSER24 lo revisa y, al publicarlo, te avisamos por correo.</p>
-            {([
-              ['Tipo', esProducto ? 'Producto' : 'Servicio'],
-              [esProducto ? 'Categoría' : 'Línea', lineaLabel],
-              ['Qué es', nombre],
-              ['Marca', marca || '—'],
-              ...preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).map((q) => [q.label, `${atributos[q.clave]}${q.unidad ? ` ${q.unidad}` : ''}`]),
-              [esProducto ? 'Se envía desde' : 'Dónde está', ubicacion || '—'],
-              ...(esProducto ? [] : [['Horario', textoHorario(horario)]]),
-              ...unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => [`${esProducto ? 'Precio' : 'Cobras'} por ${u.singular}`, `$${costosNumericos[u.clave].toLocaleString('es-MX')}`]),
-              [esProducto ? 'En existencia' : 'Unidades iguales', unidades],
-              ['Fotos', String(fotos.length)],
-            ] as Array<[string, string]>).map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-                <span style={{ color: 'var(--color-text-muted)' }}>{k}</span>
-                <strong style={{ textAlign: 'right' }}>{v}</strong>
-              </div>
-            ))}
+          <div style={{ display: 'grid', gap: 12 }}>
+            <p className="ms-hint" style={{ fontSize: 13.5 }}>Revisa y envía. MAQSER24 lo revisa y, al publicarlo, te avisamos por correo.</p>
+            <div className="of-resumen">
+              {([
+                ['Tipo', esProducto ? 'Producto' : 'Servicio'],
+                [esProducto ? 'Categoría' : 'Línea', lineaLabel],
+                ['Qué es', nombre],
+                ['Marca', marca || '—'],
+                ...preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).map((q) => [q.label, `${atributos[q.clave]}${q.unidad ? ` ${q.unidad}` : ''}`]),
+                [esProducto ? 'Se envía desde' : 'Dónde está', ubicacion || '—'],
+                ...(esProducto ? [] : [['Horario', textoHorario(horario)]]),
+                ...unidadesPrecio.filter((u) => costosNumericos[u.clave]).map((u) => [`${esProducto ? 'Precio' : 'Cobras'} por ${u.singular}`, `$${costosNumericos[u.clave].toLocaleString('es-MX')}`]),
+                [esProducto ? 'En existencia' : 'Unidades iguales', unidades],
+                ['Fotos', String(fotos.length)],
+              ] as Array<[string, string]>).map(([k, v]) => (
+                <div key={k} className="ms-kv">
+                  <span>{k}</span>
+                  <b>{v}</b>
+                </div>
+              ))}
+            </div>
           </div>
         ) : null}
 
-        {error ? <div role="alert" style={{ fontSize: 13.5, color: 'var(--color-error)' }}>{error}</div> : null}
+        {error ? (
+          <div role="alert" className="ms-alert ms-alert-bad" style={{ fontSize: 13.5 }}>
+            <span style={{ color: 'var(--color-error)', display: 'flex', marginTop: 2 }}><Icon name="warning" size={15} /></span>
+            <span>{error}</span>
+          </div>
+        ) : null}
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 4 }}>
+        <div className="of-botones">
           {i > 0 ? (
-            <button type="button" style={btnSec} onClick={() => { setError(null); setI((p) => p - 1); }}>Atrás</button>
+            <button type="button" className="ms-btn ms-btn-sec" onClick={() => { setError(null); setI((p) => p - 1); }}>
+              <Icon name="arrowLeft" size={15} />Atrás
+            </button>
           ) : null}
           {i < pasos.length - 1 ? (
-            <button type="button" style={{ ...btn, flex: 1 }} onClick={avanzar}>Continuar</button>
+            <button type="button" className="ms-btn of-sigue" onClick={avanzar}>
+              Continuar<Icon name="arrowRight" size={15} />
+            </button>
           ) : (
-            <button type="button" style={{ ...btn, flex: 1, opacity: enviando ? 0.6 : 1 }} disabled={enviando} onClick={() => void enviar()}>
+            <button type="button" className="ms-btn of-sigue" disabled={enviando} onClick={() => void enviar()}>
               {enviando ? 'Enviando…' : 'Enviar a revisión'}
             </button>
           )}

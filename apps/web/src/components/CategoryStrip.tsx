@@ -2,10 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Eyebrow } from '@/components/Carousel';
 import { Icon } from '@/components/Icon';
 
-const GAP = 22;
+const GAP = 16;
+
+/** Estilos propios del carrusel (prefijo `cs-`): encabezado del sistema y flechas de 40 px, radio 8. */
+const CSS = `
+.cs-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px; }
+.cs-arrow{ width:40px; height:40px; border-radius:8px; border:1px solid var(--color-border); background:transparent; color:var(--color-text); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:border-color .18s ease, opacity .18s ease; }
+.cs-arrow:hover:not(:disabled){ border-color:var(--color-text-muted); }
+.cs-arrow:disabled{ opacity:.35; cursor:default; }
+.cs-arrow:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+`;
 
 /**
  * Carrusel de categorías.
@@ -74,37 +82,18 @@ export function CategoryStrip({
     el.scrollBy({ left: dir * anchoTarjeta * caben, behavior: 'smooth' });
   }
 
-  const arrow = (apagada: boolean): React.CSSProperties => ({
-    width: 46, height: 46, borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--color-border)',
-    background: 'var(--color-surface)',
-    color: apagada ? 'var(--color-text-muted)' : 'var(--color-text)',
-    cursor: apagada ? 'default' : 'pointer',
-    opacity: apagada ? 0.4 : 1,
-    boxShadow: apagada ? 'none' : 'var(--shadow-sm)',
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    transition: 'opacity .18s ease, color .18s ease',
-  });
-
-  // Última palabra del título en color de acento (como el diseño).
-  const parts = title.trim().split(' ');
-  const last = parts.length > 1 ? parts.pop() : null;
-  const head = parts.join(' ');
+  // `accentColor` ya no tiñe la última palabra del título (el azul es solo
+  // acción o datos); se conserva en la firma porque lo manda el tema.
+  void accentColor;
 
   return (
     <>
-      <div
-        className="cat-head"
-        style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, marginBottom: 34, flexWrap: 'wrap' }}
-      >
-        <div style={{ maxWidth: 560 }}>
-          <Eyebrow color={eyebrowColor} tickColor={accentColor}>{eyebrow}</Eyebrow>
-          <h2 style={{ fontSize: 'clamp(2rem, 4.4vw, 2.7rem)', textTransform: 'uppercase', letterSpacing: '-.01em', margin: 0, color: titleColor, lineHeight: 1.02 }}>
-            {last ? head : title}{last ? <> <span style={{ color: accentColor }}>{last}</span></> : null}
-          </h2>
-          {subtitle ? (
-            <p style={{ margin: '14px 0 0', color: 'var(--color-text-muted)', fontSize: '15px', lineHeight: 1.55, maxWidth: 440 }}>{subtitle}</p>
-          ) : null}
+      <style>{CSS}</style>
+      <div className="cat-head cs-head">
+        <div className="ms-head-txt" style={{ maxWidth: 600 }}>
+          {eyebrow ? <p className="ms-kicker" style={{ color: eyebrowColor }}>{eyebrow}</p> : null}
+          <h2 className="ms-title" style={{ color: titleColor }}>{title}</h2>
+          {subtitle ? <p className="ms-desc">{subtitle}</p> : null}
         </div>
         {/*
           `marginLeft: auto` es lo que arregla la posición en móvil. El bloque
@@ -115,16 +104,16 @@ export function CategoryStrip({
         */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', marginLeft: 'auto' }}>
           {viewAllLabel ? (
-            <Link href={viewAllHref} style={{ color: titleColor, fontWeight: 700, fontSize: '14px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              {viewAllLabel} <span style={{ color: accentColor, display: 'flex' }}><Icon name="arrowRight" size={14} /></span>
+            <Link href={viewAllHref} className="ms-link">
+              {viewAllLabel} <Icon name="arrowRight" size={14} />
             </Link>
           ) : null}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" aria-label="Categorías anteriores" disabled={alInicio} style={arrow(alInicio)} onClick={() => scroll(-1)}>
-              <Icon name="arrowLeft" size={18} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" aria-label="Categorías anteriores" disabled={alInicio} className="cs-arrow" onClick={() => scroll(-1)}>
+              <Icon name="chevronLeft" size={18} />
             </button>
-            <button type="button" aria-label="Categorías siguientes" disabled={alFinal} style={arrow(alFinal)} onClick={() => scroll(1)}>
-              <Icon name="arrowRight" size={18} />
+            <button type="button" aria-label="Categorías siguientes" disabled={alFinal} className="cs-arrow" onClick={() => scroll(1)}>
+              <Icon name="chevronRight" size={18} />
             </button>
           </div>
         </div>

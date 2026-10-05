@@ -4,23 +4,12 @@ import { evento } from '@/lib/analitica';
 import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
-
-const labelStyle: React.CSSProperties = { display: 'block', fontFamily: MONO, fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--color-text-muted)' };
-const errStyle: React.CSSProperties = { fontFamily: MONO, fontSize: 11, color: 'var(--color-error)', marginTop: 6, letterSpacing: '0.04em' };
-
-function field(err: boolean): React.CSSProperties {
-  return {
-    width: '100%', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--color-text)',
-    background: err ? 'color-mix(in srgb, var(--color-error) 8%, var(--color-surface))' : 'var(--color-surface)',
-    border: `1px solid ${err ? 'var(--color-error)' : 'var(--color-border)'}`,
-    borderRadius: 6, padding: '14px 16px', marginTop: 8,
-  };
-}
-
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
+/**
+ * Formulario de contacto. Usa las piezas comunes del sistema de diseño
+ * (`ms-field`, `ms-input`, `ms-tab`, `ms-btn`…); aquí solo queda la lógica.
+ */
 export function ContactForm({ needs }: { needs: string[] }) {
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
@@ -69,65 +58,71 @@ export function ContactForm({ needs }: { needs: string[] }) {
 
   if (done) {
     return (
-      <div style={{ border: '1px solid var(--color-text)', borderRadius: 6, padding: '48px 40px', textAlign: 'center' }}>
-        <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 22px' }}><Icon name="check" size={32} /></div>
-        <h3 style={{ fontFamily: DISPLAY, margin: '0 0 12px', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>¡Mensaje enviado!</h3>
-        <p style={{ margin: '0 auto 24px', fontSize: 16, lineHeight: 1.6, color: 'var(--color-text-muted)', maxWidth: '40ch' }}>Gracias por escribirnos. Un asesor te contactará muy pronto.</p>
-        <button type="button" onClick={reset} style={{ fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-text)', color: 'var(--color-bg)', border: 'none', padding: '13px 26px', borderRadius: 'var(--radius-button)', cursor: 'pointer' }}>Enviar otro mensaje</button>
+      <div className="ms-empty" role="status">
+        <span className="ms-ico ms-ico-lg" style={{ color: 'var(--color-success)', background: 'color-mix(in srgb, var(--color-success) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--color-success) 30%, transparent)' }}>
+          <Icon name="check" size={22} />
+        </span>
+        <h3 className="ms-empty-t">Mensaje enviado</h3>
+        <p className="ms-empty-p">Gracias por escribirnos. Un asesor te contactará muy pronto.</p>
+        <div className="ms-empty-acts">
+          <button type="button" onClick={reset} className="ms-btn ms-btn-sec">Enviar otro mensaje</button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 26 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 26 }} className="ct-row">
-        <div>
-          <label htmlFor="ct-name" style={labelStyle}>Nombre*</label>
-          <input id="ct-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" style={field(nameErr)} />
-          {nameErr ? <div style={errStyle}>Ingresa tu nombre.</div> : null}
+    <div style={{ display: 'grid', gap: 20 }}>
+      <div className="ms-grid2">
+        <div className="ms-field">
+          <label htmlFor="ct-name" className="ms-label">Nombre<span className="ms-req">*</span></label>
+          <input id="ct-name" className="ms-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" aria-invalid={nameErr} autoComplete="name" />
+          {nameErr ? <p className="ms-error">Ingresa tu nombre.</p> : null}
         </div>
-        <div>
-          <label htmlFor="ct-company" style={labelStyle}>Empresa</label>
-          <input id="ct-company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Opcional" style={field(false)} />
+        <div className="ms-field">
+          <label htmlFor="ct-company" className="ms-label">Empresa</label>
+          <input id="ct-company" className="ms-input" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Opcional" autoComplete="organization" />
         </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 26 }} className="ct-row">
-        <div>
-          <label htmlFor="ct-email" style={labelStyle}>Correo*</label>
-          <input id="ct-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" style={field(emailErr)} />
-          {emailErr ? <div style={errStyle}>Correo no válido.</div> : null}
+        <div className="ms-field">
+          <label htmlFor="ct-email" className="ms-label">Correo<span className="ms-req">*</span></label>
+          <input id="ct-email" type="email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" aria-invalid={emailErr} autoComplete="email" />
+          {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
         </div>
-        <div>
-          <label htmlFor="ct-phone" style={labelStyle}>Teléfono</label>
-          <input id="ct-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10 dígitos" style={field(false)} />
+        <div className="ms-field">
+          <label htmlFor="ct-phone" className="ms-label">Teléfono</label>
+          <input id="ct-phone" type="tel" className="ms-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10 dígitos" autoComplete="tel" />
         </div>
       </div>
 
       {needs.length > 0 ? (
-        <div>
-          <label style={labelStyle}>¿En qué te ayudamos?</label>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-            {needs.map((n) => {
-              const on = n === need;
-              return (
-                <button key={n} type="button" onClick={() => setNeed(n)} style={{ fontFamily: MONO, fontSize: 13, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.03em', padding: '9px 16px', borderRadius: 'var(--radius-button)', border: `1px solid ${on ? 'var(--color-text)' : 'var(--color-border)'}`, background: on ? 'var(--color-text)' : 'var(--color-surface)', color: on ? 'var(--color-bg)' : 'var(--color-text-muted)', transition: 'all .15s ease' }}>{n}</button>
-              );
-            })}
+        <div className="ms-field">
+          <span className="ms-label" id="ct-need">¿En qué te ayudamos?</span>
+          <div className="ms-tabs" role="group" aria-labelledby="ct-need">
+            {needs.map((n) => (
+              <button key={n} type="button" className="ms-tab" data-on={n === need} aria-pressed={n === need} onClick={() => setNeed(n)}>{n}</button>
+            ))}
           </div>
         </div>
       ) : null}
 
-      <div>
-        <label htmlFor="ct-message" style={labelStyle}>Mensaje*</label>
-        <textarea id="ct-message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe tu proyecto: tipo de equipo, fechas y ubicación." rows={5} style={{ ...field(messageErr), resize: 'vertical', lineHeight: 1.5, minHeight: 120, fontFamily: 'var(--font-sans)' }} />
-        {messageErr ? <div style={errStyle}>Cuéntanos brevemente qué necesitas.</div> : null}
+      <div className="ms-field">
+        <label htmlFor="ct-message" className="ms-label">Mensaje<span className="ms-req">*</span></label>
+        <textarea id="ct-message" className="ms-textarea" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Describe tu proyecto: tipo de equipo, fechas y ubicación." rows={5} aria-invalid={messageErr} />
+        {messageErr ? <p className="ms-error">Cuéntanos brevemente qué necesitas.</p> : null}
       </div>
 
-      {serverErr ? <div role="alert" style={{ ...errStyle, marginTop: 0 }}>{serverErr}</div> : null}
+      {serverErr ? (
+        <div role="alert" className="ms-alert ms-alert-bad">
+          <span style={{ color: 'var(--color-error)', display: 'flex', paddingTop: 2 }}><Icon name="warning" size={16} /></span>
+          <span>{serverErr}</span>
+        </div>
+      ) : null}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-        <button type="button" onClick={submit} disabled={busy} style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: '16px 34px', borderRadius: 'var(--radius-button)', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.7 : 1 }}>{busy ? 'Enviando…' : <>Enviar mensaje<Icon name="arrowRight" size={16} /></>}</button>
-        <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', letterSpacing: '0.06em' }}>RESPUESTA EN &lt; 24 H HÁBILES</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px 20px', flexWrap: 'wrap' }}>
+        <button type="button" onClick={submit} disabled={busy} className="ms-btn ms-btn-lg">
+          {busy ? 'Enviando…' : <>Enviar mensaje<Icon name="arrowRight" size={16} /></>}
+        </button>
+        <p className="ms-hint">Respondemos en menos de 24 h hábiles.</p>
       </div>
     </div>
   );

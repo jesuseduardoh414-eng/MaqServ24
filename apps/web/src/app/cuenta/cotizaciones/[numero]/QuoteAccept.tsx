@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { QuoteDetail } from '@maqserv/types';
+import { Icon } from '@/components/Icon';
 
 /**
  * Aceptar la cotización (documento institucional, sección 22).
@@ -30,29 +31,21 @@ export function QuoteAccept({
 
   if (state === 'aceptada') {
     return (
-      <div
-        style={{
-          border: '1px solid color-mix(in srgb, var(--color-success) 40%, transparent)',
-          background: 'color-mix(in srgb, var(--color-success) 10%, transparent)',
-          borderRadius: 'var(--radius-md)', padding: '16px 20px',
-          fontSize: 14.5, color: 'var(--color-text)',
-        }}
-      >
-        Aceptaste esta cotización. Nos comunicamos contigo para coordinar el servicio.
+      <div className="ms-alert ms-alert-ok" role="status">
+        <span style={{ color: 'var(--color-success)', display: 'flex', paddingTop: 2 }}><Icon name="check" size={16} /></span>
+        <span>Aceptaste esta cotización. Nos comunicamos contigo para coordinar el servicio.</span>
       </div>
     );
   }
 
   if (state === 'vencida') {
     return (
-      <div
-        style={{
-          border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-          padding: '16px 20px', fontSize: 14.5, color: 'var(--color-text-muted)', lineHeight: 1.6,
-        }}
-      >
-        Esta cotización ya venció, así que no se puede aceptar. Escríbenos y te
-        preparamos una actualizada con los precios de hoy.
+      <div className="ms-alert ms-alert-warn">
+        <span style={{ color: 'var(--color-warning)', display: 'flex', paddingTop: 2 }}><Icon name="clock" size={16} /></span>
+        <span>
+          Esta cotización ya venció, así que no se puede aceptar. Escríbenos y te
+          preparamos una actualizada con los precios de hoy.
+        </span>
       </div>
     );
   }
@@ -73,59 +66,31 @@ export function QuoteAccept({
   }
 
   return (
-    <div>
+    <div style={{ display: 'grid', gap: 12 }}>
       {error ? (
-        <p style={{ color: 'var(--color-error)', fontSize: 14, margin: '0 0 12px' }}>{error}</p>
+        <div className="ms-alert ms-alert-bad" role="alert">
+          <span style={{ color: 'var(--color-error)', display: 'flex', paddingTop: 2 }}><Icon name="warning" size={16} /></span>
+          <span>{error}</span>
+        </div>
       ) : null}
 
       {confirmando ? (
-        <div
-          style={{
-            border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
-            padding: '18px 20px', display: 'grid', gap: 14,
-          }}
-        >
+        <div className="ms-panel" style={{ display: 'grid', gap: 14 }}>
           <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.6 }}>
             Al aceptar confirmas el precio y las condiciones de arriba, incluido lo que no
             está incluido. ¿Seguimos?
           </p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={aceptar}
-              disabled={enviando}
-              style={{
-                background: 'var(--color-primary)', color: 'var(--color-primary-fg)',
-                border: 'none', borderRadius: 'var(--radius-button)', padding: '13px 26px',
-                fontWeight: 700, fontSize: 15, cursor: enviando ? 'wait' : 'pointer',
-                fontFamily: 'inherit', opacity: enviando ? 0.6 : 1,
-              }}
-            >
+            <button type="button" onClick={aceptar} disabled={enviando} className="ms-btn">
               {enviando ? 'Registrando…' : 'Sí, acepto'}
             </button>
-            <button
-              type="button"
-              onClick={() => setConfirmando(false)}
-              style={{
-                background: 'transparent', color: 'var(--color-text)',
-                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)',
-                padding: '13px 22px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
+            <button type="button" onClick={() => setConfirmando(false)} className="ms-btn ms-btn-sec">
               Todavía no
             </button>
           </div>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setConfirmando(true)}
-          style={{
-            width: '100%', background: 'var(--color-primary)', color: 'var(--color-primary-fg)',
-            border: 'none', borderRadius: 'var(--radius-button)', padding: '16px 28px',
-            fontWeight: 700, fontSize: 16, cursor: 'pointer', fontFamily: 'inherit',
-          }}
-        >
+        <button type="button" onClick={() => setConfirmando(true)} className="ms-btn ms-btn-lg ms-btn-block">
           Aceptar cotización
         </button>
       )}

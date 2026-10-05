@@ -9,6 +9,7 @@ import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import type { NavItem } from '@/components/MainNav';
 import { Icon, type IconName } from '@/components/Icon';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
+import { telHref } from '@/lib/telefono';
 
 /**
  * Icono de cada entrada del menú y de cada acceso de cuenta. Van por RUTA y no
@@ -379,7 +380,7 @@ export function MobileNav({
                 <div className="flex flex-col gap-1.5">
                   {contact.phone ? (
                     <a
-                      href={`tel:${contact.phone.replace(/\s+/g, '')}`}
+                      href={telHref(contact.phone)}
                       className="flex items-center gap-2 text-[12.5px] text-ink-muted no-underline transition-colors hover:text-ink"
                     >
                       <Icon name="phone" size={14} /> {contact.phone}

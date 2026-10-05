@@ -26,7 +26,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <SiteHeader theme={theme} />
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '3rem 1.5rem 4rem' }}>
+      {/* Tarjeta centrada de ~440 px (la tarjeta fija su ancho). */}
+      <main className="ms-wrap">
         <AuthCard initialView="login" redirectTo={next} labels={authLabels(theme)} googleActivo={proveedores.google} errorInicial={sp.error ?? null} />
       </main>
       <SiteFooter theme={theme} />

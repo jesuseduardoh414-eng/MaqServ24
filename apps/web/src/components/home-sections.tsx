@@ -28,19 +28,21 @@ import { HomeProductGrid } from '@/components/HomeProductGrid';
  */
 
 const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(16px, 4vw, 26px)' };
-const H2: React.CSSProperties = { textTransform: 'uppercase', letterSpacing: '-.005em', margin: 0 };
+/**
+ * Título de sección del home (sistema de diseño 2026-09-30): tipo oración,
+ * sin MAYÚSCULAS forzadas, hasta 34 px. Solo el hero lleva un titular grande.
+ */
+const H2: React.CSSProperties = { fontFamily: 'var(--font-display)', fontSize: 'clamp(26px, 3.2vw, 34px)', fontWeight: 700, letterSpacing: '-.015em', lineHeight: 1.15, margin: 0, textWrap: 'balance' };
+const SUB: React.CSSProperties = { color: 'var(--color-text-muted)', fontSize: '15.5px', lineHeight: 1.6, margin: 0, textWrap: 'pretty' };
+const CARD_RADIUS = 12;
 
-/** Encabezado centrado (eyebrow + título + subtítulo opcional). */
+/** Encabezado centrado (kicker + título + subtítulo opcional). */
 function CenterHead({ eyebrow, title, subtitle, eyebrowColor, titleColor }: { eyebrow: string; title: string; subtitle?: string; eyebrowColor?: string; titleColor?: string }) {
   return (
-    <div style={{ textAlign: 'center', marginBottom: 14, display: 'grid', justifyItems: 'center' }}>
-      <Eyebrow color={eyebrowColor} tickColor={eyebrowColor}>{eyebrow}</Eyebrow>
-      <h2 style={{ ...H2, fontSize: 'clamp(2rem, 4.4vw, 2.6rem)', marginBottom: 12, ...(titleColor ? { color: titleColor } : {}) }}>{title}</h2>
-      {subtitle ? (
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '16px', maxWidth: 540, margin: 0, fontWeight: 300, lineHeight: 1.6 }}>
-          {subtitle}
-        </p>
-      ) : null}
+    <div style={{ textAlign: 'center', display: 'grid', justifyItems: 'center' }}>
+      <Eyebrow color={eyebrowColor}>{eyebrow}</Eyebrow>
+      <h2 style={{ ...H2, maxWidth: '24ch', ...(titleColor ? { color: titleColor } : {}) }}>{title}</h2>
+      {subtitle ? <p style={{ ...SUB, maxWidth: 560, marginTop: 10 }}>{subtitle}</p> : null}
     </div>
   );
 }
@@ -75,8 +77,9 @@ export async function Hero({ theme }: { theme: Theme }) {
   return (
     <section style={{ position: 'relative', background: 'var(--band)', overflow: 'hidden' }}>
       {/* patrón de puntos + anillo giratorio (el círculo de acento va en el visual) */}
+      {/* Patrón de puntos discreto. El anillo punteado que giraba se retiró:
+          el sistema pide movimiento corto, no adornos en bucle. */}
       <div aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize: '26px 26px', opacity: 0.5 }} />
-      <div aria-hidden style={{ position: 'absolute', right: '5%', top: '50%', transform: 'translateY(-50%)', width: 520, height: 520, border: '1px dashed rgba(255,255,255,.12)', borderRadius: '50%', animation: 'spinSlow 60s linear infinite' }} />
 
       {/* El hero NO usa CONTAINER (1240 px): con el texto centrado en esa caja
           quedaban ~340 px de aire a la izquierda en pantallas grandes, el título
@@ -86,11 +89,13 @@ export async function Hero({ theme }: { theme: Theme }) {
       <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0 clamp(16px, 3vw, 26px)', position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0,1.08fr) minmax(0,.92fr)', gap: 44, alignItems: 'center', paddingTop: 34, paddingBottom: 26 }} className="hero-grid">
         <div>
           {showBadge ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 9, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${h.accentColor} 35%, transparent)`, borderRadius: 'var(--radius-sm)', padding: '8px 15px', fontSize: '12px', fontWeight: 700, color: h.accentColor, letterSpacing: '.14em', textTransform: 'uppercase' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${h.accentColor} 35%, transparent)`, borderRadius: 8, padding: '6px 12px', fontSize: '13px', fontWeight: 600, color: h.accentColor }}>
               <Icon name="star" size={13} fill /> {badge}
             </div>
           ) : null}
-          <h1 style={{ fontSize: 'clamp(2.4rem, 5vw, 3.6rem)', lineHeight: 1.02, letterSpacing: '-.01em', margin: showBadge ? '22px 0 0' : '0', color: h.titleColor, textTransform: 'uppercase' }}>
+          {/* Único titular grande del sitio: máx. 56 px, tipo oración (sin
+              MAYÚSCULAS forzadas). El acento solo cambia el color del texto. */}
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.25rem, 4.4vw, 3.5rem)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-.02em', margin: showBadge ? '20px 0 0' : '0', color: h.titleColor, textWrap: 'balance' }}>
             {title}
             {hasAccent ? (
               <>
@@ -102,28 +107,30 @@ export async function Hero({ theme }: { theme: Theme }) {
           {/* `pre-line`: el texto del hero trae dos párrafos separados por una
               línea en blanco (lo que se ofrece / qué decirnos). Sin esto se
               pintaban pegados en un solo bloque. */}
-          <p style={{ color: h.subtitleColor, fontSize: '16.5px', lineHeight: 1.6, maxWidth: 520, margin: '22px 0 0', fontWeight: 300, whiteSpace: 'pre-line' }}>
+          <p style={{ color: h.subtitleColor, fontSize: '16.5px', lineHeight: 1.6, maxWidth: 540, margin: '20px 0 0', whiteSpace: 'pre-line', textWrap: 'pretty' }}>
             {subtitle}
           </p>
-          <div style={{ display: 'flex', gap: 14, marginTop: 32, flexWrap: 'wrap' }}>
-            <Link href={h.primaryLink} data-evento="cta_hero_primario" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: h.primaryBg, color: h.primaryText, fontWeight: 700, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: `0 18px 34px -16px color-mix(in srgb, ${h.primaryBg} 60%, transparent)` }}>
+          {/* Botones del sistema (`ms-btn`): colores y enlaces siguen saliendo
+              del tema; el texto va tal cual lo escribe el panel. */}
+          <div className="ms-hero-acts" style={{ marginTop: 28 }}>
+            <Link href={h.primaryLink} data-evento="cta_hero_primario" className="ms-btn ms-btn-lg" style={{ background: h.primaryBg, color: h.primaryText }}>
               {t(theme, 'home.hero.ctaPrimary')} <Icon name="arrowRight" size={17} />
             </Link>
-            <Link href={h.secondaryLink} data-evento="cta_hero_secundario" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'transparent', color: '#fff', border: `1.5px solid ${h.secondaryBorder}`, fontWeight: 600, fontSize: '15.5px', padding: '16px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
+            <Link href={h.secondaryLink} data-evento="cta_hero_secundario" className="ms-btn ms-btn-lg ms-btn-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
               {t(theme, 'home.hero.ctaSecondary')}
             </Link>
           </div>
 
           {h.showTrust ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 20, marginTop: 34 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 18, marginTop: 32 }}>
               {trust.map((it) => (
-                <div key={it.title} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                  <span style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: `color-mix(in srgb, ${h.accentColor} 14%, transparent)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: h.accentColor, flexShrink: 0 }}>
-                    <Icon name={it.icon} size={19} />
+                <div key={it.title} style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
+                  <span className="ms-ico" aria-hidden style={{ color: h.accentColor, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, borderColor: `color-mix(in srgb, ${h.accentColor} 28%, transparent)` }}>
+                    <Icon name={it.icon} size={18} />
                   </span>
-                  <span>
-                    <span style={{ display: 'block', color: '#fff', fontWeight: 700, fontSize: '13.5px' }}>{it.title}</span>
-                    <span style={{ display: 'block', color: 'var(--grey)', fontSize: '11.5px', fontWeight: 300 }}>{it.text}</span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', color: '#fff', fontWeight: 600, fontSize: '13.5px' }}>{it.title}</span>
+                    <span style={{ display: 'block', color: 'var(--grey)', fontSize: '12.5px' }}>{it.text}</span>
                   </span>
                 </div>
               ))}
@@ -149,15 +156,16 @@ export async function Hero({ theme }: { theme: Theme }) {
           )}
           {h.showStats ? (
             <>
-              <div style={{ position: 'absolute', zIndex: 2, left: -12, top: 36, background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: '14px 18px', boxShadow: 'var(--shadow)', animation: 'floatY 6s ease-in-out infinite' }}>
-                <CountUp value={t(theme, 'home.hero.stat1.num')} style={{ fontWeight: 800, fontSize: '28px', color: 'var(--color-text)' }} />
-                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{t(theme, 'home.hero.stat1.label')}</div>
+              {/* Cifras flotantes: tarjeta del sistema (radio 12, borde 1 px), quietas. */}
+              <div style={{ position: 'absolute', zIndex: 2, left: -12, top: 36, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '14px 18px', boxShadow: 'var(--shadow)' }}>
+                <CountUp value={t(theme, 'home.hero.stat1.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '28px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
+                <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.hero.stat1.label')}</div>
               </div>
-              <div style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', borderRadius: 'var(--radius-lg)', padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11, animation: 'floatY2 7s ease-in-out infinite' }}>
+              <div style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11 }}>
                 <div style={{ color: h.accentColor }}><Stars value={5} size={13} /></div>
                 <div>
-                  <div style={{ fontWeight: 800, fontSize: '15px', color: 'var(--color-text)' }}>{t(theme, 'home.hero.stat2.num')}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{t(theme, 'home.hero.stat2.label')}</div>
+                  <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--color-text)' }}>{t(theme, 'home.hero.stat2.num')}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t(theme, 'home.hero.stat2.label')}</div>
                 </div>
               </div>
             </>
@@ -216,10 +224,10 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(6,6,8,.9) 2%, rgba(6,6,8,.35) 42%, rgba(6,6,8,0) 72%)' }} />
             {/* Nombre + conteo encima (abajo-izquierda) */}
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '16px 16px 15px', display: 'grid', gap: 4 }}>
-              <span style={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', textTransform: 'uppercase', letterSpacing: '-.01em', lineHeight: 1.12 }}>{c.name}</span>
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', letterSpacing: '-.01em', lineHeight: 1.2 }}>{c.name}</span>
               {/* Qué entra en la categoría ("Arena, grava, base hidráulica y CNC"): se edita en Catálogo → Categorías. */}
               {c.description ? (
-                <span style={{ color: 'rgba(255,255,255,.74)', fontSize: '12.5px', lineHeight: 1.35, fontWeight: 300, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.description}</span>
+                <span style={{ color: 'rgba(255,255,255,.76)', fontSize: '12.5px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.description}</span>
               ) : null}
               <span style={{ color: accent, fontWeight: 700, fontSize: '12.5px' }}>{categoryCountLabel(c, unit, unitOne)}</span>
             </div>
@@ -251,18 +259,18 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
         {isCenter ? (
           <div style={{ textAlign: 'center', display: 'grid', justifyItems: 'center', marginBottom: 4 }}>
             <Eyebrow color={f.eyebrowColor ?? undefined}>{t(theme, 'home.featured.eyebrow')}</Eyebrow>
-            <h2 style={{ ...H2, fontSize: 'clamp(2rem, 4.4vw, 2.6rem)', margin: '0 0 12px', color: f.titleColor ?? undefined }}>{t(theme, 'home.featured.title')}</h2>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: '16px', margin: 0, fontWeight: 300, lineHeight: 1.6, maxWidth: 560 }}>{t(theme, 'home.featured.subtitle')}</p>
+            <h2 style={{ ...H2, color: f.titleColor ?? undefined }}>{t(theme, 'home.featured.title')}</h2>
+            <p style={{ ...SUB, marginTop: 10, maxWidth: 560 }}>{t(theme, 'home.featured.subtitle')}</p>
           </div>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
-            <div style={{ maxWidth: 620 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ maxWidth: 620, minWidth: 0 }}>
               <Eyebrow color={f.eyebrowColor ?? undefined}>{t(theme, 'home.featured.eyebrow')}</Eyebrow>
-              <h2 style={{ ...H2, fontSize: 'clamp(2rem, 4.4vw, 2.6rem)', margin: '0 0 12px', color: f.titleColor ?? undefined }}>{t(theme, 'home.featured.title')}</h2>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '16px', margin: 0, fontWeight: 300, lineHeight: 1.6 }}>{t(theme, 'home.featured.subtitle')}</p>
+              <h2 style={{ ...H2, color: f.titleColor ?? undefined }}>{t(theme, 'home.featured.title')}</h2>
+              <p style={{ ...SUB, marginTop: 10 }}>{t(theme, 'home.featured.subtitle')}</p>
             </div>
-            <Link href={verTodo} style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '14.5px', padding: '13px 24px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
-              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={17} />
+            <Link href={verTodo} className="ms-btn ms-btn-sec">
+              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={16} />
             </Link>
           </div>
         )}
@@ -275,8 +283,8 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
         />
         {isCenter ? (
           <div style={{ textAlign: 'center', marginTop: 40 }}>
-            <Link href={verTodo} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, border: '1.5px solid var(--color-text)', color: 'var(--color-text)', fontWeight: 700, fontSize: '15px', padding: '15px 30px', borderRadius: 'var(--radius-md)', textDecoration: 'none' }}>
-              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={17} />
+            <Link href={verTodo} className="ms-btn ms-btn-sec">
+              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={16} />
             </Link>
           </div>
         ) : null}
@@ -332,7 +340,7 @@ export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
           `.why-grid` lo apila a partir de 900px. */}
       <div className="why-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 56, alignItems: 'center' }}>
         <div style={{ position: 'relative', minHeight: 420 }} className="why-visual">
-          <div style={{ position: 'absolute', inset: 0, borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow)', background: 'var(--surface-2)' }}>
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--color-border)', background: 'var(--surface-2)' }}>
             {image ? (
               <Image src={image} alt={t(theme, 'home.whyChooseUs.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
             ) : (
@@ -342,26 +350,29 @@ export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
           {cfg?.showYearsBadge !== false ? (
             // `right: -18` la saca del marco a propósito (diseño). En móvil eso
             // la dejaba fuera de la pantalla: `.why-badge` la mete al borde.
-            <div className="why-badge" style={{ position: 'absolute', right: -18, top: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '16px 20px', boxShadow: 'var(--shadow)', animation: 'floatY 6s ease-in-out infinite' }}>
-              <CountUp value={t(theme, 'home.whyChooseUs.years.num')} style={{ fontWeight: 800, fontSize: '30px', color: 'var(--color-text)' }} />
-              <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', fontWeight: 300 }}>{t(theme, 'home.whyChooseUs.years.label')}</div>
+            <div className="why-badge" style={{ position: 'absolute', right: -18, top: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '16px 20px', boxShadow: 'var(--shadow)' }}>
+              <CountUp value={t(theme, 'home.whyChooseUs.years.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '30px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
+              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.whyChooseUs.years.label')}</div>
             </div>
           ) : null}
         </div>
 
-        <div>
-          <Eyebrow color={cfg?.eyebrowColor ?? undefined} tickColor={cfg?.eyebrowColor ?? undefined}>{t(theme, 'home.whyChooseUs.eyebrow')}</Eyebrow>
-          <h2 style={{ ...H2, fontSize: 'clamp(2rem, 4vw, 2.5rem)', marginBottom: 16, ...(cfg?.titleColor ? { color: cfg.titleColor } : {}) }}>{t(theme, 'home.whyChooseUs.title')}</h2>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '16.5px', lineHeight: 1.62, maxWidth: 470, margin: '0 0 30px', fontWeight: 300 }}>
+        <div style={{ minWidth: 0 }}>
+          <Eyebrow color={cfg?.eyebrowColor ?? undefined}>{t(theme, 'home.whyChooseUs.eyebrow')}</Eyebrow>
+          <h2 style={{ ...H2, ...(cfg?.titleColor ? { color: cfg.titleColor } : {}) }}>{t(theme, 'home.whyChooseUs.title')}</h2>
+          <p style={{ ...SUB, maxWidth: 480, margin: '12px 0 28px' }}>
             {t(theme, 'home.whyChooseUs.subtitle')}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '22px 30px', marginBottom: 34 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '20px 28px', marginBottom: 30 }}>
             {items.map((w) => (
-              <div key={w.id}>
-                <div style={{ fontWeight: 700, fontSize: '16px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 9, color: 'var(--color-text)' }}>
-                  <Icon name="diamond" size={14} style={{ color: accent }} />{w.title}
+              <div key={w.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 0 }}>
+                <span className="ms-ico" aria-hidden style={{ width: 32, height: 32, borderRadius: 8, color: accent }}>
+                  <Icon name="check" size={16} />
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: '15.5px', marginBottom: 4, color: 'var(--color-text)' }}>{w.title}</div>
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: '14px', lineHeight: 1.55 }}>{w.description}</div>
                 </div>
-                <div style={{ color: 'var(--color-text-muted)', fontSize: '13.5px', lineHeight: 1.55, fontWeight: 300 }}>{w.description}</div>
               </div>
             ))}
           </div>
@@ -400,11 +411,11 @@ export async function WhyChooseUsSection({ theme }: { theme: Theme }) {
                     background: statsBg,
                     color: statsFg,
                     border: '1px solid var(--color-border)',
-                    borderRadius: 'var(--radius-lg)',
+                    borderRadius: CARD_RADIUS,
                   }}
                 >
-                  <CountUp value={s.num} style={{ fontWeight: 800, fontSize: '28px', display: 'block', color: numColor, letterSpacing: '-.02em' }} />
-                  {s.label ? <div style={{ fontSize: '12.5px', marginTop: 4, fontWeight: 500, lineHeight: 1.4 }}>{s.label}</div> : null}
+                  <CountUp value={s.num} style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '28px', display: 'block', color: numColor, letterSpacing: '-.025em', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }} />
+                  {s.label ? <div style={{ fontSize: '13px', marginTop: 4, lineHeight: 1.4 }}>{s.label}</div> : null}
                 </div>
               ))}
             </div>
@@ -427,16 +438,16 @@ export async function SectorsSection({ theme }: { theme: Theme }) {
   return (
     <section style={{ background: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
       <div style={{ ...CONTAINER, paddingTop: 78, paddingBottom: 78 }}>
-        <div style={{ marginBottom: 44 }}>
+        <div style={{ marginBottom: 36 }}>
           <CenterHead eyebrow={t(theme, 'home.sectors.eyebrow')} title={t(theme, 'home.sectors.title')} eyebrowColor={cfg?.eyebrowColor ?? undefined} titleColor={cfg?.titleColor ?? undefined} />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 22 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
           {sectors.map((s) => (
             <Link
               key={s.id}
               href={`/sectores/${s.slug}`}
               className="lift"
-              style={{ position: 'relative', height: cardH, borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)', border: '1px solid var(--color-border)', textDecoration: 'none', display: 'block' }}
+              style={{ position: 'relative', height: cardH, borderRadius: CARD_RADIUS, overflow: 'hidden', border: '1px solid var(--color-border)', textDecoration: 'none', display: 'block' }}
             >
               {s.image ? (
                 <Image src={s.image} alt={s.title} fill sizes="(max-width:640px) 100vw, 25vw" className="zoom" style={{ objectFit: 'cover' }} />
@@ -445,15 +456,15 @@ export async function SectorsSection({ theme }: { theme: Theme }) {
               )}
               <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(26,26,27,.94) 8%, rgba(26,26,27,.2) 60%, transparent)' }} />
               <span style={{ position: 'absolute', left: 20, right: 20, bottom: 20, color: '#fff' }}>
-                <span style={{ display: 'block', fontFamily: 'var(--font-display)', textTransform: 'uppercase', fontSize: '16px', marginBottom: 8, letterSpacing: '.01em' }}>{s.title}</span>
+                <span style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '17px', marginBottom: 6, letterSpacing: '-.01em', lineHeight: 1.25 }}>{s.title}</span>
                 {s.description ? (
                   // La tarjeta tiene alto fijo (token `cardHeight`): sin recortar,
                   // una descripción larga empujaba el CTA fuera de la tarjeta.
                   // Sin `display` inline: lo fija `.sector-desc` (recorte a 3
                   // líneas), y un inline le ganaría a la clase.
-                  <span className="sector-desc" style={{ fontSize: '12.5px', color: 'rgba(255,255,255,.78)', lineHeight: 1.5, marginBottom: 12, fontWeight: 300 }}>{s.description}</span>
+                  <span className="sector-desc" style={{ fontSize: '13px', color: 'rgba(255,255,255,.78)', lineHeight: 1.5, marginBottom: 12 }}>{s.description}</span>
                 ) : null}
-                <span style={{ color: ctaColor, fontWeight: 700, fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'home.sectors.cta')}<Icon name="arrowRight" size={13} /></span>
+                <span style={{ color: ctaColor, fontWeight: 600, fontSize: '13.5px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'home.sectors.cta')}<Icon name="arrowRight" size={13} /></span>
               </span>
             </Link>
           ))}
@@ -476,24 +487,24 @@ export async function OfferSection({ theme }: { theme: Theme }) {
     <section style={{ ...CONTAINER, paddingTop: 80, paddingBottom: 80 }}>
       {/* Borde gunmetal: en oscuro la banda es negra como la página, y sin él
           la tarjeta perdería su silueta. El gris va aquí, en el elemento. */}
-      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: bg, border: '1px solid var(--color-border)', boxShadow: 'var(--shadow)' }}>
-        <div aria-hidden style={{ position: 'absolute', right: '-4%', top: '-30%', width: 440, height: 440, background: `radial-gradient(circle, color-mix(in srgb, ${accent} 32%, transparent), transparent 62%)`, borderRadius: '50%' }} />
-        <div aria-hidden style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '44%', backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,.05) 0 15px, transparent 15px 30px)', borderLeft: '1px solid rgba(255,255,255,.06)' }} />
-        <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 30, alignItems: 'center', padding: 'clamp(32px, 5vw, 50px)' }}>
-          <div>
-            <span style={{ display: 'inline-block', background: accent, color: 'var(--color-primary-fg)', fontWeight: 800, fontSize: '12px', letterSpacing: '.08em', textTransform: 'uppercase', padding: '6px 14px', borderRadius: 'var(--radius-sm)', marginBottom: 18 }}>
+      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 14, background: bg, border: '1px solid var(--color-border)' }}>
+        <div aria-hidden style={{ position: 'absolute', right: '-4%', top: '-30%', width: 440, height: 440, background: `radial-gradient(circle, color-mix(in srgb, ${accent} 24%, transparent), transparent 62%)`, borderRadius: '50%' }} />
+        <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 30, alignItems: 'center', padding: 'clamp(24px, 5vw, 48px)' }}>
+          <div style={{ minWidth: 0 }}>
+            {/* Etiqueta en tipo oración (chip), no en MAYÚSCULAS espaciadas. */}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: accent, background: `color-mix(in srgb, ${accent} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 40%, transparent)`, fontWeight: 600, fontSize: '13px', padding: '4px 10px', borderRadius: 6, marginBottom: 16 }}>
               {t(theme, 'home.offer.badge')}
             </span>
-            <h2 style={{ ...H2, fontSize: 'clamp(1.8rem, 3.6vw, 2.3rem)', lineHeight: 1.08, color: titleColor, margin: '0 0 14px' }}>{t(theme, 'home.offer.title')}</h2>
+            <h2 style={{ ...H2, color: titleColor, margin: '0 0 12px' }}>{t(theme, 'home.offer.title')}</h2>
             {/* El subtítulo sigue al color del título (configurable) al 72%:
                 con el blanco fijo, un admin que eligiera fondo claro dejaba
                 este texto invisible mientras el título sí se adaptaba. */}
-            <p style={{ color: `color-mix(in srgb, ${titleColor} 72%, transparent)`, fontSize: '15.5px', maxWidth: 440, margin: '0 0 26px', lineHeight: 1.55, fontWeight: 300 }}>{t(theme, 'home.offer.subtitle')}</p>
-            <Link href={ctaLink} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: accent, color: 'var(--color-primary-fg)', fontWeight: 700, fontSize: '15px', padding: '15px 28px', borderRadius: 'var(--radius-md)', textDecoration: 'none', boxShadow: `0 16px 32px -16px color-mix(in srgb, ${accent} 95%, transparent)` }}>
+            <p style={{ color: `color-mix(in srgb, ${titleColor} 72%, transparent)`, fontSize: '15.5px', maxWidth: 460, margin: '0 0 24px', lineHeight: 1.6 }}>{t(theme, 'home.offer.subtitle')}</p>
+            <Link href={ctaLink} className="ms-btn ms-btn-lg" style={{ background: accent }}>
               {t(theme, 'home.offer.cta')} <Icon name="arrowRight" size={17} />
             </Link>
           </div>
-          <div style={{ position: 'relative', height: 230, borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)' }}>
+          <div style={{ position: 'relative', height: 230, borderRadius: CARD_RADIUS, overflow: 'hidden', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)' }}>
             {cfg?.image ? (
               <Image src={cfg.image} alt={t(theme, 'home.offer.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
             ) : (
@@ -521,20 +532,19 @@ export async function ReviewsSection({ theme }: { theme: Theme }) {
         {reviews.map((r) => (
           <figure
             key={r.id}
-            style={{ margin: 0, scrollSnapAlign: 'start', flex: '0 0 min(400px, 84vw)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 30, boxShadow: 'var(--shadow-sm)' }}
+            style={{ margin: 0, scrollSnapAlign: 'start', flex: '0 0 min(400px, 84vw)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: 24, display: 'flex', flexDirection: 'column' }}
           >
-            <div style={{ fontFamily: 'var(--font-display)', fontSize: '44px', lineHeight: 0.6, color: accent }}>&ldquo;</div>
-            <div style={{ color: accent, margin: '8px 0 14px' }}>
+            <div style={{ color: accent, marginBottom: 14 }}>
               <Stars value={r.rating} size={15} />
             </div>
-            <blockquote style={{ fontSize: '15px', lineHeight: 1.6, margin: '0 0 24px', fontWeight: 300, color: 'var(--color-text)' }}>{r.review}</blockquote>
-            <figcaption style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
-              <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-secondary)', color: '#fff', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <blockquote style={{ fontSize: '15px', lineHeight: 1.6, margin: '0 0 22px', color: 'var(--color-text)', flex: 1 }}>{r.review}</blockquote>
+            <figcaption style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid var(--color-border)', paddingTop: 16 }}>
+              <span aria-hidden style={{ width: 40, height: 40, flexShrink: 0, borderRadius: '50%', background: 'var(--color-secondary)', color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {r.author.charAt(0).toUpperCase()}
               </span>
-              <span>
-                <span style={{ display: 'block', fontWeight: 700, fontSize: '15px', color: 'var(--color-text)' }}>{r.author}</span>
-                <span style={{ display: 'block', color: 'var(--grey)', fontSize: '12.5px', fontWeight: 300 }}>{r.product ? r.product : role}</span>
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: 'block', fontWeight: 600, fontSize: '14.5px', color: 'var(--color-text)' }}>{r.author}</span>
+                <span style={{ display: 'block', color: 'var(--color-text-muted)', fontSize: '13px' }}>{r.product ? r.product : role}</span>
               </span>
             </figcaption>
           </figure>
@@ -555,13 +565,13 @@ export async function BrandsSection({ theme }: { theme: Theme }) {
   const loop = [...list, ...list]; // duplicado para marquee sin costura
   return (
     <section style={{ background: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', overflow: 'hidden', padding: '34px 0' }}>
-      <div style={{ textAlign: 'center', marginBottom: 22, color: 'var(--grey)', fontSize: '12px', letterSpacing: '.18em', fontWeight: 700, textTransform: 'uppercase' }}>
+      <p style={{ textAlign: 'center', margin: '0 auto 20px', padding: '0 16px', color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 500 }}>
         {brands.title}
-      </div>
+      </p>
       <div className="marquee-mask" style={{ WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)', maskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)' }}>
         <div className="marquee-track" style={{ display: 'flex', gap: 26, whiteSpace: 'nowrap', alignItems: 'center' }}>
           {loop.map((b, i) => (
-            <div key={`${b}-${i}`} style={{ flex: '0 0 auto', height: 52, width: 140, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px', color: 'var(--grey)', background: 'var(--surface-2)' }}>
+            <div key={`${b}-${i}`} aria-hidden={i >= list.length} style={{ flex: '0 0 auto', height: 52, minWidth: 140, padding: '0 18px', border: '1px solid var(--color-border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px', color: 'var(--color-text-muted)', background: 'var(--color-surface)' }}>
               {b}
             </div>
           ))}
@@ -582,18 +592,18 @@ export async function FaqSection({ theme }: { theme: Theme }) {
   return (
     // `id` para poder enlazar aquí desde Ayuda (/#faq); no hay página /faq propia.
     <section id="faq" style={{ maxWidth: 840, margin: '0 auto', padding: '80px clamp(16px, 4vw, 26px) 40px', scrollMarginTop: 90 }}>
-      <div style={{ marginBottom: 38 }}>
+      <div style={{ marginBottom: 32 }}>
         <CenterHead eyebrow={t(theme, 'home.faq.eyebrow')} title={t(theme, 'home.faq.title')} eyebrowColor={cfg?.eyebrowColor ?? undefined} titleColor={cfg?.titleColor ?? undefined} />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {faqs.map((f) => (
-          <details key={f.id} name="home-faq" className="faq" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-            <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '20px 24px', cursor: 'pointer', fontWeight: 700, fontSize: '16px', color: 'var(--color-text)' }}>
+          <details key={f.id} name="home-faq" className="faq" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, overflow: 'hidden' }}>
+            <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 22px', cursor: 'pointer', fontWeight: 600, fontSize: '15.5px', color: 'var(--color-text)' }}>
               {f.question}
-              <span className="faq-plus" style={{ fontSize: '22px', color: accent, flexShrink: 0 }}>+</span>
+              <span className="faq-plus" aria-hidden style={{ fontSize: '22px', lineHeight: 1, color: accent, flexShrink: 0 }}>+</span>
             </summary>
             <div
-              style={{ padding: '0 24px 22px', color: 'var(--color-text-muted)', fontSize: '14.5px', lineHeight: 1.6, fontWeight: 300 }}
+              style={{ padding: '0 22px 20px', color: 'var(--color-text-muted)', fontSize: '14.5px', lineHeight: 1.6 }}
               dangerouslySetInnerHTML={{ __html: f.answer }}
             />
           </details>
@@ -616,16 +626,16 @@ export async function BlogSection({ theme }: { theme: Theme }) {
             que `CenterHead` lo pintara duplicado. */}
         <CenterHead eyebrow={t(theme, 'home.blog.eyebrow')} title={t(theme, 'home.blog.title')} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
+      <div className="ms-cards">
         {blogs.map((b) => (
-          <Link key={b.id} href={`/blog/${b.slug}`} className="lift" style={{ textDecoration: 'none', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)', display: 'block' }}>
-            <span style={{ position: 'relative', aspectRatio: '16 / 9', display: 'block' }}>
-              {b.image ? <Image src={b.image} alt={b.title} fill sizes="33vw" className="zoom" style={{ objectFit: 'cover' }} /> : <span className="ph zoom" style={{ position: 'absolute', inset: 0 }} />}
+          <Link key={b.id} href={`/blog/${b.slug}`} className="ms-panel" style={{ padding: 0, overflow: 'hidden', display: 'block' }}>
+            <span style={{ position: 'relative', aspectRatio: '16 / 9', display: 'block', background: 'var(--surface-2)' }}>
+              {b.image ? <Image src={b.image} alt={b.title} fill sizes="(max-width: 640px) 100vw, 33vw" style={{ objectFit: 'cover' }} /> : <span className="ph" style={{ position: 'absolute', inset: 0 }} />}
             </span>
-            <span style={{ padding: 18, display: 'grid', gap: '.4rem' }}>
-              <strong style={{ lineHeight: 1.3 }}>{b.title}</strong>
-              <span style={{ color: 'var(--color-text-muted)', fontSize: '13.5px', fontWeight: 300 }}>{b.excerpt}</span>
-              <span style={{ color: 'var(--color-accent)', fontWeight: 600, fontSize: '13.5px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'home.blog.readMore')}<Icon name="arrowRight" size={13.5} /></span>
+            <span style={{ padding: 18, display: 'grid', gap: 8 }}>
+              <strong style={{ lineHeight: 1.3, fontSize: '16px' }}>{b.title}</strong>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '14px', lineHeight: 1.55 }}>{b.excerpt}</span>
+              <span className="ms-link" style={{ fontSize: '13.5px' }}>{t(theme, 'home.blog.readMore')}<Icon name="arrowRight" size={14} /></span>
             </span>
           </Link>
         ))}

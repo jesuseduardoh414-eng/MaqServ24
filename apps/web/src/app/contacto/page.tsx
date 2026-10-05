@@ -4,163 +4,159 @@ import { JsonLd } from '@/components/JsonLd';
 import { defaultTheme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { ContactForm } from './ContactForm';
-
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
+import { telHref, whatsappHref } from '@/lib/telefono';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
   return paginaSeo(theme, { ruta: '/contacto', titulo: t(theme, 'seo.contact.title'), descripcion: t(theme, 'seo.contact.description') });
 }
 
-const telHref = (v: string) => `tel:${v.replace(/[^\d+]/g, '')}`;
-const waHref = (v: string) => `https://wa.me/${v.replace(/\D/g, '').replace(/^0+/, '') ? `52${v.replace(/\D/g, '')}` : ''}`;
+// Enlaces de llamar y WhatsApp: un solo convertidor para todo el sitio (acepta
+// "81…", "+52 81…" y "+52 1 81…"). Ver lib/telefono.ts.
+const waHref = (v: string) => whatsappHref(v);
 
-function SectionHead({ title, tag }: { title: string; tag: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', borderBottom: '2px solid var(--color-text)', paddingBottom: 16, marginBottom: 32 }}>
-      <h2 style={{ fontFamily: DISPLAY, margin: 0, fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>{title}</h2>
-      <span style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text-muted)', letterSpacing: '0.14em' }}>{tag}</span>
-    </div>
-  );
-}
-
-// Tintes de las tarjetas de canal. Eran cuatro pasteles claros del diseño
-// anterior; sobre el fondo oscuro de MAQSER24 se leían como parches. Ahora son
-// velos del acento y del acero sobre la superficie, casi imperceptibles.
-const TINTS = [
-  'color-mix(in srgb, var(--color-primary) 10%, var(--color-surface))',
-  'color-mix(in srgb, var(--color-accent) 10%, var(--color-surface))',
-  'color-mix(in srgb, var(--color-success) 9%, var(--color-surface))',
-  'color-mix(in srgb, var(--color-text) 6%, var(--color-surface))',
-];
+/**
+ * Estilos propios de Contacto (prefijo `ct-`). Lo común (hero, campos,
+ * botones, tarjetas) sale del sistema de diseño `ms-*`.
+ */
+const CSS = `
+.ct-main{ display:grid; grid-template-columns:minmax(0,1fr) 400px; gap:56px; align-items:start; }
+.ct-stats{ margin-top:36px; }
+.ct-chs{ display:grid; gap:10px; }
+.ct-ch{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px; align-items:center; padding:14px 16px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; color:var(--color-text); text-decoration:none; transition:border-color .18s ease; }
+a.ct-ch:hover{ border-color:color-mix(in srgb, var(--color-text) 30%, var(--color-border)); }
+a.ct-ch:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+.ct-ch-l{ display:block; font-size:13px; color:var(--color-text-muted); }
+.ct-ch-v{ display:block; margin-top:2px; font-size:16px; font-weight:600; overflow-wrap:anywhere; }
+.ct-urg{ margin-top:16px; }
+.ct-urg-t{ margin:4px 0 16px; font-family:var(--font-display); font-size:19px; font-weight:700; letter-spacing:-.015em; line-height:1.25; }
+.ct-br{ padding:0; overflow:hidden; }
+.ct-br-img{ height:150px; display:grid; place-items:center; background:color-mix(in srgb, var(--color-text) 3%, var(--color-bg)); border-bottom:1px solid var(--color-border); color:var(--color-text-muted); }
+.ct-br-img[data-vacio="true"]{ height:88px; }
+.ct-br-img img{ width:100%; height:100%; object-fit:cover; display:block; }
+.ct-br-body{ padding:20px 22px 22px; }
+.ct-br-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px; }
+.ct-br-addr{ margin:0 0 10px; font-size:14px; line-height:1.55; color:var(--color-text-muted); }
+.ct-br-tel{ font-size:14px; font-weight:600; color:var(--color-text); text-decoration:none; font-variant-numeric:tabular-nums; }
+@media (max-width: 960px){ .ct-main{ grid-template-columns:minmax(0,1fr); gap:40px; } }
+`;
 
 export default async function ContactPage() {
   const theme = await getTheme();
   const c = theme.tokens.contact ?? defaultTheme.tokens.contact;
 
-  // Título: resalta la última palabra (como el diseño "Hablemos de tu obra").
-  const words = c.title.trim().split(/\s+/);
-  const lastWord = words.length > 1 ? words.pop() : '';
-  const head = words.join(' ');
-
-  const channels: Array<{ label: string; value: string; href?: string }> = [
-    { label: 'Teléfono', value: c.phone, href: c.phone ? telHref(c.phone) : undefined },
-    { label: 'WhatsApp', value: c.whatsapp, href: c.whatsapp ? waHref(c.whatsapp) : undefined },
-    { label: 'Correo', value: c.email, href: c.email ? `mailto:${c.email}` : undefined },
-    { label: 'Horario', value: c.hours },
+  const channels: Array<{ label: string; value: string; href?: string; icon: IconName }> = [
+    { label: 'Teléfono', value: c.phone, href: c.phone ? telHref(c.phone) : undefined, icon: 'phone' as IconName },
+    { label: 'WhatsApp', value: c.whatsapp, href: c.whatsapp ? waHref(c.whatsapp) : undefined, icon: 'chat' as IconName },
+    { label: 'Correo', value: c.email, href: c.email ? `mailto:${c.email}` : undefined, icon: 'mail' as IconName },
+    { label: 'Horario', value: c.hours, icon: 'clock' as IconName },
   ].filter((x) => x.value);
 
   return (
     <>
       <SiteHeader theme={theme} />
       <JsonLd data={migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: t(theme, 'nav.contact') }])} />
-      <style>{`
-        @media (max-width: 900px){
-          .ct-hero, .ct-main, .ct-branches { grid-template-columns: 1fr !important; }
-          .ct-container { padding-left: 22px !important; padding-right: 22px !important; }
-          .ct-title { font-size: 52px !important; }
-        }
-        @media (max-width: 560px){ .ct-row { grid-template-columns: 1fr !important; } .ct-title { font-size: 40px !important; } }
-      `}</style>
+      <style>{CSS}</style>
 
-      <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
-        {/* HERO */}
-        <section className="ct-container" style={{ maxWidth: 1280, margin: '0 auto', padding: '64px 40px 48px' }}>
-          <div className="ct-hero" style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 56, alignItems: 'end', borderBottom: '1px solid var(--color-border)', paddingBottom: 44 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-                <span style={{ width: 30, height: 4, background: 'var(--color-primary)', borderRadius: 2 }} />
-                <span style={{ fontFamily: MONO, fontSize: 12, letterSpacing: '0.24em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{c.eyebrow}</span>
-              </div>
-              <h1 className="ct-title" style={{ fontFamily: DISPLAY, margin: 0, fontSize: 80, lineHeight: 0.9, fontWeight: 800, letterSpacing: '-0.05em', color: 'var(--color-text)' }}>
-                {head}{lastWord ? ' ' : ''}
-                {lastWord ? <span style={{ background: 'linear-gradient(180deg, transparent 62%, var(--color-primary) 62%)' }}>{lastWord}</span> : null}
-              </h1>
-              <p style={{ margin: '26px 0 0', fontSize: 18, lineHeight: 1.55, color: 'var(--color-text-muted)', maxWidth: '48ch' }}>{c.subtitle}</p>
-            </div>
+      <div className="ms-page">
+        <main className="ms-wrap">
+          {/* Presentación */}
+          <header className="ms-hero" style={{ paddingTop: 16 }}>
+            {c.eyebrow ? <p className="ms-kicker">{c.eyebrow}</p> : null}
+            <h1 className="ms-hero-title">{c.title}</h1>
+            {c.subtitle ? <p className="ms-hero-desc">{c.subtitle}</p> : null}
             {c.stats.length > 0 ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px 24px' }}>
+              <div className="ms-stats ct-stats">
                 {c.stats.map((s, i) => (
                   <div key={i}>
-                    <div style={{ fontFamily: DISPLAY, fontSize: 44, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1, color: 'var(--color-text)' }}>{s.value}</div>
-                    <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.1em', color: 'var(--color-text-muted)', marginTop: 8, textTransform: 'uppercase' }}>{s.label}</div>
+                    <span className="ms-stat-n">{s.value}</span>
+                    <span className="ms-stat-l">{s.label}</span>
                   </div>
                 ))}
               </div>
             ) : null}
-          </div>
-        </section>
+          </header>
 
-        {/* FORM + CONTACTO DIRECTO */}
-        <main className="ct-container" style={{ maxWidth: 1280, margin: '0 auto', padding: '56px 40px 40px' }}>
-          <div className="ct-main" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 72, alignItems: 'start' }}>
-            <div>
-              <SectionHead title="Cuéntanos qué necesitas" tag="01 / FORMULARIO" />
-              <ContactForm needs={c.needs} />
-            </div>
+          {/* Formulario + contacto directo */}
+          <div className="ct-main">
+            <section aria-labelledby="ct-form-t">
+              <div className="ms-sec-head">
+                <div>
+                  <h2 id="ct-form-t" className="ms-h2">Cuéntanos qué necesitas</h2>
+                  <p className="ms-h2-desc">Los campos con asterisco son obligatorios.</p>
+                </div>
+              </div>
+              <div className="ms-panel ms-panel-lg">
+                <ContactForm needs={c.needs} />
+              </div>
+            </section>
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <SectionHead title="Contacto directo" tag="02" />
-              {channels.map((ch) => {
-                const inner = (
-                  <>
-                    <span style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.14em', color: 'var(--color-text-muted)', width: 96, flexShrink: 0, textTransform: 'uppercase' }}>{ch.label}</span>
-                    <span style={{ fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>{ch.value}</span>
-                  </>
-                );
-                const st: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 16, padding: '22px 0', borderBottom: '1px solid var(--color-border)', textDecoration: 'none' };
-                return ch.href
-                  ? <a key={ch.label} href={ch.href} style={st}>{inner}</a>
-                  : <div key={ch.label} style={st}>{inner}</div>;
-              })}
+            <section aria-labelledby="ct-dir-t">
+              <div className="ms-sec-head">
+                <h2 id="ct-dir-t" className="ms-h2">Contacto directo</h2>
+              </div>
+              <div className="ct-chs">
+                {channels.map((ch) => {
+                  const inner = (
+                    <>
+                      <span className="ms-ico" aria-hidden><Icon name={ch.icon} size={18} /></span>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="ct-ch-l">{ch.label}</span>
+                        <span className="ct-ch-v">{ch.value}</span>
+                      </span>
+                    </>
+                  );
+                  return ch.href
+                    ? <a key={ch.label} href={ch.href} className="ct-ch">{inner}</a>
+                    : <div key={ch.label} className="ct-ch">{inner}</div>;
+                })}
+              </div>
 
               {c.urgent.show ? (
-                <div style={{ marginTop: 26, background: 'var(--band)', border: '1px solid var(--color-border)', color: '#fff', borderRadius: 6, padding: 32, position: 'relative', overflow: 'hidden' }}>
-                  <div aria-hidden style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: 'var(--color-primary)', opacity: 0.16, borderRadius: '50%' }} />
-                  <div style={{ position: 'relative' }}>
-                    <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: '0.18em', color: 'var(--color-primary)', marginBottom: 12, textTransform: 'uppercase' }}>{c.urgent.eyebrow}</div>
-                    <p style={{ margin: '0 0 20px', fontFamily: DISPLAY, fontSize: 22, fontWeight: 700, lineHeight: 1.15, letterSpacing: '-0.02em' }}>{c.urgent.title}</p>
-                    {c.phone ? (
-                      <a href={telHref(c.phone)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, padding: '13px 24px', borderRadius: 'var(--radius-button)', textDecoration: 'none' }}>{c.urgent.ctaLabel}<Icon name="arrowRight" size={15} /></a>
-                    ) : null}
-                  </div>
+                <div className="ms-panel ct-urg">
+                  {c.urgent.eyebrow ? <p className="ms-kicker" style={{ margin: 0 }}>{c.urgent.eyebrow}</p> : null}
+                  <p className="ct-urg-t">{c.urgent.title}</p>
+                  {c.phone ? (
+                    <a href={telHref(c.phone)} className="ms-btn">
+                      <Icon name="phone" size={16} />{c.urgent.ctaLabel}
+                    </a>
+                  ) : null}
                 </div>
               ) : null}
-            </div>
+            </section>
           </div>
 
-          {/* SUCURSALES */}
+          {/* Sucursales */}
           {c.branches.length > 0 ? (
-            <div style={{ marginTop: 96 }}>
-              <SectionHead title="Nuestras sucursales" tag="03 / COBERTURA" />
-              <div className="ct-branches" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 2, background: 'var(--color-border)', border: '1px solid var(--color-border)' }}>
+            <section className="ms-section" style={{ marginTop: 64 }} aria-labelledby="ct-br-t">
+              <div className="ms-sec-head">
+                <h2 id="ct-br-t" className="ms-h2">Nuestras sucursales</h2>
+              </div>
+              <div className="ms-cards">
                 {c.branches.map((b, i) => (
-                  <div key={i} style={{ background: 'var(--color-bg)' }}>
-                    {b.image ? (
-                      <div style={{ height: 150, overflow: 'hidden' }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={b.image} alt={b.city} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                      </div>
-                    ) : (
-                      <div style={{ height: 150, background: TINTS[i % TINTS.length], backgroundImage: 'repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0 1px, rgba(0,0,0,0) 1px 22px), repeating-linear-gradient(-45deg, rgba(0,0,0,0.05) 0 1px, rgba(0,0,0,0) 1px 22px)', display: 'flex', alignItems: 'flex-end', padding: 14 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 11, color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.82)', padding: '5px 9px', borderRadius: 4, letterSpacing: '0.04em' }}>mapa: {b.city}</span>
-                      </div>
-                    )}
-                    <div style={{ padding: '26px 24px 30px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                        <h3 style={{ fontFamily: DISPLAY, margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--color-text)' }}>{b.city}</h3>
-                        {b.isNew ? <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.1em', background: 'var(--color-primary)', color: 'var(--color-primary-fg)', padding: '3px 8px', borderRadius: 'var(--radius-button)', fontWeight: 700 }}>NUEVA</span> : null}
-                      </div>
-                      <p style={{ margin: '0 0 14px', fontSize: 14, lineHeight: 1.55, color: 'var(--color-text-muted)' }}>{b.address}</p>
-                      {b.phone ? <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--color-text)' }}>{b.phone}</div> : null}
+                  <article key={i} className="ms-panel ct-br">
+                    <div className="ct-br-img" data-vacio={!b.image}>
+                      {b.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={b.image} alt={b.city} loading="lazy" />
+                      ) : (
+                        <span className="ms-ico ms-ico-lg ms-ico-muted" aria-hidden><Icon name="mapPin" size={22} /></span>
+                      )}
                     </div>
-                  </div>
+                    <div className="ct-br-body">
+                      <div className="ct-br-head">
+                        <h3 className="ms-h3" style={{ fontSize: 17 }}>{b.city}</h3>
+                        {b.isNew ? <span className="ms-chip ms-chip-info">Nueva</span> : null}
+                      </div>
+                      <p className="ct-br-addr">{b.address}</p>
+                      {b.phone ? <a href={telHref(b.phone)} className="ct-br-tel">{b.phone}</a> : null}
+                    </div>
+                  </article>
                 ))}
               </div>
-            </div>
+            </section>
           ) : null}
         </main>
       </div>

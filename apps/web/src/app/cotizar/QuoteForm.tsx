@@ -11,44 +11,58 @@ import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA } from './Requirement
 import { SitePicker, type ObraCliente } from './SitePicker';
 import { Stepper } from './Stepper';
 
-const MONO = 'var(--font-sans)';
-const DISPLAY = 'var(--font-display)';
-const stripe = 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px)';
-
-const cardStyle: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-  padding: '22px 24px',
-};
-
-const legendStyle: React.CSSProperties = {
-  fontFamily: MONO,
-  fontSize: 11,
-  letterSpacing: '0.14em',
-  color: 'var(--color-text-muted)',
-  textTransform: 'uppercase',
-  margin: '0 0 16px',
-};
-
-const fieldStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  padding: '13px 14px',
-  fontSize: 14.5,
-  fontFamily: 'inherit',
-  color: 'var(--color-text)',
-  background: 'var(--color-bg)',
-  border: '1px solid var(--color-border)',
-  borderRadius: 4,
-};
-
-/** Etiqueta de las preguntas del servicio. Van visibles, no como placeholder:
- *  un placeholder desaparece al escribir y el manual pide que el cliente sepa
- *  siempre que le estan preguntando (30 / ACCESIBILIDAD). */
-const labelReqStyle: React.CSSProperties = { display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--color-text)', marginBottom: 6 };
-
-const numField: React.CSSProperties = { ...fieldStyle, width: 66, padding: '8px 8px', textAlign: 'center', fontFamily: MONO, fontSize: 13 };
+/**
+ * Estilos: piezas del sistema de diseño (`ms-panel`, `ms-field`, `ms-input`,
+ * `ms-btn`…, ver components/EstilosSistema.tsx). Lo propio de esta pantalla
+ * lleva el prefijo `qf-` y vive aquí. Las etiquetas de los campos van
+ * visibles, no como placeholder: un placeholder desaparece al escribir y el
+ * manual pide que el cliente sepa siempre qué le están preguntando
+ * (30 / ACCESIBILIDAD).
+ */
+const CSS_QF = `
+.qf-form{ display:grid; gap:18px; }
+.qf-paso{ gap:18px; }
+.qf-panel-h{ margin-bottom:16px; }
+.qf-panel-h .ms-h2-desc{ margin-top:6px; }
+.qf-thumb{ width:56px; height:56px; flex-shrink:0; border-radius:8px; object-fit:cover; background:repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-text) 5%, transparent) 0 12px, transparent 12px 24px) var(--color-bg); border:1px solid var(--color-border); }
+.qf-thumb-sm{ width:46px; height:46px; }
+.qf-thumb-xs{ width:36px; height:36px; border-radius:6px; }
+.qf-prod{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+.qf-prod-nom{ flex:1 1 200px; min-width:0; font-size:16.5px; font-weight:600; line-height:1.35; }
+.qf-num{ display:flex; gap:8px; align-items:center; font-size:13px; color:var(--color-text-muted); }
+.qf-num .ms-input{ width:84px; text-align:center; font-variant-numeric:tabular-nums; }
+.qf-items{ display:grid; margin-bottom:16px; border-top:1px solid var(--color-border); }
+.qf-item{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; padding:12px 0; border-bottom:1px solid var(--color-border); }
+.qf-item-txt{ flex:1 1 140px; min-width:0; display:grid; gap:5px; justify-items:start; }
+.qf-item-nom{ font-size:14.5px; font-weight:600; }
+.qf-quitar{ width:36px; height:36px; display:grid; place-items:center; border-radius:8px; border:1px solid var(--color-border); background:transparent; color:var(--color-text-muted); cursor:pointer; transition:color .18s ease, border-color .18s ease; }
+.qf-quitar:hover{ color:var(--color-error); border-color:color-mix(in srgb, var(--color-error) 45%, var(--color-border)); }
+.qf-quitar:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+.qf-res{ margin-top:8px; border:1px solid var(--color-border); border-radius:8px; background:var(--color-bg); overflow:hidden; }
+.qf-res-msg{ margin:0; padding:12px 14px; font-size:13.5px; color:var(--color-text-muted); }
+.qf-hit{ display:flex; gap:11px; align-items:center; width:100%; text-align:left; border:none; border-bottom:1px solid var(--color-border); background:transparent; padding:10px 14px; cursor:pointer; color:var(--color-text); font:inherit; }
+.qf-hit:last-child{ border-bottom:none; }
+.qf-hit:hover, .qf-hit:focus-visible{ background:color-mix(in srgb, var(--color-text) 5%, transparent); outline:none; }
+.qf-hit-nom{ flex:1; min-width:0; font-size:14px; font-weight:600; }
+.qf-hit-mas{ font-size:13px; font-weight:600; color:var(--color-primary); }
+.qf-datos{ display:grid; gap:18px; }
+.qf-kv{ display:grid; margin:0; }
+.qf-kv > div{ display:flex; justify-content:space-between; gap:16px; padding:10px 0; font-size:14px; border-bottom:1px solid var(--color-border); }
+.qf-kv > div:first-child{ padding-top:0; }
+.qf-kv dt{ color:var(--color-text-muted); }
+.qf-kv dd{ margin:0; text-align:right; font-weight:600; color:var(--color-text); min-width:0; overflow-wrap:anywhere; }
+.qf-nota{ text-align:center; }
+.qf-nav{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.qf-nav .qf-sig{ margin-left:auto; min-width:180px; }
+.qf-back{ justify-self:start; }
+.qf-back:hover svg{ transform:translateX(-3px); }
+.qf-ok .ms-ico{ color:var(--color-success); background:color-mix(in srgb, var(--color-success) 10%, transparent); border-color:color-mix(in srgb, var(--color-success) 30%, transparent); }
+.qf-folio{ margin-top:14px; display:grid; gap:2px; }
+.qf-folio b{ font-family:var(--font-display); font-size:24px; font-weight:700; letter-spacing:-.02em; font-variant-numeric:tabular-nums; }
+@media (max-width: 640px){
+  .qf-nav .qf-sig{ flex:1 1 auto; min-width:0; }
+}
+`;
 
 interface PickedItem {
   productId: number;
@@ -288,15 +302,18 @@ export function QuoteForm({
 
   if (done) {
     return (
-      <div style={{ ...cardStyle, maxWidth: 520, margin: '0 auto', textAlign: 'center', padding: '40px 28px' }}>
-        <div style={{ width: 52, height: 52, margin: '0 auto 18px', borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'var(--color-success)', color: 'var(--color-bg)', fontSize: 26, fontWeight: 800 }} aria-hidden><Icon name="check" size={26} /></div>
-        <h2 style={{ fontFamily: DISPLAY, fontSize: 28, fontWeight: 800, letterSpacing: '-0.03em', margin: '0 0 10px' }}>{labels.successTitle}</h2>
-        <p style={{ color: 'var(--color-text-muted)', margin: '0 0 20px', lineHeight: 1.6 }}>{labels.successBody}</p>
-        <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
-          <div style={{ fontFamily: MONO, fontSize: 10.5, letterSpacing: '0.14em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>{labels.numberLabel}</div>
-          <div style={{ fontFamily: DISPLAY, fontSize: 26, fontWeight: 800, letterSpacing: '-0.02em', marginTop: 4 }}>{done.quoteNumber}</div>
+      <div className="ms-empty qf-ok" role="status">
+        <style>{CSS_QF}</style>
+        <span className="ms-ico ms-ico-lg" aria-hidden><Icon name="check" size={22} /></span>
+        <h2 className="ms-empty-t">{labels.successTitle}</h2>
+        <p className="ms-empty-p">{labels.successBody}</p>
+        <div className="qf-folio">
+          <span className="ms-small ms-muted">{labels.numberLabel}</span>
+          <b>{done.quoteNumber}</b>
         </div>
-        <Link href="/cuenta/cotizaciones" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 22, fontFamily: DISPLAY, fontWeight: 700, fontSize: 15, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', textDecoration: 'none', padding: '13px 26px', borderRadius: 'var(--radius-button)' }}>Ver mis cotizaciones<Icon name="arrowRight" size={15} /></Link>
+        <div className="ms-empty-acts">
+          <Link href="/cuenta/cotizaciones" className="ms-btn">Ver mis cotizaciones<Icon name="arrowRight" size={16} /></Link>
+        </div>
       </div>
     );
   }
@@ -304,119 +321,118 @@ export function QuoteForm({
   /** Oculta en vez de desmontar: ver la nota del asistente arriba. */
   const visible = (clave: string): React.CSSProperties => ({
     display: claveDe(paso) === clave ? 'grid' : 'none',
-    gap: 18,
   });
 
   return (
-    <form ref={formRef} onSubmit={onSubmit} style={{ display: 'grid', gap: 18 }}>
+    <form ref={formRef} onSubmit={onSubmit} className="qf-form">
+      <style>{CSS_QF}</style>
       <Stepper pasos={pasos} actual={paso} onIr={setPaso} />
 
-      <div data-paso="servicio" style={visible('servicio')}>
+      <div data-paso="servicio" className="qf-paso" style={visible('servicio')}>
       {product ? (
-        <div style={cardStyle}>
-          <h2 style={legendStyle}>Equipo a cotizar</h2>
-          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <section className="ms-panel">
+          <h2 className="ms-h2 qf-panel-h">Equipo a cotizar</h2>
+          <div className="qf-prod">
             {product.image ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={product.image} alt="" style={{ width: 56, height: 56, borderRadius: 3, objectFit: 'cover', background: 'var(--color-bg)' }} />
-            ) : <span style={{ width: 56, height: 56, borderRadius: 3, background: stripe }} />}
-            <strong style={{ flex: '1 1 200px', fontFamily: DISPLAY, fontSize: 19, fontWeight: 700, letterSpacing: '-0.01em' }}>{product.name}</strong>
-            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+              <img src={product.image} alt="" className="qf-thumb" />
+            ) : <span className="qf-thumb" aria-hidden />}
+            <strong className="qf-prod-nom">{product.name}</strong>
+            <label className="qf-num">
               {labels.qty}
-              <input type="number" min={1} max={999} value={qty} onChange={(e) => setQty(Number(e.target.value) || 1)} style={numField} />
+              <input className="ms-input" type="number" min={1} max={999} value={qty} onChange={(e) => setQty(Number(e.target.value) || 1)} />
             </label>
             {product.isRental ? (
-              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontFamily: MONO, fontSize: 11, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+              <label className="qf-num">
                 {labels.days}
-                <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} style={numField} />
+                <input className="ms-input" type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
               </label>
             ) : null}
           </div>
-        </div>
+        </section>
       ) : (
         /* Lista editable + buscador: así /cotizar sirve aunque el carrito esté vacío. */
-        <div style={cardStyle}>
-          <h2 style={legendStyle}>
-            {servicio ? `Servicio · ${servicio}` : `Equipos a cotizar ${picked.length > 0 ? `· ${picked.length}` : ''}`}
-          </h2>
+        <section className="ms-panel">
+          <div className="qf-panel-h">
+            <h2 className="ms-h2">
+              {servicio ? `Servicio: ${servicio}` : `Equipos a cotizar${picked.length > 0 ? ` (${picked.length})` : ''}`}
+            </h2>
 
-          {servicio && picked.length === 0 ? (
-            /* Agua en pipas y triturados no tienen catálogo: no hay equipo que
-               buscar, lo que define la cotización son volumen, origen, destino
-               y fechas. Se pide en el campo de comentarios de abajo. */
-            <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)', fontSize: 13.5, lineHeight: 1.6 }}>
-              Este servicio se cotiza por volumen y recorrido, no por equipo. Indícanos cantidad,
-              origen, destino y fechas en el campo de detalles y te devolvemos opciones.
-            </p>
-          ) : picked.length === 0 ? (
-            <p style={{ margin: '0 0 14px', color: 'var(--color-text-muted)', fontSize: 13.5, lineHeight: 1.6 }}>
-              Busca el equipo que necesitas y agrégalo. Puedes incluir varios en la misma cotización.
-            </p>
-          ) : (
-            <div style={{ display: 'grid', marginBottom: 14 }}>
+            {servicio && picked.length === 0 ? (
+              /* Agua en pipas y triturados no tienen catálogo: no hay equipo que
+                 buscar, lo que define la cotización son volumen, origen, destino
+                 y fechas. Se pide en el campo de comentarios de abajo. */
+              <p className="ms-h2-desc">
+                Este servicio se cotiza por volumen y recorrido, no por equipo. Indícanos cantidad,
+                origen, destino y fechas en el campo de detalles y te devolvemos opciones.
+              </p>
+            ) : picked.length === 0 ? (
+              <p className="ms-h2-desc">
+                Busca el equipo que necesitas y agrégalo. Puedes incluir varios en la misma cotización.
+              </p>
+            ) : null}
+          </div>
+
+          {picked.length > 0 ? (
+            <div className="qf-items">
               {picked.map((i) => (
-                <div key={i.productId} style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--color-border)', padding: '12px 0' }}>
+                <div key={i.productId} className="qf-item">
                   {i.image ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={i.image} alt="" style={{ width: 46, height: 46, flexShrink: 0, borderRadius: 3, objectFit: 'cover', background: 'var(--color-bg)' }} />
-                  ) : <span style={{ width: 46, height: 46, flexShrink: 0, borderRadius: 3, background: stripe }} />}
-                  <span style={{ flex: '1 1 140px', minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>{i.name}</span>
-                    <span style={{ display: 'block', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', color: 'var(--color-text-muted)', marginTop: 2 }}>{i.isRental ? 'RENTA' : 'VENTA'}</span>
+                    <img src={i.image} alt="" className="qf-thumb qf-thumb-sm" />
+                  ) : <span className="qf-thumb qf-thumb-sm" aria-hidden />}
+                  <span className="qf-item-txt">
+                    <span className="qf-item-nom">{i.name}</span>
+                    <span className="ms-chip">{i.isRental ? 'Renta' : 'Venta'}</span>
                   </span>
-                  <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                  <label className="qf-num">
                     {labels.qty}
-                    <input type="number" min={1} max={999} value={i.qty} onChange={(e) => patchPicked(i.productId, { qty: Number(e.target.value) || 1 })} style={numField} />
+                    <input className="ms-input" type="number" min={1} max={999} value={i.qty} onChange={(e) => patchPicked(i.productId, { qty: Number(e.target.value) || 1 })} />
                   </label>
                   {i.isRental ? (
-                    <label style={{ display: 'flex', gap: 7, alignItems: 'center', fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', color: 'var(--color-text-muted)', textTransform: 'uppercase' }}>
+                    <label className="qf-num">
                       {labels.days}
-                      <input type="number" min={1} max={365} value={i.days} onChange={(e) => patchPicked(i.productId, { days: Number(e.target.value) || 1 })} style={numField} />
+                      <input className="ms-input" type="number" min={1} max={365} value={i.days} onChange={(e) => patchPicked(i.productId, { days: Number(e.target.value) || 1 })} />
                     </label>
                   ) : null}
-                  <button type="button" onClick={() => removePicked(i.productId)} aria-label={`Quitar ${i.name}`} style={{ border: 'none', background: 'transparent', color: 'var(--color-error)', cursor: 'pointer', fontSize: 14, fontWeight: 700, padding: '4px 6px' }}><Icon name="x" size={14} /></button>
+                  <button type="button" onClick={() => removePicked(i.productId)} aria-label={`Quitar ${i.name}`} className="qf-quitar"><Icon name="x" size={16} /></button>
                 </div>
               ))}
             </div>
-          )}
+          ) : null}
 
-          <div style={{ position: 'relative' }}>
+          <div className="ms-field">
+            <label htmlFor="qf-buscar" className="ms-label">Buscar equipo</label>
             <input
+              id="qf-buscar"
+              className="ms-input"
               value={term}
               onChange={(e) => setTerm(e.target.value)}
-              placeholder="Buscar equipo por nombre…"
-              aria-label="Buscar equipo"
-              style={fieldStyle}
+              placeholder="Escribe el nombre del equipo…"
             />
             {term.trim().length >= 2 ? (
-              <div style={{ marginTop: 8, border: '1px solid var(--color-border)', borderRadius: 4, background: 'var(--color-bg)', overflow: 'hidden' }}>
+              <div className="qf-res">
                 {searching ? (
-                  <p style={{ margin: 0, padding: '11px 14px', fontFamily: MONO, fontSize: 11.5, letterSpacing: '0.06em', color: 'var(--color-text-muted)' }}>BUSCANDO…</p>
+                  <p className="qf-res-msg">Buscando…</p>
                 ) : results.length === 0 ? (
-                  <p style={{ margin: 0, padding: '11px 14px', fontSize: 13, color: 'var(--color-text-muted)' }}>Sin resultados para “{term}”.</p>
+                  <p className="qf-res-msg">Sin resultados para “{term}”.</p>
                 ) : (
                   results.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => addPicked(r)}
-                      className="qf-hit"
-                      style={{ display: 'flex', gap: 11, alignItems: 'center', width: '100%', textAlign: 'left', border: 'none', borderBottom: '1px solid var(--color-border)', background: 'transparent', padding: '10px 14px', cursor: 'pointer', color: 'var(--color-text)', fontFamily: 'inherit' }}
-                    >
+                    <button key={r.id} type="button" onClick={() => addPicked(r)} className="qf-hit">
                       {r.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={r.image} alt="" style={{ width: 34, height: 34, borderRadius: 3, objectFit: 'cover', background: 'var(--color-surface)' }} />
-                      ) : <span style={{ width: 34, height: 34, borderRadius: 3, background: stripe }} />}
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 600 }}>{r.name}</span>
-                      <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: '0.08em', color: 'var(--color-text-muted)' }}>{r.isRental ? 'RENTA' : 'VENTA'}</span>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-primary)', lineHeight: 1 }}>+</span>
+                        <img src={r.image} alt="" className="qf-thumb qf-thumb-xs" />
+                      ) : <span className="qf-thumb qf-thumb-xs" aria-hidden />}
+                      <span className="qf-hit-nom">{r.name}</span>
+                      <span className="ms-chip">{r.isRental ? 'Renta' : 'Venta'}</span>
+                      <span className="qf-hit-mas">Agregar</span>
                     </button>
                   ))
                 )}
               </div>
             ) : null}
           </div>
-        </div>
+        </section>
       )}
 
       </div>
@@ -424,13 +440,12 @@ export function QuoteForm({
       {/* PASO · UBICACIÓN. El documento insiste en que la ubicación forma parte
           del producto: define el traslado y qué proveedor puede atender. Por eso
           tiene paso propio en vez de ir perdida entre las demás preguntas. */}
-      <div data-paso="ubicacion" style={visible('ubicacion')}>
+      <div data-paso="ubicacion" className="qf-paso" style={visible('ubicacion')}>
         {formulario ? (
           <RequirementFields
             form={formulario}
             values={reqs}
             onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
-            estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
             only={CLAVES_UBICACION}
             titulo="¿Dónde se necesita?"
             intro="Con esto calculamos el traslado y vemos qué aliados cubren esa zona."
@@ -439,7 +454,6 @@ export function QuoteForm({
         {/* A quien ya nos dijo donde trabaja no se le vuelve a preguntar.
             Si no tiene obras, esto no pinta nada. */}
         <SitePicker
-          estilos={{ tarjeta: cardStyle, leyenda: legendStyle }}
           onElegir={(o) => {
             setObra(o);
             // Rellena, no bloquea: una obra grande tiene varios accesos y el
@@ -447,49 +461,48 @@ export function QuoteForm({
             if (o?.address) setDireccion(o.address);
           }}
         />
-        <div style={cardStyle}>
-          <h2 style={legendStyle}>Dirección de entrega</h2>
-          {/* Controlado SOLO este campo: elegir una obra tiene que poder
-              rellenarlo, y un defaultValue no se vuelve a leer despues del
-              primer render. Los demas siguen saliendo de FormData. */}
-          <input
-            className="qf-field"
-            name="address"
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-            placeholder={labels.address}
-            aria-label={labels.address}
-            style={fieldStyle}
-          />
-          <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-            Entre más exacta, mejor calculamos el costo de traslado.
-          </p>
-        </div>
+        <section className="ms-panel">
+          <div className="ms-field">
+            <label htmlFor="qf-address" className="ms-label">Dirección de entrega</label>
+            {/* Controlado SOLO este campo: elegir una obra tiene que poder
+                rellenarlo, y un defaultValue no se vuelve a leer despues del
+                primer render. Los demas siguen saliendo de FormData. */}
+            <input
+              id="qf-address"
+              className="ms-input"
+              name="address"
+              value={direccion}
+              onChange={(e) => setDireccion(e.target.value)}
+              placeholder={labels.address}
+            />
+            <p className="ms-hint">Entre más exacta, mejor calculamos el costo de traslado.</p>
+          </div>
+        </section>
         {/* Sin preguntas propias del servicio, la fecha se pide aquí: un paso
             solo para una fecha sería un paso vacío. */}
         {!formulario ? (
-          <div style={cardStyle}>
-            <h2 style={legendStyle}>¿Para cuándo?</h2>
-            <input
-              className="qf-field"
-              type="date"
-              value={reqs.fecha_inicio ?? ''}
-              onChange={(e) => setReqs((r) => ({ ...r, fecha_inicio: e.target.value }))}
-              aria-label="Fecha de inicio"
-              style={fieldStyle}
-            />
-          </div>
+          <section className="ms-panel">
+            <div className="ms-field">
+              <label htmlFor="qf-fecha" className="ms-label">¿Para cuándo?</label>
+              <input
+                id="qf-fecha"
+                className="ms-input"
+                type="date"
+                value={reqs.fecha_inicio ?? ''}
+                onChange={(e) => setReqs((r) => ({ ...r, fecha_inicio: e.target.value }))}
+              />
+            </div>
+          </section>
         ) : null}
       </div>
 
       {/* PASO · FECHA */}
       {formulario ? (
-        <div data-paso="fecha" style={visible('fecha')}>
+        <div data-paso="fecha" className="qf-paso" style={visible('fecha')}>
           <RequirementFields
             form={formulario}
             values={reqs}
             onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
-            estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
             only={CLAVES_FECHA}
             titulo="¿Para cuándo y por cuánto tiempo?"
             intro="La disponibilidad depende de la fecha: un equipo libre hoy puede estar comprometido la semana que entra."
@@ -499,12 +512,11 @@ export function QuoteForm({
 
       {/* PASO · REQUERIMIENTO — el resto de las preguntas del servicio. */}
       {formulario ? (
-        <div data-paso="requerimiento" style={visible('requerimiento')}>
+        <div data-paso="requerimiento" className="qf-paso" style={visible('requerimiento')}>
           <RequirementFields
             form={formulario}
             values={reqs}
             onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
-            estilos={{ campo: fieldStyle, etiqueta: labelReqStyle, tarjeta: cardStyle, leyenda: legendStyle }}
             except={[...CLAVES_UBICACION, ...CLAVES_FECHA]}
           />
         </div>
@@ -512,35 +524,57 @@ export function QuoteForm({
 
       {/* PASO · TUS DATOS. Van al final a propósito: el contacto es el trámite,
           no lo que define la cotización. */}
-      <div data-paso="datos" style={visible('datos')}>
-        <div style={cardStyle}>
-          <h2 style={legendStyle}>Tus datos</h2>
-          <div style={{ display: 'grid', gap: 12 }}>
-            <input className="qf-field" name="name" required minLength={2} defaultValue={user.name ?? ''} placeholder={labels.name} aria-label={labels.name} style={fieldStyle} />
-            <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {/* Solo lectura: es la identidad de la cuenta y la API lo impone igual. */}
-              <input className="qf-field" name="email" type="email" required readOnly defaultValue={user.email} placeholder={labels.email} aria-label={labels.email} title={labels.emailLocked} style={{ ...fieldStyle, opacity: 0.7, cursor: 'not-allowed' }} />
-              <input className="qf-field" name="phone" required minLength={7} defaultValue={user.phone ?? ''} placeholder={labels.phone} aria-label={labels.phone} style={fieldStyle} />
+      <div data-paso="datos" className="qf-paso" style={visible('datos')}>
+        <section className="ms-panel">
+          <h2 className="ms-h2 qf-panel-h">Tus datos</h2>
+          <div className="qf-datos">
+            <div className="ms-field">
+              <label htmlFor="qf-name" className="ms-label">{labels.name}<span className="ms-req" aria-hidden>*</span></label>
+              <input id="qf-name" className="ms-input" name="name" required minLength={2} defaultValue={user.name ?? ''} />
             </div>
-            <p style={{ margin: '-4px 0 0', fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.55 }}>
-              {labels.emailLocked}{!user.phone ? ` ${labels.phoneSaved}` : ''}
-            </p>
-            <div className="qf-two" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <input className="qf-field" name="company" placeholder={labels.company} aria-label={labels.company} style={fieldStyle} />
-              <input className="qf-field" name="industry" placeholder={labels.industry} aria-label={labels.industry} style={fieldStyle} />
+            <div className="ms-grid2">
+              <div className="ms-field">
+                <label htmlFor="qf-email" className="ms-label">{labels.email}</label>
+                {/* Solo lectura: es la identidad de la cuenta y la API lo impone igual. */}
+                <input id="qf-email" className="ms-input" name="email" type="email" required readOnly defaultValue={user.email} title={labels.emailLocked} style={{ color: 'var(--color-text-muted)', cursor: 'not-allowed' }} />
+              </div>
+              <div className="ms-field">
+                <label htmlFor="qf-phone" className="ms-label">{labels.phone}<span className="ms-req" aria-hidden>*</span></label>
+                <input id="qf-phone" className="ms-input" name="phone" type="tel" required minLength={7} defaultValue={user.phone ?? ''} />
+              </div>
+              <p className="ms-hint ms-span">
+                {labels.emailLocked}{!user.phone ? ` ${labels.phoneSaved}` : ''}
+              </p>
+              <div className="ms-field">
+                <label htmlFor="qf-company" className="ms-label">{labels.company}</label>
+                <input id="qf-company" className="ms-input" name="company" />
+              </div>
+              <div className="ms-field">
+                <label htmlFor="qf-industry" className="ms-label">{labels.industry}</label>
+                <input id="qf-industry" className="ms-input" name="industry" />
+              </div>
             </div>
-            <input className="qf-field" name="region" placeholder={labels.region} aria-label={labels.region} style={fieldStyle} />
-            <textarea className="qf-field" name="comments" rows={3} placeholder={labels.comments} aria-label={labels.comments} style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.55 }} />
+            <div className="ms-field">
+              <label htmlFor="qf-region" className="ms-label">{labels.region}</label>
+              <input id="qf-region" className="ms-input" name="region" />
+            </div>
+            <div className="ms-field">
+              <label htmlFor="qf-comments" className="ms-label">{labels.comments}</label>
+              <textarea id="qf-comments" className="ms-textarea" name="comments" rows={3} />
+            </div>
           </div>
-        </div>
+        </section>
       </div>
 
       {/* PASO · CONFIRMACIÓN. Se enseña lo que se va a enviar antes de enviarlo:
           es la última oportunidad de corregir sin tener que llamar después. */}
-      <div data-paso="confirmar" style={visible('confirmar')}>
-        <div style={cardStyle}>
-          <h2 style={legendStyle}>Revisa antes de enviar</h2>
-          <dl style={{ margin: 0, display: 'grid', gap: 10 }}>
+      <div data-paso="confirmar" className="qf-paso" style={visible('confirmar')}>
+        <section className="ms-panel">
+          <div className="qf-panel-h">
+            <h2 className="ms-h2">Revisa antes de enviar</h2>
+            <p className="ms-h2-desc">Si algo no cuadra, toca cualquier paso de arriba para corregirlo.</p>
+          </div>
+          <dl className="qf-kv">
             <Resumen etiqueta="Servicio" valor={servicio ?? (product ? product.name : `${picked.length} equipo(s)`)} />
             {formulario
               ? formulario.fields
@@ -548,50 +582,38 @@ export function QuoteForm({
                   .map((f) => <Resumen key={f.key} etiqueta={f.label} valor={reqs[f.key]} />)
               : null}
           </dl>
-          <p style={{ margin: '16px 0 0', fontSize: 12.5, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-            Si algo no cuadra, toca cualquier paso de arriba para corregirlo.
-          </p>
-        </div>
+        </section>
 
         {error ? (
-          <p role="alert" style={{ color: 'var(--color-error)', margin: 0, fontSize: 13, textAlign: 'center' }}>{error}</p>
+          <div role="alert" className="ms-alert ms-alert-bad">
+            <Icon name="warning" size={18} style={{ color: 'var(--color-error)', marginTop: 2 }} />
+            <span>{error}</span>
+          </div>
         ) : null}
 
-        <button type="submit" disabled={loading || (items.length === 0 && !servicio)} style={{ width: '100%', fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', cursor: loading ? 'default' : 'pointer', opacity: loading || (items.length === 0 && !servicio) ? 0.5 : 1 }}>
+        <button type="submit" className="ms-btn ms-btn-lg ms-btn-block" disabled={loading || (items.length === 0 && !servicio)}>
           {loading ? 'Enviando…' : labels.submit}
         </button>
-        <p style={{ margin: 0, fontFamily: MONO, fontSize: 10, letterSpacing: '0.06em', color: 'var(--color-text-muted)', textAlign: 'center', lineHeight: 1.6, textTransform: 'uppercase' }}>
-          Sin costo ni compromiso · Un asesor te responde con precios y disponibilidad
+        <p className="ms-hint qf-nota">
+          Sin costo ni compromiso. Un asesor te responde con precios y disponibilidad.
         </p>
       </div>
 
       {/* Navegación. "Regresar" siempre disponible, como pide el manual. */}
       {!esUltimo ? (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div className="qf-nav">
           {paso > 0 ? (
-            <button
-              type="button"
-              onClick={() => setPaso((p) => Math.max(0, p - 1))}
-              style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-button)', padding: '15px 24px', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              <Icon name="arrowLeft" size={15} />Regresar
+            <button type="button" className="ms-btn ms-btn-sec" onClick={() => setPaso((p) => Math.max(0, p - 1))}>
+              <Icon name="arrowLeft" size={16} />Regresar
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={siguiente}
-            style={{ flex: 1, minWidth: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, fontFamily: DISPLAY, fontWeight: 700, fontSize: 16, background: 'var(--color-primary)', color: 'var(--color-primary-fg)', border: 'none', padding: 16, borderRadius: 'var(--radius-button)', cursor: 'pointer' }}
-          >
+          <button type="button" className="ms-btn qf-sig" onClick={siguiente}>
             Continuar<Icon name="arrowRight" size={16} />
           </button>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => setPaso((p) => Math.max(0, p - 1))}
-          style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', color: 'var(--color-text-muted)', border: 'none', padding: 0, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'underline' }}
-        >
-          <Icon name="arrowLeft" size={13.5} />Regresar
+        <button type="button" className="ms-link ms-link-muted qf-back" onClick={() => setPaso((p) => Math.max(0, p - 1))}>
+          <Icon name="arrowLeft" size={15} />Regresar
         </button>
       )}
     </form>
@@ -601,9 +623,9 @@ export function QuoteForm({
 /** Fila del resumen final. */
 function Resumen({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, fontSize: 14, borderBottom: '1px solid var(--color-border)', paddingBottom: 8 }}>
-      <dt style={{ color: 'var(--color-text-muted)' }}>{etiqueta}</dt>
-      <dd style={{ margin: 0, color: 'var(--color-text)', textAlign: 'right', fontWeight: 600 }}>{valor}</dd>
+    <div>
+      <dt>{etiqueta}</dt>
+      <dd>{valor}</dd>
     </div>
   );
 }

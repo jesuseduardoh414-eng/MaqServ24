@@ -29,10 +29,12 @@ export function FooterNewsletter({
     <div
       className="nl-box"
       style={{
-        background: 'color-mix(in srgb, var(--color-secondary) 88%, white)',
-        border: '1px solid color-mix(in srgb, white 8%, transparent)',
-        borderRadius: 'var(--radius-lg)',
-        padding: 'clamp(28px, 4vw, 44px)',
+        // Sistema 2026-09-30: nada de gunmetal de fondo; la caja es la propia
+        // banda con un velo blanco mínimo y borde de 1 px, radio 14.
+        background: 'rgba(255,255,255,.03)',
+        border: '1px solid rgba(255,255,255,.1)',
+        borderRadius: 14,
+        padding: 'clamp(22px, 4vw, 40px)',
         display: 'grid',
         gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)',
         gap: 30,
@@ -50,51 +52,36 @@ export function FooterNewsletter({
           top: '-40%',
           width: 320,
           height: 320,
-          background: 'radial-gradient(circle, color-mix(in srgb, var(--color-primary) 28%, transparent), transparent 62%)',
+          background: 'radial-gradient(circle, color-mix(in srgb, var(--color-primary) 18%, transparent), transparent 62%)',
           borderRadius: '50%',
         }}
       />
       <div style={{ position: 'relative' }}>
-        <h2 style={{ fontSize: 'clamp(1.5rem, 3vw, 1.9rem)', color: '#fff', margin: '0 0 10px', textTransform: 'uppercase' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(21px, 2.6vw, 26px)', fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.2, color: '#fff', margin: '0 0 8px' }}>
           {labels.title}
         </h2>
-        <p style={{ fontSize: '14.5px', margin: 0, maxWidth: 400, lineHeight: 1.55, color: 'rgba(255,255,255,.66)', fontWeight: 300 }}>
+        <p style={{ fontSize: '14.5px', margin: 0, maxWidth: 420, lineHeight: 1.55, color: 'rgba(255,255,255,.7)' }}>
           {labels.subtitle}
         </p>
       </div>
-      <form className="nl-form" onSubmit={onSubmit} style={{ position: 'relative', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <form className="nl-form" onSubmit={onSubmit} style={{ position: 'relative', display: 'flex', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+        {/* Campo y botón del sistema (`ms-input`/`ms-btn`), adaptados a la banda oscura. */}
         <input
           name="email"
           type="email"
           required
           placeholder={labels.placeholder}
           aria-label={labels.placeholder}
+          className="ms-input"
           style={{
             flex: 1,
             minWidth: 200,
-            border: '1px solid rgba(255,255,255,.14)',
-            background: 'rgba(255,255,255,.06)',
+            borderColor: 'rgba(255,255,255,.16)',
+            background: 'rgba(255,255,255,.05)',
             color: '#fff',
-            borderRadius: 'var(--radius-md)',
-            padding: '15px 17px',
-            fontFamily: 'var(--font-sans)',
-            fontSize: '14.5px',
           }}
         />
-        <button
-          type="submit"
-          style={{
-            background: 'var(--color-primary)',
-            color: 'var(--color-primary-fg)',
-            border: 'none',
-            fontWeight: 700,
-            fontSize: '14.5px',
-            padding: '15px 26px',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
-            fontFamily: 'var(--font-sans)',
-          }}
-        >
+        <button type="submit" className="ms-btn">
           {labels.submit}
         </button>
         {state === 'ok' ? (
