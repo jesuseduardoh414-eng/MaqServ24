@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { UNIDADES, unidadesDe, unidadPorDefectoDe, formatearCantidad } from '@maqserv/config';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { ServiceService } from '../quotes/service.service';
+import { SUGERIDOS } from '../quoter/quoter-servicio';
 import { ESTADOS, PASOS, esEstado, estadoInicial, siguientes, avance } from '../quotes/service-flow';
 
 /**
@@ -71,13 +72,23 @@ export class AdminServicesController {
     // Los aliados de cada servicio, de un solo viaje: uno por servicio serían
     // tantas consultas como filas tenga el tablero.
     const ids = rows.map((r) => r.id);
-    const asignaciones = ids.length
-      ? await prisma.service_assignments.findMany({
-          where: { quote_id: { in: ids } },
-          include: { providers: { select: { id: true, name: true, phone: true } } },
-          orderBy: { id: 'asc' },
-        })
-      : [];
+    const [asignaciones, notasSugeridos] = ids.length
+      ? await Promise.all([
+          prisma.service_assignments.findMany({
+            where: { quote_id: { in: ids } },
+            include: { providers: { select: { id: true, name: true, phone: true } } },
+            orderBy: { id: 'asc' },
+          }),
+          // Quién tiene publicado el equipo pedido (lo anota QuoterServicio al
+          // abrir el servicio). Se guardaba en el historial pero el tablero no
+          // lo enseñaba, que era justo donde se decide a quién asignar.
+          prisma.service_events.findMany({
+            where: { quote_id: { in: ids }, note: { startsWith: SUGERIDOS } },
+            select: { quote_id: true, note: true },
+          }),
+        ])
+      : [[], []];
+    const sugeridosDe = new Map(notasSugeridos.map((e) => [String(e.quote_id), (e.note ?? '').slice(SUGERIDOS.length).trim()]));
     const porServicio = new Map<string, typeof asignaciones>();
     for (const a of asignaciones) {
       const k = String(a.quote_id);
@@ -106,6 +117,7 @@ export class AdminServicesController {
           : null,
         total: Number(q.total),
         acceptedAt: q.accepted_at,
+        suggested: sugeridosDe.get(String(q.id)) || null,
         startedAt: q.service_started_at,
         closedAt: q.service_closed_at,
         assignments: mias.map((a) => ({

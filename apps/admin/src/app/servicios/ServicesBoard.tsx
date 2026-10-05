@@ -33,6 +33,8 @@ export interface ServicioRow {
   closed: string | null;
   total: number;
   acceptedAt: string | null;
+  /** Aliados que tienen publicado el equipo pedido (sugerencia para asignar). */
+  suggested?: string | null;
   startedAt: string | null;
   closedAt: string | null;
   assignments: Array<{
@@ -301,6 +303,14 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
                       </div>
                     );
                   })}
+                </div>
+              ) : null}
+
+              {/* Sugeridos (2026-10-05): quién tiene publicado el equipo pedido.
+                  Se anotaba en el historial pero aquí, donde se asigna, no se veía. */}
+              {s.suggested && s.assignments.length === 0 ? (
+                <div style={{ marginTop: 12, fontSize: 12.5, color: C.muted }}>
+                  Sugeridos (tienen el equipo publicado): <span style={{ color: C.ink, fontWeight: 600 }}>{s.suggested}</span>
                 </div>
               ) : null}
 

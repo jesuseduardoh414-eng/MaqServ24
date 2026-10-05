@@ -740,11 +740,13 @@ function CampoEquipos({
         etiqueta="Equipos que cuentan como este renglón"
         ancho
         nota={
+          // Precio único (2026-09-28): la solicitud SIEMPRE queda por asignar y
+          // la asigna MAQSER24; quién tiene el equipo es sólo una sugerencia.
           ids.length === 0
-            ? 'Sin equipos ligados. La solicitud va al proveedor de respaldo o queda por asignar.'
+            ? 'Sin equipos ligados. La solicitud queda por asignar sin aliado sugerido.'
             : duenos.size > 1
-              ? 'Varios aliados lo tienen: la solicitud queda por asignar y eliges tú.'
-              : 'La solicitud se le ofrece a su dueño.'
+              ? 'La solicitud queda por asignar; en Servicios verás a estos aliados como sugeridos.'
+              : 'La solicitud queda por asignar; en Servicios verás a su dueño como sugerido.'
         }
       >
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>

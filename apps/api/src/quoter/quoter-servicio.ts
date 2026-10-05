@@ -52,6 +52,9 @@ import type { DatosCuenta } from '../common/cuenta';
  */
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Prefijo de la nota con los aliados sugeridos; el tablero de Servicios la lee por él. */
+export const SUGERIDOS = 'Aliados con ese equipo publicado:';
 const dinero = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export interface ServicioAbierto {
@@ -145,7 +148,7 @@ export class QuoterServicio {
             data: {
               quote_id: BigInt(abierto.quoteId),
               to_state: estadoInicial(),
-              note: `Aliados con ese equipo publicado: ${nombres.join(' · ')}`,
+              note: `${SUGERIDOS} ${nombres.join(' · ')}`,
               created_at: new Date(),
             },
           });

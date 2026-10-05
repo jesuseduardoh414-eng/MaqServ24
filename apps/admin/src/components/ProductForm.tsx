@@ -494,7 +494,7 @@ export function ProductForm({
             <Tarjeta titulo="Revisión" icono="ph-seal-check" acento>
               {error ? <p role="alert" style={{ color: D.bad, margin: 0, fontSize: 13 }}>{error}</p> : null}
               {renglonesLinea.length > 0 ? (
-                <Campo etiqueta="Cuenta como en el cotizador" nota="Cuando un cliente cotice ese renglón, la solicitud le llega a este aliado.">
+                <Campo etiqueta="Cuenta como en el cotizador" nota="Cuando un cliente cotice ese renglón, este aliado aparece como sugerido para asignarle el servicio.">
                   <AdminSelect
                     ariaLabel="Renglón del cotizador"
                     value={cuentaComo}
