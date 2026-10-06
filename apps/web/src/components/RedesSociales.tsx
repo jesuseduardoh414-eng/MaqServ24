@@ -75,7 +75,7 @@ export function redesParaMostrar(
 }
 
 /** Iconos de marca, trazo simple a 24 px (monocromos: toman el color del texto). */
-function IconoRed({ red }: { red: Red }) {
+export function IconoRed({ red }: { red: Red }) {
   const p = { width: 18, height: 18, viewBox: '0 0 24 24', 'aria-hidden': true } as const;
   switch (red) {
     case 'facebook':

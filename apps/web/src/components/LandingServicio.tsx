@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ESTADOS_COBERTURA, MUNICIPIOS_NORTE, defaultTheme } from '@maqserv/config';
-import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
+import { IconoRed, RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
+import { whatsappHref } from '@/lib/telefono';
 import { getTheme, t } from '@/lib/theme';
 import { getCategories } from '@/lib/api';
 import { categoryHref } from '@/lib/category-link';
@@ -91,6 +92,17 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
   // Solo si la categoría tiene equipos publicados; si no, "Ver catálogo" llevaría al formulario otra vez.
   const catalogo = !l.sinCatalogo && categoria && categoria.productCount > 0 ? categoryHref(categoria) : null;
   const otras = LANDINGS.filter((x) => x.ruta !== l.ruta);
+  // "Te cotizamos por WhatsApp" (2026-10-06, pedido del cliente): al número de
+  // Diseño → Contacto, con el servicio ya escrito. Sin número no se pinta.
+  const contacto = theme.tokens.contact ?? defaultTheme.tokens.contact;
+  const numeroWa = contacto.whatsapp || contacto.phone;
+  const wa = numeroWa ? whatsappHref(numeroWa, `Hola, quiero una cotización de ${l.nombre.toLowerCase()}.`) : null;
+  const botonWa = (clase: string) =>
+    wa ? (
+      <a href={wa} target="_blank" rel="noopener noreferrer" data-evento="landing_whatsapp" data-etiqueta={l.ruta} className={`ms-btn ms-btn-sec ${clase}`}>
+        <span style={{ display: 'flex', color: '#25D366' }}><IconoRed red="whatsapp" /></span>Te cotizamos por WhatsApp
+      </a>
+    ) : null;
 
   return (
     <>
@@ -109,6 +121,7 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
                 <Link href={l.cotizar.href} data-evento="landing_cotizar" data-etiqueta={l.ruta} className="ms-btn ms-btn-lg">
                   {l.cotizar.texto}<Icon name="arrowRight" size={16} />
                 </Link>
+                {botonWa('ms-btn-lg')}
                 {catalogo ? (
                   <Link href={catalogo} data-evento="landing_catalogo" data-etiqueta={l.ruta} className="ms-btn ms-btn-lg ms-btn-sec">
                     Ver equipos disponibles
@@ -187,6 +200,7 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
                   <Link href={l.cotizar.href} data-evento="landing_cotizar" data-etiqueta={l.ruta} className="ms-btn ms-btn-block">
                     {l.cotizar.texto}
                   </Link>
+                  {botonWa('ms-btn-block')}
                   <Link href={l.aside?.secundario.href ?? '/contacto'} data-evento={l.aside ? 'proveedor_cta' : 'landing_contacto'} data-etiqueta={l.ruta} className="ms-btn ms-btn-sec ms-btn-block">
                     {l.aside?.secundario.texto ?? 'Hablar con un asesor'}
                   </Link>
