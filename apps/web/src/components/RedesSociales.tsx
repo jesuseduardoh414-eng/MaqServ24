@@ -114,14 +114,16 @@ export function RedesSociales({
   whatsapp?: string | null;
   tono?: 'tema' | 'claro';
   conNombre?: boolean;
-  /** `lista`: una debajo de otra con icono y nombre, como las columnas del pie. */
-  forma?: 'iconos' | 'lista';
+  /** `lista`: una debajo de otra con icono y nombre, como las columnas del pie.
+   *  `barra`: solo iconos grandes en fila (la franja de redes del pie). */
+  forma?: 'iconos' | 'lista' | 'barra';
 }) {
   const lista = redesParaMostrar(redes, whatsapp);
   if (lista.length === 0) return null;
   if (forma === 'lista') conNombre = true;
+  if (forma === 'barra') conNombre = false;
   return (
-    <ul className={`rs-redes rs-${tono}${conNombre ? ' rs-nombre' : ''}${forma === 'lista' ? ' rs-lista' : ''}`} aria-label="Redes sociales de MAQSER24">
+    <ul className={`rs-redes rs-${tono}${conNombre ? ' rs-nombre' : ''}${forma === 'lista' ? ' rs-lista' : ''}${forma === 'barra' ? ' rs-barra' : ''}`} aria-label="Redes sociales de MAQSER24">
       <style>{CSS}</style>
       {lista.map((r) => (
         <li key={r.href}>
@@ -157,4 +159,8 @@ const CSS = `
 .rs-lista a svg{ width:16px; height:16px; flex-shrink:0; }
 .rs-claro.rs-lista a{ color:rgba(255,255,255,.7); }
 .rs-claro.rs-lista a:hover{ color:#fff; }
+/* Barra: iconos grandes en fila, área de toque de 48 px. */
+.rs-barra{ gap:12px; }
+.rs-barra a{ width:48px; min-width:48px; height:48px; padding:0; border-radius:12px; }
+.rs-barra a svg{ width:24px; height:24px; }
 `;

@@ -255,13 +255,12 @@ export function SiteFooter({ theme }: { theme: Theme }) {
         .sf-contacto{ display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
         .sf-ct{ display:inline-flex; align-items:center; gap:10px; color:rgba(255,255,255,.78); text-decoration:none; font-size:14.5px; }
         .sf-ct svg{ color:var(--color-primary); flex-shrink:0; }
-        /* Columnas parejas. Mismo ritmo vertical en todas (incluida Síguenos). */
+        /* Columnas parejas. Mismo ritmo vertical en todas. */
         .sf-cols{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap:32px 40px; padding:36px 0 44px; }
         .sf-h{ margin:0 0 14px; color:#fff; font-weight:600; font-size:14.5px; }
         .sf-list{ list-style:none; margin:0; padding:0; display:grid; gap:10px; }
         .sf-list a{ color:rgba(255,255,255,.7); text-decoration:none; font-size:14px; line-height:20px; }
-        .sf-cols .rs-lista{ gap:10px; }
-        .sf-cols .rs-lista a{ line-height:20px; }
+        .sf-redes{ display:flex; align-items:center; justify-content:center; gap:14px 24px; flex-wrap:wrap; }
         @media (max-width:640px){
           .sf-top{ align-items:flex-start; }
           .sf-cols{ grid-template-columns:repeat(2, minmax(0,1fr)); gap:28px 20px; }
@@ -350,17 +349,20 @@ export function SiteFooter({ theme }: { theme: Theme }) {
               </ul>
             </div>
           ))}
-
-          {/* Redes en lista, como las demás columnas. Las que no tienen enlace no
-              se pintan; si no hay ninguna, no sale la columna. */}
-          {redesParaMostrar(f.social, contactoPie.whatsapp).length ? (
-            <div>
-              <p className="sf-h">Síguenos</p>
-              <RedesSociales redes={f.social} whatsapp={contactoPie.whatsapp} tono="claro" forma="lista" />
-            </div>
-          ) : null}
         </div>
       </div>
+
+      {/* Redes (2026-10-06): franja horizontal con iconos grandes sobre la barra
+          legal (antes eran una columna más, con iconos chicos). Las que no tienen
+          enlace no se pintan; si no hay ninguna, no sale la franja. */}
+      {redesParaMostrar(f.social, contactoPie.whatsapp).length ? (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
+          <div className="sf-redes" style={{ ...CONTAINER, paddingTop: 24, paddingBottom: 24 }}>
+            <p className="sf-h" style={{ margin: 0 }}>Síguenos</p>
+            <RedesSociales redes={f.social} whatsapp={contactoPie.whatsapp} tono="claro" forma="barra" />
+          </div>
+        </div>
+      ) : null}
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
         <div style={{ ...CONTAINER, display: 'flex', justifyContent: 'space-between', gap: '12px 16px', flexWrap: 'wrap', paddingTop: 20, paddingBottom: 20, fontSize: '13px', color: 'rgba(255,255,255,.55)' }}>
