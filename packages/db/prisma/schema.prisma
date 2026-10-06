@@ -1513,6 +1513,29 @@ model Theme {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+/// CRM de proveedores (2026-10-06): la maquinaria de cada proveedor. Los costos
+/// por hora son solo dato de referencia; no los usa ningún precio. Ver sql/crm-proveedores.sql.
+model provider_machines {
+  id                Int       @id @default(autoincrement())
+  provider_id       Int
+  tipo              String    @db.VarChar(120)
+  marca             String?   @db.VarChar(120)
+  modelo            String?   @db.VarChar(120)
+  caracteristicas   String?   @db.Text
+  /// Sin operador y sin diésel.
+  costo_hora_sin_op Decimal?  @db.Decimal(10, 2)
+  /// Con operador, sin diésel.
+  costo_hora_con_op Decimal?  @db.Decimal(10, 2)
+  /// Con operador y con diésel.
+  costo_hora_todo   Decimal?  @db.Decimal(10, 2)
+  notas             String?   @db.Text
+  created_at        DateTime  @default(now()) @db.DateTime(0)
+  updated_at        DateTime  @default(now()) @db.DateTime(0)
+  providers         providers @relation(fields: [provider_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([provider_id], map: "provider_machines_provider_idx")
+}
+
 model provider_documents {
   id          Int       @id @default(autoincrement())
   provider_id Int
@@ -1557,6 +1580,7 @@ model providers {
   coverage_radius_km  Int?
   address             String? @db.Text
   provider_documents  provider_documents[]
+  provider_machines   provider_machines[]
   service_assignments service_assignments[]
   service_incidents   service_incidents[]
 

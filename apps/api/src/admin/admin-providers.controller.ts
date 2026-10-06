@@ -743,12 +743,15 @@ export class AdminProvidersController {
   async deactivate(@Param('id', ParseIntPipe) id: number) {
     const existe = await prisma.providers.findUnique({ where: { id }, select: { id: true } });
     if (!existe) throw new NotFoundException('Aliado no encontrado');
-    const [asignaciones, equipos, papeles] = await Promise.all([
+    // Las máquinas del CRM también cuentan: son datos capturados que no se tiran.
+    const [asignaciones, equipos, papeles, maquinasCrm] = await Promise.all([
       prisma.service_assignments.count({ where: { provider_id: id } }),
       prisma.products.count({ where: { provider_id: id } }),
       prisma.provider_documents.count({ where: { provider_id: id } }),
+      // .catch: si la tabla aún no existe (SQL sin correr), descartar no debe fallar.
+      prisma.provider_machines.count({ where: { provider_id: id } }).catch(() => 0),
     ]);
-    if (asignaciones + equipos + papeles === 0) {
+    if (asignaciones + equipos + papeles + maquinasCrm === 0) {
       await prisma.email_log.updateMany({ where: { provider_id: id }, data: { provider_id: null } }).catch(() => undefined);
       await prisma.providers.delete({ where: { id } });
       return { ok: true, eliminado: true };

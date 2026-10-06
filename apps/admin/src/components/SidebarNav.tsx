@@ -100,7 +100,11 @@ const GROUPS: Array<{ title: string; items: Item[] }> = [
     // La red de aliados es el activo del modelo (documento institucional, 15),
     // no un submenu del marketplace: va en su propio grupo y antes que este.
     title: 'Red de aliados',
-    items: [{ modulo: 'proveedores', href: '/proveedores', label: 'Proveedores', icon: 'ph-handshake' }],
+    items: [
+      { modulo: 'proveedores', href: '/proveedores', label: 'Proveedores', icon: 'ph-handshake' },
+      // CRM (2026-10-06): todos los proveedores con su maquinaria y costos de referencia.
+      { modulo: 'proveedores', href: '/crm-proveedores', label: 'CRM de proveedores', icon: 'ph-address-book' },
+    ],
   },
   {
     title: 'Marketplace',
