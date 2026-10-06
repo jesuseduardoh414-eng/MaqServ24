@@ -76,7 +76,7 @@ export const ATRIBUTOS_POR_CATEGORIA: Record<string, AtributoProducto[]> = {
     { clave: 'banco', label: 'Banco de origen', tipo: 'texto' },
   ],
   'materiales-para-construccion': [
-    { clave: 'material', label: 'Material', tipo: 'opcion', opciones: ['Concreto premezclado', 'Acero de refuerzo', 'Block', 'Cemento'], compara: 'igual' },
+    { clave: 'material', label: 'Material', tipo: 'opcion', opciones: ['Block 6"', 'Concreto premezclado', 'Acero de refuerzo', 'Cemento'], compara: 'igual' },
     { clave: 'especificacion', label: 'Especificación', tipo: 'texto', hint: "f'c 250, varilla 3/8\", block 15×20×40, CPC 30R…" },
     { clave: 'presentacion', label: 'Presentación', tipo: 'texto', hint: 'Por m³, tonelada, pieza o bulto.' },
   ],

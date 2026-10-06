@@ -125,7 +125,7 @@ export default async function CotizadorHome() {
               ))}
             </ol>
             <p className="cz-otro">
-              ¿Necesitas algo que no está en el cotizador —agua en pipas, volteos, concreto premezclado, acero, block, cemento o carpeta asfáltica?{' '}
+              ¿Necesitas algo que no está en el cotizador —agua en pipas, volteos, block o carpeta asfáltica?{' '}
               <Link href="/cotizar">Mándanos tu requerimiento</Link>{' '}
               y un asesor lo arma contigo.
             </p>

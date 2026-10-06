@@ -67,10 +67,9 @@ export const REQUEST_FORMS: RequestForm[] = [
     intro:
       'Estos datos definen qué equipo puede entrar a la obra y cuánto cuesta llevarlo. Sin ellos la cotización cambia después.',
     fields: [
-      { key: 'tipo_equipo', label: 'Tipo de equipo', type: 'texto', required: true, hint: 'Excavadora, retroexcavadora, motoconformadora, compactador, bulldozer, plataforma, generador…' },
+      { key: 'tipo_equipo', label: 'Tipo de equipo', type: 'opcion', options: ['Excavadora', 'Retroexcavadora', 'Motoconformadora', 'Vibrocompactador'], required: true },
       { key: 'capacidad', label: 'Capacidad o tonelaje', type: 'texto', unit: 't', hint: 'Si no lo sabes, describe el trabajo' },
       // Plataformas y grúas: la altura es lo que decide si el equipo sirve.
-      { key: 'altura', label: 'Altura de trabajo requerida', type: 'numero', unit: 'm', hint: 'Solo para plataformas de elevación o grúas' },
       { key: 'implementos', label: 'Implementos requeridos', type: 'texto', hint: 'Martillo, bote de limpieza, rastrillo…' },
       ...COMUNES,
       { key: 'duracion', label: 'Duración estimada', type: 'texto', required: true, hint: 'Días, semanas o meses' },
@@ -87,15 +86,14 @@ export const REQUEST_FORMS: RequestForm[] = [
     intro:
       'Pipas y volteos no se cotizan por equipo sino por viaje: lo que manda son el recorrido, el volumen y la frecuencia.',
     fields: [
-      { key: 'servicio', label: '¿Qué necesitas?', type: 'opcion', options: ['Agua en pipas', 'Acarreo en camión de volteo', 'Ambos'], required: true },
+      { key: 'servicio', label: '¿Qué necesitas?', type: 'opcion', options: ['Agua en pipa', 'Entrega de material de banco', 'Retiro de material', 'Varios'], required: true },
       // --- Pipas ---
       { key: 'uso_agua', label: '¿Para qué es el agua?', type: 'opcion', options: ['Terracerías / compactación', 'Riego y control de polvo', 'Obra general', 'Otro'], hint: 'Solo si pides agua: define el tipo de agua que se puede usar' },
-      { key: 'capacidad_pipa', label: 'Capacidad de pipa', type: 'opcion', options: ['10,000 litros', '20,000 litros', 'La que convenga'], hint: 'Solo si pides agua' },
+      { key: 'capacidad_pipa', label: 'Capacidad de pipa', type: 'opcion', options: ['10 m³', '20 m³', 'La que convenga'], hint: 'Solo si pides agua' },
       // --- Volteos ---
-      { key: 'material', label: 'Material a acarrear', type: 'texto', hint: 'Solo si pides volteo: producto de excavación, escombro, tierra, arena…' },
-      { key: 'trabajo', label: 'Tipo de acarreo', type: 'opcion', options: ['Retiro de material', 'Acarreo', 'Suministro'], hint: 'Solo si pides volteo' },
-      { key: 'volumen', label: 'Volumen estimado', type: 'texto', unit: 'm³', hint: 'Si no lo sabes, describe el frente de trabajo' },
-      { key: 'capacidad_unidad', label: 'Capacidad de unidad', type: 'opcion', options: ['7 m³', '14 m³', 'La que convenga'], hint: 'Solo si pides volteo' },
+      { key: 'material', label: 'Material', type: 'texto', hint: 'Solo si pides volteo: material de banco, escombro, producto de excavación…' },
+            { key: 'volumen', label: 'Volumen estimado', type: 'texto', unit: 'm³', hint: 'Si no lo sabes, describe el frente de trabajo' },
+      { key: 'capacidad_unidad', label: 'Capacidad del camión', type: 'opcion', options: ['14 m³', '28 m³', 'La que convenga'], hint: 'Solo para material de banco o retiros' },
       // --- Comunes al viaje ---
       { key: 'origen', label: 'Punto de carga', type: 'texto', hint: 'Si no tienes, el proveedor propone uno' },
       { key: 'destino', label: 'Destino', type: 'texto', required: true, hint: 'La obra, un tiro autorizado o un banco' },
@@ -112,7 +110,7 @@ export const REQUEST_FORMS: RequestForm[] = [
     intro:
       'El precio se compone de dos cosas distintas: el material y llevarlo. Por eso se pregunta la especificación y el recorrido por separado.',
     fields: [
-      { key: 'material', label: 'Material y especificación', type: 'texto', required: true, hint: 'Arena, grava 3/4", base hidráulica, CNC…' },
+      { key: 'material', label: 'Material', type: 'opcion', options: ['Arena 4', 'Arena 5', 'Grava 1', 'Grava 2', 'Base hidráulica', 'CNC', 'Varios'], required: true },
       { key: 'cantidad', label: 'Cantidad', type: 'texto', required: true, unit: 'm³ o t', hint: 'Indica si es en metros cúbicos o toneladas' },
       { key: 'banco', label: 'Banco o pedrera de preferencia', type: 'texto', hint: 'Déjalo vacío si quieres que se proponga uno' },
       { key: 'obra_ubicacion', label: 'Destino de obra', type: 'texto', required: true },
@@ -126,30 +124,26 @@ export const REQUEST_FORMS: RequestForm[] = [
     category: 'materiales-para-construccion',
     title: 'Materiales para construcción',
     intro:
-      'Concreto, acero, block y cemento se cotizan por especificación y volumen; la entrega depende de cuánto cabe en cada viaje y de cuándo lo necesitas en obra.',
+      'El block se cotiza por pieza; la entrega depende de cuánto cabe en cada viaje y de cuándo lo necesitas en obra.',
     fields: [
-      { key: 'material', label: 'Material', type: 'opcion', options: ['Concreto premezclado', 'Acero de refuerzo', 'Block', 'Cemento', 'Varios'], required: true },
-      { key: 'especificacion', label: 'Especificación', type: 'texto', required: true, hint: 'f\'c 250 y revenimiento, calibre de varilla, medida del block, tipo de cemento…' },
-      { key: 'cantidad', label: 'Cantidad', type: 'texto', required: true, unit: 'm³, t, piezas o bultos', hint: 'Indica la unidad' },
-      { key: 'bombeo', label: '¿Necesitas bomba para el concreto?', type: 'opcion', options: SI_NO, hint: 'Solo para concreto premezclado' },
+      { key: 'material', label: 'Material', type: 'opcion', options: ['Block 6"'], required: true },
+      { key: 'cantidad', label: 'Cantidad', type: 'numero', required: true, unit: 'piezas' },
       { key: 'obra_ubicacion', label: 'Destino de obra', type: 'texto', required: true },
       { key: 'fecha_inicio', label: 'Fecha de entrega', type: 'fecha', required: true },
       { key: 'ventana', label: 'Entregas', type: 'texto', hint: 'Todo de una vez, o por parcialidades y con qué frecuencia' },
-      { key: 'acceso_descarga', label: 'Condiciones de acceso y descarga', type: 'parrafo', hint: 'Si entra la olla o el tráiler, y con qué se descarga' },
-      { key: 'certificados', label: '¿Necesitas certificados de calidad?', type: 'opcion', options: SI_NO, hint: 'Pruebas de resistencia, certificados de molino…' },
+      { key: 'acceso_descarga', label: 'Condiciones de acceso y descarga', type: 'parrafo', hint: 'Si entra el camión y con qué se descarga' },
     ],
   },
   {
     category: 'soluciones-asfalticas',
     title: 'Soluciones asfálticas',
     intro:
-      'La carpeta asfáltica se cotiza por superficie y espesor, y cambia mucho si solo es suministro o también aplicación. Con estos datos se puede dar un precio que no se mueva.',
+      'El riego de impregnación y la carpeta asfáltica se cotizan por superficie; el espesor y el estado de la base cambian el precio. Con estos datos se puede dar un precio que no se mueva.',
     fields: [
-      { key: 'trabajo', label: '¿Qué necesitas?', type: 'opcion', options: ['Suministro de mezcla asfáltica', 'Suministro y aplicación de carpeta', 'Bacheo o reparación', 'Por definir'], required: true },
+      { key: 'trabajo', label: '¿Qué necesitas?', type: 'opcion', options: ['Riego de impregnación', 'Carpeta asfáltica normal', 'Ambos'], required: true },
       { key: 'superficie', label: 'Superficie a cubrir', type: 'numero', unit: 'm²', required: true, hint: 'Si no la sabes, largo por ancho aproximado' },
       { key: 'espesor', label: 'Espesor de carpeta', type: 'numero', unit: 'cm', hint: 'Si no lo sabes, describe el uso: estacionamiento, vialidad, patio de maniobras' },
-      { key: 'tipo_mezcla', label: 'Tipo de mezcla', type: 'texto', hint: 'Caliente, tibia o en frío; granulometría si la tienes' },
-      { key: 'estado_base', label: 'Estado de la base', type: 'parrafo', hint: 'Base nueva, carpeta existente, requiere fresado o riego de liga' },
+            { key: 'estado_base', label: 'Estado de la base', type: 'parrafo', hint: 'Base nueva, carpeta existente, requiere fresado o riego de liga' },
       { key: 'obra_ubicacion', label: 'Ubicación de la obra', type: 'texto', required: true },
       { key: 'fecha_inicio', label: 'Fecha de inicio', type: 'fecha', required: true },
       { key: 'ventana', label: 'Horarios y restricciones', type: 'texto', hint: 'Cierres viales, horas permitidas, trabajo nocturno' },

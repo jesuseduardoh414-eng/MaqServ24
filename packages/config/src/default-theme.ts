@@ -441,7 +441,7 @@ export const defaultTheme: Theme = {
       // línea en blanco entre ambos SÍ se ve; lo mismo aplica a
       // `hero_sections.subtitle`, que es lo que manda cuando existe.
       'home.hero.subtitle':
-        'En MAQSER24 conectamos tu obra con renta de maquinaria pesada, entrega de agua en pipas, acarreos en camiones de volteo y suministro de triturados como arena, grava, base hidráulica y CNC. También ofrecemos concreto premezclado, suministro y aplicación de carpeta asfáltica, además de venta de acero de refuerzo, block y cemento.\n\nDinos qué necesitas, cuánto requieres, dónde se ubica tu obra y para cuándo lo necesitas. Te presentaremos opciones con disponibilidad, condiciones de servicio y costos de entrega o traslado.',
+        'En MAQSER24 conectamos tu obra con renta de maquinaria pesada, entrega de agua en pipas, entregas de material de banco y retiros de material en camiones de volteo, y suministro de triturados como arena, grava, base hidráulica y CNC. También ofrecemos venta de maquinaria, block de 6", riego de impregnación y carpeta asfáltica.\n\nDinos qué necesitas, cuánto requieres, dónde se ubica tu obra y para cuándo lo necesitas. Te presentaremos opciones con disponibilidad, condiciones de servicio y costos de entrega o traslado.',
       'home.hero.badge': 'Monterrey y zona metropolitana',
       'home.hero.cta': 'Contactar',
       // 19 / BOTONES: etiquetas directas. Cotizar es el camino principal; el
@@ -793,18 +793,18 @@ export const defaultTheme: Theme = {
       'seo.sector.title': 'Maquinaria y servicios para {sector}',
       // Páginas de aterrizaje por servicio (apps/web/src/lib/landings.ts).
       'seo.landing.machinery.title': 'Renta de maquinaria pesada en Monterrey',
-      'seo.landing.machinery.description': 'Renta excavadoras, retroexcavadoras, motoconformadoras y más con operador en Monterrey y todo Nuevo León. Cotiza en línea al momento.',
+      'seo.landing.machinery.description': 'Renta excavadoras, retroexcavadoras, motoconformadoras y vibrocompactadores con operador en Monterrey y todo Nuevo León. Cotiza en línea al momento.',
       'nav.providerSignup': 'Regístrate como proveedor',
       'seo.landing.machinerySale.title': 'Venta de maquinaria pesada en Monterrey',
-      'seo.landing.machinerySale.description': 'Compra excavadoras, retroexcavadoras, motoconformadoras y más, nuevas y seminuevas, con la red de proveedores MAQSER24 en Monterrey y todo Nuevo León.',
+      'seo.landing.machinerySale.description': 'Compra excavadoras, retroexcavadoras, motoconformadoras, vibrocompactadores, Bobcat, volteos y pipas con la red de proveedores MAQSER24 en Monterrey y todo Nuevo León.',
       'seo.landing.transport.title': 'Pipas de agua y camiones de volteo en Monterrey',
-      'seo.landing.transport.description': 'Agua en pipas para obra y camiones de volteo para acarreos y escombro en Monterrey y todo Nuevo León. Solicita tu cotización en línea.',
+      'seo.landing.transport.description': 'Agua en pipas de 10 y 20 m³, entregas de material de banco y retiros de material en 14 y 28 m³ en Monterrey y todo Nuevo León. Solicita tu cotización.',
       'seo.landing.aggregates.title': 'Grava, arena y base hidráulica en Monterrey',
-      'seo.landing.aggregates.description': 'Compra grava, arena, base hidráulica y triturados por tonelada o por viaje puesto en obra en Monterrey y todo Nuevo León. Cotiza en línea.',
-      'seo.landing.materials.title': 'Materiales para construcción en Monterrey',
-      'seo.landing.materials.description': 'Concreto premezclado, acero de refuerzo, block y cemento para tu obra en Monterrey y todo Nuevo León. Pide todo en una sola solicitud.',
-      'seo.landing.asphalt.title': 'Carpeta asfáltica y pavimentación en Monterrey',
-      'seo.landing.asphalt.description': 'Suministro y aplicación de carpeta asfáltica para estacionamientos, calles y patios en Monterrey y todo Nuevo León. Solicita tu cotización.',
+      'seo.landing.aggregates.description': 'Compra arena 4 y 5, grava 1 y 2, base hidráulica y CNC por tonelada o por viaje puesto en obra en Monterrey y todo Nuevo León. Cotiza en línea.',
+      'seo.landing.materials.title': 'Block de concreto de 6" en Monterrey',
+      'seo.landing.materials.description': 'Block de concreto de 6" puesto en tu obra en Monterrey y todo Nuevo León. Solicita tu cotización en línea.',
+      'seo.landing.asphalt.title': 'Riego de impregnación y carpeta asfáltica en Monterrey',
+      'seo.landing.asphalt.description': 'Riego de impregnación y carpeta asfáltica normal para estacionamientos, calles y patios en Monterrey y todo Nuevo León. Solicita tu cotización.',
       'seo.terms.title': 'Términos y condiciones de uso de la plataforma',
       'seo.terms.description': 'Condiciones de uso de la plataforma MAQSER24: cuentas, cotizaciones, pedidos, pagos, entregas y las responsabilidades de clientes, proveedores y la plataforma.',
       'nav.about': 'Quiénes somos',
