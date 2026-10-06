@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
-import { ESTADOS_OPERACION, coordenadasDe, esLineaServicio } from '@maqserv/config';
+import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, coordenadasDe, esLineaServicio } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
 import { DocumentAlerts } from './DocumentAlerts';
+import { SolicitudesProveedor } from './SolicitudesProveedor';
 import { ProviderHistory } from './ProviderHistory';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
 import { QueOfrece, categoriasDelTipo, faltaEnOferta, tipoDeCategorias, type TipoOferta } from './QueOfrece';
@@ -155,7 +156,10 @@ const botonSec: CSSProperties = {
 const aLista = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
 export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
-  const [provs, setProvs] = useState(initial);
+  const [todos, setProvs] = useState(initial);
+  // Las solicitudes del sitio (status 2) van aparte: todavía no son de la red.
+  const provs = useMemo(() => todos.filter((p) => p.status !== ESTADO_SOLICITUD_PROVEEDOR), [todos]);
+  const solicitudes = useMemo(() => todos.filter((p) => p.status === ESTADO_SOLICITUD_PROVEEDOR), [todos]);
   const [query, setQuery] = useState('');
   const [creando, setCreando] = useState(false);
   /** Mandarle su invitación al darlo de alta (solo si la ficha trae correo). */
@@ -326,6 +330,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         Los contadores de arriba dicen CUANTOS. Esto dice que papel, de quien y
         para cuando — lo unico con lo que se puede levantar el telefono.
       */}
+      <SolicitudesProveedor solicitudes={solicitudes} colores={C} onCambio={(m) => { setMsg(m); void recargar(); }} />
+
       <DocumentAlerts
         colores={C}
         onIr={(id) => {

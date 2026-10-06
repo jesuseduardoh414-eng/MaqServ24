@@ -94,6 +94,10 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
               <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="clock" size={14} /></span>{contact.hours || t(theme, 'topbar.hours')}
             </span>
           </div>
+          {/* Proveedores en la barra superior: donde el botón no cabe en el header. */}
+          <Link href="/proveedores" className="tb-prov" data-evento="proveedor_cta" style={{ color: '#fff', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}>
+            <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="user" size={14} /></span>{t(theme, 'nav.providerSignup')}
+          </Link>
           <div className="tb-right" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             <Link href="/rastreo" style={{ color: 'rgba(255,255,255,.66)' }}>{t(theme, 'topbar.track')}</Link>
             <span style={{ opacity: 0.25 }}>|</span>
@@ -192,6 +196,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
               cart: t(theme, 'nav.cart'),
               login: t(theme, 'nav.login'),
               register: t(theme, 'nav.register'),
+              providerSignup: t(theme, 'nav.providerSignup'),
               logout: t(theme, 'auth.logout'),
               greeting: t(theme, 'auth.greeting'),
               searchPlaceholder: t(theme, 'catalog.search.placeholder'),

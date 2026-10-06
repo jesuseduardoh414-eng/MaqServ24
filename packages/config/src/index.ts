@@ -168,3 +168,10 @@ export {
   type RazonVistaPrevia,
   type InfSitioVistaPrevia,
 } from './vista-previa';
+export {
+  ESTADO_SOLICITUD_PROVEEDOR,
+  TIPOS_PROVEEDOR,
+  OFERTAS_PROVEEDOR,
+  type TipoProveedor,
+  type OfertaProveedor,
+} from './registro-proveedor';

@@ -57,6 +57,9 @@ export type TipoCorreo =
   // Formulario de /contacto (2026-09-30): antes solo quedaba en el panel.
   | 'contact_internal'         // a MAQSER24: alguien escribió por el sitio
   | 'contact_ack'              // a quien escribió: lo recibimos
+  // "Regístrate como proveedor" (2026-10-06).
+  | 'provider_signup_internal' // a MAQSER24: alguien pidió entrar a la red
+  | 'provider_signup_ack'      // a quien se registró: lo recibimos
   | 'prueba';
 
 export interface CorreoParaEnviar {

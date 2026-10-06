@@ -50,6 +50,14 @@ export class ContentController {
     return this.content.contactMessage(body ?? {});
   }
 
+  // "Regístrate como proveedor" (2026-10-06). Más estricto que contacto: cada
+  // envío crea una ficha en el panel.
+  @Throttle({ default: { ttl: 60_000, limit: 3 } })
+  @Post('provider-signup')
+  providerSignup(@Body() body: Record<string, unknown>) {
+    return this.content.providerSignup(body ?? {});
+  }
+
   @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('subscribe')
   subscribe(@Body() body: { email?: string }) {

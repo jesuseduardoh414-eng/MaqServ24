@@ -34,6 +34,10 @@ export interface Landing {
   faqs: Array<{ pregunta: string; respuesta: string }>;
   /** A dónde lleva el botón principal. Sin cotizador en línea: el formulario con el servicio puesto. */
   cotizar: { href: string; texto: string };
+  /** Sin «Ver catálogo»: el catálogo de su categoría es de otra cosa (venta usa la foto de renta). */
+  sinCatalogo?: boolean;
+  /** Recuadro lateral cuando el de cotizar no aplica (venta no es un servicio que "termina"). */
+  aside?: { titulo: string; texto: string; secundario: { href: string; texto: string } };
 }
 
 // Cobertura que se anuncia (2026-10-05): todo Nuevo León. Coahuila y Chihuahua
@@ -86,6 +90,61 @@ export const LANDINGS: Landing[] = [
       },
     ],
     cotizar: { href: '/cotizador/maquinaria', texto: 'Cotizar maquinaria' },
+  },
+  // Venta (2026-10-06, pedido del cliente). MAQSER24 no tiene inventario propio:
+  // la compra se resuelve con la red de proveedores, así que el botón lleva a
+  // Contacto con «Comprar maquinaria» ya elegido (queda en Mensajes del panel).
+  {
+    ruta: '/venta-de-maquinaria-pesada',
+    clave: 'machinerySale',
+    categoria: 'maquinaria-pesada',
+    nombre: 'Venta de maquinaria pesada',
+    resumen: 'Equipo nuevo y seminuevo con proveedores de la red',
+    eyebrow: 'Venta de maquinaria',
+    h1: 'Venta de maquinaria pesada en Monterrey y Nuevo León',
+    intro: [
+      'Compra excavadoras, retroexcavadoras, motoconformadoras, compactadores y más a través de la red de proveedores de MAQSER24. Nos dices qué equipo buscas y te presentamos las opciones disponibles.',
+      `Atendemos ${ZONA}. Cuéntanos el tipo de equipo, el uso que le vas a dar, tu presupuesto y para cuándo lo necesitas; un asesor te contacta para continuar.`,
+    ],
+    incluye: {
+      titulo: 'Equipos que puedes comprar',
+      items: [
+        'Excavadoras',
+        'Retroexcavadoras',
+        'Motoconformadoras',
+        'Compactadores y rodillos',
+        'Bulldozers (tractores de oruga)',
+        'Plataformas de elevación',
+        'Equipo menor',
+        'Equipo nuevo y seminuevo',
+      ],
+    },
+    usos: ['Excavación y movimiento de tierras', 'Terracerías y nivelación', 'Caminos y urbanización', 'Obra civil y fraccionamientos', 'Industria y minería', 'Agroindustria'],
+    faqs: [
+      {
+        pregunta: '¿MAQSER24 vende la maquinaria directamente?',
+        respuesta: 'La venta se hace con proveedores de la red de MAQSER24. Nosotros buscamos las opciones que encajan con lo que pides y te acompañamos durante el proceso.',
+      },
+      {
+        pregunta: '¿Venden equipo nuevo o usado?',
+        respuesta: 'De los dos, según lo que tengan los proveedores de la red en ese momento. Dinos si buscas equipo nuevo, seminuevo o te sirve cualquiera de los dos.',
+      },
+      {
+        pregunta: '¿Qué datos necesito para pedir una opción de compra?',
+        respuesta: 'El tipo de equipo, el uso que le darás, tu presupuesto aproximado, la ciudad donde lo necesitas y para cuándo.',
+      },
+      {
+        pregunta: '¿Puedo vender mi maquinaria a través de MAQSER24?',
+        respuesta: 'Sí. Regístrate como proveedor en maqserv24.com/proveedores y nuestro equipo revisará tu información para incorporarte a la red.',
+      },
+    ],
+    cotizar: { href: '/contacto?necesidad=Comprar%20maquinaria', texto: 'Quiero comprar maquinaria' },
+    sinCatalogo: true,
+    aside: {
+      titulo: '¿Buscas un equipo?',
+      texto: 'Dinos qué necesitas y un asesor te presenta las opciones de la red de proveedores.',
+      secundario: { href: '/proveedores', texto: 'Quiero vender mi maquinaria' },
+    },
   },
   {
     ruta: '/pipas-de-agua-y-volteos',

@@ -1,7 +1,7 @@
 'use client';
 
 import { evento } from '@/lib/analitica';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
 
 const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -10,7 +10,11 @@ const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
  * Formulario de contacto. Usa las piezas comunes del sistema de diseño
  * (`ms-field`, `ms-input`, `ms-tab`, `ms-btn`…); aquí solo queda la lógica.
  */
-export function ContactForm({ needs }: { needs: string[] }) {
+export function ContactForm({ needs: deTema }: { needs: string[] }) {
+  // `?necesidad=` (2026-10-06): las páginas que mandan aquí (p. ej. venta de
+  // maquinaria) dejan el motivo ya elegido; si no está entre los del tema, se
+  // agrega al frente. Se lee en el cliente para que la página siga siendo estática.
+  const [needs, setNeeds] = useState(deTema);
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
@@ -21,6 +25,13 @@ export function ContactForm({ needs }: { needs: string[] }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [serverErr, setServerErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const pedida = new URLSearchParams(window.location.search).get('necesidad')?.trim().slice(0, 60);
+    if (!pedida) return;
+    if (!deTema.includes(pedida)) setNeeds([pedida, ...deTema]);
+    setNeed(pedida);
+  }, [deTema]);
 
   const nameErr = touched && !name.trim();
   const emailErr = touched && !emailOk(email.trim());

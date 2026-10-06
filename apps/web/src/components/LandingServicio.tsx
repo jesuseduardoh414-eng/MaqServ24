@@ -89,7 +89,7 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
   const sitio = t(theme, 'site.name');
   const descripcion = t(theme, `seo.landing.${l.clave}.description`);
   // Solo si la categoría tiene equipos publicados; si no, "Ver catálogo" llevaría al formulario otra vez.
-  const catalogo = categoria && categoria.productCount > 0 ? categoryHref(categoria) : null;
+  const catalogo = !l.sinCatalogo && categoria && categoria.productCount > 0 ? categoryHref(categoria) : null;
   const otras = LANDINGS.filter((x) => x.ruta !== l.ruta);
 
   return (
@@ -179,16 +179,16 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
 
             <aside className="ls-aside">
               <div className="ms-panel ms-panel-lg">
-                <h2 className="ms-h2" style={{ marginBottom: 8 }}>¿Listo para cotizar?</h2>
+                <h2 className="ms-h2" style={{ marginBottom: 8 }}>{l.aside?.titulo ?? '¿Listo para cotizar?'}</h2>
                 <p style={{ margin: '0 0 20px', fontSize: 14.5, lineHeight: 1.6, color: 'var(--color-text-muted)' }}>
-                  Te respondemos con la propuesta y MAQSER24 coordina al proveedor hasta que termina el servicio.
+                  {l.aside?.texto ?? 'Te respondemos con la propuesta y MAQSER24 coordina al proveedor hasta que termina el servicio.'}
                 </p>
                 <div style={{ display: 'grid', gap: 10 }}>
                   <Link href={l.cotizar.href} data-evento="landing_cotizar" data-etiqueta={l.ruta} className="ms-btn ms-btn-block">
                     {l.cotizar.texto}
                   </Link>
-                  <Link href="/contacto" data-evento="landing_contacto" data-etiqueta={l.ruta} className="ms-btn ms-btn-sec ms-btn-block">
-                    Hablar con un asesor
+                  <Link href={l.aside?.secundario.href ?? '/contacto'} data-evento={l.aside ? 'proveedor_cta' : 'landing_contacto'} data-etiqueta={l.ruta} className="ms-btn ms-btn-sec ms-btn-block">
+                    {l.aside?.secundario.texto ?? 'Hablar con un asesor'}
                   </Link>
                 </div>
               </div>

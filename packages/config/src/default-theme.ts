@@ -794,6 +794,9 @@ export const defaultTheme: Theme = {
       // Páginas de aterrizaje por servicio (apps/web/src/lib/landings.ts).
       'seo.landing.machinery.title': 'Renta de maquinaria pesada en Monterrey',
       'seo.landing.machinery.description': 'Renta excavadoras, retroexcavadoras, motoconformadoras y más con operador en Monterrey y todo Nuevo León. Cotiza en línea al momento.',
+      'nav.providerSignup': 'Regístrate como proveedor',
+      'seo.landing.machinerySale.title': 'Venta de maquinaria pesada en Monterrey',
+      'seo.landing.machinerySale.description': 'Compra excavadoras, retroexcavadoras, motoconformadoras y más, nuevas y seminuevas, con la red de proveedores MAQSER24 en Monterrey y todo Nuevo León.',
       'seo.landing.transport.title': 'Pipas de agua y camiones de volteo en Monterrey',
       'seo.landing.transport.description': 'Agua en pipas para obra y camiones de volteo para acarreos y escombro en Monterrey y todo Nuevo León. Solicita tu cotización en línea.',
       'seo.landing.aggregates.title': 'Grava, arena y base hidráulica en Monterrey',

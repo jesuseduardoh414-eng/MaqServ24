@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
-import { productSlug } from '@maqserv/config';
+import { productSlug, slugify, ESTADO_SOLICITUD_PROVEEDOR, OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR } from '@maqserv/config';
 import type {
   BlogCard,
   BlogDetail,
@@ -15,7 +15,7 @@ import type {
 import { imageUrl, normLegacyText } from '../catalog/images';
 import { PerfexService } from '../integrations/integrations.module';
 import { MailerService } from '../notifications/mailer.service';
-import { correoAcuseContacto, correoContactoInterno } from '../notifications/email-templates';
+import { correoAcuseContacto, correoAcuseProveedor, correoContactoInterno, correoSolicitudProveedorInterno } from '../notifications/email-templates';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -281,6 +281,111 @@ export class ContentService {
       )
       .catch(() => null);
 
+    return { ok: true };
+  }
+
+  /**
+   * "REGÍSTRATE COMO PROVEEDOR" (2026-10-06).
+   *
+   * La solicitud se guarda como aliado en estado 2 (ver registro-proveedor.ts
+   * en @maqserv/config): así el panel la muestra con todos sus datos y, al
+   * aceptarla, ya es la ficha del aliado, sin volver a capturar nada. Si la
+   * misma persona se registra otra vez mientras sigue por revisar, se agrega a
+   * su nota en lugar de duplicarla.
+   */
+  async providerSignup(data: Record<string, unknown>): Promise<{ ok: boolean }> {
+    const txt = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
+    // Campo trampa: invisible para personas; si viene lleno es un bot.
+    if (txt(data.sitio, 200)) return { ok: true };
+
+    const tipo = TIPOS_PROVEEDOR.find((x) => x.clave === data.tipo);
+    const nombre = txt(data.nombre, 190);
+    const contacto = txt(data.contacto, 190) || null;
+    const telefono = txt(data.telefono, 40);
+    const correo = txt(data.correo, 190).toLowerCase() || null;
+    const ciudad = txt(data.ciudad, 120);
+    const estado = txt(data.estado, 120);
+    const mensaje = txt(data.mensaje, 2000);
+    const claves = Array.isArray(data.ofrece) ? data.ofrece.map(String) : [];
+    const ofertas = OFERTAS_PROVEEDOR.filter((o) => claves.includes(o.clave));
+
+    if (!tipo) throw new BadRequestException('Elige si eres empresa o propietario de equipo');
+    if (nombre.length < 2) throw new BadRequestException('Escribe el nombre de tu empresa o tu nombre');
+    if (telefono.replace(/\D/g, '').length < 10) throw new BadRequestException('Escribe un teléfono de 10 dígitos');
+    if (correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) throw new BadRequestException('Correo no válido');
+    if (!ciudad || !estado) throw new BadRequestException('Escribe tu ciudad y estado');
+    if (ofertas.length === 0) throw new BadRequestException('Elige al menos una cosa que ofreces');
+    if (mensaje.length < 10) throw new BadRequestException('Cuéntanos brevemente tu maquinaria o servicios');
+
+    const ofrece = ofertas.map((o) => o.nombre).join(', ');
+    const categorias = [...new Set(ofertas.map((o) => o.categoria).filter((c): c is NonNullable<typeof c> => Boolean(c)))];
+    const fecha = new Date().toISOString().slice(0, 10);
+    const nota = `Solicitud desde el sitio (${fecha})\nTipo: ${tipo.nombre}\nOfrece: ${ofrece}\n\n${mensaje}`;
+
+    const tel10 = telefono.replace(/\D/g, '').slice(-10);
+    const pendientes = await prisma.providers.findMany({
+      where: { status: ESTADO_SOLICITUD_PROVEEDOR },
+      select: { id: true, phone: true, email: true, notes: true, categories: true },
+    });
+    const previa = pendientes.find((p) => (correo && p.email?.trim().toLowerCase() === correo) || (p.phone ?? '').replace(/\D/g, '').slice(-10) === tel10);
+
+    if (previa) {
+      const antes = Array.isArray(previa.categories) ? (previa.categories as string[]) : [];
+      await prisma.providers.update({
+        where: { id: previa.id },
+        data: {
+          notes: `${previa.notes ?? ''}\n\n---\n${nota}`.slice(-4000),
+          categories: [...new Set([...antes, ...categorias])],
+          updated_at: new Date(),
+        },
+      });
+    } else {
+      const base = slugify(nombre) || 'proveedor';
+      let slug = base;
+      for (let i = 2; await prisma.providers.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
+      await prisma.providers.create({
+        data: {
+          name: nombre,
+          slug,
+          level: 'registrado',
+          contact_name: contacto,
+          phone: telefono,
+          email: correo,
+          city: ciudad,
+          state: estado,
+          coverage: [],
+          categories: categorias,
+          notes: nota,
+          status: ESTADO_SOLICITUD_PROVEEDOR,
+        },
+      });
+    }
+
+    void avisarPanel({
+      modulo: 'proveedores',
+      evento: 'registro_proveedor',
+      titulo: `Solicitud de proveedor: ${nombre}`,
+      cuerpo: `${tipo.nombre} · ${ciudad}, ${estado} · ${ofrece}`.slice(0, 180),
+      link: '/proveedores',
+    });
+
+    const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;
+    if (interno) {
+      const panel = (process.env.ADMIN_URL ?? '').replace(/\/+$/, '');
+      void this.mailer.enviar({
+        kind: 'provider_signup_internal',
+        to: interno,
+        ...(correo ? { replyTo: correo } : {}),
+        ...correoSolicitudProveedorInterno({
+          nombre, tipo: tipo.nombre, contacto, telefono, correo,
+          ubicacion: `${ciudad}, ${estado}`, ofrece, mensaje,
+          url: panel ? `${panel}/proveedores` : null,
+        }),
+      });
+    }
+    if (correo) {
+      void this.mailer.enviar({ kind: 'provider_signup_ack', to: correo, toName: contacto ?? nombre, ...correoAcuseProveedor({ nombre: contacto ?? nombre }) });
+    }
     return { ok: true };
   }
 

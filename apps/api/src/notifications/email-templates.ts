@@ -448,6 +448,44 @@ export function correoContactoInterno(d: {
   };
 }
 
+/** A MAQSER24: alguien pidió entrar a la red desde /proveedores. */
+export function correoSolicitudProveedorInterno(d: {
+  nombre: string;
+  tipo: string;
+  contacto: string | null;
+  telefono: string;
+  correo: string | null;
+  ubicacion: string;
+  ofrece: string;
+  mensaje: string;
+  url: string | null;
+}): { subject: string; html: string } {
+  return {
+    subject: `Solicitud de proveedor · ${d.nombre}`,
+    html: marco(
+      `${titulo('Quieren entrar a la red')}
+      <p style="margin:0;"><strong style="color:${TINTA};">${esc(d.nombre)}</strong> se registró como proveedor desde el sitio.</p>
+      ${datos(filas([['Tipo', d.tipo], ['Contacto', d.contacto], ['Teléfono', d.telefono], ['Correo', d.correo], ['Ubicación', d.ubicacion], ['Ofrece', d.ofrece]]))}
+      <div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.mensaje)}</div>
+      ${d.url ? boton('Revisarla en el panel', d.url) : ''}`,
+      'La solicitud está en Red de aliados → Solicitudes. No entra a ninguna asignación hasta que la aceptes.',
+    ),
+  };
+}
+
+/** A quien se registró como proveedor: lo recibimos y qué sigue. */
+export function correoAcuseProveedor(d: { nombre: string }): { subject: string; html: string } {
+  return {
+    subject: 'Recibimos tu registro como proveedor · MAQSER24',
+    html: marco(
+      `${titulo(`Hola, ${esc(d.nombre)}`)}
+      <p style="margin:0 0 12px;">Recibimos tu registro para formar parte de la red MAQSER24. Nuestro equipo revisará la información y se pondrá en contacto contigo para continuar el proceso.</p>
+      <p style="margin:0;">Si quieres agregar algo, responde a este correo.</p>`,
+      'Si no te registraste en maqserv24.com, ignora este correo.',
+    ),
+  };
+}
+
 /** A quien escribió en /contacto: lo recibimos y qué sigue. */
 export function correoAcuseContacto(d: { nombre: string; mensaje: string; telefono: string | null }): { subject: string; html: string } {
   return {

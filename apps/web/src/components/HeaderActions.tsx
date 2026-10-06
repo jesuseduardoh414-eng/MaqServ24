@@ -27,6 +27,8 @@ export function HeaderActions({
     cart: string;
     login: string;
     register: string;
+    /** "Regístrate como proveedor": siempre visible, con o sin sesión. */
+    providerSignup: string;
     logout: string;
     greeting: string;
     searchPlaceholder: string;
@@ -109,6 +111,27 @@ export function HeaderActions({
       </Link>
 
       <span className="hdr-auth" style={{ width: 1, height: 24, background: 'var(--color-border)', margin: '0 7px' }} />
+
+      {/* Proveedores (2026-10-06). Solo cabe aquí a partir de 1440 px; por
+          debajo lo muestra la barra superior (.tb-prov), ver globals.css. */}
+      <Link
+        href="/proveedores"
+        className="hdr-prov"
+        data-evento="proveedor_cta"
+        style={{
+          color: 'var(--color-text)',
+          fontWeight: 600,
+          fontSize: '14px',
+          padding: '8px 13px',
+          marginRight: 10,
+          whiteSpace: 'nowrap',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid color-mix(in srgb, var(--color-primary) 55%, var(--color-border))',
+          textDecoration: 'none',
+        }}
+      >
+        {labels.providerSignup}
+      </Link>
 
       {user ? (
         <div ref={menuRef} className="hdr-auth" style={{ position: 'relative' }}>
