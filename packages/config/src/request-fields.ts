@@ -138,7 +138,7 @@ export const REQUEST_FORMS: RequestForm[] = [
     category: 'soluciones-asfalticas',
     title: 'Soluciones asfálticas',
     intro:
-      'El riego de impregnación y la carpeta asfáltica se cotizan por superficie; el espesor y el estado de la base cambian el precio. Con estos datos se puede dar un precio que no se mueva.',
+      'La carpeta asfáltica se cotiza por tonelada aplicada: con los m² de la superficie y el espesor en cm te ayudamos a sacar el volumen. El estado de la base también cambia el precio.',
     fields: [
       { key: 'trabajo', label: '¿Qué necesitas?', type: 'opcion', options: ['Riego de impregnación', 'Carpeta asfáltica normal', 'Ambos'], required: true },
       { key: 'superficie', label: 'Superficie a cubrir', type: 'numero', unit: 'm²', required: true, hint: 'Si no la sabes, largo por ancho aproximado' },

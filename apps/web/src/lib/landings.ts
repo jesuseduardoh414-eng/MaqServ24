@@ -266,7 +266,7 @@ export const LANDINGS: Landing[] = [
     faqs: [
       {
         pregunta: '¿Cómo se cotiza la carpeta asfáltica?',
-        respuesta: 'Por metro cuadrado. En tu solicitud indicas la superficie, el espesor si lo conoces y el lugar de la obra.',
+        respuesta: 'Te cotizamos por tonelada aplicada. Te ayudamos a sacar el volumen: solo indícanos los m² de la superficie, el espesor en cm y el lugar de aplicación o la obra.',
       },
       {
         pregunta: '¿En qué zonas trabajan?',
