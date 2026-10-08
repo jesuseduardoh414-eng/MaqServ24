@@ -17,6 +17,8 @@ interface AdminRow {
   /** Sin contraseña guardada no puede entrar, por más "Activo" que se vea. */
   canLogin: boolean;
   isMe: boolean;
+  /** La cuenta del dueño: la única que da o quita Dirección General. */
+  principal: boolean;
   createdAt: string | null;
 }
 
@@ -50,6 +52,8 @@ export default async function AdminAdmins() {
 
   const activos = admins.filter((a) => a.status === 1).length;
   const rotos = admins.filter((a) => !a.canLogin);
+  // Sin cuenta principal registrada (no existe el correo inicial), nadie queda restringido.
+  const soyPrincipal = admins.some((a) => a.isMe && a.principal) || !admins.some((a) => a.principal);
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
@@ -96,7 +100,7 @@ export default async function AdminAdmins() {
         ) : null}
 
         <div style={{ marginTop: 20 }}>
-          <AdminCreate />
+          <AdminCreate soyPrincipal={soyPrincipal} />
         </div>
 
         <div style={{ marginTop: 18, background: '#0F0F11', border: `1px solid ${D.inputBorder}`, borderRadius: 16, overflow: 'hidden' }}>
@@ -121,7 +125,14 @@ export default async function AdminAdmins() {
                       {a.name}
                       {a.isMe ? <span style={{ color: D.amber, fontWeight: 600, fontSize: 11.5 }}> · tú</span> : null}
                     </div>
-                    <div style={{ fontSize: 10.5, color: '#5C5C61', marginTop: 3 }}>{a.rolNombre}</div>
+                    <div style={{ fontSize: 10.5, color: '#5C5C61', marginTop: 3 }}>
+                      {a.rolNombre}
+                      {a.principal ? (
+                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, letterSpacing: '0.6px', color: D.amber, border: `1px solid ${D.amber}`, borderRadius: 4, padding: '1px 6px' }}>
+                          <i className="ph ph-crown-simple" style={{ marginRight: 4 }} />PRINCIPAL
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -134,7 +145,7 @@ export default async function AdminAdmins() {
                   </span>
                 </div>
 
-                <AdminRowActions adminId={a.id} name={a.name} status={a.status} isMe={a.isMe} canLogin={a.canLogin} rol={a.rol} />
+                <AdminRowActions adminId={a.id} name={a.name} status={a.status} isMe={a.isMe} canLogin={a.canLogin} rol={a.rol} principal={a.principal} soyPrincipal={soyPrincipal} />
               </div>
             );
           })}
@@ -170,7 +181,7 @@ export default async function AdminAdmins() {
         </div>
 
         <p style={{ margin: '16px 0 0', fontSize: 11.5, color: '#5C5C61', lineHeight: 1.55, maxWidth: '80ch' }}>
-          Desactivar corta el acceso de inmediato, incluso si la persona tiene la sesión abierta. No puedes desactivar tu propia cuenta ni cambiarte el rol a ti mismo: esta pantalla solo la ve Dirección, y quien se la quita no tiene cómo devolvérsela.
+          Desactivar corta el acceso de inmediato, incluso si la persona tiene la sesión abierta. No puedes desactivar tu propia cuenta ni cambiarte el rol a ti mismo: esta pantalla solo la ve Dirección, y quien se la quita no tiene cómo devolvérsela. La cuenta principal es la del dueño: solo ella da o quita Dirección General y modifica a las otras cuentas de Dirección, y nadie más puede tocarla. Se puede transferir a otra cuenta de Dirección.
         </p>
       </div>
     </AdminShell>

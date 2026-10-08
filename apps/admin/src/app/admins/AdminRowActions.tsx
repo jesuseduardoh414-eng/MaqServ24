@@ -25,6 +25,8 @@ export function AdminRowActions({
   isMe,
   canLogin,
   rol,
+  principal,
+  soyPrincipal,
 }: {
   adminId: number;
   name: string;
@@ -32,6 +34,10 @@ export function AdminRowActions({
   isMe: boolean;
   canLogin: boolean;
   rol: RolAdmin;
+  /** Esta fila es la cuenta principal. */
+  principal: boolean;
+  /** Quien mira es la cuenta principal. */
+  soyPrincipal: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -95,6 +101,34 @@ export function AdminRowActions({
     }
   }
 
+  async function hacerPrincipal() {
+    if (!window.confirm(`¿Hacer a ${name} la cuenta principal? Dejarás de serlo tú: ya no podrás dar o quitar Dirección General ni modificar sus cuentas.`)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/admins/${adminId}/principal`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json())?.message ?? 'No se pudo transferir');
+      router.refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'No se pudo transferir');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /*
+   * La cuenta principal y las de Dirección solo las toca la principal (la API
+   * también lo exige). A quien no lo es, ni se le ofrecen los botones.
+   */
+  if (!isMe && !soyPrincipal && (principal || rol === 'direccion')) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <span style={{ fontSize: 11.5, color: '#5C5C61' }}>{principal ? 'Cuenta principal' : 'Solo la cuenta principal la modifica'}</span>
+      </div>
+    );
+  }
+  const roles = soyPrincipal ? ROLES : ROLES.filter((r) => r.clave !== 'direccion');
+
   return (
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
       <style>{`.ar-ghost:hover:not(:disabled){ background: rgba(255,255,255,0.06); color:#f5f5f4; }`}</style>
@@ -113,8 +147,15 @@ export function AdminRowActions({
           value={rol}
           disabled={busy}
           onChange={(v) => void send({ rol: v })}
-          options={ROLES.map((r) => ({ value: r.clave, label: r.nombre }))}
+          options={roles.map((r) => ({ value: r.clave, label: r.nombre }))}
         />
+      ) : null}
+
+      {/* Transferir la cuenta principal: solo a otra Dirección activa que pueda entrar. */}
+      {soyPrincipal && !isMe && !principal && rol === 'direccion' && status === 1 && canLogin ? (
+        <button type="button" className="ar-ghost" disabled={busy} onClick={() => void hacerPrincipal()} style={{ ...ghost, opacity: busy ? 0.5 : 1 }}>
+          Hacer principal
+        </button>
       ) : null}
 
       {/* Sin cuenta de acceso no hay contraseña que cambiar. */}

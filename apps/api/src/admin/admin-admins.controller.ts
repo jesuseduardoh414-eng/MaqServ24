@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param,
+  BadRequestException, Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param,
   ParseIntPipe, Patch, Post, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -8,6 +8,7 @@ import { problemaContrasena, rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolA
 import { AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
 import { hashPassword } from '../common/app-auth';
 import { registrarAccion } from './audit';
+import { guardarAjuste, leerAjuste } from '../common/platform-settings';
 
 /**
  * Quién puede entrar al panel.
@@ -23,13 +24,36 @@ import { registrarAccion } from './audit';
  */
 const ROLES_VALIDOS = Object.keys(ROLES_ADMIN) as [RolAdmin, ...RolAdmin[]];
 
+/**
+ * CUENTA PRINCIPAL (2026-10-08, pedido del dueño).
+ *
+ * Puede haber varias cuentas de Dirección, pero una es la del dueño. Esa es
+ * la única que da o quita Dirección General y la única que toca a las otras
+ * cuentas de Dirección; a ella nadie más la desactiva, le cambia el rol o la
+ * contraseña. Sin esto, cualquier Dirección podía dejar fuera al dueño.
+ *
+ * Vive en `platform_settings` (id de la cuenta) y se puede transferir. Hasta
+ * que alguien la transfiera, es la del correo de abajo.
+ */
+const AJUSTE_PRINCIPAL = 'admin_principal_id';
+const PRINCIPAL_INICIAL = 'ventas@maqserv24.com';
+
+async function principalId(): Promise<number | null> {
+  const v = Number(await leerAjuste<unknown>(AJUSTE_PRINCIPAL, null));
+  if (Number.isInteger(v) && v > 0 && (await prisma.admins.findUnique({ where: { id: v }, select: { id: true } }))) return v;
+  const a = await prisma.admins.findUnique({ where: { email: PRINCIPAL_INICIAL }, select: { id: true } });
+  return a?.id ?? null;
+}
+
+const SOLO_PRINCIPAL = 'Solo la cuenta principal puede dar o quitar Dirección General y modificar otras cuentas de Dirección';
+
 @Modulo('admins')
 @Controller('admin/admins')
 @UseGuards(AdminGuard)
 export class AdminAdminsController {
   @Get()
   async list(@Req() req: AdminRequest) {
-    const rows = await prisma.admins.findMany({ orderBy: { id: 'asc' } });
+    const [rows, pid] = await Promise.all([prisma.admins.findMany({ orderBy: { id: 'asc' } }), principalId()]);
     return rows.map((a) => ({
       id: a.id,
       name: a.name,
@@ -41,6 +65,7 @@ export class AdminAdminsController {
       /** Sin hash de contraseña no hay forma de entrar por más activo que se vea. */
       canLogin: !!a.password,
       isMe: a.id === req.adminId,
+      principal: a.id === pid,
       createdAt: a.created_at ? a.created_at.toISOString() : null,
     }));
   }
@@ -86,6 +111,10 @@ export class AdminAdminsController {
     const debil = problemaContrasena(parsed.data.password, { nombre: parsed.data.name, correo: parsed.data.email });
     if (debil) throw new BadRequestException(debil);
     const email = parsed.data.email.trim().toLowerCase();
+    if (parsed.data.rol === 'direccion') {
+      const pid = await principalId();
+      if (pid !== null && req.adminId !== pid) throw new ForbiddenException(SOLO_PRINCIPAL);
+    }
 
     if (await prisma.admins.findUnique({ where: { email } })) {
       throw new BadRequestException('Ya existe un administrador con ese correo');
@@ -125,8 +154,11 @@ export class AdminAdminsController {
   @Delete(':id')
   async remove(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
     if (id === req.adminId) throw new BadRequestException('No puedes eliminar tu propia cuenta');
-    const a = await prisma.admins.findUnique({ where: { id }, select: { email: true, status: true } });
+    const a = await prisma.admins.findUnique({ where: { id }, select: { email: true, status: true, role: true } });
     if (!a) throw new NotFoundException('Administrador no encontrado');
+    const pid = await principalId();
+    if (id === pid) throw new ForbiddenException('La cuenta principal no se elimina. Transfiérela primero a otra cuenta de Dirección.');
+    if (pid !== null && req.adminId !== pid && rolDeAdmin(a.role) === 'direccion') throw new ForbiddenException(SOLO_PRINCIPAL);
     if (a.status === 1) {
       throw new BadRequestException('Desactívala primero. Solo se eliminan cuentas desactivadas.');
     }
@@ -149,6 +181,11 @@ export class AdminAdminsController {
 
     const a = await prisma.admins.findUnique({ where: { id } });
     if (!a) throw new NotFoundException('Administrador no encontrado');
+    const pid = await principalId();
+    if (pid !== null && req.adminId !== pid) {
+      if (id === pid) throw new ForbiddenException('La cuenta principal solo la modifica su titular');
+      if (rolDeAdmin(a.role) === 'direccion' || parsed.data.rol === 'direccion') throw new ForbiddenException(SOLO_PRINCIPAL);
+    }
     if (parsed.data.password !== undefined) {
       const debil = problemaContrasena(parsed.data.password, { nombre: a.name, correo: a.email });
       if (debil) throw new BadRequestException(debil);
@@ -193,6 +230,24 @@ export class AdminAdminsController {
     if (parsed.data.password !== undefined) {
       await registrarAccion(req, 'admins', 'cambio de contraseña', a.email);
     }
+    return { ok: true };
+  }
+
+  /**
+   * Pasar la cuenta principal a otra cuenta de Dirección. Solo la hace la
+   * principal actual, y la nueva tiene que poder entrar: si no, el panel se
+   * quedaría con una principal que nadie puede usar.
+   */
+  @Post(':id/principal')
+  async hacerPrincipal(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
+    const pid = await principalId();
+    if (pid !== null && req.adminId !== pid) throw new ForbiddenException('Solo la cuenta principal puede transferirla');
+    const a = await prisma.admins.findUnique({ where: { id } });
+    if (!a) throw new NotFoundException('Administrador no encontrado');
+    if (rolDeAdmin(a.role) !== 'direccion') throw new BadRequestException('La cuenta principal tiene que ser de Dirección General');
+    if (a.status !== 1 || !a.password) throw new BadRequestException('Esa cuenta no está activa o no puede entrar');
+    await guardarAjuste(AJUSTE_PRINCIPAL, id, req.adminEmail);
+    await registrarAccion(req, 'admins', 'transferir cuenta principal', a.email);
     return { ok: true };
   }
 }

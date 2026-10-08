@@ -20,7 +20,9 @@ const inputStyle: React.CSSProperties = {
 };
 
 /** Alta de administrador: crea la fila con su contraseña (hash bcrypt); con eso ya puede entrar. */
-export function AdminCreate() {
+export function AdminCreate({ soyPrincipal }: { soyPrincipal: boolean }) {
+  // Dirección General solo la reparte la cuenta principal (la API también lo exige).
+  const roles = soyPrincipal ? ROLES : ROLES.filter((r) => r.clave !== 'direccion');
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
@@ -119,7 +121,7 @@ export function AdminCreate() {
               ariaLabel="Rol"
               value={rol}
               onChange={(v) => setRol(v as RolAdmin)}
-              options={ROLES.map((r) => ({ value: r.clave, label: r.nombre }))}
+              options={roles.map((r) => ({ value: r.clave, label: r.nombre }))}
             />
           </div>
         </div>
