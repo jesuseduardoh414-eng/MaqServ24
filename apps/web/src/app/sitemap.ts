@@ -1,6 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { rutaDeCatalogo } from '@maqserv/config';
-import { getBlogs, getCatalogoResumen, getProducts, getSectors } from '@/lib/api';
+import { getBlogs, getProducts, getSectors } from '@/lib/api';
 import { SITE_URL, esRutaPrivada } from '@/lib/seo';
 import { LANDINGS } from '@/lib/landings';
 
@@ -11,7 +10,6 @@ type Frecuencia = NonNullable<Entrada['changeFrequency']>;
 const FIJAS: Array<[ruta: string, freq: Frecuencia, prio: number]> = [
   ['/', 'daily', 1],
   ['/servicios', 'daily', 0.9],
-  ['/productos', 'daily', 0.7],
   ['/categorias', 'weekly', 0.7],
   ['/cotizador', 'monthly', 0.8],
   ['/cotizador/maquinaria', 'monthly', 0.8],
@@ -35,14 +33,14 @@ const FIJAS: Array<[ruta: string, freq: Frecuencia, prio: number]> = [
  * que se haya juntado y el build NO falla. Antes, una excepción aquí tumbaba
  * el despliegue completo cuando la API dormía durante la compilación.
  *
- * Las listas filtradas (`/productos?categoria=…`) ya no van: son la misma
- * página con parámetros y su canonical apunta a /productos.
+ * Las listas filtradas (`/servicios?categoria=…`) ya no van: son la misma
+ * página con parámetros y su canonical apunta a /servicios.
+ *
+ * /productos ya no entra (2026-10-08): sin venta en línea solo redirige a
+ * /servicios, y una URL que redirige no va en el sitemap.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // `/productos` redirige a `/servicios` mientras no haya productos: una URL
-  // que redirige no va en el sitemap (Search Console lo marca como error).
-  const conProductos = (await getCatalogoResumen()).productos > 0;
-  const entries: MetadataRoute.Sitemap = FIJAS.filter(([ruta]) => !esRutaPrivada(ruta) && (ruta !== '/productos' || conProductos)).map(([ruta, changeFrequency, priority]) => ({
+  const entries: MetadataRoute.Sitemap = FIJAS.filter(([ruta]) => !esRutaPrivada(ruta)).map(([ruta, changeFrequency, priority]) => ({
     url: `${SITE_URL}${ruta === '/' ? '' : ruta}`,
     changeFrequency,
     priority,
@@ -66,7 +64,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     console.warn('[sitemap] sin sectores:', err);
   }
 
-  // Todos los productos (recorriendo la paginación de la API).
+  // Todas las fichas (recorriendo la paginación de la API). Viven bajo
+  // /servicios sea cual sea su tipo: /productos/<slug> solo redirige.
   try {
     let page = 1;
     let pages = 1;
@@ -74,7 +73,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       const res = await getProducts({ page });
       pages = res.pages;
       for (const p of res.items) {
-        entries.push({ url: `${SITE_URL}${rutaDeCatalogo(p.kind)}/${p.slug}`, changeFrequency: 'weekly', priority: 0.8 });
+        entries.push({ url: `${SITE_URL}/servicios/${p.slug}`, changeFrequency: 'weekly', priority: 0.8 });
       }
       page++;
     } while (page <= pages);

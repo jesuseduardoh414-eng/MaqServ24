@@ -1,25 +1,22 @@
-import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import { getCatalogoResumen } from '@/lib/api';
-import { metadataCatalogo, PaginaCatalogo, type Search } from './catalogo';
+import { permanentRedirect } from 'next/navigation';
 
-export function generateMetadata(): Promise<Metadata> {
-  return metadataCatalogo('producto');
-}
+type Search = Record<string, string | string[] | undefined>;
 
 /**
- * Productos: lo que se vende a precio fijo (2026-09-25). Hoy MAQSER24 solo
- * tiene servicios, así que mientras no exista un producto publicado esta ruta
- * manda a /servicios en vez de enseñar una parrilla vacía.
+ * /productos → /servicios, permanente (2026-10-08).
+ *
+ * MAQSER24 ya no vende nada a precio fijo en línea: todo se cotiza y se paga
+ * fuera del sitio, así que no hay un catálogo de "productos" aparte. La ruta
+ * se queda solo para que los enlaces viejos (buscadores, correos, el buscador
+ * del header antiguo con ?q=) sigan llegando. Se conservan los parámetros
+ * simples (q, categoria…) para no perder la búsqueda.
+ *
+ * `catalogo.tsx` vive en esta carpeta porque lo importa /servicios; no se borra.
  */
-export default async function CatalogPage({ searchParams }: { searchParams: Promise<Search> }) {
-  const [sp, resumen] = await Promise.all([searchParams, getCatalogoResumen()]);
-  if (resumen.productos === 0) {
-    // Conserva los filtros: el buscador del header manda aquí con ?q=.
-    const qs = new URLSearchParams(
-      Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === 'string'),
-    ).toString();
-    redirect(qs ? `/servicios?${qs}` : '/servicios');
-  }
-  return PaginaCatalogo({ sp, kind: 'producto' });
+export default async function ProductosRedirect({ searchParams }: { searchParams: Promise<Search> }) {
+  const sp = await searchParams;
+  const qs = new URLSearchParams(
+    Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === 'string'),
+  ).toString();
+  permanentRedirect(qs ? `/servicios?${qs}` : '/servicios');
 }

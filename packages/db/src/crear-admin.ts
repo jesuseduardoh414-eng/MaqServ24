@@ -11,7 +11,7 @@
  *   node packages/db/dist/crear-admin.js <correo> <contraseña> [nombre] [rol]
  *
  * Roles (packages/config/src/admin-roles.ts):
- *   direccion | operaciones | red | comercial | marca
+ *   direccion | operaciones | administracion  (los tres de la sección 14 del documento)
  * Por defecto `direccion`, que es el único que administra cuentas y permisos:
  * desde ahí ya se crean los demás con el módulo Administradores.
  *

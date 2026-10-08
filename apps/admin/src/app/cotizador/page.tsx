@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { COTIZADORES_META, COTIZADOR_TIPOS } from '@maqserv/config';
+import { COTIZADORES_META, COTIZADORES_ACTIVOS } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D } from '@/components/design-tokens';
@@ -18,19 +18,16 @@ interface Resumen {
  *
  * Existe aunque el menú ya lleve directo a cada uno, porque el menú no puede
  * explicar la diferencia. Quien entra por primera vez tiene que poder decidir
- * cuál abre sin preguntarle a nadie — y de paso ve si hay solicitudes del sitio
- * esperando.
+ * cuál abre sin preguntarle a nadie.
  */
 export default async function CotizadorHome() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'cotizador');
 
-  const [pendientes, ultimas] = await Promise.all([
-    adminFetch<Resumen>('/admin/quoter/quotes?state=solicitada'),
-    adminFetch<Resumen>('/admin/quoter/quotes'),
-  ]);
-  const porAtender = pendientes?.total ?? 0;
+  // Sin el aviso de "solicitudes sin atender" (2026-10-08): eran los mismos
+  // pedidos que ya están en Solicitudes, contados dos veces.
+  const ultimas = await adminFetch<Resumen>('/admin/quoter/quotes');
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
@@ -41,26 +38,9 @@ export default async function CotizadorHome() {
           seguirá diciendo lo mismo aunque después cambien las tarifas.
         </p>
 
-        {porAtender > 0 ? (
-          <Link
-            href="/cotizador/historial?state=solicitada"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, padding: '14px 18px',
-              borderRadius: 14, textDecoration: 'none', color: D.text,
-              background: D.accentSoft, border: `1px solid color-mix(in srgb, var(--color-primary) 35%, transparent)`,
-            }}
-          >
-            <i className="ph ph-bell-ringing" style={{ fontSize: 21, color: D.accent }} />
-            <span style={{ flex: 1, fontSize: 14 }}>
-              <b>{porAtender}</b> {porAtender === 1 ? 'solicitud llegó' : 'solicitudes llegaron'} desde el sitio y
-              {porAtender === 1 ? ' sigue' : ' siguen'} sin atender.
-            </span>
-            <i className="ph ph-arrow-right" style={{ color: D.accent }} />
-          </Link>
-        ) : null}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 16 }}>
-          {COTIZADOR_TIPOS.map((tipo) => {
+          {COTIZADORES_ACTIVOS.map((tipo) => {
             const meta = COTIZADORES_META[tipo];
             return (
               <Link

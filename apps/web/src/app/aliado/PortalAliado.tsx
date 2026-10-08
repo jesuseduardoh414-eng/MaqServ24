@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { esLineaServicio } from '@maqserv/config';
+import { TIPOS_ALIADO, esLineaServicio, ofertaDe, tiposDeAliado } from '@maqserv/config';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
 import { Icon, type IconName } from '@/components/Icon';
 import { OfrecerEquipo } from './OfrecerEquipo';
@@ -57,6 +57,8 @@ export interface DatosPortal {
     site: string | null;
     detail: string | null;
     requirements: string[];
+    /** Lo que pide el cliente, con las preguntas de su línea. */
+    pedido?: Array<{ label: string; valor: string }>;
     offeredAt: string;
     total?: number | null;
   }>;
@@ -73,6 +75,7 @@ export interface DatosPortal {
     contactName: string | null;
     contactPhone: string | null;
     requirements: string[];
+    pedido?: Array<{ label: string; valor: string }>;
   }>;
   equipos: Array<{
     id: number;
@@ -137,6 +140,13 @@ const CSS = `
 .al-main, .al-side{ min-width:0; }
 .al-sec{ margin-bottom:40px; scroll-margin-top:84px; }
 .al-dos{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px 16px; }
+.al-ofrece{ list-style:none; margin:10px 0 0; padding:0; display:grid; gap:4px; font-size:13px; color:var(--color-text-muted); line-height:1.5; }
+.al-ofrece b{ color:var(--color-text); font-weight:600; }
+.al-pide{ margin-top:14px; padding:12px 14px; border-radius:10px; background:rgba(127,127,127,.06); border:1px solid var(--color-border); }
+.al-pide dl{ margin:8px 0 0; display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px 16px; }
+.al-pide dl > div{ min-width:0; }
+.al-pide dt{ font-size:12px; color:var(--color-text-muted); }
+.al-pide dd{ margin:2px 0 0; font-size:14px; font-weight:600; overflow-wrap:anywhere; }
 .al-side .al-dos{ grid-template-columns:minmax(0,1fr); }
 .al-stack{ display:grid; gap:12px; }
 
@@ -223,6 +233,7 @@ const CSS = `
 }
 @media (max-width: 720px){
   .al-dos{ grid-template-columns:minmax(0,1fr); }
+  .al-pide dl{ grid-template-columns:minmax(0,1fr); }
 }
 @media (max-width: 640px){
   .al-root .ms-input, .al-root .ms-textarea, .al-root .ms-select{ font-size:16px; }
@@ -342,6 +353,25 @@ function Barra({ valor, color = AZUL }: { valor: number; color?: string }) {
   );
 }
 
+/**
+ * Lo que pide el cliente, ordenado con las preguntas de su línea: lo que el
+ * documento dice que cada proveedor necesita para decidir (fechas y equipo;
+ * viajes, destino y frecuencia; cantidad, destino y ventana de entrega).
+ */
+function LoQuePide({ pedido }: { pedido?: Array<{ label: string; valor: string }> }) {
+  if (!pedido?.length) return null;
+  return (
+    <div className="al-pide">
+      <span className="al-dato-l">Lo que pide</span>
+      <dl>
+        {pedido.map((p) => (
+          <div key={p.label}><dt>{p.label}</dt><dd>{p.valor}</dd></div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
   return (
     <div style={{ minWidth: 0 }}>
@@ -382,6 +412,15 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   const ofreceProductos = aliado.categories.some((c) => !esLineaServicio(c));
   const queOfrece = ofreceServicios && ofreceProductos ? 'servicios y productos' : ofreceProductos ? 'productos' : 'servicios';
   const botonOfrecer = ofreceServicios && ofreceProductos ? 'Ofrecer servicio o producto' : ofreceProductos ? 'Ofrecer un producto' : 'Ofrecer un servicio';
+  /*
+   * QUÉ TIPO DE PROVEEDOR ES (documento, sección 14; 2026-10-08): rentadora,
+   * de servicios o de materiales, según sus líneas. Cambia cómo se le habla
+   * ("tus equipos", "tus unidades", "tus materiales") y le recuerda qué le
+   * ofrece MAQSER24 a alguien como él.
+   */
+  const tipos = tiposDeAliado(aliado.categories);
+  const oferta = ofertaDe(tipos);
+  const ofertaCorta = tipos.length === 1 ? oferta.charAt(0).toUpperCase() + oferta.slice(1) : 'Tu oferta';
   const API = '/api/proxy';
 
   const avisar = (texto: string, ok = true) => setMsg({ texto, ok });
@@ -489,7 +528,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
     { hecho: documentos.lista.length > 0, texto: 'Entregar tus papeles', ayuda: 'Póliza de seguro, constancia fiscal y DC-3 de tus operadores.' },
     { hecho: aliado.verified, texto: 'Sello de verificado', ayuda: 'Lo da MAQSER24 al revisar tus papeles vigentes.' },
     { hecho: equipos.length > 0, texto: `Ofrecer tus ${queOfrece}`, ayuda: propuestas.length ? 'Ya enviaste lo que ofreces: MAQSER24 lo está revisando para publicarlo.' : `Toca "${botonOfrecer}" y responde las preguntas: MAQSER24 lo revisa y lo publica.` },
-    { hecho: equipos.length > 0 && equiposConfirmados === equipos.length, texto: 'Disponibilidad confirmada', ayuda: 'Toca "Sigue libre" en cada equipo al menos cada 14 días.' },
+    { hecho: equipos.length > 0 && equiposConfirmados === equipos.length, texto: 'Disponibilidad confirmada', ayuda: `Toca "Sigue libre" en cada uno de tus ${oferta} al menos cada 14 días.` },
   ];
   const listos = pasos.filter((p) => p.hecho).length;
   const docs = ESTADO_DOCS[documentos.estado] ?? { label: documentos.estado, tono: 'warn' as Tono, color: AMBAR };
@@ -503,7 +542,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   const kpis: Array<{ n: number | string; label: string; color: string; icono: IconName; ancla: string }> = [
     { n: porContestar.length, label: 'Por contestar', color: porContestar.length ? AZUL : 'var(--color-text-muted)', icono: 'bell', ancla: '#solicitudes' },
     { n: enCurso.length, label: 'En curso', color: enCurso.length ? VERDE : 'var(--color-text-muted)', icono: 'truck', ancla: '#en-curso' },
-    { n: equipos.length, label: 'Equipos', color: 'var(--color-text)', icono: 'box', ancla: '#equipos' },
+    { n: equipos.length, label: ofertaCorta, color: 'var(--color-text)', icono: 'box', ancla: '#equipos' },
     { n: docs.label, label: 'Papeles', color: docs.color, icono: 'shield', ancla: '#papeles' },
   ];
 
@@ -523,12 +562,21 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           <div className="al-chips">
             {aliado.verified ? <Chip tono="ok">Verificado</Chip> : <Chip>Sin sello</Chip>}
             <Chip>Nivel {aliado.level}</Chip>
+            {tipos.map((t) => <Chip key={t} tono="info">{TIPOS_ALIADO[t].nombre}</Chip>)}
           </div>
           <div className="ms-desc al-meta">
             <span><Icon name="mapPin" size={14} />{aliado.coverage.length ? aliado.coverage.join(', ') : 'Sin zonas registradas'}</span>
             {lineas.length ? <span><Icon name="grid" size={14} />{lineas.join(' · ')}</span> : null}
             {meses ? <span><Icon name="clock" size={14} />{meses}</span> : null}
           </div>
+          {/* Lo que MAQSER24 le ofrece a alguien como él, con las palabras del documento. */}
+          {tipos.length > 0 ? (
+            <ul className="al-ofrece">
+              {tipos.map((t) => (
+                <li key={t}><b>Como {TIPOS_ALIADO[t].nombre.toLowerCase()}:</b> {TIPOS_ALIADO[t].ofrece}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       </header>
 
@@ -590,7 +638,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           <div className="ms-empty al-vacio">
             <span className="ms-ico" aria-hidden><Icon name="bell" size={19} /></span>
             <p className="ms-h3" style={{ marginTop: 10 }}>Nada pendiente por ahora</p>
-            <p className="ms-empty-p">Cuando un cliente pida uno de tus equipos, aparece aquí y te avisamos por correo al instante.</p>
+            <p className="ms-empty-p">Cuando un cliente pida algo de tus {oferta}, aparece aquí y te avisamos por correo al instante.</p>
           </div>
         ) : null}
 
@@ -619,6 +667,8 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                   <Dato label="Obra" valor={s.site} />
                   <Dato label="Dirección" valor={s.address ?? 'Por confirmar'} />
                 </div>
+
+                <LoQuePide pedido={s.pedido} />
 
                 {s.detail ? <div className="al-detalle">{s.detail}</div> : null}
 
@@ -700,6 +750,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                       valor={s.contactPhone ? <a href={`tel:${s.contactPhone}`}>{s.contactPhone}</a> : null}
                     />
                   </div>
+                  <LoQuePide pedido={s.pedido} />
                   {s.requirements.length > 0 ? (
                     <div className="al-exige">
                       <Icon name="warning" size={14} /><span>Exige: {s.requirements.join(' · ')}</span>
@@ -738,7 +789,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
             </button>
           ) : null}
         >
-          {ofreceProductos && !ofreceServicios ? 'Tus productos' : ofreceProductos ? 'Tus servicios y productos' : 'Tus servicios'}
+          {ofreceProductos && !ofreceServicios ? 'Tus productos' : ofreceProductos ? 'Tus servicios y productos' : `Tus ${oferta}`}
         </Titulo>
 
         {ofreciendo ? (

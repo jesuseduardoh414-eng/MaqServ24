@@ -15,7 +15,7 @@ import { rutaCatalogo } from '@/lib/api';
  * del launcher y solo garantiza el 80 % central.
  */
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
-  const [theme, catalogo] = await Promise.all([getTheme(), rutaCatalogo()]);
+  const theme = await getTheme();
   const nombre = t(theme, 'site.name');
   const oscuro = theme.tokens.colors.dark;
 
@@ -33,7 +33,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     orientation: 'any',
     background_color: oscuro.background,
     theme_color: oscuro.background,
-    categories: ['business', 'shopping'],
+    categories: ['business'],
     icons: [
       { src: '/pwa/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/pwa/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
@@ -43,8 +43,10 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     // Accesos directos al mantener pulsado el icono (Android / Windows).
     shortcuts: [
       { name: t(theme, 'nav.quoter'), url: '/cotizador?origen=pwa', icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
-      { name: t(theme, catalogo === '/productos' ? 'nav.products' : 'nav.services'), url: `${catalogo}?origen=pwa`, icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
-      { name: t(theme, 'nav.myOrders'), url: '/cuenta/pedidos?origen=pwa', icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
+      { name: t(theme, 'nav.services'), url: '/servicios?origen=pwa', icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
+      // Sin compras en línea (2026-10-08): el acceso de "Mis pedidos" pasa a
+      // "Mis cotizaciones", que es lo que el cliente sí sigue desde su cuenta.
+      { name: t(theme, 'account.quotes.title'), url: '/cuenta/cotizaciones?origen=pwa', icons: [{ src: '/pwa/icon-192.png', sizes: '192x192' }] },
     ],
   };
 }

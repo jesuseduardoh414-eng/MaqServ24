@@ -41,8 +41,10 @@ const CSS = `
 /**
  * LISTADO DEL CATÁLOGO. Lo comparten /servicios y /productos (2026-09-25):
  * la misma parrilla, filtrada por tipo. Los servicios son las cinco líneas de
- * MAQSER24 y se cotizan; los productos son lo demás y van al carrito. Ver
- * `tipoDeCatalogo`.
+ * MAQSER24 y se cotizan; los productos son lo demás. Ver `tipoDeCatalogo`.
+ *
+ * Desde 2026-10-08 no hay venta en línea: /productos solo redirige a
+ * /servicios y este módulo lo usa /servicios (y la vista previa del panel).
  */
 export async function metadataCatalogo(kind: TipoCatalogo): Promise<Metadata> {
   const theme = await getTheme();

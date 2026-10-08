@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import type { ProductCard as ProductCardDto, ProductComment, ProductDetail, RentalPeriod } from '@maqserv/types';
+import type { ProductCard as ProductCardDto, ProductComment, ProductDetail } from '@maqserv/types';
 import { UNIDADES, esUnidadDeTiempo, precioPeriodoCarrito, type Theme } from '@maqserv/config';
 import { t as tCopy } from '@/lib/theme';
-import { useCart } from '@/components/CartProvider';
 import { ProductCard } from '@/components/ProductCard';
 import { ProductQuestions } from '@/components/ProductQuestions';
 import { AvailabilityBadge } from '@/components/AvailabilityBadge';
@@ -15,6 +14,7 @@ import { estadoDeProducto, contextoDisponibilidad } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
 import { Icon, Stars } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
+import { AgregarACotizacion } from '@/components/AgregarACotizacion';
 
 // Mismo panel que la tarjeta del catálogo (ver ProductCard): grafito, no blanco.
 const PANEL =
@@ -96,10 +96,6 @@ const CSS = `
 .pd-quick dd{ margin:0; font-size:16px; font-weight:600; overflow-wrap:anywhere; }
 .pd-buy{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
 .pd-buy .ms-btn{ flex:1; min-width:180px; }
-.pd-qty{ display:flex; align-items:center; border:1px solid var(--color-border); border-radius:8px; overflow:hidden; background:var(--color-bg); }
-.pd-qty button{ background:transparent; border:none; width:44px; height:48px; cursor:pointer; color:var(--color-text); font-size:20px; font-family:inherit; }
-.pd-qty button:hover{ background:color-mix(in srgb, var(--color-text) 6%, transparent); }
-.pd-qty output{ width:34px; text-align:center; font-weight:600; font-variant-numeric:tabular-nums; }
 .pd-fav{ width:50px; padding:0; flex:0 0 auto !important; min-width:0 !important; }
 .pd-fav[aria-pressed="true"]{ color:var(--color-primary); border-color:var(--color-primary); }
 .pd-promises{ list-style:none; margin:22px 0 0; padding:0; display:grid; gap:8px; font-size:13px; color:var(--color-text-muted); }
@@ -153,11 +149,8 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
   related: ProductCardDto[];
   quoteMode: boolean;
 }) {
-  const cart = useCart();
   const router = useRouter();
-  const [qty, setQty] = useState(1);
   const [tab, setTab] = useState('desc');
-  const [added, setAdded] = useState(false);
   // Unidad en la que esta capturado el precio. Sin ella, la renta vieja era mensual.
   const unidadBase = product.priceUnit ?? (product.isRental ? 'mes' : null);
   const porTiempo = esUnidadDeTiempo(unidadBase);
@@ -197,20 +190,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
   // Un SERVICIO no se compra aquí: el precio es "desde" y el total (fechas,
   // traslado, IVA) lo da el cotizador con la máquina ya elegida.
   const esServicio = product.kind === 'servicio';
-  const canBuy = !quoteMode && !esServicio && product.price !== null && product.inStock;
   const short = product.short ?? '';
-
-  function addToCart() {
-    if (effPrice === null) return;
-    cart.add({ productId: product.id, slug: product.slug, name: product.name, price: effPrice, image: product.image, unitLabel: effUnit ?? undefined, period: isR ? (period as RentalPeriod) : undefined }, qty);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 3000);
-  }
-  function buyNow() {
-    if (effPrice === null) return;
-    cart.add({ productId: product.id, slug: product.slug, name: product.name, price: effPrice, image: product.image, unitLabel: effUnit ?? undefined, period: isR ? (period as RentalPeriod) : undefined }, qty);
-    router.push('/carrito');
-  }
   async function toggleFav() {
     const r = await fetch('/api/proxy/wishlist/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id }) });
     if (r.status === 401) { router.push('/login'); return; }
@@ -241,7 +221,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
         <nav aria-label="Ruta" className="pd-crumbs">
           <Link href="/">Inicio</Link>
           <span aria-hidden>/</span>
-          <Link href={esServicio ? '/servicios' : '/productos'}>{esServicio ? 'Servicios' : 'Productos'}</Link>
+          <Link href="/servicios">Servicios</Link>
           {product.categoryName ? <><span aria-hidden>/</span><span aria-current="page">{product.categoryName}</span></> : null}
         </nav>
 
@@ -367,39 +347,16 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
               </dl>
             ) : null}
 
-            {/* cantidad + agregar */}
-            {canBuy ? (
-              <>
-                <div className="pd-buy">
-                  <div className="pd-qty">
-                    <button type="button" aria-label="Quitar uno" onClick={() => setQty((q) => Math.max(1, q - 1))}>−</button>
-                    <output aria-live="polite">{qty}</output>
-                    <button type="button" aria-label="Agregar uno" onClick={() => setQty((q) => q + 1)}>+</button>
-                  </div>
-                  <button type="button" onClick={addToCart} className="ms-btn ms-btn-lg">
-                    {added ? <><Icon name="check" size={17} />Añadido</> : <><Icon name="cart" size={17} />Añadir al carrito</>}
-                  </button>
-                </div>
-                <div className="pd-buy">
-                  <button type="button" onClick={buyNow} className="ms-btn ms-btn-sec ms-btn-lg">Comprar ahora</button>
-                  {favBtn}
-                </div>
-                {/* COTIZAR SIEMPRE, tambien en los equipos que se pueden comprar.
-                    Antes aqui habia un 'Solicitar informacion' que abria el correo:
-                    una peticion suelta, sin capacidad, sin fechas y sin ubicacion, que
-                    obligaba a llamar de vuelta. El cotizador pregunta lo que hace falta
-                    segun el servicio, y ademas la plataforma se centra en cotizar. */}
-                <Link href={`/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" className="ms-link" style={{ marginTop: 6 }}>
-                  Cotizar este equipo
-                  <Icon name="arrowRight" size={15} />
-                </Link>
-              </>
-            ) : (
-              <div className="pd-buy">
-                <Link href={`/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" className="ms-btn ms-btn-lg">{esServicio ? 'Cotizar este servicio' : 'Solicitar cotización'}<Icon name="arrowRight" size={16} /></Link>
-                {favBtn}
-              </div>
-            )}
+            {/* SIN COMPRA EN LÍNEA (2026-10-08): aquí iban "Añadir al carrito" y
+                "Comprar ahora" para los productos con precio fijo. Ya nada se
+                vende en el sitio; todo se cotiza y se paga por fuera, así que la
+                única acción es cotizar, igual para servicios y productos. */}
+            <div className="pd-buy">
+              <Link href={`/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" className="ms-btn ms-btn-lg">{esServicio ? 'Cotizar este servicio' : 'Solicitar cotización'}<Icon name="arrowRight" size={16} /></Link>
+              {/* O juntarlo con otros y mandar una sola solicitud desde /cotizar. */}
+              <AgregarACotizacion size="lg" item={{ id: product.id, slug: product.slug, name: product.name, image: product.image, isRental: product.isRental }} />
+              {favBtn}
+            </div>
 
             {/* Antes decia 'ENTREGA EN OBRA · SEGURO INCLUIDO · SOPORTE 24/7'. Las tres
                 eran promesas fijas en TODAS las fichas, sin que nada las respaldara: el
@@ -505,7 +462,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                 <div className="ms-empty">
                   <span className="ms-ico ms-ico-muted"><Icon name="star" size={20} /></span>
                   <p className="ms-empty-t">Aún no hay opiniones</p>
-                  <p className="ms-empty-p">Las reseñas provienen de clientes que rentaron este equipo — podrás calificarlo desde <b>Mis compras</b> después de tu renta.</p>
+                  <p className="ms-empty-p">Las reseñas provienen de clientes que rentaron este equipo — se publican después de un servicio terminado.</p>
                 </div>
               )
             ) : null}

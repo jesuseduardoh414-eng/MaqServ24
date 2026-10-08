@@ -27,11 +27,13 @@ export interface FilaCotizacion {
 /**
  * Estados de una cotización emitida.
  *
- * `solicitada` es el único que significa "alguien está esperando", y por eso va
- * primero y con el acento: es el que hay que vaciar. Los demás son historia.
+ * `solicitada` NO es un pendiente de esta pantalla (2026-10-08): es un pedido
+ * del sitio cuyo servicio aún no tiene aliado, y ese trabajo se atiende en
+ * Solicitudes y Servicios. Antes decía "Por atender" y contaba en el menú, así
+ * que el mismo pendiente aparecía dos veces. Aquí solo se informa.
  */
 const ESTADOS: Record<string, { texto: string; color: string }> = {
-  solicitada: { texto: 'Por atender', color: 'var(--color-primary)' },
+  solicitada: { texto: 'Esperando aliado', color: '#5b9dff' },
   borrador: { texto: 'Borrador', color: '#8a8a93' },
   enviada: { texto: 'Enviada', color: 'var(--color-warning)' },
   aceptada: { texto: 'Aceptada', color: 'var(--color-success)' },

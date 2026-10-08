@@ -84,25 +84,33 @@ const nextConfig: NextConfig = {
    * y el parser solo lee el id, así que el texto del slug viejo da igual.
    */
   async redirects() {
+    // Destinos en /servicios (2026-10-08): sin venta en línea /productos solo
+    // redirige ahí, y apuntar directo evita encadenar dos saltos.
     return [
-      { source: '/product/:id/:slug', destination: '/productos/:slug-:id', permanent: true },
-      { source: '/category/:slug', destination: '/productos?categoria=:slug', permanent: true },
-      { source: '/category/:slug/:sort', destination: '/productos?categoria=:slug', permanent: true },
-      { source: '/subcategory/:slug', destination: '/productos', permanent: true },
-      { source: '/subcategory/:slug/:sort', destination: '/productos', permanent: true },
-      { source: '/childcategory/:slug', destination: '/productos', permanent: true },
-      { source: '/childcategory/:slug/:sort', destination: '/productos', permanent: true },
-      { source: '/search/:q', destination: '/productos?q=:q', permanent: true },
-      { source: '/search/:q/:sort', destination: '/productos?q=:q', permanent: true },
+      { source: '/product/:id/:slug', destination: '/servicios/:slug-:id', permanent: true },
+      { source: '/category/:slug', destination: '/servicios?categoria=:slug', permanent: true },
+      { source: '/category/:slug/:sort', destination: '/servicios?categoria=:slug', permanent: true },
+      { source: '/subcategory/:slug', destination: '/servicios', permanent: true },
+      { source: '/subcategory/:slug/:sort', destination: '/servicios', permanent: true },
+      { source: '/childcategory/:slug', destination: '/servicios', permanent: true },
+      { source: '/childcategory/:slug/:sort', destination: '/servicios', permanent: true },
+      { source: '/search/:q', destination: '/servicios?q=:q', permanent: true },
+      { source: '/search/:q/:sort', destination: '/servicios?q=:q', permanent: true },
       // Equivalentes definitivos de las páginas legacy
       { source: '/faq', destination: '/', permanent: true }, // FAQ es sección de la home
       { source: '/contact', destination: '/contacto', permanent: true },
       // Antes iban a /vendedores, que da 404 desde que se apagó el marketplace
       // (MARKETPLACE_ACTIVO=false): un 301 a un 404 tira el valor SEO de la
       // URL vieja. El catálogo es lo más parecido a "tiendas"/"marcas".
-      { source: '/stores', destination: '/productos', permanent: true },
-      { source: '/Marcas', destination: '/productos', permanent: true },
-      { source: '/track', destination: '/rastreo', permanent: true },
+      { source: '/stores', destination: '/servicios', permanent: true },
+      { source: '/Marcas', destination: '/servicios', permanent: true },
+      // /rastreo se quitó con las compras en línea (2026-10-08): ya no hay
+      // pedidos que rastrear; la URL vieja cae en la home en vez de un 404.
+      { source: '/track', destination: '/', permanent: true },
+      // El pie del sitio (Diseño → Footer, en la BD) todavía enlaza "Rastrear
+      // pedido" a /rastreo. Lo más cercano hoy es el seguimiento de sus
+      // cotizaciones; temporal, no permanente, por si la ruta vuelve a usarse.
+      { source: '/rastreo', destination: '/cuenta/cotizaciones', permanent: false },
     ];
   },
 };

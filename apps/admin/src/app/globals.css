@@ -165,6 +165,11 @@ h1, h2, h3 {
   margin: 2px 0 4px 21px; padding-left: 10px;
   border-left: 1px solid var(--adm-border);
 }
+/* Pantallas de un módulo plegado: con su icono, un punto más compactas. */
+.adm-subnav-grupo .adm-navlink { padding: 8px 10px; font-size: 13.5px; gap: 10px; }
+.adm-subnav-grupo .adm-navico { font-size: 17px; width: 17px; }
+/* Contador del módulo cerrado: el chevrón va pegado a él, no a media fila. */
+.adm-badge + .adm-sub-caret { margin-left: 8px; }
 .adm-navsub { padding: 7px 10px; font-size: 13px; }
 .adm-navsub .adm-navlabel { color: var(--adm-muted); }
 .adm-navsub:hover .adm-navlabel, .adm-navsub.active .adm-navlabel { color: var(--adm-text); }
@@ -190,6 +195,9 @@ h1, h2, h3 {
   margin-left: auto; background: rgba(255, 255, 255, 0.08); color: #d4d4d8;
   font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; line-height: 1.4;
 }
+.adm-navlink.adm-pronto { cursor: default; opacity: 0.5; }
+.adm-navlink.adm-pronto:hover { background: transparent; color: #a1a1aa; }
+.adm-pronto-chip { font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
 .adm-navlink.active .adm-badge { background: color-mix(in srgb, var(--adm-accent) 20%, transparent); color: var(--adm-accent); }
 
 /* collapsed variants */

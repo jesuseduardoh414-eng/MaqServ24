@@ -6,12 +6,13 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon, type IconName } from '@/components/Icon';
 import { CerrarSesion } from './CerrarSesion';
 
-export type SeccionCuenta = 'perfil' | 'cotizaciones' | 'pedidos' | 'favoritos';
+// Sin 'pedidos' (2026-10-08): no hay compras en línea; lo que el cliente
+// sigue desde su cuenta son sus cotizaciones.
+export type SeccionCuenta = 'perfil' | 'cotizaciones' | 'favoritos';
 
-/** Rutas verificadas: el rastreo es /rastreo (no /rastrear) y el FAQ vive en el home. */
+/** Rutas verificadas: el FAQ vive en el home. «Rastrear un pedido» se quitó con las compras en línea (2026-10-08). */
 const AYUDA: { href: string; label: string; icon: IconName }[] = [
   { href: '/contacto', label: 'Hablar con un asesor', icon: 'chat' },
-  { href: '/rastreo', label: 'Rastrear un pedido', icon: 'truck' },
   { href: '/#faq', label: 'Preguntas frecuentes', icon: 'article' },
 ];
 
@@ -60,7 +61,6 @@ export function AccountShell({
   const nav: { key: SeccionCuenta; href: string; label: string; icon: IconName }[] = [
     { key: 'perfil', href: '/cuenta', label: 'Mi perfil', icon: 'user' },
     { key: 'cotizaciones', href: '/cuenta/cotizaciones', label: t(theme, 'account.quotes.title'), icon: 'calculator' },
-    { key: 'pedidos', href: '/cuenta/pedidos', label: t(theme, 'account.orders.title'), icon: 'box' },
     { key: 'favoritos', href: '/cuenta/favoritos', label: t(theme, 'account.wishlist.title'), icon: 'heart' },
   ];
   const miembro = desde(user.createdAt);

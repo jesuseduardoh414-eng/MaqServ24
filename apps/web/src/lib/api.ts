@@ -238,8 +238,10 @@ export function getCatalogoResumen(): Promise<{ servicios: number; productos: nu
  * `/servicios` mientras no haya productos, y enlazarlo directo ahorra el salto
  * (y no le enseña a Google una URL que redirige).
  */
-export async function rutaCatalogo(): Promise<'/servicios' | '/productos'> {
-  return (await getCatalogoResumen()).productos > 0 ? '/productos' : '/servicios';
+export async function rutaCatalogo(): Promise<'/servicios'> {
+  // Sin venta en línea (2026-10-08): todo se cotiza y /productos solo redirige
+  // a /servicios para no romper enlaces viejos. El catálogo es siempre /servicios.
+  return '/servicios';
 }
 
 

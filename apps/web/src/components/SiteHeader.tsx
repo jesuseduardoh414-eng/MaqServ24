@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { MARKETPLACE_ACTIVO, NEWSLETTER_ACTIVO, defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
-import { getCatalogoResumen, getSiteSettings } from '@/lib/api';
+import { getSiteSettings } from '@/lib/api';
 import { HeaderActions } from '@/components/HeaderActions';
 import { MainNav } from '@/components/MainNav';
 import { MobileNav } from '@/components/MobileNav';
@@ -24,14 +24,11 @@ const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', paddi
 /**
  * Header del diseño SEGAshop:
  *  1) barra superior oscura: contacto + horario + accesos.
- *  2) header sticky con logo, navegación y acciones (buscar/fav/carrito/sesión).
+ *  2) header sticky con logo, navegación y acciones (buscar/fav/lista para cotizar/sesión).
  * Todo color/texto sale de tokens/copys/BD (regla de oro).
  */
 export async function SiteHeader({ theme }: { theme: Theme }) {
-  const [settings, resumen] = await Promise.all([
-    getSiteSettings().catch(() => ({ email: null, phone: null, logo: null })),
-    getCatalogoResumen(),
-  ]);
+  const settings = await getSiteSettings().catch(() => ({ email: null, phone: null, logo: null }));
   const brand = t(theme, 'site.name');
   // Canales de contacto (editables en Diseño → Contacto): alimentan la barra superior.
   const contact = theme.tokens.contact ?? defaultTheme.tokens.contact;
@@ -41,10 +38,9 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
   // drawer de móvil (si divergen, el menú miente en uno de los dos).
   const navItems = [
     { href: '/', label: t(theme, 'nav.home') },
-    // Servicios y Productos (2026-09-25): cada pestaña solo si hay algo publicado
-    // de ese tipo. Hoy todo son servicios; "Productos" aparece cuando exista uno.
-    ...(resumen.servicios > 0 || resumen.productos === 0 ? [{ href: '/servicios', label: t(theme, 'nav.services') }] : []),
-    ...(resumen.productos > 0 ? [{ href: '/productos', label: t(theme, 'nav.products') }] : []),
+    // Solo Servicios (2026-10-08): ya no hay venta en línea ni pestaña
+    // "Productos"; /productos redirige a /servicios.
+    { href: '/servicios', label: t(theme, 'nav.services') },
     // Soluciones (2026-09-30): el antiguo «Categorías» se vuelve submenú con las
     // páginas de aterrizaje. El href sigue siendo /categorias (lo abre el clic en
     // escritorio); en móvil el padre solo pliega, por eso «Ver todas» va al final.
@@ -99,8 +95,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
             <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="user" size={14} /></span>{t(theme, 'nav.providerSignup')}
           </Link>
           <div className="tb-right" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <Link href="/rastreo" style={{ color: 'rgba(255,255,255,.66)' }}>{t(theme, 'topbar.track')}</Link>
-            <span style={{ opacity: 0.25 }}>|</span>
+            {/* «Rastrear pedido» se fue con las compras en línea (2026-10-08). */}
             {/* "Vender" es del marketplace heredado; apagado no se ofrece. */}
             {MARKETPLACE_ACTIVO ? (
               <>
@@ -193,7 +188,9 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
             labels={{
               search: t(theme, 'nav.search'),
               wishlist: t(theme, 'nav.wishlist'),
-              cart: t(theme, 'nav.cart'),
+              // Sin copy en el tema todavía: el carrito pasó a ser la lista de
+              // equipos para cotizar (2026-10-08).
+              quoteList: 'Tu lista para cotizar',
               login: t(theme, 'nav.login'),
               register: t(theme, 'nav.register'),
               providerSignup: t(theme, 'nav.providerSignup'),
@@ -209,7 +206,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
               register: t(theme, 'nav.register'),
               logout: t(theme, 'auth.logout'),
               wishlist: t(theme, 'nav.wishlist'),
-              track: t(theme, 'topbar.track'),
+              quoteList: 'Tu lista para cotizar',
               sell: t(theme, 'topbar.sell'),
               menu: t(theme, 'nav.menu'),
               groupQuick: t(theme, 'nav.group.quick'),

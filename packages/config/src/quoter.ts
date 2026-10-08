@@ -28,6 +28,14 @@ import { z } from 'zod';
 export const COTIZADOR_TIPOS = ['maquinaria', 'triturados'] as const;
 export type CotizadorTipo = (typeof COTIZADOR_TIPOS)[number];
 
+/**
+ * Los cotizadores que se OFRECEN hoy (2026-10-08). Un cotizador fuera de esta
+ * lista se queda en el código pero ninguna pantalla lo enseña; para
+ * reactivarlo basta con agregarlo aquí y encender su tabulador. Triturados se
+ * apagó y volvió el mismo día, con su nueva lista de materiales.
+ */
+export const COTIZADORES_ACTIVOS: readonly CotizadorTipo[] = ['maquinaria', 'triturados'];
+
 export function esCotizadorTipo(v: unknown): v is CotizadorTipo {
   return typeof v === 'string' && (COTIZADOR_TIPOS as readonly string[]).includes(v);
 }
@@ -365,8 +373,12 @@ export function calcularEquipo(cat: CatalogoMaquinaria, p: Extract<PartidaMaquin
   };
 }
 
-/** Orden fijo de los bloques de condiciones en el documento. */
-const COND_ORDEN_MAQUINARIA = ['renta', 'retiro', 'pipa'] as const;
+/**
+ * Orden de los bloques de condiciones en el documento. Un bloque que no esté
+ * aquí va al final en vez de perderse: antes la lista era cerrada y las
+ * condiciones de material de banco (2026-10-08) no salían en la cotización.
+ */
+const COND_ORDEN_MAQUINARIA = ['renta', 'retiro', 'banco', 'pipa'] as const;
 
 function condicionesMaquinaria(cat: CatalogoMaquinaria, partidas: PartidaMaquinaria[]): BloqueCondiciones[] {
   const claves = new Set<string>();
@@ -377,7 +389,8 @@ function condicionesMaquinaria(cat: CatalogoMaquinaria, partidas: PartidaMaquina
       if (sv) claves.add(sv.cond || 'renta');
     }
   }
-  return COND_ORDEN_MAQUINARIA
+  const orden: string[] = [...COND_ORDEN_MAQUINARIA, ...[...claves].filter((k) => !(COND_ORDEN_MAQUINARIA as readonly string[]).includes(k))];
+  return orden
     .filter((k) => claves.has(k) && cat.condiciones[k])
     .map((k) => cat.condiciones[k]);
 }

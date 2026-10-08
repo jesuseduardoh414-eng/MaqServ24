@@ -47,21 +47,8 @@ jobs:
           codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 180 "$API_URL/health" || echo 000)
           echo "health: $codigo"
 
-      - name: Cancelar órdenes impagas vencidas
-        # Devuelve el stock de lo que nadie pagó (MercadoPago 24 h, transferencia
-        # 72 h). El secreto va por cabecera y no por la URL: un query string
-        # queda escrito en los logs de acceso y en los proxies.
-        run: |
-          respuesta=$(curl -s -w '\n%{http_code}' --max-time 180 -X POST \
-            "$API_URL/tareas/ordenes-vencidas" \
-            -H "x-tasks-secret: $TASKS_SECRET")
-          codigo=$(echo "$respuesta" | tail -n1)
-          cuerpo=$(echo "$respuesta" | sed '$d')
-          echo "HTTP $codigo — $cuerpo"
-          if [ "$codigo" != "200" ] && [ "$codigo" != "201" ]; then
-            echo "::error::La tarea de órdenes vencidas respondió $codigo. Un 403 significa que el TASKS_SECRET de Render y el de GitHub no coinciden (o falta el de Render)."
-            exit 1
-          fi
+      # (2026-10-08) Se quitó "Cancelar órdenes impagas vencidas": el carrito y
+      # el pago en línea se retiraron, ya no hay órdenes que vencer.
 
       - name: Recordatorios a los aliados
         # Documentos por vencer y solicitudes sin respuesta. Si no hay SMTP

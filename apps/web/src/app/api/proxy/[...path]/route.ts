@@ -12,15 +12,13 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
  */
 const ALLOWLIST = [
   /^wishlist(\/|$)/,
-  /^orders\/coupon\/check$/,
-  // Estado en vivo del pedido (OrderStatusLive). La API filtra por el dueño.
-  /^orders\/[A-Za-z0-9_-]+$/,
+  // Sin compras en línea (2026-10-08) se quitaron orders/coupon, orders/:id,
+  // account/reviews y freight/quote: solo los usaban carrito, checkout,
+  // pedido y "Mis pedidos", que ya no existen.
   /^auth\/profile$/,
   /^auth\/change-password$/,
   /^catalog\/products$/, // buscador del cotizador (datos públicos)
   /^catalog\/products\/\d+\/(comments|questions)$/, // reseñas y preguntas del producto
-  /^account\/reviews(\/|$)/, // "Califica tus compras"
-  /^freight\/quote$/, // cotizador de traslado del carrito/checkout
   /^notifications(\/read)?$/, // campana de avisos del cliente
   /^vendor(\/|$)/,
   /**

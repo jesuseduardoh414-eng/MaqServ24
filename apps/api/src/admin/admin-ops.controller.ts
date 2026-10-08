@@ -5,65 +5,56 @@ import {
 import { z } from 'zod';
 import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/quote-validity';
 import { prisma } from '@maqserv/db';
-import { toFulfillment } from '@maqserv/types';
-import { etiquetaMetodoPago } from '../orders/orders.service';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
 import { correoCotizacionRespondida } from '../notifications/email-templates';
-import { FulfillmentService, toShipping } from '../orders/fulfillment.service';
 import { DIAS_AVISO } from '../catalog/provider-trust';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
+import { PASOS, esEstado } from '../quotes/service-flow';
 
-const PAID_STATES = new Set(['approved', 'completed', 'paid']);
+/**
+ * De dónde llegó una solicitud (rediseño de Solicitudes, 2026-10-08). El
+ * cotizador y el de máquinas lo dejan escrito en `requirements.origen`; lo que
+ * entra por el formulario "Cotizar" no lo trae y llega sin precio.
+ */
+function origenDe(req: unknown, respondedBy: string | null): 'cotizador' | 'maquina' | 'formulario' {
+  const o = req && typeof req === 'object' ? (req as { origen?: unknown }).origen : undefined;
+  if (o === 'cotizador') return 'cotizador';
+  if (o === 'maquina' || respondedBy === 'Cotizador de máquinas') return 'maquina';
+  if (respondedBy?.startsWith('Cotizador de')) return 'cotizador';
+  return 'formulario';
+}
 
-/** Operación diaria: órdenes, cotizaciones, vendedores y retiros. */
+/**
+ * Operación diaria: cotizaciones, vendedores y retiros.
+ *
+ * Las órdenes del carrito se retiraron (2026-10-08): en MAQSER24 todo se
+ * cotiza y se paga fuera del sitio. Los pedidos viejos siguen en la tabla.
+ */
 @Controller('admin')
 @UseGuards(AdminGuard)
 export class AdminOpsController {
   constructor(
     private readonly notifications: NotificationsService,
     private readonly mailer: MailerService,
-    private readonly fulfillment: FulfillmentService,
   ) {}
 
   /**
    * Resumen del panel. Responde dos preguntas: **qué necesita atención ahora** y
    * **cómo va el negocio**.
-   *
-   * Los pendientes de órdenes salen de `fulfillment`, NO del `status` legacy: esa
-   * columna es una sombra donde `pendiente` (sin pagar) y `pagado` (por preparar)
-   * caen los dos en 'pending', así que mezclaba "el cliente no ha pagado" con
-   * "tengo que preparar esto" — dos cosas que se atienden distinto.
    */
   // El tablero es la portada del panel: lo ve cualquier rol, con lo suyo.
   @Modulo('inicio')
   @Get('dashboard')
   async dashboard() {
-    /**
-     * "Clientes" contaba los 75 registrados, pero 70 son basura de pruebas del sistema
-     * viejo que nunca compró: el número que dice algo es cuántos han comprado. Son dos
-     * consultas encadenadas (`users` no declara relación con `orders` — el esquema viene
-     * del Laravel viejo, sin llaves foráneas), pero la cadena viaja DENTRO del
-     * `Promise.all` de abajo para que corra a la vez que las otras 13 en vez de esperar
-     * a que terminen: cada viaje a Supabase cuesta ~100 ms.
-     */
-    const customersP = prisma.orders.groupBy({ by: ['user_id'] }).then((buyers) => {
-      const ids = buyers.map((b) => b.user_id);
-      return ids.length ? prisma.users.count({ where: { id: { in: ids } } }) : 0;
-    });
-
     const [
-      products, orders, unpaid, toPrepare, shipped, quotes, pendingQuotes,
+      products, quotes, pendingQuotes,
       vendorsPending, withdrawsPending, withdrawsAmount, unansweredQuestions,
-      pendingReviews, sold, customers, docsExpired, docsExpiring, pendingMessages,
+      pendingReviews, docsExpired, docsExpiring, pendingMessages,
       pendingQuoterRequests, pendingOffers,
     ] = await Promise.all([
       prisma.products.count({ where: { status: 1 } }),
-      prisma.orders.count(),
-      prisma.orders.count({ where: { fulfillment: 'pendiente' } }),
-      prisma.orders.count({ where: { fulfillment: 'pagado' } }),
-      prisma.orders.count({ where: { fulfillment: 'enviado' } }),
       prisma.quotes.count(),
       prisma.quotes.count({ where: { status: 'pending' } }),
       prisma.users.count({ where: { is_vendor: 1 } }),
@@ -71,9 +62,6 @@ export class AdminOpsController {
       prisma.withdraws.aggregate({ where: { status: 'pending' }, _sum: { amount: true } }),
       prisma.product_questions.count({ where: { answer: null, status: 1 } }),
       prisma.site_reviews.count({ where: { status: 0 } }),
-      // Vendido = lo pedido sin las canceladas (mismo criterio que la ficha del cliente).
-      prisma.orders.aggregate({ where: { status: { not: 'declined' } }, _sum: { pay_amount: true } }),
-      customersP,
       // Expedientes que piden atención (documento institucional, 23). Se cuentan
       // ALIADOS, no documentos: a quien hay que llamarle es al aliado, y tres
       // papeles vencidos del mismo son una sola llamada.
@@ -105,120 +93,13 @@ export class AdminOpsController {
 
     return {
       // Por atender
-      toPrepare, shipped, unpaid, pendingQuotes, vendorsPending,
+      pendingQuotes, vendorsPending,
       docsExpired, docsExpiring, pendingMessages, pendingQuoterRequests, pendingOffers,
       withdrawsPending, withdrawsAmount: withdrawsAmount._sum.amount ?? 0,
       unansweredQuestions, pendingReviews,
       // Negocio
-      sold: sold._sum.pay_amount ?? 0,
-      orders, quotes, products, customers,
+      quotes, products,
     };
-  }
-
-  // ---- Órdenes ----
-
-  /**
-   * Lista de órdenes. El eje principal es `fulfillment` (módulo de envíos); el `status`
-   * legacy solo viaja para las órdenes viejas que aún no tienen envío.
-   */
-  @Modulo('ordenes')
-  @Get('orders')
-  async orders(
-    @Query('page') page?: string,
-    @Query('state') state?: string,
-    @Query('search') search?: string,
-  ) {
-    const p = Math.max(1, Number(page ?? 1) || 1);
-    const where: Record<string, unknown> = {};
-    if (state) where.fulfillment = state;
-    // Sin `mode`: la colación utf8mb4_unicode_ci de MySQL ya ignora mayúsculas y acentos (Postgres necesitaba `mode: 'insensitive'`, que MySQL no admite).
-    const term = search?.trim();
-    if (term) {
-      where.OR = [
-        { order_number: { contains: term } },
-        { customer_name: { contains: term } },
-        { customer_email: { contains: term } },
-        // El folio de la paquetería: el cliente llama citando la guía, no el pedido.
-        { tracking: { contains: term } },
-      ];
-    }
-    const [total, rows, byState] = await Promise.all([
-      prisma.orders.count({ where }),
-      // `select` explícito SIN `cart`: es un bytea con el carrito completo y el
-      // listado no lo usa — 20 filas × blob por página era puro peso muerto.
-      prisma.orders.findMany({
-        where, orderBy: { id: 'desc' }, skip: (p - 1) * 20, take: 20,
-        select: {
-          id: true, order_number: true, customer_name: true, customer_email: true,
-          method: true, pay_amount: true, status: true, payment_status: true,
-          created_at: true, fulfillment: true, ship_method: true, carrier: true,
-          tracking: true, ship_unit: true, branch: true, scheduled_at: true,
-          shipped_at: true, delivered_at: true, returned_at: true, ship_notes: true,
-        },
-      }),
-      // Contadores GLOBALES (sin filtro): alimentan las pestañas y las tarjetas.
-      prisma.orders.groupBy({ by: ['fulfillment'], _count: { _all: true } }),
-    ]);
-    const counts: Record<string, number> = {};
-    let all = 0;
-    for (const r of byState) {
-      if (r.fulfillment) counts[r.fulfillment] = r._count._all;
-      all += r._count._all;
-    }
-    counts.all = all;
-    return {
-      total, page: p, pages: Math.max(1, Math.ceil(total / 20)), counts,
-      items: rows.map((o) => ({
-        id: o.id,
-        orderNumber: o.order_number,
-        customer: o.customer_name,
-        email: o.customer_email,
-        method: etiquetaMetodoPago(o.method),
-        total: o.pay_amount,
-        status: o.status,
-        paymentStatus: o.payment_status,
-        createdAt: o.created_at ? o.created_at.toISOString() : null,
-        shipping: toShipping(o),
-      })),
-    };
-  }
-
-  /**
-   * Estado del PAGO. El estado del ENVÍO se mueve en `admin/orders/:id/state`
-   * (AdminFulfillmentController): tener dos caminos para moverlo desincronizaría el
-   * historial y el `status` legacy.
-   */
-  @Modulo('ordenes')
-  @Patch('orders/:id')
-  async updateOrder(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
-    const schema = z.object({ paymentStatus: z.string().max(50) });
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) throw new BadRequestException('Datos inválidos');
-    const o = await prisma.orders.findUnique({ where: { id } });
-    if (!o) throw new NotFoundException();
-    await prisma.orders.update({
-      where: { id },
-      data: { payment_status: parsed.data.paymentStatus, updated_at: new Date() },
-    });
-
-    const nowPaid = PAID_STATES.has(parsed.data.paymentStatus.toLowerCase());
-    const wasPaid = PAID_STATES.has((o.payment_status ?? '').toLowerCase());
-    if (nowPaid && !wasPaid) {
-      await this.notifications.push({
-        userId: o.user_id, type: 'payment_confirmed',
-        title: `Confirmamos el pago de tu pedido ${o.order_number}`,
-        body: 'Ya podemos programar el traslado de tu equipo.',
-        link: `/pedido/${o.order_number}`, orderId: o.id,
-      });
-      // Confirmar el pago adelanta el envío a "Pagado" (en silencio: el aviso ya salió
-      // arriba). Solo desde `pendiente`: no regresar una orden que ya va en camino.
-      if (toFulfillment(o.fulfillment) === 'pendiente') {
-        await this.fulfillment.setState(o, 'pagado', {
-          adminId: req.adminId, note: 'Pago confirmado desde el panel', silent: true,
-        });
-      }
-    }
-    return { ok: true };
   }
 
   // ---- Cotizaciones ----
@@ -256,6 +137,16 @@ export class AdminOpsController {
         respondedBy: q.responded_by,
         acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
         serviceCategory: q.service_category,
+        // Lo que hace falta para seguir la solicitud de punta a punta en una
+        // sola pantalla: de dónde llegó, qué pidió y en qué va el servicio.
+        origen: origenDe(q.requirements, q.responded_by),
+        productInterested: q.product_interested,
+        address: q.address,
+        region: q.region,
+        tax: Number(q.tax),
+        respondedAt: q.responded_at ? q.responded_at.toISOString() : null,
+        serviceState: q.service_state,
+        serviceLabel: esEstado(q.service_state) ? PASOS[q.service_state].label : null,
         requirements: q.requirements ?? null,
         conditions: q.conditions,
         comments: q.comments,

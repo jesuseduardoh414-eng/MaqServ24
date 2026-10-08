@@ -44,7 +44,7 @@ export function Band({ block, kind, maxWidth = 1240, titleTag: Title = 'h2' }: {
             <p style={{ margin: 0, color: `color-mix(in srgb, ${textColor} 78%, transparent)`, fontSize: big ? 16.5 : 15.5, lineHeight: 1.6, maxWidth: 500 }}>{block.subtitle}</p>
           ) : null}
           {block.cta ? (
-            <Link href={block.ctaLink || '/productos'} className="ms-btn ms-btn-lg" style={{ marginTop: 6, background: accent }}>{block.cta}<Icon name="arrowRight" size={17} /></Link>
+            <Link href={block.ctaLink || '/servicios'} className="ms-btn ms-btn-lg" style={{ marginTop: 6, background: accent }}>{block.cta}<Icon name="arrowRight" size={17} /></Link>
           ) : null}
         </div>
       </div>

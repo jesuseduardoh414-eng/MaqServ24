@@ -89,6 +89,7 @@ export {
 } from './admin-roles';
 export {
   COTIZADOR_TIPOS,
+  COTIZADORES_ACTIVOS,
   COTIZADORES_META,
   PASOS_MAQUINARIA,
   PASOS_TRITURADOS,
@@ -175,3 +176,11 @@ export {
   type TipoProveedor,
   type OfertaProveedor,
 } from './registro-proveedor';
+export {
+  TIPOS_ALIADO,
+  TIPO_POR_LINEA,
+  tiposDeAliado,
+  ofertaDe,
+  type TipoAliado,
+  type DefinicionTipoAliado,
+} from './tipos-aliado';

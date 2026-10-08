@@ -252,8 +252,8 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
     getCategories().catch(() => []),
   ]);
   const products = (featured.length > 0 ? featured : (await getProducts({}).catch(() => ({ items: [] }))).items).slice(0, f.limit);
-  // "Ver todo" va al listado del tipo que se está enseñando (hoy, servicios).
-  const verTodo = products.length > 0 && products.every((p) => p.kind === 'producto') ? '/productos' : '/servicios';
+  // "Ver todo" siempre a /servicios (2026-10-08): /productos ya solo redirige.
+  const verTodo = '/servicios';
   if (products.length === 0) return null;
 
   const isCenter = f.align === 'center';
@@ -488,7 +488,7 @@ export async function OfferSection({ theme }: { theme: Theme }) {
   const bg = cfg?.bg ?? 'var(--band)';
   const accent = cfg?.accentColor ?? 'var(--color-primary)';
   const titleColor = cfg?.titleColor ?? '#fff';
-  const ctaLink = cfg?.ctaLink || '/productos';
+  const ctaLink = cfg?.ctaLink || '/servicios'; // /productos ya solo redirige (2026-10-08)
   return (
     <section style={{ ...CONTAINER, paddingTop: 80, paddingBottom: 80 }}>
       {/* Borde gunmetal: en oscuro la banda es negra como la página, y sin él

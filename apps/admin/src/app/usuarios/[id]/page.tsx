@@ -1,10 +1,9 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { FULFILLMENT, VENDOR_STATES, type Fulfillment, type VendorState } from '@maqserv/types';
+import { VENDOR_STATES, type VendorState } from '@maqserv/types';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { D, FONT } from '@/components/design-tokens';
-import { PAY_STATUS, labelOf, stateColor } from '../../ordenes/order-status';
 
 interface CustomerDetail {
   id: number;
@@ -16,7 +15,6 @@ interface CustomerDetail {
   shopName: string | null;
   profile: { address: string | null; city: string | null; zip: string | null; residency: string | null };
   stats: { orders: number; spent: number; quotes: number; comments: number; questions: number };
-  orders: Array<{ id: number; orderNumber: string; total: number; status: string; paymentStatus: string; fulfillment: Fulfillment | null; items: number; createdAt: string | null }>;
   quotes: Array<{ id: number; quoteNumber: string; total: number; status: string; createdAt: string | null }>;
   comments: Array<{ id: number; productId: number; product: string; rating: number | null; text: string; status: number; createdAt: string }>;
   questions: Array<{ id: number; productId: number; product: string; question: string; answered: boolean; createdAt: string }>;
@@ -92,8 +90,6 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
         {/* Resumen */}
         <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
           {[
-            { label: 'Pedidos', value: String(c.stats.orders), color: c.stats.orders > 0 ? GREEN : '#4C4C51' },
-            { label: 'En pedidos', value: money(c.stats.spent), color: c.stats.spent > 0 ? D.amber : '#4C4C51' },
             { label: 'Cotizaciones', value: String(c.stats.quotes), color: '#B4B4B9' },
             { label: 'Opiniones', value: String(c.stats.comments), color: '#B4B4B9' },
             { label: 'Preguntas', value: String(c.stats.questions), color: '#B4B4B9' },
@@ -107,43 +103,8 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
 
         <div className="cd-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 18, marginTop: 18, alignItems: 'start' }}>
           <div style={{ display: 'grid', gap: 18 }}>
-            {/* --- Pedidos: el motivo de esta ficha --- */}
-            <div style={card}>
-              <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Pedidos</h2>
-              {c.orders.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 13, color: '#7A7A7F' }}>Este cliente nunca ha comprado.</p>
-              ) : (
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {c.orders.map((o, i) => {
-                    // El envío manda; el `status` legacy solo si la orden es anterior al módulo.
-                    const fColor = o.fulfillment ? stateColor(o.fulfillment) : D.muted2;
-                    const fLabel = o.fulfillment ? FULFILLMENT[o.fulfillment].label : o.status;
-                    const pay = labelOf(PAY_STATUS, o.paymentStatus);
-                    return (
-                      <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', paddingBottom: 12, borderBottom: i < c.orders.length - 1 ? `1px solid ${D.cardBorder}` : undefined }}>
-                        <div style={{ minWidth: 0 }}>
-                          <Link href={`/ordenes/${o.id}`} className="cd-link" style={{ fontFamily: MONO, fontSize: 12.5, fontWeight: 600, color: '#EDEDEC', textDecoration: 'none' }}>
-                            {o.orderNumber}
-                          </Link>
-                          <div style={{ fontSize: 11, color: '#5C5C61', marginTop: 4 }}>
-                            {short(o.createdAt)}{o.items > 0 ? ` · ${o.items} ${o.items === 1 ? 'equipo' : 'equipos'}` : ''}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: pay.color }}>{pay.label}</span>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: fColor, background: `color-mix(in srgb, ${fColor} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${fColor} 26%, transparent)`, borderRadius: 20, padding: '4px 9px' }}>
-                            <span style={{ width: 5, height: 5, borderRadius: '50%', background: fColor }} />
-                            {fLabel}
-                          </span>
-                          <span style={{ fontFamily: MONO, fontSize: 13.5, fontWeight: 600, color: '#FBFBFA', minWidth: 88, textAlign: 'right' }}>{money(o.total)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
+            {/* Los pedidos del carrito se retiraron (2026-10-08): lo que el cliente
+                pide ahora son cotizaciones. */}
             {/* --- Cotizaciones --- */}
             {c.quotes.length > 0 ? (
               <div style={card}>

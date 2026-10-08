@@ -1,15 +1,16 @@
-import type { Metadata } from 'next';
-import { metadataDetalle, PaginaDetalle } from './detalle';
+import { permanentRedirect } from 'next/navigation';
 
 type Params = { slug: string };
 
-/** Ficha de un producto. Si el slug es de un servicio, `PaginaDetalle` redirige a /servicios. */
-export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
+/**
+ * /productos/<slug> → /servicios/<slug>, permanente (2026-10-08).
+ *
+ * Sin venta en línea ya no hay fichas "de producto": toda ficha vive bajo
+ * /servicios y se cotiza. Esta ruta solo existe para que los enlaces viejos
+ * sigan funcionando. `detalle.tsx` y `ProductDetailView.tsx` se quedan en esta
+ * carpeta porque los importa /servicios/[slug].
+ */
+export default async function ProductoRedirect({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  return metadataDetalle(slug);
-}
-
-export default async function ProductPage({ params }: { params: Promise<Params> }) {
-  const { slug } = await params;
-  return PaginaDetalle({ slug, base: '/productos' });
+  permanentRedirect(`/servicios/${encodeURIComponent(slug)}`);
 }

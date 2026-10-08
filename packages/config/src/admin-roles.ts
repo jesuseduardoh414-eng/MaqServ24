@@ -11,12 +11,13 @@ import { MARKETPLACE_ACTIVO } from './marketplace';
  *
  * CUATRO DECISIONES QUE VALE LA PENA DEJAR ESCRITAS:
  *
- * 1. La sección 24 define DIEZ funciones, no cuatro. Varias no tocan el panel
- *    (Legal, Producto y Tecnología) y otras se solapan en la práctica
- *    (Comercial y Atención atienden la misma pantalla). Aquí quedan los cuatro
- *    equipos que SÍ operan el panel, más Dirección, que es la única que
- *    administra cuentas. El propio documento lo autoriza: "en etapas tempranas
- *    una misma persona puede cubrir varias funciones".
+ * 1. Los roles son los TRES participantes internos de la sección 14 del
+ *    documento: Dirección, Operaciones y Administración (decisión del cliente,
+ *    2026-10-08). Antes había cinco, sacados de la sección 24 (Red de Aliados,
+ *    Comercial y Atención, Marca y Crecimiento); el trabajo de esos tres lo
+ *    absorbe Operaciones (proveedores, clientes, mensajes) y Dirección (el
+ *    sitio web). El documento lo autoriza: "en etapas tempranas una misma
+ *    persona puede cubrir varias funciones".
  *
  * 2. El permiso es por MÓDULO, no por acción. Un rol ve una pantalla o no la
  *    ve. Partirlo en leer/escribir duplicaría la matriz para resolver un
@@ -39,7 +40,8 @@ export const MODULOS_ADMIN = [
   'indicadores',
   'catalogo',
   'disponibilidad',
-  'ordenes',
+  // 'ordenes' se retiró con el carrito (2026-10-08): un permiso guardado con
+  // ese nombre lo descarta normalizarModulos.
   'cotizaciones',
   // El cotizador interno (maquinaria y triturados) va aparte de 'cotizaciones'.
   // No son lo mismo: 'cotizaciones' es la BANDEJA de lo que pide el cliente;
@@ -50,6 +52,9 @@ export const MODULOS_ADMIN = [
   'servicios',
   'agenda',
   'clientes',
+  // Cobranza, pagos a aliados, margen y conciliación (2026-10-08). El módulo se
+  // construye después; el permiso existe ya para el rol Administración.
+  'administracion',
   'proveedores',
   'marketplace',
   'comunidad',
@@ -83,23 +88,23 @@ export const MODULOS_VISIBLES: readonly ModuloAdmin[] = MODULOS_ADMIN.filter((m)
 export const MODULOS_META: Record<ModuloAdmin, { nombre: string; detalle: string }> = {
   inicio: { nombre: 'Inicio', detalle: 'Tablero de lo que hay que atender. No se le puede quitar a nadie.' },
   indicadores: { nombre: 'Indicadores', detalle: 'Ventas, cotizaciones y desempeño.' },
-  catalogo: { nombre: 'Catálogo', detalle: 'Productos y categorías del sitio.' },
+  catalogo: { nombre: 'Catálogo', detalle: 'Inventario y categorías.' },
   disponibilidad: { nombre: 'Disponibilidad', detalle: 'Qué equipo está libre y cuándo.' },
-  ordenes: { nombre: 'Órdenes', detalle: 'Pedidos, pagos, envíos y su estado.' },
   cotizaciones: { nombre: 'Cotizaciones', detalle: 'La bandeja de lo que pide el cliente.' },
   cotizador: { nombre: 'Cotizador', detalle: 'La herramienta de precio y el tabulador de tarifas.' },
   servicios: { nombre: 'Servicios', detalle: 'Lo que está en curso, asignaciones e incidencias.' },
   agenda: { nombre: 'Agenda', detalle: 'Lo que viene en los próximos días.' },
   clientes: { nombre: 'Clientes y obras', detalle: 'Las empresas que contratan y sus frentes abiertos.' },
+  administracion: { nombre: 'Administración', detalle: 'Cobranza a clientes, pagos a aliados, margen y conciliación.' },
   proveedores: { nombre: 'Proveedores', detalle: 'La red de aliados, sus papeles y su desempeño.' },
   marketplace: { nombre: 'Marketplace', detalle: 'Vendedores y RETIROS DE DINERO.' },
   comunidad: { nombre: 'Comunidad', detalle: 'Cuentas, reseñas, preguntas, mensajes y suscriptores.' },
   diseno: { nombre: 'Diseño del sitio', detalle: 'Secciones del home, textos, colores, blog y marca.' },
-  configuracion: { nombre: 'Configuración', detalle: 'Correo, pasarelas de pago y traslado.' },
+  configuracion: { nombre: 'Configuración', detalle: 'Correo y ajustes generales.' },
   admins: { nombre: 'Administradores', detalle: 'Las cuentas del panel y estos permisos.' },
 };
 
-export type RolAdmin = 'direccion' | 'operaciones' | 'red' | 'comercial' | 'marca';
+export type RolAdmin = 'direccion' | 'operaciones' | 'administracion';
 
 export interface DefinicionRol {
   clave: RolAdmin;
@@ -114,44 +119,44 @@ export const ROLES_ADMIN: Record<RolAdmin, DefinicionRol> = {
   direccion: {
     clave: 'direccion',
     nombre: 'Dirección General',
-    descripcion: 'Estrategia, prioridades, alianzas y gobierno. Único rol que administra cuentas y permisos.',
+    descripcion: 'Medir crecimiento y calidad: KPIs de demanda, oferta, conversión, tiempo, margen, repetición y cumplimiento. Único rol que administra cuentas, permisos, tarifas y el sitio web.',
     modulos: null,
   },
   operaciones: {
     clave: 'operaciones',
     nombre: 'Operaciones',
-    descripcion: 'Solicitudes, asignaciones, logística, incidencias y cumplimiento.',
-    // 'catalogo' entró después: Operaciones coordina los equipos y no podía
-    // corregir la ficha del equipo que estaba coordinando.
+    descripcion: 'Coordinar sin perder control: solicitudes, cotizaciones, asignaciones, servicios, proveedores, clientes, alertas, documentos y excepciones.',
+    // Incluye lo que hacían Red de Aliados (proveedores, inventario,
+    // disponibilidad) y Comercial (clientes, mensajes, reseñas, preguntas).
     modulos: [
-      'inicio', 'indicadores', 'catalogo', 'ordenes', 'cotizaciones', 'cotizador', 'servicios',
-      'agenda', 'clientes', 'disponibilidad', 'proveedores',
+      'inicio', 'indicadores', 'catalogo', 'disponibilidad', 'cotizaciones', 'cotizador', 'servicios',
+      'agenda', 'clientes', 'proveedores', 'comunidad',
     ],
   },
-  red: {
-    clave: 'red',
-    nombre: 'Red de Aliados',
-    descripcion: 'Prospección, alta, validación, inventario, disponibilidad y desempeño de proveedores.',
-    modulos: ['inicio', 'indicadores', 'catalogo', 'disponibilidad', 'proveedores', 'marketplace'],
-  },
-  comercial: {
-    clave: 'comercial',
-    nombre: 'Comercial y Atención',
-    descripcion: 'Adquisición de clientes, cuentas, obras, seguimiento, conversión y resolución de fricciones.',
-    // 'ordenes' entró después: cerraba la venta y no veía el pedido que salía
-    // de ella, que es justo lo que el cliente le pregunta por teléfono.
-    modulos: ['inicio', 'indicadores', 'ordenes', 'cotizaciones', 'cotizador', 'clientes', 'comunidad'],
-  },
-  marca: {
-    clave: 'marca',
-    nombre: 'Marca y Crecimiento',
-    descripcion: 'Comunicación, campañas, contenido y consistencia de identidad.',
-    modulos: ['inicio', 'indicadores', 'diseno'],
+  administracion: {
+    clave: 'administracion',
+    nombre: 'Administración',
+    descripcion: 'Controlar transacciones y evidencias: información de servicio, precios, cargos, documentos y reportes.',
+    // Hoy su módulo está en "Pronto". Ver servicios y solicitudes sin poder
+    // moverlos necesita el permiso de solo consulta, que todavía no existe:
+    // por eso no se le dan aquí (podría editarlos).
+    modulos: ['inicio', 'indicadores', 'administracion'],
   },
 };
 
 /** El rol con menos alcance. A donde cae cualquier valor que no reconocemos. */
-export const ROL_POR_DEFECTO: RolAdmin = 'marca';
+export const ROL_POR_DEFECTO: RolAdmin = 'administracion';
+
+/**
+ * Roles que existieron y ya no (2026-10-08). Una cuenta que todavía los traiga
+ * cae en el rol que absorbió su trabajo; Marca no sube a Dirección (sería
+ * regalar acceso total): cae en el de menos alcance y Dirección decide.
+ */
+const ROLES_RETIRADOS: Record<string, RolAdmin> = {
+  red: 'operaciones',
+  comercial: 'operaciones',
+  marca: ROL_POR_DEFECTO,
+};
 
 /**
  * Normaliza lo que venga de la columna `admins.role`.
@@ -164,6 +169,7 @@ export function rolDeAdmin(valor: string | null | undefined): RolAdmin {
   const v = (valor ?? '').trim();
   if (v === 'Administrator') return 'direccion';
   if ((Object.keys(ROLES_ADMIN) as RolAdmin[]).includes(v as RolAdmin)) return v as RolAdmin;
+  if (v in ROLES_RETIRADOS) return ROLES_RETIRADOS[v];
   return ROL_POR_DEFECTO;
 }
 

@@ -90,20 +90,31 @@ export function AvisosBell() {
 
   const consultar = useCallback(async () => {
     try {
-      const r = await fetch(`/api/admin/avisos${cargado.current ? `?despues=${ultimo.current}` : ''}`, { cache: 'no-store' });
+      /*
+       * Se decide ANTES de pedir si esta vuelta es la carga inicial o una de
+       * "lo nuevo" (2026-10-08). Antes se leía `cargado` al llegar la
+       * respuesta: con dos consultas al montar (StrictMode, o volver a la
+       * pestaña mientras carga) la segunda llegaba con `cargado` ya en true,
+       * tomaba la lista completa por nueva y el letrero repetía el último aviso
+       * en cada pantalla que se abría.
+       */
+      const despues = cargado.current ? ultimo.current : null;
+      const r = await fetch(`/api/admin/avisos${despues !== null ? `?despues=${despues}` : ''}`, { cache: 'no-store' });
       if (!r.ok) return;
       const d = (await r.json()) as { items: Aviso[]; unread: number; ultimo: number };
       setUnread(d.unread);
-      if (!cargado.current) {
+      if (despues === null) {
+        if (!cargado.current) setAvisos(d.items);
         cargado.current = true;
-        setAvisos(d.items);
-        ultimo.current = d.ultimo;
+        ultimo.current = Math.max(ultimo.current, d.ultimo);
         return;
       }
-      if (d.items.length === 0) return;
+      // Solo lo que de verdad es posterior a lo ya visto en esta pestaña.
+      const nuevos = d.items.filter((n) => n.id > ultimo.current);
+      if (nuevos.length === 0) return;
       ultimo.current = Math.max(ultimo.current, d.ultimo);
-      setAvisos((prev) => [...d.items, ...prev.filter((p) => !d.items.some((n) => n.id === p.id))].slice(0, 30));
-      const nuevo = d.items[0];
+      setAvisos((prev) => [...nuevos, ...prev.filter((p) => !nuevos.some((n) => n.id === p.id))].slice(0, 30));
+      const nuevo = nuevos[0];
       sonar();
       setLetrero(nuevo);
       window.dispatchEvent(new Event('adm:avisos'));

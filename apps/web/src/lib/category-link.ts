@@ -1,5 +1,3 @@
-import { rutaDeCatalogo, tipoDeCatalogo } from '@maqserv/config';
-
 /**
  * A dónde lleva la tarjeta de una categoría de servicio.
  *
@@ -7,7 +5,7 @@ import { rutaDeCatalogo, tipoDeCatalogo } from '@maqserv/config';
  * materiales para construcción, soluciones asfálticas— no tienen inventario, y
  * no es un descuido: no son SKUs. Una pipa se mide por viaje, un triturado por
  * tonelada y el concreto por metro cúbico, así que no viven en un catálogo.
- * Mandarlas a `/productos` enseñaría una parrilla vacía; van directo a cotizar
+ * Mandarlas al catálogo enseñaría una parrilla vacía; van directo a cotizar
  * con el servicio ya indicado.
  *
  * La regla es por conteo y no por una lista fija de slugs a propósito: si el
@@ -15,9 +13,10 @@ import { rutaDeCatalogo, tipoDeCatalogo } from '@maqserv/config';
  * tocar código.
  */
 export function categoryHref(c: { slug: string; productCount: number }): string {
-  // Servicios y productos viven en listados distintos (2026-09-25).
+  // Todo va a /servicios (2026-10-08): sin venta en línea, /productos ya solo
+  // redirige ahí y enlazarlo directo ahorra el salto.
   return c.productCount > 0
-    ? `${rutaDeCatalogo(tipoDeCatalogo(c.slug))}?categoria=${c.slug}`
+    ? `/servicios?categoria=${c.slug}`
     : `/cotizar?servicio=${encodeURIComponent(c.slug)}`;
 }
 

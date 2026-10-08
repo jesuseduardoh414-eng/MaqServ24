@@ -14,7 +14,7 @@ const menuItemStyle: React.CSSProperties = {
 
 /**
  * Zona derecha del header (cliente) al estilo SEGAshop: buscador desplegable,
- * favoritos, carrito con contador y sesión/registro. La sesión se hidrata en
+ * favoritos, lista para cotizar con contador y sesión/registro. La sesión se hidrata en
  * cliente para que las páginas puedan seguir siendo estáticas (ISR).
  * Estilos: solo tokens del tema.
  */
@@ -24,7 +24,8 @@ export function HeaderActions({
   labels: {
     search: string;
     wishlist: string;
-    cart: string;
+    /** Icono de la lista de equipos para cotizar (antes, el carrito). */
+    quoteList: string;
     login: string;
     register: string;
     /** "Regístrate como proveedor": siempre visible, con o sin sesión. */
@@ -88,7 +89,7 @@ export function HeaderActions({
   };
 
   return (
-    // En móvil sobreviven aquí solo buscar y carrito; favoritos, avisos y
+    // En móvil sobreviven aquí solo buscar y la lista para cotizar; favoritos, avisos y
     // sesión se mueven al drawer (ver `.hdr-fav` / `.hdr-auth` en globals.css).
     <div className="hdr-actions" style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
       <button type="button" className="hdr-icon" title={`${labels.search} (Ctrl+K)`} aria-label={labels.search} aria-expanded={searchOpen} data-buscador-toggle style={iconBtn} onClick={() => setSearchOpen((v) => !v)}>
@@ -103,8 +104,11 @@ export function HeaderActions({
         {favCount > 0 ? <span style={{ position: 'absolute', top: 7, right: 7, width: 8, height: 8, background: 'var(--color-primary)', borderRadius: '50%', border: '1.5px solid var(--color-surface)' }} /> : null}
       </Link>
 
-      <Link href="/carrito" className="hdr-icon" title={labels.cart} aria-label={labels.cart} style={iconBtn}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 2h2.5l2.2 12.4a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.2L21 6H5.5" /></svg>
+      {/* Antes era el carrito (/carrito). Sin compras en línea (2026-10-08) el
+          mismo contador es la lista de equipos que el cliente quiere cotizar,
+          y el icono lleva a /cotizar, que la toma de `useCart`. */}
+      <Link href="/cotizar" className="hdr-icon" title={labels.quoteList} aria-label={cart.count > 0 ? `${labels.quoteList} (${cart.count})` : labels.quoteList} style={iconBtn}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1" /><path d="M9 10h6M9 14h6M9 18h3" /></svg>
         {cart.count > 0 ? (
           <span style={{ position: 'absolute', top: 2, right: 2, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999, background: 'var(--color-secondary)', color: '#fff', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--color-surface)', fontVariantNumeric: 'tabular-nums' }}>{cart.count}</span>
         ) : null}

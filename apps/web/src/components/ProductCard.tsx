@@ -8,11 +8,11 @@ import type { ProductCard as ProductCardDto } from '@maqserv/types';
 import { UNIDADES, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { formatPrice } from '@/lib/format';
-import { useCart } from '@/components/CartProvider';
 import { AvailabilityBadge, CHIP_BG, CHIP_BORDER, CHIP_FG } from '@/components/AvailabilityBadge';
 import { estadoDeProducto } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
 import { Icon } from '@/components/Icon';
+import { AgregarACotizacion } from '@/components/AgregarACotizacion';
 
 // Panel radial de la foto del producto. Era claro (#ffffff -> #e9ebef) del
 // diseño anterior; en una identidad dark-first un recuadro blanco por tarjeta
@@ -37,8 +37,9 @@ export function Price({ theme, price, oldPrice }: { theme: Theme; price: number 
 
 /**
  * Card de producto (diseño "Productos - Destacados y Catálogo"): panel de imagen
- * radial claro + badge + marca + nombre + specs + precio + botón Agregar.
- * Auto-contenida: usa el carrito y la wishlist. Se usa en el home (destacados),
+ * radial claro + badge + marca + nombre + specs + precio + botón Cotizar.
+ * Auto-contenida: usa la wishlist. Sin "Agregar al carrito" desde 2026-10-08:
+ * ya no se vende nada en línea, todo se cotiza. Se usa en el home (destacados),
  * catálogo, favoritos y tienda. Estilos por tokens del tema.
  */
 /**
@@ -55,10 +56,8 @@ function unidadCorta(p: { isRental: boolean; priceUnit: string | null }): string
 }
 
 export function ProductCard({ product: p, theme, initialFaved = false }: { product: ProductCardDto; theme: Theme; initialFaved?: boolean }) {
-  const cart = useCart();
   const router = useRouter();
   const [faved, setFaved] = useState(initialFaved);
-  const [added, setAdded] = useState(false);
   // Foto que no carga (p. ej. un enlace roto en Storage): se cae a las rayas
   // en vez de enseñar el icono roto con el texto alternativo encima.
   const [imgFail, setImgFail] = useState(false);
@@ -76,10 +75,10 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
       : p.isRental
         ? t(theme, 'product.badge.rental')
         : null;
-  // Un SERVICIO no va al carrito: su precio es "desde" y se cierra en el cotizador.
+  // Un SERVICIO enseña "Se cotiza" en vez de importe. Toda ficha vive bajo
+  // /servicios (2026-10-08): /productos/<slug> solo redirige.
   const esServicio = p.kind === 'servicio';
-  const ficha = `${esServicio ? '/servicios' : '/productos'}/${p.slug}`;
-  const canAdd = !quoteMode && !esServicio && p.inStock && !p.isRental && p.price !== null;
+  const ficha = `/servicios/${p.slug}`;
   // El modo (renta/venta) y la DISPONIBILIDAD ya no van juntos en una cadena:
   // el manual pide que el estado se lea de un vistazo y con su propio color
   // (21 / ESTADOS DE DISPONIBILIDAD).
@@ -89,11 +88,6 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
   const quoteHref = `/cotizar?producto=${p.slug}`;
   const quoteOnly = quoteMode || esServicio || p.price === null; // servicio o sin precio: cotizar es la acción
 
-  function add() {
-    cart.add({ productId: p.id, slug: p.slug, name: p.name, price: p.price ?? 0, image: p.image });
-    setAdded(true);
-    window.setTimeout(() => setAdded(false), 1400);
-  }
   async function toggleFav() {
     const res = await fetch('/api/proxy/wishlist/toggle', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: p.id }),
@@ -163,16 +157,16 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
           </div>
           <div className="prod-card-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
             {quoteOnly ? (
-              <Link href={quoteHref} data-evento="producto_cotizar" className="ms-btn ms-btn-sm">{t(theme, 'product.card.quote')}</Link>
+              <>
+                <Link href={quoteHref} data-evento="producto_cotizar" className="ms-btn ms-btn-sm">{t(theme, 'product.card.quote')}</Link>
+                {/* Para juntar varios en una sola solicitud (lista del encabezado). */}
+                <AgregarACotizacion item={{ id: p.id, slug: p.slug, name: p.name, image: p.image, isRental: p.isRental }} />
+              </>
             ) : (
               <>
-                {canAdd ? (
-                  <button type="button" onClick={add} className="ms-btn ms-btn-sm" data-evento="producto_agregar">
-                    {added ? <><Icon name="check" size={14} />{t(theme, 'product.card.added')}</> : <><Icon name="cart" size={14} />{t(theme, 'product.card.add')}</>}
-                  </button>
-                ) : (
-                  <Link href={ficha} className="ms-btn ms-btn-sm ms-btn-sec">{t(theme, 'product.card.view')}</Link>
-                )}
+                {/* Antes, un producto con precio y en existencia llevaba aquí
+                    "Agregar" al carrito. Sin compras en línea solo queda la ficha. */}
+                <Link href={ficha} className="ms-btn ms-btn-sm ms-btn-sec">{t(theme, 'product.card.view')}</Link>
                 <Link href={quoteHref} data-evento="producto_cotizar" className="ms-link" style={{ fontSize: 12.5 }}>{t(theme, 'product.card.quote')}<Icon name="arrowRight" size={12} /></Link>
               </>
             )}

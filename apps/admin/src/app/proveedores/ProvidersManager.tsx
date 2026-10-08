@@ -9,6 +9,7 @@ import { SolicitudesProveedor } from './SolicitudesProveedor';
 import { ProviderHistory } from './ProviderHistory';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
 import { QueOfrece, categoriasDelTipo, faltaEnOferta, tipoDeCategorias, type TipoOferta } from './QueOfrece';
+import { CostosReferencia, DescargarExcelProveedores } from './CostosReferencia';
 
 export interface ProviderRow {
   id: number;
@@ -275,13 +276,16 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         <div>
           <h1 className="adm-page-title">Red de aliados</h1>
           <p style={{ color: C.muted, fontSize: 14, margin: '6px 0 0' }}>
-            Proveedores que aportan capacidad. El sello de verificado no se pone a mano:
-            sale del nivel y de que sus documentos estén vigentes.
+            Proveedores que aportan capacidad: su expediente, papeles, cobertura y lo que te cobran (antes el CRM).
+            El sello de verificado no se pone a mano: sale del nivel y de que sus documentos estén vigentes.
           </p>
         </div>
-        <button type="button" style={boton} onClick={() => setCreando(true)}>
-          + Nuevo aliado
-        </button>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <DescargarExcelProveedores estilo={botonSec} />
+          <button type="button" style={boton} onClick={() => setCreando(true)}>
+            + Nuevo aliado
+          </button>
+        </div>
       </div>
 
       {/* Resumen: lo primero que importa es a quién se le vencieron los papeles. */}
@@ -691,7 +695,10 @@ function ExpedienteModal({
           })}
         </div>
 
-        <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700 }}>Papeles</h3>
+        {/* Lo que te cobra por máquina: era la pantalla del CRM (2026-10-08). */}
+        <CostosReferencia providerId={p.id} colores={C} />
+
+        <h3 style={{ margin: '22px 0 4px', fontSize: 15, fontWeight: 700 }}>Papeles</h3>
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 18px', lineHeight: 1.6 }}>
           Un documento vencido le quita el sello al aliado aunque su nivel sea alto.
         </p>

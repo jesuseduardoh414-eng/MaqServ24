@@ -80,16 +80,15 @@ export { telefonoE164 } from './telefono';
  */
 export const RUTAS_PRIVADAS = [
   '/cuenta',
-  '/checkout',
-  '/carrito',
-  '/pedido',
+  // /carrito, /checkout, /pedido y /rastreo ya no existen (2026-10-08: sin
+  // compras en línea). Responden 404 y Google las suelta solo; no hace falta
+  // bloquearlas aquí.
   '/login',
   '/registro',
   '/restablecer',
   '/aliado',
   '/vendedor', // también /vendedores (marketplace apagado)
   '/tienda',
-  '/rastreo', // herramienta con número de pedido, sin valor para buscar
   '/vista-previa', // lienzo de la vista previa del panel; no tiene contenido propio
   '/cotizar$', // formulario que exige cuenta; /cotizador (con -dor) sí se indexa
   '/cotizar?',

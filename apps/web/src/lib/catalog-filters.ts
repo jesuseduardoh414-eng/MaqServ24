@@ -3,7 +3,8 @@
  * traduce a la consulta real.
  *
  * Módulo SIN 'use client' a propósito: lo usan `CatalogFilters` (cliente, para
- * pintar los menús) y `/productos/page.tsx` (servidor, para llamar a la API). Si
+ * pintar los menús) y `productos/catalogo.tsx` (servidor, para llamar a la API;
+ * lo usa /servicios). Si
  * cada lado definiera los rangos, "Hasta $10,000" acabaría filtrando otra cosa.
  */
 

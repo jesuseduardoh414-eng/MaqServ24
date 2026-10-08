@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { paginaSeo, migas } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
-import { notFound, permanentRedirect } from 'next/navigation';
-import { parseProductSlug, productSlug, rutaDeCatalogo } from '@maqserv/config';
+import { notFound } from 'next/navigation';
+import { parseProductSlug, productSlug } from '@maqserv/config';
 import type { ProductCommentsSummary, ProductDetail } from '@maqserv/types';
 import { getTheme, t } from '@/lib/theme';
 import { getProduct, getProducts, getSiteSettings, pedirOr } from '@/lib/api';
@@ -17,7 +17,12 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
  * ruta vive cada ficha es su tipo (ver `tipoDeCatalogo`). Si alguien entra por
  * la ruta equivocada —un enlace viejo a /productos/excavadora— se le manda a la
  * correcta con 308, para que el índice no tenga la ficha dos veces.
+ *
+ * Sin venta en línea (2026-10-08) toda ficha vive bajo /servicios, sea servicio
+ * o producto: /productos/[slug] ya solo redirige aquí. Mandar un producto de
+ * vuelta a /productos (como antes, por `rutaDeCatalogo`) haría un bucle.
  */
+const RUTA_FICHAS = '/servicios';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -42,7 +47,7 @@ export async function metadataDetalle(slug: string): Promise<Metadata> {
   if (!product) return { title: t(theme, 'site.name') };
   const description = (product.metaDescription ?? product.short ?? stripHtml(product.description)).slice(0, 160);
   // El canonical es la ruta de su tipo, entre por donde entre.
-  const canonical = `${rutaDeCatalogo(product.kind)}/${productSlug(product.name, product.id)}`;
+  const canonical = `${RUTA_FICHAS}/${productSlug(product.name, product.id)}`;
   // Con metaTitle del panel va tal cual (ya viene pensado entero); si no, nombre + sitio.
   return paginaSeo(theme, {
     ruta: canonical,
@@ -53,11 +58,10 @@ export async function metadataDetalle(slug: string): Promise<Metadata> {
   });
 }
 
-export async function PaginaDetalle({ slug, base }: { slug: string; base: '/servicios' | '/productos' }) {
+export async function PaginaDetalle({ slug }: { slug: string }) {
   const [theme, product] = await Promise.all([getTheme(), fetchBySlug(slug)]);
   if (!product) notFound();
-  const rutaBase = rutaDeCatalogo(product.kind);
-  if (rutaBase !== base) permanentRedirect(`${rutaBase}/${productSlug(product.name, product.id)}`);
+  const rutaBase = RUTA_FICHAS;
   const esServicio = product.kind === 'servicio';
 
   // Tope por Promise.race (un fetch con `next.revalidate` no admite `signal`):
@@ -89,10 +93,8 @@ export async function PaginaDetalle({ slug, base }: { slug: string; base: '/serv
     image: [product.image, ...product.gallery].filter(Boolean),
     ...(product.brand ? { brand: { '@type': 'Brand', name: product.brand } } : {}),
     ...(comments.count > 0 ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: comments.average, reviewCount: comments.count } } : {}),
-    // Un servicio no anuncia oferta fija: su precio final sale del cotizador.
-    ...(!quoteMode && !esServicio && product.price !== null
-      ? { offers: { '@type': 'Offer', price: product.price, priceCurrency: 'MXN', availability: product.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock' } }
-      : {}),
+    // Sin `offers` (2026-10-08): nada se vende a precio fijo en el sitio; el
+    // precio final siempre sale de una cotización.
   };
 
   return (
@@ -103,7 +105,7 @@ export async function PaginaDetalle({ slug, base }: { slug: string; base: '/serv
           jsonLd,
           migas([
             { nombre: t(theme, 'nav.home'), ruta: '/' },
-            { nombre: t(theme, esServicio ? 'nav.services' : 'nav.products'), ruta: rutaBase },
+            { nombre: t(theme, 'nav.services'), ruta: rutaBase },
             ...(product.categoryName && product.categorySlug ? [{ nombre: product.categoryName, ruta: `${rutaBase}?categoria=${product.categorySlug}` }] : []),
             { nombre: product.name },
           ]),

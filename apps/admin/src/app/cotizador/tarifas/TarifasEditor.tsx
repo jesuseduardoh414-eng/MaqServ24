@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import { AdminSelect } from '@/components/AdminSelect';
 import {
   COTIZADORES_META,
+  COTIZADORES_ACTIVOS,
   MUNICIPIOS_NORTE,
   LINEA_MAQUINARIA,
   LINEA_TRANSPORTE,
@@ -117,7 +118,7 @@ export function TarifasEditor({
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-        {(Object.keys(cats) as CotizadorTipo[]).map((t) => (
+        {(Object.keys(cats) as CotizadorTipo[]).filter((t) => COTIZADORES_ACTIVOS.includes(t)).map((t) => (
           <button
             key={t}
             type="button"

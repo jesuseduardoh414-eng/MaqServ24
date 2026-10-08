@@ -2,8 +2,9 @@
  * Páginas de aterrizaje por línea de servicio (2026-09-30).
  *
  * Existen porque las cinco categorías no tenían una página que Google pudiera
- * indexar: la tarjeta lleva a `/productos?categoria=…` (canonical a
- * /productos) o a `/cotizar?servicio=…` (noindex). Cada una apunta a una
+ * indexar: la tarjeta lleva a `/servicios?categoria=…` (canonical a
+ * /servicios; antes /productos, que desde 2026-10-08 solo redirige) o a
+ * `/cotizar?servicio=…` (noindex). Cada una apunta a una
  * búsqueda concreta ("renta de maquinaria pesada Monterrey", "pipas de agua",
  * "grava y arena"…) con la zona donde se opera: NL, Coahuila y Chihuahua
  * (`ESTADOS_OPERACION`).
@@ -182,7 +183,9 @@ export const LANDINGS: Landing[] = [
         respuesta: `En ${ZONA}.`,
       },
     ],
-    cotizar: { href: '/cotizar?servicio=transporte-y-servicios-de-obra', texto: 'Solicitar cotización' },
+    // Pipas, material de banco y retiros tienen precio en el cotizador de
+    // maquinaria (2026-10-08): el botón lleva ahí y no al formulario sin precio.
+    cotizar: { href: '/cotizador/maquinaria', texto: 'Cotizar en línea' },
   },
   {
     ruta: '/triturados',

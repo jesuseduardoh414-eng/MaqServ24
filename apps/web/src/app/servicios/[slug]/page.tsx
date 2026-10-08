@@ -11,5 +11,5 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
 
 export default async function ServicePage({ params }: { params: Promise<Params> }) {
   const { slug } = await params;
-  return PaginaDetalle({ slug, base: '/servicios' });
+  return PaginaDetalle({ slug });
 }

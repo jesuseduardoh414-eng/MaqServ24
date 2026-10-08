@@ -226,6 +226,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
     activos: items.filter((p) => p.status === 1).length,
     destacados: items.filter((p) => p.featured).length,
     bajo: items.filter((p) => p.stock != null && p.stock <= 3).length,
+    sinFoto: items.filter((p) => !p.image).length,
   }), [items]);
 
   const rows = useMemo(() => {
@@ -258,6 +259,8 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
 
   const stockInfo = (stock: number | null) => {
     if (stock == null) return { color: C.dim, label: 'Sin dato', val: '—' as number | string };
+    // En un servicio es cuántas unidades hay, no inventario que se agota.
+    if (tipo === 'servicio') return { color: C.ink, label: stock === 1 ? 'unidad' : 'unidades', val: stock };
     if (stock === 0) return { color: C.red, label: 'Agotado', val: stock };
     if (stock <= 3) return { color: C.warn, label: 'Bajo stock', val: stock };
     return { color: C.green, label: 'Disponible', val: stock };
@@ -314,7 +317,10 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
         {statCard(nombre, stats.total, 'ph-cube', C.blue)}
         {statCard('Activos', stats.activos, 'ph-check-circle', C.green, C.green)}
         {statCard('Destacados', stats.destacados, 'ph-star', C.amber, C.amber)}
-        {statCard('Bajo stock', stats.bajo, 'ph-warning', C.red)}
+        {/* Un servicio no tiene "existencias": su alarma útil es la ficha sin foto. */}
+        {tipo === 'servicio'
+          ? statCard('Sin foto', stats.sinFoto, 'ph-image', C.red)
+          : statCard('Bajo stock', stats.bajo, 'ph-warning', C.red)}
       </div>
 
       {/* Toolbar */}
@@ -357,7 +363,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
       {/* Tabla */}
       <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 18, overflow: 'hidden' }}>
         <div className="pr-head" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 14, padding: '15px 22px', borderBottom: `1px solid ${C.line}`, fontSize: 11.5, letterSpacing: '.06em', color: C.dim, fontWeight: 700, textTransform: 'uppercase', alignItems: 'center' }}>
-          <div /><div>Producto</div><div>Categoría</div><div>Precio</div><div>Stock</div><div>Estado</div><div style={{ textAlign: 'right' }}>Acciones</div>
+          <div /><div>Producto</div><div>Categoría</div><div>{tipo === 'servicio' ? 'Tarifa' : 'Precio'}</div><div>{tipo === 'servicio' ? 'Unidades' : 'Stock'}</div><div>Estado</div><div style={{ textAlign: 'right' }}>Acciones</div>
         </div>
         {rows.length === 0 ? (
           <div style={{ padding: '56px 20px', textAlign: 'center', color: C.dim }}>
@@ -384,7 +390,16 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
               {/* Categoría */}
               <div className="pr-cat" style={{ minWidth: 0 }}>{p.categoryName ? <span style={{ display: 'inline-block', fontSize: 12, color: C.blue, fontWeight: 600, background: 'rgba(79,156,255,.1)', padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.categoryName}</span> : <span style={{ color: C.dim, fontSize: 12 }}>—</span>}</div>
               {/* Precio */}
-              <div className="pr-price" style={{ fontWeight: 800, fontSize: 14.5 }}>{fmt(p.price)}</div>
+              {/* PRECIO ÚNICO (2026-10-08): un servicio no lleva precio propio, lo da el
+                  tabulador del cotizador. Enseñar aquí un número hacía creer que la
+                  ficha tenía su propio precio. */}
+              {tipo === 'servicio' ? (
+                <a className="pr-price" href="/cotizador/tarifas" title="La tarifa de los servicios se edita en Ajustes › Tarifas y condiciones" style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, textDecoration: 'none' }}>
+                  En el cotizador <i className="ph ph-arrow-up-right" aria-hidden />
+                </a>
+              ) : (
+                <div className="pr-price" style={{ fontWeight: 800, fontSize: 14.5 }}>{fmt(p.price)}</div>
+              )}
               {/* Stock */}
               <div className="pr-stock">
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: s.color }}><span style={{ width: 7, height: 7, borderRadius: 999, background: s.color }} />{s.val}</span>

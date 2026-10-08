@@ -19,7 +19,6 @@ import { telHref } from '@/lib/telefono';
  */
 const NAV_ICONS: Record<string, IconName> = {
   '/': 'home',
-  '/productos': 'box',
   '/servicios': 'box',
   '/categorias': 'grid',
   '/cotizador': 'calculator',
@@ -29,7 +28,6 @@ const NAV_ICONS: Record<string, IconName> = {
 };
 const ACCOUNT_ICONS: Record<string, IconName> = {
   '/cuenta': 'user',
-  '/cuenta/pedidos': 'cart',
   '/cuenta/cotizaciones': 'specs',
   '/cuenta/favoritos': 'heart',
 };
@@ -107,7 +105,7 @@ export function MobileNav({
   items: NavItem[];
   labels: {
     login: string; register: string; logout: string; wishlist: string;
-    track: string; sell: string; menu: string; groupQuick: string; groupAccount: string;
+    quoteList: string; sell: string; menu: string; groupQuick: string; groupAccount: string;
     search: string; themeLight: string; themeDark: string;
   };
   contact: { phone: string | null; email: string | null };
@@ -232,8 +230,9 @@ export function MobileNav({
               </div>
 
               {/* Buscar dentro del cajón: con el panel abierto, el buscador del
-                  header queda tapado. Mismo destino que aquél (/productos?q=). */}
-              <form action="/productos" method="get" className="mt-3">
+                  header queda tapado. Va a /servicios?q= (2026-10-08): /productos ya solo
+                  redirige ahí. */}
+              <form action="/servicios" method="get" className="mt-3">
                 <div className="flex h-10 items-center gap-2 rounded-[10px] border border-line bg-page px-3 focus-within:border-brand">
                   <Icon name="search" size={15} className="text-ink-muted" />
                   <input
@@ -341,7 +340,10 @@ export function MobileNav({
                 {user ? null : (
                   <Link href="/cuenta/favoritos" className={ACCESO}><Icon name="heart" size={15} />{labels.wishlist}</Link>
                 )}
-                <Link href="/rastreo" className={ACCESO}><Icon name="truck" size={15} />{labels.track}</Link>
+                {/* Antes «Rastrear pedido» (/rastreo). Sin compras en línea
+                    (2026-10-08) no hay pedidos que rastrear; el atajo lleva a la
+                    lista de equipos para cotizar. */}
+                <Link href="/cotizar" className={ACCESO}><Icon name="specs" size={15} />{labels.quoteList}</Link>
                 {/* "Vender" es del marketplace heredado; apagado no se ofrece. */}
                 {MARKETPLACE_ACTIVO ? (
                   <Link href="/vendedor" className={ACCESO}><Icon name="shield" size={15} />{labels.sell}</Link>

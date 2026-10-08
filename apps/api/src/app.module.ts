@@ -8,7 +8,6 @@ import { CatalogModule } from './catalog/catalog.module';
 import { SettingsModule } from './settings/settings.module';
 import { ContentModule } from './content/content.module';
 import { AuthModule } from './auth/auth.module';
-import { OrdersModule } from './orders/orders.module';
 import { QuotesModule } from './quotes/quotes.module';
 import { QuoterModule } from './quoter/quoter.module';
 import { ProvidersModule } from './providers/providers.module';
@@ -32,7 +31,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
     // `@Throttle({ default: ... })` de cada endpoint. Ponerle nombre propio hacía que
     // esos decoradores no coincidieran con nada y NINGÚN límite por ruta se aplicara.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
-    AuthModule, ThemeModule, CatalogModule, SettingsModule, ContentModule, OrdersModule, QuotesModule, QuoterModule, ProvidersModule, FreightModule, NotificationsModule, AccountModule, VendorsModule, AdminModule, IntegrationsModule,
+    AuthModule, ThemeModule, CatalogModule, SettingsModule, ContentModule, QuotesModule, QuoterModule, ProvidersModule, FreightModule, NotificationsModule, AccountModule, VendorsModule, AdminModule, IntegrationsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ClientThrottlerGuard }],

@@ -27,14 +27,20 @@ export default async function HistorialCotizador({ searchParams }: { searchParam
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '4px 0 40px' }}>
         <header style={{ marginBottom: 20 }}>
-          <Link href="/cotizador" style={{ fontSize: 12.5, color: D.muted2, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <i className="ph ph-arrow-left" /> Cotizador
-          </Link>
-          <h1 style={{ margin: '8px 0 0', fontSize: 27, letterSpacing: '-0.025em', color: D.text }}>Historial</h1>
-          <p style={{ margin: '6px 0 0', fontSize: 13.5, color: D.muted2, maxWidth: '68ch' }}>
-            Todo lo emitido por los dos cotizadores, del panel y del sitio. Cada documento guarda el
-            cálculo con el que se emitió, así que se reimprime igual que el día uno.
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: D.muted2, fontWeight: 500 }}>
+            <span>2 · Cotizar</span><span style={{ color: '#4C4C51' }}>/</span><span style={{ color: '#B4B4B9' }}>Cotizaciones emitidas</span>
+          </div>
+          <h1 style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 800, letterSpacing: '-0.8px', color: '#FBFBFA' }}>Cotizaciones emitidas</h1>
+          <p style={{ margin: '6px 0 0', fontSize: 13.5, color: D.muted2, maxWidth: '72ch' }}>
+            El archivo de documentos con folio que generan los dos cotizadores, del sitio y del panel. Cada uno
+            guarda el cálculo con el que se emitió: se consulta, se reimprime o se le reenvía al cliente igual que el día uno.
           </p>
+          {/* Lo que confundía: esto es el PAPEL; el TRABAJO se sigue en Solicitudes. */}
+          <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12.5, color: '#B4B4B9', background: 'rgba(255,255,255,0.03)', border: `1px solid ${D.cardBorder}`, borderRadius: 10, padding: '10px 14px', maxWidth: 'fit-content' }}>
+            <i className="ph ph-info" style={{ color: D.accent, fontSize: 15 }} aria-hidden />
+            Aquí no hay pendientes: lo que un cliente pide desde el cotizador también entra a
+            <Link href="/cotizaciones" style={{ color: D.accent, fontWeight: 700, textDecoration: 'none' }}>Solicitudes →</Link>
+          </div>
         </header>
 
         {data === null ? (

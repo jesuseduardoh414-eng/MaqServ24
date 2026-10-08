@@ -13,9 +13,8 @@ const plano = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 
 const ATAJOS: Resultado[] = [
   { href: '/cotizador/maquinaria', titulo: 'Cotizar maquinaria', detalle: 'Precio al momento por día, semana o mes', icono: 'calculator' },
-  { href: '/cotizador/triturados', titulo: 'Cotizar triturados', detalle: 'Grava, arena y base por tonelada o viaje', icono: 'calculator' },
+  { href: '/cotizador/triturados', titulo: 'Cotizar triturados', detalle: 'Arena, grava, base y CNC por tonelada o viaje', icono: 'calculator' },
   { href: '/cotizar', titulo: 'Pedir algo a la medida', detalle: 'Cuéntanos qué necesitas y te respondemos', icono: 'chat' },
-  { href: '/rastreo', titulo: 'Rastrear un pedido', detalle: 'Con tu número de pedido y correo', icono: 'truck' },
 ];
 
 /**
@@ -29,7 +28,8 @@ const ATAJOS: Resultado[] = [
  * "concreto" o "pipa" daban cero aunque existieran esas líneas. Ahora sugiere:
  *  - Equipos: el catálogo, que la API busca por nombre, marca, etiquetas y línea.
  *  - Soluciones: las cinco páginas de servicio (nombre, lo que incluyen, usos).
- *  - Atajos: el cotizador y el rastreo, que es a lo que viene casi todo el mundo.
+ *  - Atajos: los cotizadores, que es a lo que viene casi todo el mundo. (El
+ *    rastreo de pedidos se quitó el 2026-10-08: ya no hay compras en línea.)
  * Enter abre lo resaltado; sin sugerencias, busca el texto en el catálogo.
  *
  * Va `position:absolute` dentro del header (sticky), así que baja con él.
