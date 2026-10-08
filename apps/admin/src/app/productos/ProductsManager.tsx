@@ -149,9 +149,9 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
   async function del(p: ProductRow) {
     setConfirmId(null);
     const r = await fetch(`/api/admin/catalog/products/${p.id}`, { method: 'DELETE' });
-    if (!r.ok) { flash('No se pudo dar de baja', 'warn'); return; }
-    setItems((xs) => xs.map((x) => (x.id === p.id ? { ...x, status: 0 } : x)));
-    flash(`«${p.name}» dado de baja`, 'trash');
+    if (!r.ok) { flash('No se pudo eliminar', 'warn'); return; }
+    setItems((xs) => xs.filter((x) => x.id !== p.id));
+    flash(`«${p.name}» eliminado`, 'trash');
   }
 
   function openNew() {
@@ -407,7 +407,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
               <div className="pr-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                 {confirming ? (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,92,92,.1)', border: '1px solid rgba(255,92,92,.3)', borderRadius: 10, padding: '6px 10px' }}>
-                    <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>¿Dar de baja?</span>
+                    <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>¿Eliminar?</span>
                     <button type="button" onClick={() => del(p)} style={{ fontSize: 12, fontWeight: 800, color: C.red, cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit' }}>Sí</button>
                     <button type="button" onClick={() => setConfirmId(null)} style={{ fontSize: 12, fontWeight: 700, color: C.muted, cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit' }}>No</button>
                   </span>
@@ -415,7 +415,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
                   <>
                     <button type="button" title={p.featured ? 'Quitar destacado' : 'Destacar'} onClick={() => toggleFeature(p)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${p.featured ? C.amber : C.line}`, background: p.featured ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : C.panel2, color: p.featured ? C.amber : C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className={p.featured ? 'ph ph-star' : 'ph ph-star'} style={{ fontSize: 14 }} /></button>
                     <button type="button" title="Editar" onClick={() => openEdit(p)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-pencil-simple" style={{ fontSize: 14 }} /></button>
-                    <button type="button" title="Dar de baja" onClick={() => { setConfirmId(p.id); }} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-trash" style={{ fontSize: 14 }} /></button>
+                    <button type="button" title="Eliminar" onClick={() => { setConfirmId(p.id); }} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-trash" style={{ fontSize: 14 }} /></button>
                   </>
                 )}
               </div>

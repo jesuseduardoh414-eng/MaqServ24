@@ -13,6 +13,8 @@
  * un equipo por revisar no aparece en el catálogo, ni en el cotizador, ni en
  * el emparejamiento.
  *
- * Estados de `products.status`: 0 inactivo · 1 activo · 2 por revisar.
+ * Estados de `products.status`: 0 inactivo · 1 activo · 2 por revisar ·
+ * 9 eliminado (borrado desde el admin pero con rentas en su historial).
  */
 export const ESTADO_POR_REVISAR = 2;
+export const ESTADO_ELIMINADO = 9;

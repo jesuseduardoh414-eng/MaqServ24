@@ -28,6 +28,7 @@ function leerAtributos(v: string | undefined): object | null {
 }
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { horarioSchema, tarifasDe } from '@maqserv/config';
+import { ESTADO_ELIMINADO } from '../catalog/ofertas';
 import { AJUSTE_MARGEN, guardarAjuste, margenAliadoPct } from '../common/platform-settings';
 import { imageUrl } from '../catalog/images';
 
@@ -141,7 +142,7 @@ export class AdminCatalogController {
     // El gestor del admin pide todo en una sola consulta (pageSize alto) para no
     // encadenar N peticiones; cap de 500 para no traer un catálogo enorme de golpe.
     const size = Math.min(500, Math.max(1, Number(pageSize ?? 20) || 20));
-    const where: Record<string, unknown> = {};
+    const where: Record<string, unknown> = { status: { not: ESTADO_ELIMINADO } };
     if (search) where.name = { contains: search };
     const [total, rows, cats] = await Promise.all([
       prisma.products.count({ where }),
@@ -350,9 +351,26 @@ export class AdminCatalogController {
 
   @Delete('products/:id')
   async deleteProduct(@Param('id', ParseIntPipe) id: number) {
-    // Baja lógica: conserva integridad de órdenes históricas
-    await prisma.products.update({ where: { id }, data: { status: 0, updated_at: new Date() } });
-    return { ok: true };
+    // Antes era solo baja lógica (status 0 = "Inactivo") y la ficha seguía en
+    // la lista. Órdenes y cotizaciones guardan copia del carrito, no dependen
+    // de la fila; solo las rentas apuntan al equipo. Con rentas se oculta
+    // (ESTADO_ELIMINADO) para no romper el historial; sin ellas se borra.
+    const rentas = await prisma.rental_periods.count({ where: { product_id: id } });
+    if (rentas > 0) {
+      await prisma.products.update({ where: { id }, data: { status: ESTADO_ELIMINADO, featured: 0, updated_at: new Date() } });
+      return { ok: true, archived: true };
+    }
+    await prisma.$transaction([
+      prisma.galleries.deleteMany({ where: { product_id: id } }),
+      prisma.wishlists.deleteMany({ where: { product_id: id } }),
+      prisma.product_clicks.deleteMany({ where: { product_id: id } }),
+      prisma.availability_blocks.deleteMany({ where: { product_id: id } }),
+      prisma.comments.deleteMany({ where: { product_id: id } }),
+      prisma.product_questions.deleteMany({ where: { product_id: id } }),
+      prisma.reviews.deleteMany({ where: { product_id: id } }),
+      prisma.products.delete({ where: { id } }),
+    ]);
+    return { ok: true, archived: false };
   }
 
   // ---- Galería del producto (máx. 6 imágenes) ----
