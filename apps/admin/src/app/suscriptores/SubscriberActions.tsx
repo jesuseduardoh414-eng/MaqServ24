@@ -2,13 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { D } from '@/components/design-tokens';
-
-const btn: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700,
-  fontFamily: 'inherit', borderRadius: 10, padding: '9px 16px', cursor: 'pointer',
-  background: 'transparent', color: '#B4B4B9', border: `1px solid ${D.inputBorder}`,
-};
+import { Btn, IconBtn, StatusText } from '@/components/ui';
 
 /**
  * Sacar la lista y empujarla al CRM: sin esto, juntar correos que no se pueden usar
@@ -62,30 +56,24 @@ export function SubscriberTools({ perfexEnabled, total }: { perfexEnabled: boole
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      <style>{`.sb-btn:hover:not(:disabled){ background: rgba(255,255,255,0.06); color:#f5f5f4; }`}</style>
-
-      <button type="button" className="sb-btn" onClick={exportCsv} disabled={busy !== null || total === 0} style={{ ...btn, opacity: busy || total === 0 ? 0.5 : 1 }}>
-        <i className="ph ph-download-simple" style={{ fontSize: 15 }} />
-        {busy === 'csv' ? 'Exportando…' : 'Exportar CSV'}
-      </button>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      {msg ? (
+        <span role="status">
+          <StatusText tone={msg.ok ? 'ok' : 'bad'}>{msg.text}</StatusText>
+        </span>
+      ) : null}
 
       {/* Sin Perfex configurado el botón no puede hacer nada: se dice, no se esconde. */}
-      <button
-        type="button"
-        className="sb-btn"
-        onClick={sync}
-        disabled={busy !== null || !perfexEnabled || total === 0}
-        title={perfexEnabled ? 'Empuja todos los suscriptores a Perfex como leads' : 'Perfex no está configurado'}
-        style={{ ...btn, opacity: busy || !perfexEnabled || total === 0 ? 0.4 : 1, cursor: perfexEnabled ? 'pointer' : 'not-allowed' }}
-      >
-        <i className="ph ph-arrow-square-out" style={{ fontSize: 15 }} />
-        {busy === 'sync' ? 'Enviando…' : 'Enviar a Perfex'}
-      </button>
+      {/* El <span> lleva el título: un botón deshabilitado no muestra el suyo al pasar el mouse. */}
+      <span title={perfexEnabled ? 'Empuja todos los suscriptores a Perfex como leads' : 'Perfex no está configurado'} style={{ display: 'inline-flex' }}>
+        <Btn icon="ph-arrow-square-out" onClick={sync} disabled={busy !== null || !perfexEnabled || total === 0}>
+          {busy === 'sync' ? 'Enviando…' : 'Enviar a Perfex'}
+        </Btn>
+      </span>
 
-      {msg ? (
-        <span role="status" style={{ fontSize: 12.5, fontWeight: 600, color: msg.ok ? '#3fbf8f' : '#f55' }}>{msg.text}</span>
-      ) : null}
+      <Btn icon="ph-download-simple" onClick={exportCsv} disabled={busy !== null || total === 0}>
+        {busy === 'csv' ? 'Exportando…' : 'Exportar CSV'}
+      </Btn>
     </div>
   );
 }
@@ -106,17 +94,5 @@ export function DeleteSubscriber({ id, email }: { id: number; email: string }) {
     }
   }
 
-  return (
-    <button
-      type="button"
-      onClick={remove}
-      disabled={busy}
-      aria-label={`Dar de baja a ${email}`}
-      style={{ fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: 'transparent', color: busy ? '#5C5C61' : '#8A8A8F', border: `1px solid ${D.inputBorder}`, borderRadius: 8, padding: '5px 12px', cursor: busy ? 'wait' : 'pointer' }}
-      onMouseEnter={(e) => { e.currentTarget.style.color = '#f55'; e.currentTarget.style.borderColor = 'rgba(255,85,85,0.3)'; }}
-      onMouseLeave={(e) => { e.currentTarget.style.color = '#8A8A8F'; e.currentTarget.style.borderColor = D.inputBorder; }}
-    >
-      Dar de baja
-    </button>
-  );
+  return <IconBtn icon="ph-user-minus" label={`Dar de baja a ${email}`} danger onClick={remove} disabled={busy} />;
 }

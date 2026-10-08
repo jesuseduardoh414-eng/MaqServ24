@@ -2,13 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { D } from '@/components/design-tokens';
-
-const btn: React.CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700,
-  fontFamily: 'inherit', borderRadius: 9, padding: '7px 13px', cursor: 'pointer',
-  background: 'transparent', color: '#B4B4B9', border: `1px solid ${D.inputBorder}`,
-};
+import { Btn, IconBtn } from '@/components/ui';
 
 /**
  * Mover un mensaje entre nuevo / atendido / archivado.
@@ -46,36 +40,24 @@ export function MessageState({ id, state, name }: { id: number; state: string; n
   }
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <style>{`.msg-btn:hover:not(:disabled){ background: rgba(255,255,255,0.06); color:#f5f5f4; }`}</style>
-
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       {state === 'nuevo' ? (
-        <button type="button" className="msg-btn" onClick={() => mover('atendido')} disabled={busy} style={{ ...btn, color: '#3fbf8f', borderColor: 'rgba(63,191,143,0.3)', opacity: busy ? 0.5 : 1 }}>
-          <i className="ph ph-check" style={{ fontSize: 14 }} /> Marcar atendido
-        </button>
+        <Btn size="sm" icon="ph-check" onClick={() => mover('atendido')} disabled={busy}>
+          Marcar atendido
+        </Btn>
       ) : (
-        <button type="button" className="msg-btn" onClick={() => mover('nuevo')} disabled={busy} style={{ ...btn, opacity: busy ? 0.5 : 1 }}>
-          <i className="ph ph-arrow-counter-clockwise" style={{ fontSize: 14 }} /> Reabrir
-        </button>
+        <Btn size="sm" icon="ph-arrow-counter-clockwise" onClick={() => mover('nuevo')} disabled={busy}>
+          Reabrir
+        </Btn>
       )}
 
       {state !== 'archivado' ? (
-        <button type="button" className="msg-btn" onClick={() => mover('archivado')} disabled={busy} style={{ ...btn, opacity: busy ? 0.5 : 1 }}>
-          <i className="ph ph-archive" style={{ fontSize: 14 }} /> Archivar
-        </button>
+        <Btn size="sm" variant="ghost" icon="ph-archive" onClick={() => mover('archivado')} disabled={busy}>
+          Archivar
+        </Btn>
       ) : null}
 
-      <button
-        type="button"
-        onClick={borrar}
-        disabled={busy}
-        aria-label={`Borrar el mensaje de ${name}`}
-        style={{ ...btn, color: '#8A8A8F' }}
-        onMouseEnter={(e) => { e.currentTarget.style.color = '#f55'; e.currentTarget.style.borderColor = 'rgba(255,85,85,0.3)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.color = '#8A8A8F'; e.currentTarget.style.borderColor = D.inputBorder; }}
-      >
-        Borrar
-      </button>
+      <IconBtn icon="ph-trash" label={`Borrar el mensaje de ${name}`} danger onClick={borrar} disabled={busy} />
     </div>
   );
 }
@@ -111,19 +93,16 @@ export function ContactTools({ perfexEnabled, pendientes }: { perfexEnabled: boo
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-      <style>{`.msg-btn:hover:not(:disabled){ background: rgba(255,255,255,0.06); color:#f5f5f4; }`}</style>
-      <button
-        type="button"
-        className="msg-btn"
-        onClick={sync}
-        disabled={busy || !perfexEnabled}
-        title={perfexEnabled ? 'Sube al CRM los mensajes que quedaron pendientes' : 'Perfex no está configurado'}
-        style={{ ...btn, padding: '9px 16px', fontSize: 13, opacity: busy || !perfexEnabled ? 0.4 : 1, cursor: perfexEnabled ? 'pointer' : 'not-allowed' }}
-      >
-        <i className="ph ph-arrow-square-out" style={{ fontSize: 15 }} />
-        {busy ? 'Enviando…' : `Enviar ${pendientes} al CRM`}
-      </button>
-      {msg ? <span role="status" style={{ fontSize: 12.5, fontWeight: 600, color: msg.ok ? '#3fbf8f' : '#f55' }}>{msg.text}</span> : null}
+      {msg ? (
+        <span role="status" className={`adm-tone ${msg.ok ? 't-ok' : 't-bad'}`} style={{ fontSize: 12.5, fontWeight: 500 }}>{msg.text}</span>
+      ) : null}
+      {/* El título va en la envoltura: un botón deshabilitado no recibe el
+          puntero y el motivo ("Perfex no está configurado") no se vería. */}
+      <span title={perfexEnabled ? 'Sube al CRM los mensajes que quedaron pendientes' : 'Perfex no está configurado'} style={{ cursor: perfexEnabled ? undefined : 'not-allowed' }}>
+        <Btn icon="ph-arrow-square-out" onClick={sync} disabled={busy || !perfexEnabled}>
+          {busy ? 'Enviando…' : `Enviar ${pendientes} al CRM`}
+        </Btn>
+      </span>
     </div>
   );
 }

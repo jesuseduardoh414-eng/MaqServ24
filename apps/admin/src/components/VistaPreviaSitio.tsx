@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { MENSAJE_VISTA_PREVIA, type BorradorVistaPrevia, type VistaPrevia } from '@maqserv/config';
-import { D } from './design-tokens';
 
 /**
  * VISTA PREVIA REAL (2026-10-05).
@@ -122,12 +121,11 @@ export function VistaPreviaSitio({
   const vacio = pintado && alto < 4;
   const cargando = !pintado && !sinRespuesta;
 
-  const btn = (on: boolean): CSSProperties => ({
-    display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', cursor: 'pointer', borderRadius: 7,
-    padding: '5px 8px', fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit',
-    background: on ? D.accentSoft : 'transparent', color: on ? D.amber : D.muted2,
-  });
-  const grupo: CSSProperties = { display: 'inline-flex', gap: 2, padding: 3, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 9 };
+  /* Cromo del panel con las clases del kit (.adm-seg): mismos selectores
+     segmentados que los filtros del resto de los módulos. Solo icono, por eso
+     el padding más corto; el `title` hace de nombre accesible. */
+  const opcion = (on: boolean) => `adm-seg-item${on ? ' is-active' : ''}`;
+  const soloIcono: CSSProperties = { padding: '0 8px' };
 
   return (
     <>
@@ -135,25 +133,25 @@ export function VistaPreviaSitio({
       <div
         style={
           grande
-            ? { position: 'fixed', inset: '24px clamp(12px, 3vw, 40px)', zIndex: 200, background: '#0b0b0d', border: `1px solid ${D.inputBorder}`, borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column' }
+            ? { position: 'fixed', inset: '24px clamp(12px, 3vw, 40px)', zIndex: 200, background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)' }
             : { display: 'flex', flexDirection: 'column' }
         }
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', color: D.muted2 }}>
-            <span style={{ width: 6, height: 6, borderRadius: 999, background: '#3fbf8f', boxShadow: '0 0 8px #3fbf8f' }} /> Vista previa · {etiqueta}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, fontWeight: 600, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--adm-faint)' }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: 'var(--adm-ok)', flexShrink: 0 }} /> Vista previa · {etiqueta}
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            <div style={grupo}>
-              <button type="button" title="Escritorio" onClick={() => setDispositivo('escritorio')} style={btn(dispositivo === 'escritorio')}><i className="ph ph-desktop" style={{ fontSize: 14 }} /></button>
-              <button type="button" title="Móvil" onClick={() => setDispositivo('movil')} style={btn(dispositivo === 'movil')}><i className="ph ph-device-mobile" style={{ fontSize: 14 }} /></button>
+            <div className="adm-seg">
+              <button type="button" title="Escritorio" aria-pressed={dispositivo === 'escritorio'} onClick={() => setDispositivo('escritorio')} className={opcion(dispositivo === 'escritorio')} style={soloIcono}><i className="ph ph-desktop" style={{ fontSize: 14 }} /></button>
+              <button type="button" title="Móvil" aria-pressed={dispositivo === 'movil'} onClick={() => setDispositivo('movil')} className={opcion(dispositivo === 'movil')} style={soloIcono}><i className="ph ph-device-mobile" style={{ fontSize: 14 }} /></button>
             </div>
-            <div style={grupo}>
-              <button type="button" title="Modo oscuro" onClick={() => setModo('dark')} style={btn(modo === 'dark')}><i className="ph ph-moon" style={{ fontSize: 14 }} /></button>
-              <button type="button" title="Modo claro" onClick={() => setModo('light')} style={btn(modo === 'light')}><i className="ph ph-sun" style={{ fontSize: 14 }} /></button>
+            <div className="adm-seg">
+              <button type="button" title="Modo oscuro" aria-pressed={modo === 'dark'} onClick={() => setModo('dark')} className={opcion(modo === 'dark')} style={soloIcono}><i className="ph ph-moon" style={{ fontSize: 14 }} /></button>
+              <button type="button" title="Modo claro" aria-pressed={modo === 'light'} onClick={() => setModo('light')} className={opcion(modo === 'light')} style={soloIcono}><i className="ph ph-sun" style={{ fontSize: 14 }} /></button>
             </div>
-            <div style={grupo}>
-              <button type="button" title={grande ? 'Cerrar (Esc)' : 'Ampliar'} onClick={() => setGrande((g) => !g)} style={btn(grande)}>
+            <div className="adm-seg">
+              <button type="button" title={grande ? 'Cerrar (Esc)' : 'Ampliar'} aria-pressed={grande} onClick={() => setGrande((g) => !g)} className={opcion(grande)} style={soloIcono}>
                 <i className={`ph ${grande ? 'ph-corners-in' : 'ph-corners-out'}`} style={{ fontSize: 14 }} />
               </button>
             </div>
@@ -163,7 +161,8 @@ export function VistaPreviaSitio({
         <div
           ref={caja}
           style={{
-            position: 'relative', border: `1px solid ${D.inputBorder}`, borderRadius: 14, overflowX: 'hidden', overflowY: 'auto',
+            position: 'relative', border: '1px solid var(--adm-border-strong)', borderRadius: 12, overflowX: 'hidden', overflowY: 'auto',
+            // Fondo del SITIO, no del panel: el del modo que se previsualiza.
             background: modo === 'dark' ? '#07090C' : '#F5F7FA',
             maxHeight: grande ? undefined : 'calc(100vh - 150px)', flex: grande ? 1 : undefined, minHeight: 160,
           }}
@@ -180,7 +179,7 @@ export function VistaPreviaSitio({
           </div>
 
           {cargando || vacio || sinRespuesta ? (
-            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 20, textAlign: 'center', fontSize: 13, color: modo === 'dark' ? D.muted2 : '#4A545F' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 20, textAlign: 'center', fontSize: 13, color: modo === 'dark' ? 'var(--adm-muted)' : '#4A545F' }}>
               {sinRespuesta && !lista ? (
                 <span>
                   <i className="ph ph-plug" style={{ fontSize: 20, display: 'block', marginBottom: 6 }} />
@@ -197,7 +196,7 @@ export function VistaPreviaSitio({
             </div>
           ) : null}
         </div>
-        {aviso ? <div style={{ margin: '10px 2px 0', fontSize: 12, color: D.muted2 }}>{aviso}</div> : null}
+        {aviso ? <div style={{ margin: '10px 2px 0', fontSize: 12.5, color: 'var(--adm-muted)' }}>{aviso}</div> : null}
       </div>
     </>
   );

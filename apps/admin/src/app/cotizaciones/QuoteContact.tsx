@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { D } from '@/components/editor-kit';
+import { Btn, IconBtn, StatusText } from '@/components/ui';
 
 /**
  * "Ya le hablé al cliente."
@@ -59,49 +59,32 @@ export function QuoteContact({
     const medio = MEDIOS.find((m) => m.clave === firstContactVia)?.label
       ?? (firstContactVia === 'cotizacion' ? 'al cotizar' : firstContactVia ?? '');
     return (
-      <span
-        title={`Primer contacto: ${cuando}${medio ? ` · ${medio}` : ''}`}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, color: '#3fbf8f', whiteSpace: 'nowrap' }}
-      >
-        <i className="ph ph-phone-call" style={{ fontSize: 13 }} /> Contactado
-      </span>
+      <StatusText tone="ok" title={`Primer contacto: ${cuando}${medio ? ` · ${medio}` : ''}`}>Contactado</StatusText>
     );
   }
 
   if (!abierto) {
     return (
-      <button
-        type="button"
+      <Btn
+        size="sm"
+        variant="ghost"
+        icon="ph-phone-call"
         onClick={() => setAbierto(true)}
         title="Registra que ya le hablaste, aunque todavía no tengas el precio"
-        style={{ background: 'transparent', color: '#B4B4B9', border: `1px solid ${D.inputBorder}`, fontFamily: 'inherit', fontWeight: 600, fontSize: 12.5, padding: '7px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap' }}
       >
         Ya le hablé
-      </button>
+      </Btn>
     );
   }
 
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
       {MEDIOS.map((m) => (
-        <button
-          key={m.clave}
-          type="button"
-          onClick={() => marcar(m.clave)}
-          disabled={busy}
-          style={{ background: 'transparent', color: '#B4B4B9', border: `1px solid ${D.inputBorder}`, fontFamily: 'inherit', fontWeight: 600, fontSize: 11.5, padding: '5px 9px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer' }}
-        >
+        <Btn key={m.clave} size="sm" onClick={() => marcar(m.clave)} disabled={busy}>
           {m.label}
-        </button>
+        </Btn>
       ))}
-      <button
-        type="button"
-        onClick={() => setAbierto(false)}
-        aria-label="Cancelar"
-        style={{ background: 'transparent', color: '#6B6B71', border: 'none', fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', padding: '5px 4px' }}
-      >
-        ✕
-      </button>
+      <IconBtn icon="ph-x" label="Cancelar" plain onClick={() => setAbierto(false)} />
     </span>
   );
 }

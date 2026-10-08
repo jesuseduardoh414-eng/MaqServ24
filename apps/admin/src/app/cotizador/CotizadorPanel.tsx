@@ -1,10 +1,9 @@
 'use client';
 
-import Link from 'next/link';
+import { Btn, PageHeader } from '@/components/ui';
 import { Cotizador, type DatosEnvio, type ResultadoEnvio } from '@maqserv/ui';
 import type { CatalogoCotizador } from '@maqserv/config';
 import { useBranding } from '@/components/branding';
-import { D } from '@/components/design-tokens';
 
 /**
  * El cotizador dentro del panel.
@@ -48,23 +47,20 @@ export function CotizadorPanel({
     return { folio: body.folio as string, id: body.id as number };
   }
 
+  // Sin el contenedor de 1180px que traía: el encabezado queda alineado con el
+  // de los demás módulos y la pantalla compartida toma el ancho del panel.
   return (
-    <div style={{ maxWidth: 1180, margin: '0 auto', padding: '4px 0 40px' }}>
-      <header style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
-        <div>
-          <Link href="/cotizador" style={{ fontSize: 12.5, color: D.muted2, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <i className="ph ph-arrow-left" /> Cotizador
-          </Link>
-          <h1 style={{ margin: '8px 0 0', fontSize: 27, letterSpacing: '-0.025em', color: D.text }}>{titulo}</h1>
-          <p style={{ margin: '6px 0 0', fontSize: 13.5, color: D.muted2, maxWidth: '62ch' }}>{resumen}</p>
-        </div>
-        <Link
-          href={`/cotizador/historial?kind=${catalogo.tipo}`}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 38, padding: '0 14px', borderRadius: 10, border: `1px solid ${D.cardBorder}`, color: D.text, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}
-        >
-          <i className="ph ph-clock-counter-clockwise" /> Historial
-        </Link>
-      </header>
+    <div>
+      <PageHeader
+        eyebrow={['2 · Cotizar', ['Cotizador', '/cotizador']]}
+        title={titulo}
+        subtitle={resumen}
+        actions={
+          <Btn href={`/cotizador/historial?kind=${catalogo.tipo}`} icon="ph-clock-counter-clockwise">
+            Historial
+          </Btn>
+        }
+      />
 
       <Cotizador catalogo={catalogo} variante="panel" logo={logo} onEnviar={enviar} />
     </div>

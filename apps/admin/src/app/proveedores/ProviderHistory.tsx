@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Panel, Stat, Stats, StatusText, type Tone } from '@/components/ui';
 
 /**
  * HISTORIAL DE CUMPLIMIENTO (documento institucional, sección 23).
@@ -46,20 +47,17 @@ interface Historial {
   }>;
 }
 
-const ESTADO: Record<string, { texto: string; tono: 'ok' | 'mal' | 'espera' }> = {
+const ESTADO: Record<string, { texto: string; tono: Tone }> = {
   aceptado: { texto: 'Aceptó', tono: 'ok' },
-  rechazado: { texto: 'Rechazó', tono: 'mal' },
-  retirado: { texto: 'Se retiró', tono: 'mal' },
-  propuesto: { texto: 'Sin contestar', tono: 'espera' },
+  rechazado: { texto: 'Rechazó', tono: 'bad' },
+  retirado: { texto: 'Se retiró', tono: 'bad' },
+  propuesto: { texto: 'Sin contestar', tono: 'warn' },
 };
 
-export function ProviderHistory({
-  providerId, colores,
-}: {
-  providerId: number;
-  colores: { panel2: string; line: string; line2: string; ink: string; muted: string; dim: string; warn: string; ok: string; bad: string };
-}) {
-  const C = colores;
+const fuerte = { color: 'var(--adm-text)', fontWeight: 600 } as const;
+const rotulo = { display: 'block', marginBottom: 6 } as const;
+
+export function ProviderHistory({ providerId }: { providerId: number }) {
   const [h, setH] = useState<Historial | null>(null);
   const [cargando, setCargando] = useState(true);
 
@@ -74,33 +72,40 @@ export function ProviderHistory({
     return () => { vivo = false; };
   }, [providerId]);
 
-  if (cargando) return <div style={{ fontSize: 13, color: C.dim, padding: '10px 0' }}>Cargando historial…</div>;
+  if (cargando) return <div style={{ fontSize: 13, color: 'var(--adm-faint)', padding: '10px 0' }}>Cargando historial…</div>;
   if (!h) return null;
 
-  const tono = (t: 'ok' | 'mal' | 'espera') => (t === 'ok' ? C.ok : t === 'mal' ? C.bad : C.warn);
-
   return (
-    <section style={{ borderTop: `1px solid ${C.line}`, marginTop: 22, paddingTop: 18 }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: C.ink }}>Cumplimiento</h3>
-      <p style={{ margin: '0 0 16px', fontSize: 13, color: C.muted, lineHeight: 1.6 }}>{h.resumen}</p>
+    <section style={{ borderTop: '1px solid var(--adm-border)', marginTop: 24, paddingTop: 20 }}>
+      {/* Las cinco cifras van en texto, como las del encabezado de cada
+          módulo. Dentro del expediente la columna es angosta: se recorta el
+          aire entre cifras para que las etiquetas no se corten. */}
+      <style>{`
+        .pv-hist .adm-stat { padding-left: 16px; padding-right: 16px; }
+        .pv-hist .adm-stat:first-child { padding-left: 0; }
+        @media (max-width: 760px) { .pv-hist .adm-stat:nth-child(odd) { padding-left: 0; } }
+      `}</style>
+      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--adm-text)' }}>Cumplimiento</h3>
+      <p style={{ margin: '4px 0 16px', fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.6 }}>{h.resumen}</p>
 
       {h.ofrecidos > 0 ? (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(120px,1fr))', gap: 10, marginBottom: 16 }}>
-            {[
-              ['Se le ofreció', h.ofrecidos, C.ink],
-              ['Aceptó', h.aceptados, C.ok],
-              ['Rechazó', h.rechazados, C.muted],
-              ['Completó', h.completados, C.ok],
-              // Cancelar después de aceptar es lo que más pesa: la obra ya
-              // contaba con esa unidad. Se pinta en rojo solo si pasó.
-              ['Canceló', h.cancelados, h.cancelados > 0 ? C.bad : C.dim],
-            ].map(([t, n, col]) => (
-              <div key={String(t)} style={{ background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 11, padding: '11px 13px' }}>
-                <div style={{ fontSize: 11.5, color: C.muted }}>{t}</div>
-                <div style={{ fontSize: 21, fontWeight: 800, marginTop: 3, color: col as string }}>{n as number}</div>
-              </div>
-            ))}
+          <div className="pv-hist">
+            <Stats style={{ marginBottom: 18 }}>
+              <Stat label="Se le ofreció" icon="ph-paper-plane-tilt" value={h.ofrecidos} />
+              <Stat label="Aceptó" icon="ph-check-circle" tone="ok" value={h.aceptados} />
+              <Stat label="Rechazó" icon="ph-x-circle" tone="muted" value={h.rechazados} />
+              <Stat label="Completó" icon="ph-flag-checkered" tone="ok" value={h.completados} />
+              {/* Cancelar después de aceptar es lo que más pesa: la obra ya
+                  contaba con esa unidad. Se pinta en rojo solo si pasó. */}
+              <Stat
+                label="Canceló"
+                icon="ph-prohibit"
+                tone={h.cancelados > 0 ? 'bad' : 'muted'}
+                valueTone={h.cancelados > 0 ? 'bad' : undefined}
+                value={h.cancelados}
+              />
+            </Stats>
           </div>
 
           {/*
@@ -110,57 +115,65 @@ export function ProviderHistory({
             folleto.
           */}
           {h.minutosRespuestaDeclarado !== null || h.minutosRespuestaReal !== null ? (
-            <div style={{ background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 11, padding: '12px 14px', marginBottom: 16, fontSize: 13, color: C.muted, lineHeight: 1.65 }}>
+            <div style={{ marginBottom: 18, fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.65 }}>
               <div>
                 Dice contestar en{' '}
-                <strong style={{ color: C.ink }}>
+                <span className="adm-num" style={fuerte}>
                   {h.minutosRespuestaDeclarado !== null ? `${h.minutosRespuestaDeclarado} min` : 'no lo declaró'}
-                </strong>
+                </span>
                 {' · '}
                 de verdad tarda{' '}
-                <strong style={{ color: C.ink }}>
+                <span className="adm-num" style={fuerte}>
                   {h.minutosRespuestaReal !== null ? `${h.minutosRespuestaReal} min` : 'aún no hay con qué medirlo'}
-                </strong>
+                </span>
               </div>
               {h.desviacionRespuesta !== null && Math.abs(h.desviacionRespuesta) >= 5 ? (
-                <div style={{ marginTop: 5, color: h.desviacionRespuesta > 0 ? C.warn : C.ok }}>
+                <div className={`adm-tone ${h.desviacionRespuesta > 0 ? 't-warn' : 't-ok'}`} style={{ marginTop: 4 }}>
                   {h.desviacionRespuesta > 0
                     ? `Tarda ${h.desviacionRespuesta} min más de lo que promete.`
                     : `Contesta ${Math.abs(h.desviacionRespuesta)} min antes de lo que promete.`}
                 </div>
               ) : null}
-              <div style={{ marginTop: 5, fontSize: 12, color: C.dim }}>
+              <div className="adm-help" style={{ marginTop: 4 }}>
                 Para ordenar candidatos manda el medido, no el declarado.
               </div>
             </div>
           ) : null}
 
           {h.motivosRechazo.length > 0 ? (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Por qué ha dicho que no</div>
+            <div style={{ marginBottom: 18 }}>
+              <span className="adm-label" style={rotulo}>Por qué ha dicho que no</span>
               {h.motivosRechazo.map((m) => (
-                <div key={m.motivo} style={{ fontSize: 13, color: C.ink }}>
-                  · {m.motivo}{m.veces > 1 ? <span style={{ color: C.dim }}> ({m.veces} veces)</span> : null}
+                <div key={m.motivo} style={{ fontSize: 13, color: 'var(--adm-text)', lineHeight: 1.6 }}>
+                  · {m.motivo}{m.veces > 1 ? <span style={{ color: 'var(--adm-faint)' }}> ({m.veces} veces)</span> : null}
                 </div>
               ))}
             </div>
           ) : null}
 
           {/* Caso por caso: cuando un número extraña, hay que poder mirarlo. */}
-          <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>Últimas solicitudes</div>
-          <div style={{ display: 'grid', gap: 5 }}>
-            {h.recientes.map((r) => {
-              const e = ESTADO[r.state] ?? { texto: r.state, tono: 'espera' as const };
-              return (
-                <div key={r.quoteNumber + r.offeredAt} style={{ display: 'flex', gap: 10, fontSize: 12.5, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'ui-monospace, monospace', color: C.dim, minWidth: 108 }}>{r.quoteNumber}</span>
-                  <span style={{ color: tono(e.tono), fontWeight: 600, minWidth: 92 }}>{e.texto}</span>
-                  <span style={{ color: C.muted }}>{r.category ?? 'sin línea'}</span>
-                  {r.reason ? <span style={{ color: C.dim }}>· {r.reason}</span> : null}
-                </div>
-              );
-            })}
-          </div>
+          {h.recientes.length > 0 ? (
+            <>
+              <span className="adm-label" style={rotulo}>Últimas solicitudes</span>
+              <Panel flush clip>
+                {h.recientes.map((r) => {
+                  const e = ESTADO[r.state] ?? { texto: r.state, tono: 'warn' as const };
+                  return (
+                    <div
+                      key={r.quoteNumber + r.offeredAt}
+                      className="adm-trow"
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px 12px', flexWrap: 'wrap', padding: '10px 16px', fontSize: 12.5 }}
+                    >
+                      <span className="adm-mono" style={{ color: 'var(--adm-faint)', minWidth: 108 }}>{r.quoteNumber}</span>
+                      <span style={{ minWidth: 104 }}><StatusText tone={e.tono}>{e.texto}</StatusText></span>
+                      <span style={{ color: 'var(--adm-muted)' }}>{r.category ?? 'sin línea'}</span>
+                      {r.reason ? <span style={{ color: 'var(--adm-faint)' }}>· {r.reason}</span> : null}
+                    </div>
+                  );
+                })}
+              </Panel>
+            </>
+          ) : null}
         </>
       ) : null}
     </section>

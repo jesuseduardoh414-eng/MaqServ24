@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { esLineaServicio, LINEAS_SERVICIO } from '@maqserv/config';
+import { Btn } from '@/components/ui';
 
 /**
  * QUÉ OFRECE EL ALIADO (2026-09-25).
@@ -20,15 +21,27 @@ export type TipoOferta = 'servicios' | 'productos' | 'ambos';
 
 export interface CategoriaPanel { id: number; name: string; slug: string; status: number }
 
-const C = {
-  panel2: '#1b1e26', line2: 'rgba(255,255,255,0.12)', ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  accent: 'var(--color-primary)', accentInk: 'var(--color-primary-fg)', bad: 'var(--color-error)',
-};
-const label: CSSProperties = { fontSize: 12, color: C.muted, marginBottom: 6, display: 'block' };
-const chip = (on: boolean): CSSProperties => ({
-  background: on ? C.accent : C.panel2, color: on ? C.accentInk : C.muted,
-  border: `1px solid ${on ? C.accent : C.line2}`, borderRadius: 999,
-  padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: on ? 700 : 500,
+const rotulo: CSSProperties = { display: 'block', marginBottom: 8 };
+
+/**
+ * Lo elegido se marca con un velo del acento y un borde, no con un bloque de
+ * color sólido: con varias líneas marcadas, los bloques del acento pesaban más
+ * que el botón principal del alta (el acento es para la acción principal).
+ */
+const elegido = (on: boolean): CSSProperties => ({
+  border: `1px solid ${on ? 'color-mix(in srgb, var(--adm-accent) 60%, transparent)' : 'var(--adm-border-strong)'}`,
+  background: on ? 'color-mix(in srgb, var(--adm-accent) 11%, transparent)' : 'transparent',
+  color: on ? 'var(--adm-text)' : 'var(--adm-text-2)',
+  cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s ease, border-color .15s ease',
+});
+/** Una opción de "¿Qué ofrece?": título y una línea de ayuda. */
+const opcion = (on: boolean): CSSProperties => ({
+  ...elegido(on), display: 'grid', gap: 2, flex: '1 1 160px', textAlign: 'left', padding: '9px 14px', borderRadius: 8,
+});
+/** Una línea o categoría que se marca y desmarca. */
+const casilla = (on: boolean): CSSProperties => ({
+  ...elegido(on), display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: 8,
+  fontSize: 13, fontWeight: on ? 600 : 500, whiteSpace: 'nowrap',
 });
 
 /** Tipo que se deduce de lo que ya tiene marcado (al editar). */
@@ -96,19 +109,29 @@ export function QueOfrece({
     if (d?.slug) onCategorias([...categorias, d.slug as string]);
   }
 
+  const marcable = (c: CategoriaPanel) => {
+    const on = categorias.includes(c.slug);
+    return (
+      <button key={c.slug} type="button" aria-pressed={on} onClick={() => alternar(c.slug)} style={casilla(on)}>
+        {on ? <i className="ph-bold ph-check" style={{ fontSize: 12, color: 'var(--adm-accent)' }} aria-hidden /> : null}
+        {c.name}
+      </button>
+    );
+  };
+
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
+    <div style={{ display: 'grid', gap: 16 }}>
       <div>
-        <span style={label}>¿Qué ofrece?</span>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <span className="adm-label" style={rotulo}>¿Qué ofrece?</span>
+        <div role="radiogroup" aria-label="¿Qué ofrece?" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {([
             ['servicios', 'Servicios', 'Renta de maquinaria, fletes, surtido de material…'],
             ['productos', 'Productos', 'Cosas que vende a precio fijo'],
             ['ambos', 'Ambos', 'Servicios y productos'],
           ] as const).map(([v, t, ayuda]) => (
-            <button key={v} type="button" onClick={() => onTipo(v)} style={{ ...chip(tipo === v), borderRadius: 12, textAlign: 'left', padding: '10px 14px' }}>
-              <div style={{ fontSize: 14 }}>{t}</div>
-              <div style={{ fontSize: 11.5, fontWeight: 500, opacity: 0.8, marginTop: 2 }}>{ayuda}</div>
+            <button key={v} type="button" role="radio" aria-checked={tipo === v} onClick={() => onTipo(v)} style={opcion(tipo === v)}>
+              <span style={{ fontSize: 13.5, fontWeight: 600 }}>{t}</span>
+              <span style={{ fontSize: 12, color: 'var(--adm-muted)', lineHeight: 1.4 }}>{ayuda}</span>
             </button>
           ))}
         </div>
@@ -116,40 +139,38 @@ export function QueOfrece({
 
       {tipo !== 'productos' ? (
         <div>
-          <span style={label}>Qué servicios atiende</span>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {todas === null ? <span style={{ fontSize: 13, color: C.dim }}>Cargando…</span> : null}
-            {servicios.map((c) => (
-              <button key={c.slug} type="button" onClick={() => alternar(c.slug)} style={chip(categorias.includes(c.slug))}>{c.name}</button>
-            ))}
+          <span className="adm-label" style={rotulo}>Qué servicios atiende</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {todas === null ? <span style={{ fontSize: 13, color: 'var(--adm-faint)' }}>Cargando…</span> : null}
+            {servicios.map(marcable)}
           </div>
         </div>
       ) : null}
 
       {tipo !== 'servicios' ? (
         <div>
-          <span style={label}>Qué productos vende</span>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            {productos.map((c) => (
-              <button key={c.slug} type="button" onClick={() => alternar(c.slug)} style={chip(categorias.includes(c.slug))}>{c.name}</button>
-            ))}
+          <span className="adm-label" style={rotulo}>Qué productos vende</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            {productos.map(marcable)}
             {todas !== null && productos.length === 0 ? (
-              <span style={{ fontSize: 13, color: C.muted }}>Aún no hay categorías de productos. Crea la primera:</span>
+              <span style={{ fontSize: 13, color: 'var(--adm-muted)' }}>Aún no hay categorías de productos. Crea la primera:</span>
             ) : null}
           </div>
           <div style={{ display: 'flex', gap: 8, marginTop: 10, maxWidth: 480 }}>
             <input
+              className="adm-input"
               value={nueva}
               onChange={(e) => setNueva(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void crearCategoria(); } }}
               placeholder="Nueva categoría de productos (ej. Herramienta)"
-              style={{ flex: 1, background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 10, padding: '9px 12px', fontSize: 13.5, outline: 'none', fontFamily: 'inherit' }}
+              aria-label="Nueva categoría de productos"
+              style={{ flex: 1, minWidth: 0 }}
             />
-            <button type="button" onClick={() => void crearCategoria()} disabled={nueva.trim().length < 2 || creando} style={{ ...chip(false), borderRadius: 10, opacity: nueva.trim().length < 2 ? 0.5 : 1 }}>
-              {creando ? 'Creando…' : '+ Crear'}
-            </button>
+            <Btn icon="ph-plus" onClick={() => void crearCategoria()} disabled={nueva.trim().length < 2 || creando}>
+              {creando ? 'Creando…' : 'Crear'}
+            </Btn>
           </div>
-          {error ? <div style={{ fontSize: 12.5, color: C.bad, marginTop: 6 }}>{error}</div> : null}
+          {error ? <div role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', marginTop: 6 }}>{error}</div> : null}
         </div>
       ) : null}
     </div>

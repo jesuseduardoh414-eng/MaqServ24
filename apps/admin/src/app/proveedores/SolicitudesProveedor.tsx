@@ -1,8 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-
-type Colores = Record<'panel' | 'panel2' | 'line' | 'line2' | 'ink' | 'muted' | 'dim' | 'accent' | 'accentInk' | 'warn' | 'ok' | 'bad', string>;
+import { Btn, Chip, Panel } from '@/components/ui';
 
 export interface SolicitudRow {
   id: number;
@@ -25,7 +24,7 @@ export interface SolicitudRow {
  * revisa qué ofrecen en su expediente y se les manda su enlace. Descartar borra
  * la ficha (no tiene historial).
  */
-export function SolicitudesProveedor({ solicitudes, colores: C, onCambio }: { solicitudes: SolicitudRow[]; colores: Colores; onCambio: (msg: string) => void }) {
+export function SolicitudesProveedor({ solicitudes, onCambio }: { solicitudes: SolicitudRow[]; onCambio: (msg: string) => void }) {
   const [ocupado, setOcupado] = useState<number | null>(null);
   if (solicitudes.length === 0) return null;
 
@@ -45,49 +44,67 @@ export function SolicitudesProveedor({ solicitudes, colores: C, onCambio }: { so
     onCambio(r.ok ? `Se descartó la solicitud de «${s.name}».` : 'No se pudo descartar. Inténtalo de nuevo.');
   }
 
-  const btn = (color: string, relleno: boolean) => ({
-    background: relleno ? color : 'transparent', color: relleno ? C.accentInk : color,
-    border: relleno ? 'none' : `1px solid color-mix(in srgb, ${color} 45%, transparent)`,
-    borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-  });
-  const dato = (etiqueta: string, valor: React.ReactNode) =>
-    valor ? <div><div style={{ fontSize: 11.5, color: C.dim }}>{etiqueta}</div><div style={{ fontSize: 13.5, color: C.ink, marginTop: 2, overflowWrap: 'anywhere' }}>{valor}</div></div> : null;
-
   return (
-    <section style={{ marginBottom: 22 }} aria-labelledby="sol-prov-t">
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 10 }}>
-        <h2 id="sol-prov-t" style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>Solicitudes de proveedores</h2>
-        <span style={{ fontSize: 12.5, color: C.warn, fontWeight: 700 }}>{solicitudes.length} por revisar</span>
-      </div>
-      <p style={{ fontSize: 13, color: C.muted, margin: '0 0 12px' }}>
-        Llegan desde «Regístrate como proveedor» en el sitio. No reciben ofertas hasta que los aceptes.
-      </p>
-      <div style={{ display: 'grid', gap: 12 }}>
-        {solicitudes.map((s) => (
-          <div key={s.id} style={{ background: C.panel, border: `1px solid color-mix(in srgb, ${C.warn} 35%, transparent)`, borderRadius: 14, padding: '16px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <strong style={{ fontSize: 16 }}>{s.name}</strong>
-              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', padding: '3px 9px', borderRadius: 6, color: C.warn, border: `1px solid color-mix(in srgb, ${C.warn} 40%, transparent)`, background: `color-mix(in srgb, ${C.warn} 12%, transparent)` }}>POR REVISAR</span>
-              {(s.categoryLabels ?? []).map((c) => (
-                <span key={c} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{c}</span>
-              ))}
+    <>
+      {/* Datos y nota a la izquierda, decisión a la derecha; en móvil los
+          botones bajan debajo de la nota. */}
+      <style>{`
+        .pv-sol-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 20px; align-items: start; }
+        .pv-sol-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .pv-sol-meta > span, .pv-sol-meta > a { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+        .pv-sol-meta i { font-size: 13px; color: var(--adm-faint); }
+        @media (max-width: 640px) {
+          .pv-sol-row { grid-template-columns: minmax(0, 1fr); }
+        }
+      `}</style>
+      <Panel
+        flush
+        clip
+        style={{ marginBottom: 24 }}
+        icon="ph-user-plus"
+        title="Solicitudes de proveedores"
+        desc="Llegan desde «Regístrate como proveedor» en el sitio. No reciben ofertas hasta que los aceptes."
+        action={<Chip tone="warn">{solicitudes.length} por revisar</Chip>}
+      >
+        {solicitudes.map((s) => {
+          const ubicacion = [s.city, s.state].filter(Boolean).join(', ');
+          return (
+            <div key={s.id} className="adm-trow pv-sol-row">
+              <div style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="adm-cell-title">{s.name}</span>
+                  {(s.categoryLabels ?? []).map((c) => <Chip key={c}>{c}</Chip>)}
+                </div>
+                <div className="adm-meta pv-sol-meta" style={{ marginTop: 6 }}>
+                  {s.contactName ? <span title="Contacto"><i className="ph ph-user" aria-hidden />{s.contactName}</span> : null}
+                  {s.phone ? (
+                    <a href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} className="adm-link" title="Teléfono">
+                      <i className="ph ph-phone" aria-hidden /><span className="adm-mono">{s.phone}</span>
+                    </a>
+                  ) : null}
+                  {s.email ? (
+                    <a href={`mailto:${s.email}`} className="adm-link" title="Correo">
+                      <i className="ph ph-envelope-simple" aria-hidden />{s.email}
+                    </a>
+                  ) : null}
+                  {ubicacion ? <span title="Ubicación"><i className="ph ph-map-pin" aria-hidden />{ubicacion}</span> : null}
+                </div>
+                {s.notes ? (
+                  <p style={{ margin: '10px 0 0', paddingLeft: 12, borderLeft: '2px solid var(--adm-border-strong)', fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', color: 'var(--adm-text-2)' }}>
+                    {s.notes}
+                  </p>
+                ) : null}
+              </div>
+              <div className="pv-sol-actions">
+                <Btn size="sm" variant="danger" disabled={ocupado === s.id} onClick={() => descartar(s)}>Descartar</Btn>
+                <Btn size="sm" icon="ph-check" disabled={ocupado === s.id} onClick={() => aceptar(s)}>
+                  {ocupado === s.id ? 'Guardando…' : 'Aceptar en la red'}
+                </Btn>
+              </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(170px,1fr))', gap: 12, marginTop: 14 }}>
-              {dato('Contacto', s.contactName)}
-              {dato('Teléfono', s.phone ? <a href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} style={{ color: C.ink }}>{s.phone}</a> : null)}
-              {dato('Correo', s.email ? <a href={`mailto:${s.email}`} style={{ color: C.ink }}>{s.email}</a> : null)}
-              {dato('Ubicación', [s.city, s.state].filter(Boolean).join(', '))}
-            </div>
-            {s.notes ? (
-              <div style={{ marginTop: 14, padding: '12px 14px', background: C.panel2, borderRadius: 10, fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', color: C.ink }}>{s.notes}</div>
-            ) : null}
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 14, justifyContent: 'flex-end' }}>
-              <button type="button" disabled={ocupado === s.id} onClick={() => descartar(s)} style={btn(C.bad, false)}>Descartar</button>
-              <button type="button" disabled={ocupado === s.id} onClick={() => aceptar(s)} style={btn(C.accent, true)}>{ocupado === s.id ? 'Guardando…' : 'Aceptar en la red'}</button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
+          );
+        })}
+      </Panel>
+    </>
   );
 }

@@ -58,6 +58,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         ]).map((href) => (
           <link key={href} rel="stylesheet" href={href} />
         ))}
+        {/* Monoespaciada del panel (folios, slugs, teléfonos): `--adm-mono`.
+            Antes la cargaba cada módulo por su cuenta. */}
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
         {/* Phosphor SELF-HOSTED (public/phosphor, v2.1.1): antes venía de
             unpkg y si el CDN fallaba el panel se quedaba sin un solo icono. */}
         <link rel="stylesheet" href="/phosphor/regular/style.css" />

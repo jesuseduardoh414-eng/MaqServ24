@@ -1,9 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { Fragment, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, coordenadasDe, esLineaServicio } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
+import {
+  Btn, btnClass, Chip, EmptyState, FormField, IconBtn, Note, PageHeader, Panel, SearchBox, Stat, Stats, StatusText, Thumb, Toolbar,
+  type Tone,
+} from '@/components/ui';
 import { DocumentAlerts } from './DocumentAlerts';
 import { SolicitudesProveedor } from './SolicitudesProveedor';
 import { ProviderHistory } from './ProviderHistory';
@@ -70,15 +74,15 @@ interface Renglon {
 }
 
 /** Cómo se lee la disponibilidad de un equipo en una línea. */
-const DISP: Record<string, { texto: string; color: string }> = {
-  disponible: { texto: 'Disponible', color: '#3fbf8f' },
-  limitada: { texto: 'Disponible', color: '#3fbf8f' },
-  'por-confirmar': { texto: 'Por confirmar', color: '#e0a23a' },
-  reservado: { texto: 'Reservado', color: '#5b9dff' },
-  'en-traslado': { texto: 'En traslado', color: '#5b9dff' },
-  'en-servicio': { texto: 'En servicio', color: '#5b9dff' },
-  mantenimiento: { texto: 'Mantenimiento', color: '#e0a23a' },
-  inactivo: { texto: 'Inactivo', color: '#f55' },
+const DISP: Record<string, { texto: string; tono: Tone }> = {
+  disponible: { texto: 'Disponible', tono: 'ok' },
+  limitada: { texto: 'Disponible', tono: 'ok' },
+  'por-confirmar': { texto: 'Por confirmar', tono: 'warn' },
+  reservado: { texto: 'Reservado', tono: 'info' },
+  'en-traslado': { texto: 'En traslado', tono: 'info' },
+  'en-servicio': { texto: 'En servicio', tono: 'info' },
+  mantenimiento: { texto: 'Mantenimiento', tono: 'warn' },
+  inactivo: { texto: 'Inactivo', tono: 'bad' },
 };
 
 interface DocRow {
@@ -91,14 +95,6 @@ interface DocRow {
   fileUrl?: string | null;
 }
 
-const C = {
-  panel: '#141416', panel2: '#1b1e26', panel3: '#212530',
-  line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
-  ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  accent: 'var(--color-primary)', accentInk: 'var(--color-primary-fg)',
-  warn: 'var(--color-warning)', ok: 'var(--color-success)', bad: 'var(--color-error)',
-};
-
 /** Los cuatro niveles del documento, en orden de escalera. */
 const NIVELES = ['registrado', 'validado', 'activo', 'preferente'] as const;
 const TIPOS_DOC: Array<[string, string]> = [
@@ -110,6 +106,17 @@ const TIPOS_DOC: Array<[string, string]> = [
   ['otro', 'Otro'],
 ];
 
+/* Piezas de texto del expediente: cada bloque es una sección separada por una
+   línea fina, no una caja dentro de otra caja. */
+const SECCION: CSSProperties = { borderTop: '1px solid var(--adm-border)', marginTop: 24, paddingTop: 20 };
+const H3: CSSProperties = { margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--adm-text)' };
+const DESC: CSSProperties = { margin: '4px 0 14px', fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.6 };
+const VACIO: CSSProperties = { margin: 0, fontSize: 13, color: 'var(--adm-faint)', lineHeight: 1.6 };
+const AVISO: CSSProperties = { fontSize: 13, color: 'var(--adm-text-2)', lineHeight: 1.5 };
+
+/** Aliado | Documentos | Nivel | Expediente. */
+const GRID = 'minmax(0,1fr) 128px 150px 132px';
+
 /**
  * Lo que ofrece, separado: servicios (las líneas) y productos (cualquier otra
  * categoría). `categoryLabels` viene en el mismo orden que `categories`.
@@ -118,43 +125,36 @@ function ChipsOferta({ p }: { p: ProviderRow }) {
   const pares = p.categories.map((slug, i) => ({ slug, nombre: p.categoryLabels?.[i] ?? slug }));
   const servicios = pares.filter((x) => esLineaServicio(x.slug));
   const productos = pares.filter((x) => !esLineaServicio(x.slug));
-  if (pares.length === 0) return <span style={{ fontSize: 12.5, color: C.bad }}>Sin servicios ni productos marcados</span>;
+  if (pares.length === 0) return <span style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>Sin servicios ni productos marcados</span>;
   const grupo = (titulo: string, xs: typeof pares) =>
     xs.length ? (
       <>
-        <span style={{ fontSize: 11, fontWeight: 700, color: C.dim, textTransform: 'uppercase', letterSpacing: '.06em' }}>{titulo}</span>
-        {xs.map((x) => (
-          <span key={x.slug} style={{ fontSize: 11.5, fontWeight: 700, color: C.ink, border: `1px solid ${C.line2}`, borderRadius: 999, padding: '3px 10px' }}>{x.nombre}</span>
-        ))}
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--adm-faint)', textTransform: 'uppercase', letterSpacing: '.08em' }}>{titulo}</span>
+        {xs.map((x) => <Chip key={x.slug}>{x.nombre}</Chip>)}
       </>
     ) : null;
   return <>{grupo('Servicios', servicios)}{grupo('Productos', productos)}</>;
 }
 
-const ETIQUETA_DOCS: Record<ProviderRow['docsStatus'], { texto: string; color: string }> = {
-  'al-dia': { texto: 'Al día', color: C.ok },
-  'por-vencer': { texto: 'Por vencer', color: C.warn },
-  vencido: { texto: 'Vencido', color: C.bad },
-  'sin-documentos': { texto: 'Sin documentos', color: C.dim },
-};
-
-const input: CSSProperties = {
-  width: '100%', background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink,
-  borderRadius: 10, padding: '11px 13px', fontSize: 14, outline: 'none', fontFamily: 'inherit',
-};
-const label: CSSProperties = { fontSize: 12, color: C.muted, marginBottom: 6, display: 'block' };
-const boton: CSSProperties = {
-  background: C.accent, color: C.accentInk, border: 'none', borderRadius: 10,
-  padding: '11px 18px', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
-};
-
-const botonSec: CSSProperties = {
-  background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 10,
-  padding: '11px 18px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
+const ETIQUETA_DOCS: Record<ProviderRow['docsStatus'], { texto: string; tono: Tone }> = {
+  'al-dia': { texto: 'Al día', tono: 'ok' },
+  'por-vencer': { texto: 'Por vencer', tono: 'warn' },
+  vencido: { texto: 'Vencido', tono: 'bad' },
+  'sin-documentos': { texto: 'Sin documentos', tono: 'muted' },
 };
 
 /** Convierte "Apodaca, Escobedo , García" en tres municipios limpios. */
 const aLista = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
+
+/** Une datos sueltos con " · " (los vacíos no dejan separadores colgando). */
+function conPuntos(xs: Array<ReactNode | null | false | undefined>) {
+  return xs.filter(Boolean).map((x, i) => (
+    <Fragment key={i}>
+      {i > 0 ? <span style={{ color: 'var(--adm-faint)' }}> · </span> : null}
+      {x}
+    </Fragment>
+  ));
+}
 
 export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
   const [todos, setProvs] = useState(initial);
@@ -231,7 +231,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
       d?.acceso
         ? `Aliado dado de alta. ${d.acceso.mensaje}`
         : conCorreo
-          ? 'Aliado dado de alta, sin invitación. Mándale su enlace desde su tarjeta cuando quieras.'
+          ? 'Aliado dado de alta, sin invitación. Mándale su enlace desde su expediente cuando quieras.'
           : 'Aliado dado de alta. No tiene correo: agrégaselo para mandarle su enlace.',
     );
     recargar();
@@ -271,37 +271,54 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
   const porVencer = provs.filter((p) => p.docsStatus === 'por-vencer').length;
 
   return (
-    <div style={{ fontFamily: 'inherit', color: C.ink }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
-        <div>
-          <h1 className="adm-page-title">Red de aliados</h1>
-          <p style={{ color: C.muted, fontSize: 14, margin: '6px 0 0' }}>
+    <div>
+      <style>{`
+        .pv-row { display: grid; grid-template-columns: ${GRID}; gap: 16px; align-items: center; }
+        .pv-c-act { display: flex; justify-content: flex-end; }
+        .pv-m-label { display: none; }
+        /* En móvil cada aliado pasa a bloque: nombre y datos arriba; documentos,
+           nivel y expediente en una línea debajo. */
+        @media (max-width: 900px) {
+          .pv-thead { display: none !important; }
+          .pv-row { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+          .pv-row > .pv-c-name { flex: 1 1 100%; }
+          .pv-row > .pv-c-level { width: 150px; }
+          .pv-row > .pv-c-act { margin-left: auto; }
+          .pv-m-label { display: inline; margin-right: 6px; font-size: 12.5px; color: var(--adm-faint); }
+        }
+      `}</style>
+
+      <PageHeader
+        eyebrow={['Red y oferta', 'Proveedores']}
+        title="Red de aliados"
+        subtitle={
+          <>
             Proveedores que aportan capacidad: su expediente, papeles, cobertura y lo que te cobran (antes el CRM).
             El sello de verificado no se pone a mano: sale del nivel y de que sus documentos estén vigentes.
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <DescargarExcelProveedores estilo={botonSec} />
-          <button type="button" style={boton} onClick={() => setCreando(true)}>
-            + Nuevo aliado
-          </button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <DescargarExcelProveedores />
+            <Btn variant="primary" icon="ph-plus" onClick={() => setCreando(true)}>Nuevo aliado</Btn>
+          </>
+        }
+      />
 
       {/* Resumen: lo primero que importa es a quién se le vencieron los papeles. */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 14, marginBottom: 22 }}>
-        {[
-          ['Aliados', provs.length, C.ink],
-          ['Con sello', conSello, C.ok],
-          ['Por vencer', porVencer, C.warn],
-          ['Vencidos', conVencidos, conVencidos > 0 ? C.bad : C.dim],
-        ].map(([t, n, col]) => (
-          <div key={String(t)} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: '16px 18px' }}>
-            <div style={{ fontSize: 12.5, color: C.muted }}>{t}</div>
-            <div style={{ fontSize: 26, fontWeight: 800, marginTop: 4, color: col as string }}>{n as number}</div>
-          </div>
-        ))}
-      </div>
+      <Stats>
+        <Stat label="Aliados" icon="ph-handshake" tone="accent" value={provs.length} />
+        <Stat label="Con sello" icon="ph-seal-check" tone="ok" value={conSello} hint={`de ${provs.length}`} />
+        <Stat label="Por vencer" icon="ph-clock-countdown" tone={porVencer > 0 ? 'warn' : 'muted'} value={porVencer} />
+        <Stat
+          label="Vencidos"
+          icon="ph-warning-circle"
+          tone={conVencidos > 0 ? 'bad' : 'muted'}
+          valueTone={conVencidos > 0 ? 'bad' : undefined}
+          value={conVencidos}
+          hint={conVencidos > 0 ? 'pierden el sello' : undefined}
+        />
+      </Stats>
 
       {/*
         DONDE ESTA LA RED (documento institucional, 17).
@@ -309,7 +326,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         hay un hueco geografico, y de que tamano.
       */}
       {provs.some((x) => x.lat != null && x.lng != null) ? (
-        <div style={{ marginBottom: 22 }}>
+        <div style={{ marginBottom: 28 }}>
           <MapaCobertura
             puntos={provs
               .filter((x) => x.lat != null && x.lng != null && x.status === 1)
@@ -323,10 +340,10 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
                 detalle: (x.categoryLabels ?? x.categories).join(', '),
               }))}
           />
-          <div style={{ fontSize: 12, color: C.dim, marginTop: 8 }}>
-            El circulo es hasta donde llega cada aliado. Los que no aparecen todavia no estan
-            ubicados: abre su expediente y usa &quot;Ponerlo en el mapa&quot;.
-          </div>
+          <p className="adm-help" style={{ margin: '8px 0 0' }}>
+            El círculo es hasta donde llega cada aliado. Los que no aparecen todavía no están
+            ubicados: abre su expediente y usa «Ponerlo en el mapa».
+          </p>
         </div>
       ) : null}
 
@@ -334,21 +351,16 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         Los contadores de arriba dicen CUANTOS. Esto dice que papel, de quien y
         para cuando — lo unico con lo que se puede levantar el telefono.
       */}
-      <SolicitudesProveedor solicitudes={solicitudes} colores={C} onCambio={(m) => { setMsg(m); void recargar(); }} />
+      <SolicitudesProveedor solicitudes={solicitudes} onCambio={(m) => { setMsg(m); void recargar(); }} />
 
       <DocumentAlerts
-        colores={C}
         onIr={(id) => {
           const prov = provs.find((x) => x.id === id);
           if (prov) abrirExpediente(prov);
         }}
       />
 
-      {msg ? (
-        <div style={{ background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13.5 }}>
-          {msg}
-        </div>
-      ) : null}
+      {msg ? <Note style={{ marginBottom: 16 }}>{msg}</Note> : null}
 
       {/* Alta en modal (2026-09-25): antes el formulario empujaba la lista hacia abajo. */}
       <Modal
@@ -357,121 +369,148 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         subtitulo="Con correo, al darlo de alta le llega su invitación al portal."
         onCerrar={() => { setCreando(false); setErrorAlta(null); }}
         ancho={860}
-        pie={<>
-          <button type="button" style={botonSec} onClick={() => setCreando(false)}>Cancelar</button>
-          <button type="button" style={{ ...boton, opacity: guardando ? 0.6 : 1 }} onClick={crear} disabled={guardando}>{guardando ? 'Dando de alta…' : 'Dar de alta'}</button>
-        </>}
+        pie={
+          <>
+            <Btn variant="ghost" onClick={() => setCreando(false)}>Cancelar</Btn>
+            <Btn variant="primary" onClick={crear} disabled={guardando}>{guardando ? 'Dando de alta…' : 'Dar de alta'}</Btn>
+          </>
+        }
       >
-        {errorAlta ? <div role="alert" style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 10, border: `1px solid color-mix(in srgb, ${C.bad} 45%, transparent)`, color: C.bad, fontSize: 13.5 }}>{errorAlta}</div> : null}
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 14 }}>
-            <div><span style={label}>Nombre del aliado *</span><input style={input} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div><span style={label}>Persona que responde</span><input style={input} value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} /></div>
-            <div><span style={label}>Teléfono</span><input style={input} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div><span style={label}>Correo</span><input style={input} value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
-            <div><span style={label}>Ciudad base</span><input style={input} value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></div>
-            <div>
-              <span style={label}>Estado</span>
-              <AdminSelect ariaLabel="Estado" value={form.state} onChange={(v) => setForm({ ...form, state: v })} options={ESTADOS_OPERACION.map((e) => ({ value: e, label: e }))} />
-            </div>
-            <div>
-              <span style={label}>Nivel</span>
-              <AdminSelect ariaLabel="Nivel" value={form.level} onChange={(v) => setForm({ ...form, level: v })} options={NIVELES.map((n) => ({ value: n, label: n }))} />
-            </div>
-            <div><span style={label}>Respuesta promedio (minutos)</span><input style={input} type="number" value={form.responseMinutes} onChange={(e) => setForm({ ...form, responseMinutes: e.target.value })} /></div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <span style={label}>Municipios que cubre — sepáralos con comas</span>
-              <input style={input} placeholder="Apodaca, Escobedo, García" value={form.coverage} onChange={(e) => setForm({ ...form, coverage: e.target.value })} />
-            </div>
+        {errorAlta ? <div role="alert" style={{ marginBottom: 16 }}><Note tone="bad">{errorAlta}</Note></div> : null}
+        <div className="adm-form-grid">
+          <FormField label="Nombre del aliado *">
+            <input className="adm-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          </FormField>
+          <FormField label="Persona que responde">
+            <input className="adm-input" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
+          </FormField>
+          <FormField label="Teléfono">
+            <input className="adm-input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          </FormField>
+          <FormField label="Correo">
+            <input className="adm-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </FormField>
+          <FormField label="Ciudad base">
+            <input className="adm-input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+          </FormField>
+          {/* Los AdminSelect no van dentro de <label>: es un botón de Radix y el
+              clic en la etiqueta lo abriría dos veces. */}
+          <div className="adm-field">
+            <span className="adm-label">Estado</span>
+            <AdminSelect ariaLabel="Estado" value={form.state} onChange={(v) => setForm({ ...form, state: v })} options={ESTADOS_OPERACION.map((e) => ({ value: e, label: e }))} />
           </div>
-
-          <div style={{ marginTop: 16 }}>
-            <QueOfrece tipo={tipoOferta} onTipo={setTipoOferta} categorias={form.categories} onCategorias={(c) => setForm({ ...form, categories: c })} />
+          <div className="adm-field">
+            <span className="adm-label">Nivel</span>
+            <AdminSelect ariaLabel="Nivel" value={form.level} onChange={(v) => setForm({ ...form, level: v })} options={NIVELES.map((n) => ({ value: n, label: n }))} />
           </div>
-
-          {/* Con correo, el alta manda su enlace: es su invitación y por donde
-              sube sus papeles. Se desmarca solo para registrar un prospecto. */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, fontSize: 13, color: C.ink, opacity: form.email ? 1 : 0.5 }}>
-            <input type="checkbox" checked={invitar && Boolean(form.email)} disabled={!form.email} onChange={(e) => setInvitar(e.target.checked)} />
-            Mandarle su invitación por correo al darlo de alta
-          </label>
-
+          <FormField label="Respuesta promedio (minutos)">
+            <input className="adm-input adm-num" type="number" value={form.responseMinutes} onChange={(e) => setForm({ ...form, responseMinutes: e.target.value })} />
+          </FormField>
+          <FormField label="Municipios que cubre" help="Sepáralos con comas." style={{ gridColumn: '1 / -1' }}>
+            <input className="adm-input" placeholder="Apodaca, Escobedo, García" value={form.coverage} onChange={(e) => setForm({ ...form, coverage: e.target.value })} />
+          </FormField>
         </div>
+
+        <hr className="adm-divider" />
+
+        <QueOfrece tipo={tipoOferta} onTipo={setTipoOferta} categorias={form.categories} onCategorias={(c) => setForm({ ...form, categories: c })} />
+
+        {/* Con correo, el alta manda su enlace: es su invitación y por donde
+            sube sus papeles. Se desmarca solo para registrar un prospecto. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 9, marginTop: 20, fontSize: 13, color: 'var(--adm-text-2)', opacity: form.email ? 1 : 0.5, cursor: form.email ? 'pointer' : 'default' }}>
+          <input
+            type="checkbox"
+            checked={invitar && Boolean(form.email)}
+            disabled={!form.email}
+            onChange={(e) => setInvitar(e.target.checked)}
+            style={{ width: 15, height: 15, margin: 0, accentColor: 'var(--adm-accent)' }}
+          />
+          Mandarle su invitación por correo al darlo de alta
+        </label>
       </Modal>
 
-      <input style={{ ...input, maxWidth: 380, marginBottom: 16 }} placeholder="Buscar por nombre o municipio…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <Toolbar end={`${filtrados.length} de ${provs.length}`}>
+        <SearchBox value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por nombre o municipio…" aria-label="Buscar aliado por nombre o municipio" />
+      </Toolbar>
 
-      <div style={{ display: 'grid', gap: 12 }}>
+      <Panel flush clip>
+        <div className="adm-thead pv-row pv-thead">
+          <div>Aliado</div><div>Documentos</div><div>Nivel</div><div />
+        </div>
+
         {filtrados.length === 0 ? (
-          <div style={{ color: C.muted, padding: 30, textAlign: 'center', border: `1px dashed ${C.line2}`, borderRadius: 14 }}>
-            Todavía no hay aliados dados de alta.
-          </div>
+          provs.length === 0
+            ? <EmptyState icon="ph-handshake" title="Todavía no hay aliados dados de alta" />
+            : <EmptyState icon="ph-handshake" title="No se encontraron aliados" sub="Ajusta la búsqueda." />
         ) : null}
 
         {filtrados.map((p) => {
           const d = ETIQUETA_DOCS[p.docsStatus];
+          const publicados = (p.equipment ?? []).filter((e) => !e.pending);
+          const datos = conPuntos([
+            p.contactName,
+            p.phone ? <span className="adm-mono">{p.phone}</span> : null,
+            p.coverage.length ? `Cubre: ${p.coverage.join(', ')}` : null,
+            p.responseMinutes !== null ? `Responde en ~${p.responseMinutes} min` : null,
+            p.monthsInNetwork !== null ? `${p.monthsInNetwork} meses en la red` : null,
+          ]);
           return (
-            <div key={p.id} style={{ background: C.panel, border: `1px solid ${p.docsStatus === 'vencido' ? `color-mix(in srgb, ${C.bad} 40%, transparent)` : C.line}`, borderRadius: 14, padding: '16px 18px', opacity: p.status === 1 ? 1 : 0.55 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: 16 }}>{p.name}</strong>
-                <span style={{
-                  fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', padding: '3px 9px', borderRadius: 6,
-                  color: p.verified ? C.ok : C.dim,
-                  border: `1px solid color-mix(in srgb, ${p.verified ? C.ok : C.dim} 40%, transparent)`,
-                  background: `color-mix(in srgb, ${p.verified ? C.ok : C.dim} 12%, transparent)`,
-                }}>
-                  {p.verified ? 'CON SELLO' : 'SIN SELLO'}
-                </span>
-                <span style={{ fontSize: 12.5, color: d.color }}>Documentos: {d.texto}</span>
+            // Dado de baja: sigue en la lista, pero apagado.
+            <div key={p.id} className="adm-trow pv-row" style={p.status === 1 ? undefined : { opacity: 0.55 }}>
+              <div className="pv-c-name" style={{ minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="adm-cell-title">{p.name}</span>
+                  <Chip tone={p.verified ? 'ok' : 'muted'}>{p.verified ? 'Con sello' : 'Sin sello'}</Chip>
+                  {p.pendingCount ? (
+                    <button
+                      type="button"
+                      className="adm-chip t-warn"
+                      onClick={() => abrirExpediente(p)}
+                      title="Abrir su expediente para revisarlo"
+                      style={{ border: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      {p.pendingCount} por revisar
+                    </button>
+                  ) : null}
+                </div>
+                {datos.length ? <div className="adm-cell-sub" style={{ lineHeight: 1.6 }}>{datos}</div> : null}
+
+                {/* Qué ofrece, a la vista: líneas y máquinas (tipo y marca). */}
+                <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <ChipsOferta p={p} />
+                </div>
+                <div className="adm-cell-sub" style={{ marginTop: 6, lineHeight: 1.6 }}>
+                  {publicados.length > 0 ? (
+                    <>
+                      <span style={{ color: 'var(--adm-text-2)', fontWeight: 600 }}>{publicados.length} equipo{publicados.length === 1 ? '' : 's'}:</span>{' '}
+                      {publicados.slice(0, 4).map((e) => `${e.name}${e.brand ? ` (${e.brand})` : ''}`).join(' · ')}
+                      {publicados.length > 4 ? ` · y ${publicados.length - 4} más` : ''}
+                    </>
+                  ) : (
+                    'Sin equipos publicados.'
+                  )}
+                </div>
+              </div>
+              <div className="pv-c-docs">
+                <span className="pv-m-label">Documentos:</span>
+                <StatusText tone={d.tono}>{d.texto}</StatusText>
+              </div>
+              <div className="pv-c-level">
                 <AdminSelect
                   size="sm"
-                  className="w-auto min-w-[130px]"
                   ariaLabel={`Nivel de ${p.name}`}
                   value={p.level}
                   onChange={(v) => cambiarNivel(p, v)}
                   options={NIVELES.map((n) => ({ value: n, label: n }))}
                 />
-                <button type="button" onClick={() => abrirExpediente(p)} style={{ marginLeft: 'auto', background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 9, padding: '8px 14px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Expediente ({p.documentCount})
-                </button>
               </div>
-              <div style={{ marginTop: 8, fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
-                {[
-                  p.contactName,
-                  p.phone,
-                  p.coverage.length ? `Cubre: ${p.coverage.join(', ')}` : null,
-                  p.responseMinutes !== null ? `Responde en ~${p.responseMinutes} min` : null,
-                  p.monthsInNetwork !== null ? `${p.monthsInNetwork} meses en la red` : null,
-                ].filter(Boolean).join(' · ')}
-              </div>
-
-              {/* Qué ofrece, a la vista: líneas y máquinas (tipo y marca). */}
-              <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                <ChipsOferta p={p} />
-              </div>
-              <div style={{ marginTop: 8, fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
-                {(() => {
-                  const publicados = (p.equipment ?? []).filter((e) => !e.pending);
-                  return publicados.length > 0 ? (
-                    <>
-                      <strong style={{ color: C.ink }}>{publicados.length} equipo{publicados.length === 1 ? '' : 's'}:</strong>{' '}
-                      {publicados.slice(0, 4).map((e) => `${e.name}${e.brand ? ` (${e.brand})` : ''}`).join(' · ')}
-                      {publicados.length > 4 ? ` · y ${publicados.length - 4} más` : ''}
-                    </>
-                  ) : (
-                    <span>Sin equipos publicados.</span>
-                  );
-                })()}
-                {p.pendingCount ? (
-                  <button type="button" onClick={() => abrirExpediente(p)} style={{ marginLeft: 10, fontSize: 12, fontWeight: 700, color: C.warn, background: 'none', border: `1px solid color-mix(in srgb, ${C.warn} 45%, transparent)`, borderRadius: 999, padding: '2px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {p.pendingCount} por revisar
-                  </button>
-                ) : null}
+              <div className="pv-c-act">
+                <Btn size="sm" onClick={() => abrirExpediente(p)}>{`Expediente (${p.documentCount})`}</Btn>
               </div>
             </div>
           );
         })}
-      </div>
+      </Panel>
 
       {expediente ? (
         <ExpedienteModal
@@ -565,88 +604,101 @@ function ExpedienteModal({
   const [vence, setVence] = useState('');
   const hoy = new Date().toISOString().slice(0, 10);
 
+  /** Tipo · marca · renta o venta · dónde está. */
+  const metaEquipo = (e: EquipoRow) =>
+    [e.category, e.brand ? `Marca ${e.brand}` : 'Sin marca', e.rental ? 'Renta' : 'Venta', e.location].filter(Boolean).join(' · ');
+
   return (
-    <div
-      onClick={onCerrar}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 1000 }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: C.panel, border: `1px solid ${C.line2}`, borderRadius: 16, padding: 24, width: 'min(640px, 100%)', maxHeight: '86vh', overflowY: 'auto' }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-          <h2 style={{ margin: 0, fontSize: 19 }}>Expediente · {p.name}</h2>
-          <button type="button" onClick={onCerrar} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 22, cursor: 'pointer' }}>×</button>
-        </div>
-        {/* ── Qué ofrece ── Sus máquinas del catálogo con lo que las define:
-            tipo, marca, ficha técnica y si están libres. Se agregan y editan
-            en el catálogo, ya ligadas a este aliado. */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, margin: '14px 0 10px' }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>Qué ofrece</h3>
-          <a href={`/productos/nuevo?proveedor=${p.id}`} style={{ background: C.accent, color: C.accentInk, borderRadius: 9, padding: '7px 13px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-            + Agregar servicio o producto
+    // El modal del panel (2026-10-08): antes era un overlay propio; este cierra
+    // también con Esc y deja la X y el título como en los demás módulos.
+    <Modal abierto titulo={`Expediente · ${p.name}`} onCerrar={onCerrar} ancho={680}>
+      {/* ── Qué ofrece ── Sus máquinas del catálogo con lo que las define:
+          tipo, marca, ficha técnica y si están libres. Se agregan y editan
+          en el catálogo, ya ligadas a este aliado. */}
+      <section>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <h3 style={H3}>Qué ofrece</h3>
+          <a href={`/productos/nuevo?proveedor=${p.id}`} className={btnClass('secondary', 'sm')}>
+            <i className="ph ph-plus" aria-hidden />Agregar servicio o producto
           </a>
         </div>
         {editandoOferta ? (
-          <div style={{ background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 12, padding: 14, marginBottom: 12 }}>
+          <div className="adm-card" style={{ padding: 16, marginBottom: 14 }}>
             <QueOfrece tipo={tipoEdit} onTipo={setTipoEdit} categorias={catsEdit} onCategorias={setCatsEdit} />
-            {errorOferta ? <div style={{ fontSize: 12.5, color: C.bad, marginTop: 10 }}>{errorOferta}</div> : null}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button type="button" style={{ ...boton, padding: '8px 14px', fontSize: 13 }} onClick={() => void guardarOferta()}>Guardar</button>
-              <button type="button" style={{ ...botonSec, padding: '8px 14px', fontSize: 13 }} onClick={() => setEditandoOferta(false)}>Cancelar</button>
+            {errorOferta ? <div role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', marginTop: 10 }}>{errorOferta}</div> : null}
+            <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+              <Btn size="sm" variant="ghost" onClick={() => setEditandoOferta(false)}>Cancelar</Btn>
+              {/* Primario dentro de su formulario: solo existe mientras se edita. */}
+              <Btn size="sm" variant="primary" onClick={() => void guardarOferta()}>Guardar</Btn>
             </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
             <ChipsOferta p={p} />
-            <button type="button" onClick={() => { setCatsEdit(p.categories); setTipoEdit(tipoDeCategorias(p.categories)); setErrorOferta(null); setEditandoOferta(true); }} style={{ background: 'none', border: 'none', color: C.accent, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Cambiar qué ofrece
+            <button
+              type="button"
+              className="adm-panel-link"
+              style={{ marginLeft: 6 }}
+              onClick={() => { setCatsEdit(p.categories); setTipoEdit(tipoDeCategorias(p.categories)); setErrorOferta(null); setEditandoOferta(true); }}
+            >
+              <i className="ph ph-pencil-simple" aria-hidden />Cambiar qué ofrece
             </button>
           </div>
         )}
+
+        {/* Lo que mandó desde su portal: cada uno trae su propio formulario de
+            rechazo y tres acciones, por eso va como tarjeta y no como fila. */}
         {pendientes.length > 0 ? (
           <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: C.warn }}>
-              Por revisar ({pendientes.length}) · lo ofreció desde su portal. Revísalo, corrígelo si hace falta y publícalo.
+            <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
+              <span style={{ fontWeight: 600, color: 'var(--adm-warn)' }}>Por revisar ({pendientes.length})</span>
+              {' · lo ofreció desde su portal. Revísalo, corrígelo si hace falta y publícalo.'}
             </div>
             {pendientes.map((e) => (
-              <div key={e.id} style={{ background: C.panel2, border: `1px solid color-mix(in srgb, ${C.warn} 45%, transparent)`, borderRadius: 10, padding: 12 }}>
+              <div key={e.id} className="adm-card" style={{ padding: 16 }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  {e.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={e.image} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }} />
-                  ) : null}
+                  {e.image ? <Thumb src={e.image} size={56} /> : null}
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <strong style={{ fontSize: 14 }}>{e.name}</strong>
-                    <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
-                      {[e.category, e.brand ? `Marca ${e.brand}` : 'Sin marca', e.rental ? 'Renta' : 'Venta', e.location].filter(Boolean).join(' · ')}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span className="adm-cell-title">{e.name}</span>
+                      <Chip tone="warn">Por revisar</Chip>
                     </div>
-                    <div style={{ fontSize: 12.5, color: C.ink, marginTop: 4 }}>
+                    <div className="adm-cell-sub">{metaEquipo(e)}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--adm-text-2)', marginTop: 4, lineHeight: 1.5 }}>
                       {e.specs.length ? e.specs.map((x) => `${x.label}: ${x.valor}`).join(' · ') : 'Sin ficha técnica'}
                     </div>
                   </div>
                 </div>
                 {rechazando === e.id ? (
-                  <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
-                    <textarea value={motivo} onChange={(ev) => setMotivo(ev.target.value)} rows={2} placeholder="Qué le falta o por qué no se publica (le llega por correo)" style={{ ...input, resize: 'vertical' }} />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" disabled={ocupado === e.id || motivo.trim().length < 4} onClick={() => void revisar(e, 'rechazar')} style={{ ...boton, background: C.bad, opacity: motivo.trim().length < 4 ? 0.5 : 1 }}>Rechazar y avisarle</button>
-                      <button type="button" onClick={() => { setRechazando(null); setMotivo(''); }} style={botonSec}>Cancelar</button>
+                  <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+                    <textarea
+                      className="adm-textarea"
+                      value={motivo}
+                      onChange={(ev) => setMotivo(ev.target.value)}
+                      rows={2}
+                      placeholder="Qué le falta o por qué no se publica (le llega por correo)"
+                      aria-label="Motivo del rechazo"
+                    />
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                      <Btn size="sm" variant="ghost" onClick={() => { setRechazando(null); setMotivo(''); }}>Cancelar</Btn>
+                      <Btn size="sm" variant="danger" disabled={ocupado === e.id || motivo.trim().length < 4} onClick={() => void revisar(e, 'rechazar')}>
+                        Rechazar y avisarle
+                      </Btn>
                     </div>
                   </div>
                 ) : (
                   <>
-                  {/* Precio único (2026-09-28): el servicio se cotiza con el tabulador y MAQSER24 asigna. */}
-                  <div style={{ marginTop: 10, fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
-                    {esLineaServicio(e.categorySlug)
-                      ? <>Al publicarlo queda en el catálogo de {e.category ?? 'su línea'}. Se cotiza con el <strong style={{ color: C.ink }}>tabulador único</strong> (Cotizador → Tarifas) y, cuando llegue una solicitud, podrás asignársela a este aliado desde Servicios.</>
-                      : <>Al publicarlo aparece en la tienda como producto. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                    <a href={`/productos/editar/${e.id}`} style={{ ...botonSec, textDecoration: 'none', padding: '8px 14px', fontSize: 13 }}>Revisar y corregir</a>
-                    <button type="button" disabled={ocupado === e.id} onClick={() => void revisar(e, 'publicar')} style={{ ...boton, padding: '8px 14px', fontSize: 13, opacity: ocupado === e.id ? 0.6 : 1 }}>Publicar</button>
-                    <button type="button" onClick={() => setRechazando(e.id)} style={{ ...botonSec, padding: '8px 14px', fontSize: 13, color: C.bad }}>Rechazar</button>
-                  </div>
+                    {/* Precio único (2026-09-28): el servicio se cotiza con el tabulador y MAQSER24 asigna. */}
+                    <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>
+                      {esLineaServicio(e.categorySlug)
+                        ? <>Al publicarlo queda en el catálogo de {e.category ?? 'su línea'}. Se cotiza con el <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>tabulador único</strong> (Cotizador → Tarifas) y, cuando llegue una solicitud, podrás asignársela a este aliado desde Servicios.</>
+                        : <>Al publicarlo aparece en la tienda como producto. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                      <a href={`/productos/editar/${e.id}`} className={btnClass('secondary', 'sm')}>Revisar y corregir</a>
+                      <Btn size="sm" icon="ph-check" disabled={ocupado === e.id} onClick={() => void revisar(e, 'publicar')}>Publicar</Btn>
+                      <Btn size="sm" variant="danger" onClick={() => setRechazando(e.id)}>Rechazar</Btn>
+                    </div>
                   </>
                 )}
               </div>
@@ -654,164 +706,152 @@ function ExpedienteModal({
           </div>
         ) : null}
 
-        <div style={{ display: 'grid', gap: 10, marginBottom: 22 }}>
-          {publicados.length === 0 ? (
-            <div style={{ color: C.dim, fontSize: 13.5, lineHeight: 1.6 }}>
-              Todavía no tiene servicios ni productos. Con "Agregar servicio o producto" creas la ficha (tipo, marca, capacidad,
-              fotos) ya a su nombre. Si la máquina ya existe en el catálogo, ábrela y en "De quién es el equipo" elígelo a él.
-            </div>
-          ) : null}
-          {publicados.map((e) => {
-            const disp = DISP[e.availability] ?? { texto: e.availability, color: C.muted };
-            return (
-              <div key={e.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 10, padding: 12 }}>
-                {e.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.image} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, flexShrink: 0, background: '#0b0b0d' }} />
-                ) : (
-                  <div style={{ width: 64, height: 64, borderRadius: 8, flexShrink: 0, background: '#0b0b0d', display: 'grid', placeItems: 'center', color: C.dim, fontSize: 11 }}>Sin foto</div>
-                )}
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <strong style={{ fontSize: 14 }}>{e.name}</strong>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: disp.color }}>● {disp.texto}</span>
-                  </div>
-                  <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>
-                    {[e.category, e.brand ? `Marca ${e.brand}` : 'Sin marca', e.rental ? 'Renta' : 'Venta', e.location].filter(Boolean).join(' · ')}
-                  </div>
-                  {e.specs.length > 0 ? (
-                    <div style={{ fontSize: 12.5, color: C.ink, marginTop: 4, lineHeight: 1.5 }}>
-                      {e.specs.map((s) => `${s.label}: ${s.valor}`).join(' · ')}
+        {publicados.length === 0 ? (
+          <p style={VACIO}>
+            Todavía no tiene servicios ni productos. Con «Agregar servicio o producto» creas la ficha (tipo, marca, capacidad,
+            fotos) ya a su nombre. Si la máquina ya existe en el catálogo, ábrela y en «De quién es el equipo» elígelo a él.
+          </p>
+        ) : (
+          <Panel flush clip>
+            {publicados.map((e) => {
+              const disp = DISP[e.availability] ?? { texto: e.availability, tono: 'muted' as const };
+              return (
+                <div key={e.id} className="adm-trow" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 16px' }}>
+                  <Thumb src={e.image} size={48} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span className="adm-cell-title">{e.name}</span>
+                      <StatusText tone={disp.tono}>{disp.texto}</StatusText>
                     </div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: '#e0a23a', marginTop: 4 }}>Ficha técnica vacía: agrega capacidad, modelo e implementos.</div>
-                  )}
-                </div>
-                <a href={`/productos/editar/${e.id}`} style={{ border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 8, padding: '6px 12px', fontSize: 12.5, textDecoration: 'none', flexShrink: 0 }}>
-                  Editar
-                </a>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Lo que te cobra por máquina: era la pantalla del CRM (2026-10-08). */}
-        <CostosReferencia providerId={p.id} colores={C} />
-
-        <h3 style={{ margin: '22px 0 4px', fontSize: 15, fontWeight: 700 }}>Papeles</h3>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 18px', lineHeight: 1.6 }}>
-          Un documento vencido le quita el sello al aliado aunque su nivel sea alto.
-        </p>
-
-        <div style={{ display: 'grid', gap: 10, marginBottom: 20 }}>
-          {docs.length === 0 ? (
-            <div style={{ color: C.dim, fontSize: 13.5 }}>Sin documentos cargados.</div>
-          ) : null}
-          {docs.map((d) => {
-            const vencido = d.expiresAt !== null && d.expiresAt < hoy;
-            return (
-              <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: C.panel2, border: `1px solid ${vencido ? `color-mix(in srgb, ${C.bad} 45%, transparent)` : C.line}`, borderRadius: 10, padding: '11px 14px' }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 14 }}>{d.name || TIPOS_DOC.find(([k]) => k === d.kind)?.[1] || d.kind}</div>
-                  <div style={{ fontSize: 12, color: vencido ? C.bad : C.muted, marginTop: 2 }}>
-                    {d.expiresAt ? (vencido ? `Venció el ${d.expiresAt}` : `Vigente hasta ${d.expiresAt}`) : 'Sin vencimiento'}
-                    {d.fileUrl ? '' : ' · sin foto'}
+                    <div className="adm-cell-sub">{metaEquipo(e)}</div>
+                    {e.specs.length > 0 ? (
+                      <div style={{ fontSize: 12.5, color: 'var(--adm-text-2)', marginTop: 4, lineHeight: 1.5 }}>
+                        {e.specs.map((s) => `${s.label}: ${s.valor}`).join(' · ')}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--adm-warn)', marginTop: 4 }}>Ficha técnica vacía: agrega capacidad, modelo e implementos.</div>
+                    )}
                   </div>
+                  <IconBtn icon="ph-pencil-simple" label="Editar" href={`/productos/editar/${e.id}`} />
                 </div>
-                {/* La foto que subió el aliado: es lo que se revisa antes de
-                    subirlo a "validado". Abre en otra pestaña. */}
-                {d.fileUrl ? (
-                  <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" style={{ background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 8, padding: '6px 12px', fontSize: 12.5, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                    Ver foto
-                  </a>
-                ) : null}
-                <button type="button" onClick={() => onBorrar(d.id)} style={{ background: 'none', border: `1px solid ${C.line2}`, color: C.muted, borderRadius: 8, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Quitar
-                </button>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </Panel>
+        )}
+      </section>
 
-        <div style={{ borderTop: `1px solid ${C.line}`, paddingTop: 18, display: 'grid', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <span style={label}>Tipo</span>
+      {/* Lo que te cobra por máquina: era la pantalla del CRM (2026-10-08). */}
+      <CostosReferencia providerId={p.id} />
+
+      <section style={SECCION}>
+        <h3 style={H3}>Papeles</h3>
+        <p style={DESC}>Un documento vencido le quita el sello al aliado aunque su nivel sea alto.</p>
+
+        {docs.length === 0 ? (
+          <p style={VACIO}>Sin documentos cargados.</p>
+        ) : (
+          <Panel flush clip>
+            {docs.map((d) => {
+              const vencido = d.expiresAt !== null && d.expiresAt < hoy;
+              return (
+                <div key={d.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--adm-text)' }}>{d.name || TIPOS_DOC.find(([k]) => k === d.kind)?.[1] || d.kind}</div>
+                    <div className="adm-num" style={{ fontSize: 12, color: vencido ? 'var(--adm-bad)' : 'var(--adm-muted)', marginTop: 2 }}>
+                      {d.expiresAt ? (vencido ? `Venció el ${d.expiresAt}` : `Vigente hasta ${d.expiresAt}`) : 'Sin vencimiento'}
+                      {d.fileUrl ? '' : ' · sin foto'}
+                    </div>
+                  </div>
+                  {/* La foto que subió el aliado: es lo que se revisa antes de
+                      subirlo a "validado". Abre en otra pestaña. */}
+                  {d.fileUrl ? (
+                    <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className={btnClass('secondary', 'sm')}>
+                      <i className="ph ph-image" aria-hidden />Ver foto
+                    </a>
+                  ) : null}
+                  <IconBtn icon="ph-trash" label="Quitar" danger onClick={() => onBorrar(d.id)} />
+                </div>
+              );
+            })}
+          </Panel>
+        )}
+
+        <div style={{ display: 'grid', gap: 14, marginTop: 16 }}>
+          <div className="adm-form-grid">
+            <div className="adm-field">
+              <span className="adm-label">Tipo</span>
               <AdminSelect ariaLabel="Tipo de documento" value={kind} onChange={setKind} options={TIPOS_DOC.map(([k, n]) => ({ value: k, label: n }))} />
             </div>
-            <div>
-              <span style={label}>Vence el (opcional)</span>
-              <input style={input} type="date" value={vence} onChange={(e) => setVence(e.target.value)} />
-            </div>
+            <FormField label="Vence el (opcional)">
+              <input className="adm-input" type="date" value={vence} onChange={(e) => setVence(e.target.value)} />
+            </FormField>
           </div>
+          <FormField label="Nombre del documento">
+            <input className="adm-input" placeholder="Póliza de responsabilidad civil" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+          </FormField>
           <div>
-            <span style={label}>Nombre del documento</span>
-            <input style={input} placeholder="Póliza de responsabilidad civil" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            <Btn icon="ph-plus" onClick={() => { onAgregar(kind, nombre, vence); setNombre(''); setVence(''); }}>
+              Agregar al expediente
+            </Btn>
           </div>
-          <button
-            type="button"
-            style={boton}
-            onClick={() => { onAgregar(kind, nombre, vence); setNombre(''); setVence(''); }}
+        </div>
+      </section>
+
+      {/*
+        El acceso del aliado. Es lo que convierte la red de un directorio que
+        alguien mantiene a mano en algo que se mantiene solo.
+      */}
+      {/*
+        DONDE ESTA Y HASTA DONDE LLEGA. Con esto la cobertura pasa de
+        "escribio este municipio?" a "esta a menos de N kilometros?", que es
+        la pregunta real y la unica que funciona fuera del area metropolitana.
+      */}
+      <UbicacionAliado p={p} />
+
+      <AccesoAliado p={p} />
+
+      {/*
+        Los papeles dicen si esta en regla. El cumplimiento dice si CUMPLE,
+        que es otra cosa: se puede tener todo vigente y no contestar nunca.
+      */}
+      <ProviderHistory providerId={p.id} />
+
+      {/* Eliminar: para altas duplicadas o por error. Con historial solo se da de baja. */}
+      <div style={{ ...SECCION, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5, maxWidth: 420 }}>
+          {p.status === 1
+            ? 'Si se dio de alta por error o está duplicado, elimínalo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.'
+            : 'Este aliado está dado de baja: no se le ofrecen servicios y su enlace no abre. Reactívalo para que vuelva a trabajar con MAQSER24.'}
+        </span>
+        {p.status === 1 ? (
+          <Btn
+            size="sm"
+            variant="danger"
+            icon="ph-trash"
+            onClick={() => { if (window.confirm(`¿Eliminar a «${p.name}»? Si no tiene historial se borra por completo.`)) onEliminar(); }}
           >
-            Agregar al expediente
-          </button>
-        </div>
-
-        {/*
-          El acceso del aliado. Es lo que convierte la red de un directorio que
-          alguien mantiene a mano en algo que se mantiene solo.
-        */}
-        {/*
-          DONDE ESTA Y HASTA DONDE LLEGA. Con esto la cobertura pasa de
-          "escribio este municipio?" a "esta a menos de N kilometros?", que es
-          la pregunta real y la unica que funciona fuera del area metropolitana.
-        */}
-        <UbicacionAliado p={p} />
-
-        <AccesoAliado p={p} />
-
-        {/*
-          Los papeles dicen si esta en regla. El cumplimiento dice si CUMPLE,
-          que es otra cosa: se puede tener todo vigente y no contestar nunca.
-        */}
-        <ProviderHistory providerId={p.id} colores={C} />
-
-        {/* Eliminar: para altas duplicadas o por error. Con historial solo se da de baja. */}
-        <div style={{ borderTop: `1px solid ${C.line}`, marginTop: 20, paddingTop: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, maxWidth: 420 }}>
-            {p.status === 1
-              ? 'Si se dio de alta por error o está duplicado, elimínalo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.'
-              : 'Este aliado está dado de baja: no se le ofrecen servicios y su enlace no abre. Reactívalo para que vuelva a trabajar con MAQSER24.'}
-          </span>
-          {p.status === 1 ? (
-            <button
-              type="button"
-              onClick={() => { if (window.confirm(`¿Eliminar a «${p.name}»? Si no tiene historial se borra por completo.`)) onEliminar(); }}
-              style={{ background: 'transparent', color: C.bad, border: `1px solid color-mix(in srgb, ${C.bad} 45%, transparent)`, borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              Eliminar aliado
-            </button>
-          ) : (
-            // Reactivar (2026-10-05): antes un aliado dado de baja no tenía regreso.
-            // Su enlace anterior sigue revocado; hay que mandarle uno nuevo.
-            <button
-              type="button"
-              disabled={ocupado === -1}
-              onClick={async () => {
-                if (!window.confirm(`¿Reactivar a «${p.name}»? Volverá a recibir ofertas. Después mándale su enlace de acceso.`)) return;
-                setOcupado(-1);
-                const r = await fetch(`/api/admin/providers/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }) });
-                setOcupado(null);
-                onRevisado(r.ok ? `«${p.name}» está activo otra vez. Mándale su enlace de acceso.` : 'No se pudo reactivar. Inténtalo de nuevo.');
-              }}
-              style={{ background: 'transparent', color: C.ok, border: `1px solid color-mix(in srgb, ${C.ok} 45%, transparent)`, borderRadius: 9, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: ocupado === -1 ? 'wait' : 'pointer', fontFamily: 'inherit' }}
-            >
-              {ocupado === -1 ? 'Reactivando…' : 'Reactivar aliado'}
-            </button>
-          )}
-        </div>
+            Eliminar aliado
+          </Btn>
+        ) : (
+          // Reactivar (2026-10-05): antes un aliado dado de baja no tenía regreso.
+          // Su enlace anterior sigue revocado; hay que mandarle uno nuevo.
+          <Btn
+            size="sm"
+            icon="ph-arrow-counter-clockwise"
+            disabled={ocupado === -1}
+            onClick={async () => {
+              if (!window.confirm(`¿Reactivar a «${p.name}»? Volverá a recibir ofertas. Después mándale su enlace de acceso.`)) return;
+              setOcupado(-1);
+              const r = await fetch(`/api/admin/providers/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }) });
+              setOcupado(null);
+              onRevisado(r.ok ? `«${p.name}» está activo otra vez. Mándale su enlace de acceso.` : 'No se pudo reactivar. Inténtalo de nuevo.');
+            }}
+          >
+            {ocupado === -1 ? 'Reactivando…' : 'Reactivar aliado'}
+          </Btn>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -840,7 +880,7 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
   }
 
   async function revocar() {
-    if (!window.confirm('Los enlaces que ya le hayas mandado dejaran de servir. ¿Seguimos?')) return;
+    if (!window.confirm('Los enlaces que ya le hayas mandado dejarán de servir. ¿Seguimos?')) return;
     setOcupado(true); setMsg(null);
     const r = await fetch(`/api/admin/providers/${p.id}/revocar-acceso`, { method: 'POST' });
     const d = await r.json().catch(() => null);
@@ -850,48 +890,50 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
   }
 
   return (
-    <section style={{ borderTop: `1px solid ${C.line}`, marginTop: 22, paddingTop: 18 }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: C.ink }}>Su acceso</h3>
-      <p style={{ margin: '0 0 13px', fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+    <section style={SECCION}>
+      <h3 style={H3}>Su acceso</h3>
+      <p style={DESC}>
         Un enlace que le abre lo suyo: contesta solicitudes, confirma si sus equipos siguen libres y
-        revisa sus papeles. Sin contrasena, y sirve 30 dias.
+        revisa sus papeles. Sin contraseña, y sirve 30 días.
       </p>
 
-      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-        <button type="button" style={{ ...boton, opacity: ocupado ? 0.6 : 1 }} onClick={mandar} disabled={ocupado}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Btn icon={p.email ? 'ph-paper-plane-tilt' : 'ph-link'} onClick={mandar} disabled={ocupado}>
           {p.email ? 'Mandarle su enlace' : 'Generar enlace'}
-        </button>
-        <button type="button" style={{ ...botonSec, color: C.dim }} onClick={revocar} disabled={ocupado}>
+        </Btn>
+        <Btn variant="ghost" onClick={revocar} disabled={ocupado}>
           Revocar los anteriores
-        </button>
+        </Btn>
       </div>
 
-      {msg ? <div style={{ marginTop: 12, fontSize: 13, color: C.ink }}>{msg}</div> : null}
+      {msg ? <div style={{ ...AVISO, marginTop: 12 }}>{msg}</div> : null}
 
       {url ? (
-        <div style={{ marginTop: 10 }}>
+        <div style={{ marginTop: 12 }}>
           {/*
             El enlace se ensena SIEMPRE, tambien cuando el correo salio bien:
             mientras el envio este apagado esta es la unica forma de darle
             acceso, y se le puede pasar por WhatsApp igual de bien.
           */}
-          <div style={{ fontSize: 11.5, color: C.dim, marginBottom: 5 }}>
-            Tambien puedes copiarlo y mandarselo por WhatsApp:
+          <div className="adm-help" style={{ marginBottom: 6 }}>
+            También puedes copiarlo y mandárselo por WhatsApp:
           </div>
           <input
             readOnly
+            className="adm-input adm-mono"
             value={url}
             onFocus={(e) => e.currentTarget.select()}
-            style={{ ...input, fontFamily: 'ui-monospace, monospace', fontSize: 11.5 }}
+            aria-label="Enlace de acceso del aliado"
+            style={{ fontSize: 12 }}
           />
           <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              style={{ ...botonSec, padding: '7px 13px', fontSize: 12.5 }}
+            <Btn
+              size="sm"
+              icon="ph-copy"
               onClick={() => { void navigator.clipboard?.writeText(url).then(() => setMsg('Enlace copiado.')); }}
             >
               Copiar enlace
-            </button>
+            </Btn>
             {waDe(p.phone) ? (
               <a
                 href={`https://wa.me/${waDe(p.phone)}?text=${encodeURIComponent(
@@ -899,9 +941,9 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ ...boton, padding: '7px 13px', fontSize: 12.5, textDecoration: 'none' }}
+                className={btnClass('secondary', 'sm')}
               >
-                Mandar por WhatsApp
+                <i className="ph ph-whatsapp-logo" aria-hidden />Mandar por WhatsApp
               </a>
             ) : null}
           </div>
@@ -984,56 +1026,58 @@ function UbicacionAliado({ p }: { p: ProviderRow }) {
   );
 
   return (
-    <section style={{ borderTop: `1px solid ${C.line}`, marginTop: 22, paddingTop: 18 }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 700, color: C.ink }}>Dónde está y hasta dónde llega</h3>
-      <p style={{ margin: '0 0 13px', fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+    <section style={SECCION}>
+      <h3 style={H3}>Dónde está y hasta dónde llega</h3>
+      <p style={DESC}>
         Con esto dejamos de decidir la cobertura por el nombre del municipio. Los que ya tienen
         radio se comparan por distancia real a la obra.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <span style={label}>Dirección de su base</span>
-          <input style={input} value={dir} onChange={(e) => setDir(e.target.value)} placeholder="Av. Industrias 200, Apodaca, N.L." />
-        </div>
-        <div>
-          <span style={label}>Llega hasta (km)</span>
-          <input style={input} type="number" min={1} value={radio} onChange={(e) => setRadio(e.target.value)} placeholder="40" />
-        </div>
+      <div className="adm-form-grid">
+        <FormField label="Dirección de su base" style={{ gridColumn: '1 / -1' }}>
+          <input className="adm-input" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="Av. Industrias 200, Apodaca, N.L." />
+        </FormField>
+        <FormField label="Llega hasta (km)">
+          <input className="adm-input adm-num" type="number" min={1} value={radio} onChange={(e) => setRadio(e.target.value)} placeholder="40" />
+        </FormField>
       </div>
 
-      <div style={{ display: 'flex', gap: 9, marginTop: 13, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button type="button" style={{ ...boton, opacity: ocupado ? 0.6 : 1 }} onClick={ubicar} disabled={ocupado}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Btn icon="ph-map-pin" onClick={ubicar} disabled={ocupado}>
           Ponerlo en el mapa
-        </button>
-        <button type="button" style={botonSec} onClick={guardar} disabled={ocupado}>Sólo guardar</button>
-        {coords ? (
-          <span style={{ fontSize: 12, color: C.ok }}>
-            Ubicado en {coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}
-          </span>
-        ) : (
-          <span style={{ fontSize: 12, color: C.dim }}>Sin ubicar</span>
-        )}
+        </Btn>
+        <Btn variant="ghost" onClick={guardar} disabled={ocupado}>Sólo guardar</Btn>
+        <span style={{ marginLeft: 4 }}>
+          {coords ? (
+            <StatusText tone="ok">
+              <span>Ubicado en <span className="adm-num">{coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</span></span>
+            </StatusText>
+          ) : (
+            <StatusText tone="muted">Sin ubicar</StatusText>
+          )}
+        </span>
       </div>
 
-      {msg ? <div style={{ marginTop: 11, fontSize: 13, color: C.ink, lineHeight: 1.5 }}>{msg}</div> : null}
+      {msg ? <div style={{ ...AVISO, marginTop: 12 }}>{msg}</div> : null}
 
-      <div style={{ marginTop: 13 }}>
+      <div style={{ marginTop: 14 }}>
         <MapaCobertura alto={240} puntos={puntosMapa} onMover={fijar} />
-        <div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>
+        <p className="adm-help" style={{ margin: '6px 0 0' }}>
           {coords ? 'Arrastra el punto o da clic en el mapa para corregir su lugar exacto.' : 'Da clic en el mapa para marcar su base.'}
-        </div>
+        </p>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
         <input
-          style={{ ...input, flex: '1 1 260px' }}
+          className="adm-input"
+          style={{ flex: '1 1 260px', width: 'auto', minWidth: 0 }}
           value={pegado}
           onChange={(e) => setPegado(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); usarPegado(); } }}
           placeholder="O pega coordenadas o el enlace de Google Maps"
+          aria-label="Coordenadas o enlace de Google Maps"
         />
-        <button type="button" style={botonSec} onClick={usarPegado} disabled={!pegado.trim()}>Usar</button>
+        <Btn onClick={usarPegado} disabled={!pegado.trim()}>Usar</Btn>
       </div>
     </section>
   );

@@ -212,14 +212,23 @@ export function AvisosBell() {
           aria-label="Avisos"
           style={{
             position: 'absolute', right: 0, top: 48, width: 'min(400px, calc(100vw - 32px))', maxHeight: '70vh',
-            display: 'flex', flexDirection: 'column', background: D.card, border: `1px solid ${D.cardBorder}`,
-            borderRadius: 14, boxShadow: '0 30px 70px -20px rgba(0,0,0,.85)', zIndex: 900, overflow: 'hidden',
+            display: 'flex', flexDirection: 'column', background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)',
+            borderRadius: 12, boxShadow: '0 24px 60px -20px rgba(0,0,0,.85)', zIndex: 900, overflow: 'hidden',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${D.cardBorder}` }}>
-            <strong style={{ fontSize: 15, color: D.text }}>Avisos</strong>
+          {/* Estilo del kit (2026-10-08): filas con línea fina, sin bloques de color; lo no leído lo marca el punto. */}
+          <style>{`
+            .av-item { transition: background .12s ease; }
+            .av-item:hover { background: rgba(255,255,255,0.03) !important; }
+            .av-item:last-child { border-bottom: 0 !important; }
+          `}</style>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 50, padding: '10px 16px', borderBottom: '1px solid var(--adm-border)' }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--adm-text)' }}>
+              Avisos
+              {unread > 0 ? <span className="adm-num" style={{ marginLeft: 7, fontSize: 13, fontWeight: 500, color: 'var(--adm-faint)' }}>{unread}</span> : null}
+            </span>
             {unread > 0 ? (
-              <button type="button" onClick={() => void marcar()} style={{ background: 'none', border: 'none', color: D.accent, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button type="button" className="adm-panel-link" onClick={() => void marcar()}>
                 Marcar todo como leído
               </button>
             ) : null}
@@ -229,38 +238,46 @@ export function AvisosBell() {
             <button
               type="button"
               onClick={() => void activarEscritorio()}
-              style={{ margin: '10px 12px 0', padding: '9px 12px', borderRadius: 10, border: `1px dashed ${D.cardBorder}`, background: D.accentSoft, color: D.text, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+              style={{
+                display: 'flex', alignItems: 'flex-start', gap: 9, margin: '12px 12px 4px', padding: '9px 12px', borderRadius: 8,
+                border: '1px solid var(--adm-border-strong)', background: 'rgba(255,255,255,0.02)', color: 'var(--adm-text-2)',
+                fontSize: 12.5, lineHeight: 1.5, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+              }}
             >
-              <i className="ph ph-desktop" aria-hidden /> Activar avisos del escritorio: te llegan aunque estés en otra pestaña.
+              <i className="ph ph-desktop" aria-hidden style={{ fontSize: 15, marginTop: 1, color: 'var(--adm-accent)' }} />
+              <span>Activar avisos del escritorio: te llegan aunque estés en otra pestaña.</span>
             </button>
           ) : null}
 
-          <div style={{ overflowY: 'auto', padding: 6 }}>
+          <div style={{ overflowY: 'auto' }}>
             {avisos.length === 0 ? (
-              <div style={{ padding: '28px 16px', textAlign: 'center', color: D.muted, fontSize: 13.5 }}>
-                Sin avisos todavía. Aquí aparecen las solicitudes nuevas, las respuestas de los aliados y los mensajes.
+              <div className="adm-empty" style={{ padding: '32px 20px' }}>
+                <i className="ph ph-bell" aria-hidden />
+                <div className="adm-empty-title">Sin avisos todavía</div>
+                <div className="adm-empty-sub">Aquí aparecen las solicitudes nuevas, las respuestas de los aliados y los mensajes.</div>
               </div>
             ) : (
               avisos.map((a) => (
                 <button
                   key={a.id}
                   type="button"
+                  className="av-item"
                   onClick={() => ir(a)}
                   style={{
-                    width: '100%', display: 'flex', gap: 11, alignItems: 'flex-start', textAlign: 'left', padding: '10px 10px',
-                    borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                    background: a.isRead ? 'transparent' : D.accentSoft,
+                    width: '100%', display: 'flex', gap: 12, alignItems: 'flex-start', textAlign: 'left', padding: '12px 16px',
+                    border: 'none', borderBottom: '1px solid var(--adm-border)', cursor: 'pointer', fontFamily: 'inherit',
+                    background: a.isRead ? 'transparent' : 'rgba(255,255,255,0.02)',
                   }}
                 >
-                  <span style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,0.05)', color: a.isRead ? D.muted : D.accent }}>
-                    <i className={`ph ${ICONO[a.evento] ?? 'ph-bell'}`} aria-hidden style={{ fontSize: 17 }} />
+                  <span style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, display: 'grid', placeItems: 'center', border: '1px solid var(--adm-border)', background: 'rgba(255,255,255,0.03)', color: a.isRead ? 'var(--adm-muted)' : 'var(--adm-accent)' }}>
+                    <i className={`ph ${ICONO[a.evento] ?? 'ph-bell'}`} aria-hidden style={{ fontSize: 16 }} />
                   </span>
                   <span style={{ minWidth: 0, flex: 1 }}>
-                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: a.isRead ? 500 : 700, color: D.text, lineHeight: 1.35 }}>{a.title}</span>
-                    {a.body ? <span style={{ display: 'block', fontSize: 12.5, color: '#a1a1aa', marginTop: 2, lineHeight: 1.4 }}>{a.body}</span> : null}
-                    <span style={{ display: 'block', fontSize: 11.5, color: D.muted, marginTop: 4 }}>{hace(a.createdAt)}</span>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: a.isRead ? 500 : 600, color: a.isRead ? 'var(--adm-text-2)' : 'var(--adm-text)', lineHeight: 1.4 }}>{a.title}</span>
+                    {a.body ? <span style={{ display: 'block', fontSize: 12.5, color: 'var(--adm-muted)', marginTop: 2, lineHeight: 1.45 }}>{a.body}</span> : null}
+                    <span style={{ display: 'block', fontSize: 12, color: 'var(--adm-faint)', marginTop: 4 }}>{hace(a.createdAt)}</span>
                   </span>
-                  {!a.isRead ? <span aria-hidden style={{ width: 8, height: 8, borderRadius: 99, background: D.accent, marginTop: 6, flexShrink: 0 }} /> : null}
+                  {!a.isRead ? <span aria-hidden style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--adm-accent)', marginTop: 7, flexShrink: 0 }} /> : null}
                 </button>
               ))
             )}
@@ -275,18 +292,18 @@ export function AvisosBell() {
           onClick={() => ir(letrero)}
           style={{
             position: 'fixed', right: 20, bottom: 20, zIndex: 1100, width: 'min(380px, calc(100vw - 40px))',
-            display: 'flex', gap: 12, alignItems: 'flex-start', textAlign: 'left', padding: '14px 16px', borderRadius: 14,
-            background: D.card, border: '1px solid var(--color-primary)', boxShadow: '0 30px 70px -20px rgba(0,0,0,.9)',
-            cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', gap: 12, alignItems: 'flex-start', textAlign: 'left', padding: '14px 16px', borderRadius: 12,
+            background: 'var(--adm-raised)', border: '1px solid var(--adm-border-strong)', boxShadow: '0 20px 50px -20px rgba(0,0,0,.85)',
+            color: 'var(--adm-text)', cursor: 'pointer', fontFamily: 'inherit', animation: 'fadeIn .2s ease',
           }}
         >
-          <span style={{ width: 36, height: 36, borderRadius: 10, flexShrink: 0, display: 'grid', placeItems: 'center', background: D.accentSoft, color: D.accent }}>
-            <i className={`ph ${ICONO[letrero.evento] ?? 'ph-bell'}`} aria-hidden style={{ fontSize: 19 }} />
+          <span style={{ width: 34, height: 34, borderRadius: 8, flexShrink: 0, display: 'grid', placeItems: 'center', background: 'color-mix(in srgb, var(--adm-accent) 14%, transparent)', color: 'var(--adm-accent)' }}>
+            <i className={`ph ${ICONO[letrero.evento] ?? 'ph-bell'}`} aria-hidden style={{ fontSize: 17 }} />
           </span>
           <span style={{ minWidth: 0 }}>
-            <span style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: D.accent, textTransform: 'uppercase', letterSpacing: '.06em' }}>Nuevo aviso</span>
-            <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: D.text, marginTop: 2 }}>{letrero.title}</span>
-            {letrero.body ? <span style={{ display: 'block', fontSize: 12.5, color: '#a1a1aa', marginTop: 2 }}>{letrero.body}</span> : null}
+            <span style={{ display: 'block', fontSize: 11.5, fontWeight: 600, color: 'var(--adm-accent)', textTransform: 'uppercase', letterSpacing: '.1em' }}>Nuevo aviso</span>
+            <span style={{ display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--adm-text)', marginTop: 3, lineHeight: 1.4 }}>{letrero.title}</span>
+            {letrero.body ? <span style={{ display: 'block', fontSize: 12.5, color: 'var(--adm-muted)', marginTop: 2, lineHeight: 1.45 }}>{letrero.body}</span> : null}
           </span>
         </button>
       , document.body) : null}

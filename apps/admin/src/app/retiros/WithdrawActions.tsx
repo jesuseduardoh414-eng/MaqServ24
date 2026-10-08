@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { D } from '@/components/design-tokens';
+import { Btn } from '@/components/ui';
 
 /**
  * Pagar o rechazar un retiro. Ambas acciones mueven dinero, así que ninguna es de
@@ -55,79 +55,62 @@ export function WithdrawActions({
   }
 
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-      <style>{`
-        .wd-solid:hover:not(:disabled){ filter: brightness(1.12); }
-        .wd-ghost:hover:not(:disabled){ background: rgba(255,255,255,0.06); }
-      `}</style>
-
-      <button
-        type="button"
-        className="wd-solid"
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+      <Btn
+        size="sm"
+        icon="ph-check"
         disabled={busy}
         onClick={() => {
           if (window.confirm(`¿Confirmas que ya le transferiste ${amount} a ${vendor}?\n\nSu saldo ya está descontado; esto solo cierra el retiro.`)) {
             void send('completed');
           }
         }}
-        style={{ fontSize: 12, fontWeight: 700, fontFamily: 'inherit', borderRadius: 8, padding: '7px 14px', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1 }}
       >
         Marcar pagado
-      </button>
+      </Btn>
 
-      <button
-        type="button"
-        className="wd-ghost"
-        disabled={busy}
-        onClick={() => setAsking((v) => !v)}
-        style={{ fontSize: 12, fontWeight: 700, fontFamily: 'inherit', borderRadius: 8, padding: '7px 14px', background: 'transparent', color: '#f55', border: '1px solid rgba(255,85,85,0.3)', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1 }}
-      >
+      <Btn size="sm" variant="danger" disabled={busy} onClick={() => setAsking((v) => !v)} aria-expanded={asking}>
         Rechazar
-      </button>
+      </Btn>
 
       {asking ? (
         <div
           ref={box}
-          style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50, width: 320, background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 12, padding: 16, boxShadow: '0 18px 44px -14px rgba(0,0,0,0.75)', textAlign: 'left' }}
+          style={{
+            position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50, width: 'min(320px, calc(100vw - 40px))',
+            background: 'var(--adm-raised)', border: '1px solid var(--adm-border-strong)', borderRadius: 12, padding: 16,
+            boxShadow: '0 20px 50px -20px rgba(0,0,0,0.85)', textAlign: 'left',
+          }}
         >
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#FBFBFA', marginBottom: 6 }}>Rechazar {amount}</div>
-          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#8A8A8F', lineHeight: 1.5 }}>
+          <div className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)', marginBottom: 4 }}>Rechazar {amount}</div>
+          <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
             Se le regresan {amount} a su saldo y se le avisa con este motivo.
           </p>
-          <label htmlFor={`wd-note-${withdrawId}`} style={{ display: 'block', fontSize: 10.5, letterSpacing: '1px', fontWeight: 700, color: '#7A7A7F', marginBottom: 6 }}>
-            MOTIVO
+          <label htmlFor={`wd-note-${withdrawId}`} className="adm-label" style={{ display: 'block', marginBottom: 6 }}>
+            Motivo
           </label>
           <textarea
             id={`wd-note-${withdrawId}`}
+            className="adm-textarea"
             rows={3}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             maxLength={500}
             placeholder="Ej. La CLABE no coincide con el titular."
-            style={{ width: '100%', background: D.inputBg, border: `1px solid ${D.inputBorder}`, borderRadius: 8, padding: '9px 11px', color: D.text, fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical' }}
+            style={{ fontSize: 13.5 }}
           />
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button
-              type="button"
-              disabled={busy || note.trim().length < 3}
-              onClick={() => void send('rejected', note.trim())}
-              style={{ flex: 1, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', borderRadius: 8, padding: '9px 12px', background: '#f55', color: '#1A0606', border: 'none', cursor: busy ? 'wait' : note.trim().length < 3 ? 'not-allowed' : 'pointer', opacity: busy || note.trim().length < 3 ? 0.45 : 1 }}
-            >
-              Rechazar y reembolsar
-            </button>
-            <button
-              type="button"
-              className="wd-ghost"
-              onClick={() => setAsking(false)}
-              style={{ fontSize: 12.5, fontWeight: 600, fontFamily: 'inherit', borderRadius: 8, padding: '9px 12px', background: 'transparent', color: '#8A8A8F', border: `1px solid ${D.inputBorder}`, cursor: 'pointer' }}
-            >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+            <Btn size="sm" variant="ghost" onClick={() => setAsking(false)}>
               Cancelar
-            </button>
+            </Btn>
+            <Btn size="sm" variant="danger" disabled={busy || note.trim().length < 3} onClick={() => void send('rejected', note.trim())}>
+              Rechazar y reembolsar
+            </Btn>
           </div>
         </div>
       ) : null}
 
-      {error ? <span role="alert" style={{ fontSize: 11.5, color: '#f55', fontWeight: 600, width: '100%', textAlign: 'right' }}>{error}</span> : null}
+      {error ? <span role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', fontWeight: 500, width: '100%', textAlign: 'right' }}>{error}</span> : null}
     </div>
   );
 }

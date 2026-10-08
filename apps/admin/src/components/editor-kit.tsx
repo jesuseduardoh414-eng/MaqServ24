@@ -11,20 +11,21 @@ import { D, FONT, PRESETS } from './design-tokens';
  */
 export { D, FONT, PRESETS };
 
-export const cardStyle: CSSProperties = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18, padding: 24, marginBottom: 18 };
-export const inputStyle: CSSProperties = { width: '100%', height: 46, padding: '0 14px', borderRadius: 11, border: `1px solid ${D.inputBorder}`, background: D.inputBg, color: D.text, fontFamily: 'inherit', fontSize: '14.5px', outline: 'none' };
-export const h3Style: CSSProperties = { margin: 0, fontSize: '15.5px', fontWeight: 700, color: D.text };
-export const smallLabel: CSSProperties = { fontSize: 12, fontWeight: 600, color: D.muted2 };
+/* Estilo del kit del panel (2026-10-08): mismas medidas que .adm-card,
+   .adm-input y .adm-label de globals.css, para que los editores de Diseño
+   se vean igual que el resto de los módulos. */
+export const cardStyle: CSSProperties = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 12, padding: 20, marginBottom: 16 };
+export const inputStyle: CSSProperties = { width: '100%', height: 38, padding: '0 12px', borderRadius: 8, border: `1px solid ${D.inputBorder}`, background: D.inputBg, color: D.text, fontFamily: 'inherit', fontSize: 14, outline: 'none' };
+export const h3Style: CSSProperties = { margin: 0, fontSize: 15, fontWeight: 600, color: D.text, fontFamily: 'inherit' };
+export const smallLabel: CSSProperties = { fontSize: 12.5, fontWeight: 500, color: 'var(--adm-text-2)' };
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label style={{ display: 'grid', gap: 7 }}><span style={smallLabel}>{label}</span>{children}</label>;
+  return <label style={{ display: 'grid', gap: 6 }}><span style={smallLabel}>{label}</span>{children}</label>;
 }
 
-export function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+export function Toggle({ on, onClick, title }: { on: boolean; onClick: () => void; title?: string }) {
   return (
-    <button type="button" onClick={onClick} aria-pressed={on} style={{ position: 'relative', width: 44, height: 25, borderRadius: 999, border: 'none', cursor: 'pointer', background: on ? D.amber : 'rgba(255,255,255,0.12)', transition: 'background .15s', flexShrink: 0 }}>
-      <span style={{ position: 'absolute', top: 3, left: on ? 22 : 3, width: 19, height: 19, borderRadius: 999, background: '#fff', transition: 'left .15s' }} />
-    </button>
+    <button type="button" role="switch" onClick={onClick} aria-checked={on} className="adm-switch" title={title} aria-label={title} />
   );
 }
 
@@ -76,8 +77,8 @@ export function BlockEditor({ label, help, icon, block, onChange }: {
     <div style={{ ...cardStyle, display: 'grid', gap: 15 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className={`ph ${icon}`} style={{ fontSize: 19 }} /></div>
-          <div style={{ minWidth: 0 }}><h3 style={h3Style}>{label}</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>{help}</p></div>
+          <i className={`ph ${icon}`} style={{ fontSize: 18, color: 'var(--adm-muted)', flexShrink: 0 }} aria-hidden />
+          <div style={{ minWidth: 0 }}><h3 style={h3Style}>{label}</h3><p style={{ margin: '3px 0 0', fontSize: 12.5, color: 'var(--adm-muted)' }}>{help}</p></div>
         </div>
         <Toggle on={block.enabled} onClick={() => onChange({ enabled: !block.enabled })} />
       </div>
@@ -85,7 +86,7 @@ export function BlockEditor({ label, help, icon, block, onChange }: {
         <div style={{ display: 'grid', gap: 15, animation: 'fadeIn .2s ease' }}>
           <Field label="Eyebrow (línea pequeña arriba)"><input value={block.eyebrow} onChange={(e) => onChange({ eyebrow: e.target.value })} placeholder="Catálogo completo" style={inputStyle} /></Field>
           <Field label="Título"><input value={block.title} onChange={(e) => onChange({ title: e.target.value })} placeholder="Todo el equipo, en un solo lugar" style={inputStyle} /></Field>
-          <Field label="Subtítulo"><textarea value={block.subtitle} onChange={(e) => onChange({ subtitle: e.target.value })} rows={2} placeholder="Descripción breve…" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+          <Field label="Subtítulo"><textarea value={block.subtitle} onChange={(e) => onChange({ subtitle: e.target.value })} rows={2} placeholder="Descripción breve…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Texto del botón (vacío = sin botón)"><input value={block.cta} onChange={(e) => onChange({ cta: e.target.value })} placeholder="Ver ofertas" style={inputStyle} /></Field>
             <Field label="Enlace del botón"><input value={block.ctaLink} onChange={(e) => onChange({ ctaLink: e.target.value })} placeholder="/productos" style={inputStyle} /></Field>

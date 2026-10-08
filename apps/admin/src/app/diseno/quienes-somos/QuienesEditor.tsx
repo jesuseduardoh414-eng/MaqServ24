@@ -5,7 +5,8 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ThemeTokens, WhyChooseUs, QuienesSomos, QsStat, QsValue, QsMilestone } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
-import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField } from '@/components/editor-kit';
+import { D, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField } from '@/components/editor-kit';
+import { Btn, Chip, EmptyState, IconBtn, Note, PageHeader, Panel, SectionHead, Segmented, StatusText, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
 type Placement = 'both' | 'home' | 'about';
@@ -28,7 +29,16 @@ interface Config {
   qs: QuienesSomos;
 }
 
+type Tab = 'contenido' | 'razones' | 'pagina' | 'estilo';
+
 const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
+
+/** Descripción bajo el título de cada bloque. */
+const desc: CSSProperties = { margin: '3px 0 0', fontSize: 12.5, color: 'var(--adm-muted)' };
+/** Un interruptor suelto va en texto plano con una línea fina debajo: una tarjeta para un solo switch sobraba. */
+const showRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 0 16px', marginBottom: 16, borderBottom: '1px solid var(--adm-border)' };
+/** Texto que explica un bloque de la pestaña: plano, sin tarjeta con icono. */
+const intro: CSSProperties = { margin: '0 0 16px', fontSize: 13, lineHeight: 1.55, color: 'var(--adm-muted)' };
 
 /** Copys de la banda del home. Los usan «Guardar y publicar» y la vista previa. */
 function copysDeBanda(c: Config): Record<string, string> {
@@ -70,7 +80,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
 
   const [config, setConfig] = useState<Config>(initial);
   const [saved, setSaved] = useState<Config>(initial);
-  const [tab, setTab] = useState<'contenido' | 'razones' | 'pagina' | 'estilo'>('contenido');
+  const [tab, setTab] = useState<Tab>('contenido');
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
@@ -137,44 +147,45 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
   }
 
   return (
-    <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-
-      {/* Barra de acciones */}
-      <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: D.muted2, fontSize: '12.5px', fontWeight: 600, marginBottom: 5 }}><i className="ph ph-paint-brush-broad" style={{ fontSize: 14 }} /> Diseño del sitio <span style={{ opacity: 0.5 }}>·</span> Quiénes somos</div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 4 · Quiénes somos</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
-          <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
-          <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
-        </div>
-      </div>
+    <div>
+      {/* Nota: todo lo de esta sección se edita aquí */}
+      <PageHeader
+        eyebrow={['Sitio web', 'Secciones del home']}
+        title="Sección 4 · Quiénes somos"
+        subtitle={<>La banda «¿Por qué elegirnos?» del home. Todo en un solo lugar: las <b>razones</b> (◆ cada punto), los <b>textos</b>, las <b>estadísticas</b>, la <b>imagen</b> y el <b>estilo</b>.</>}
+        actions={
+          <>
+            <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
+            <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
+            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
+          </>
+        }
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 468px', gap: 26, alignItems: 'start' }} className="hero-ed-grid">
         <div style={{ minWidth: 0 }}>
-          {/* Nota: todo lo de esta sección se edita aquí */}
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-shield-check" style={{ fontSize: 20 }} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ fontSize: 14 }}>La banda «¿Por qué elegirnos?» del home</strong>
-              <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Todo en un solo lugar: las <b>razones</b> (◆ cada punto), los <b>textos</b>, las <b>estadísticas</b>, la <b>imagen</b> y el <b>estilo</b>.</p>
-            </div>
-          </div>
-
           {/* Toggle mostrar sección */}
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div><strong style={{ fontSize: 13.5 }}>Mostrar la sección en el home</strong><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>Apágala para ocultarla temporalmente.</p></div>
+          <div style={showRow}>
+            <div style={{ minWidth: 0 }}>
+              <div className="adm-cell-title">Mostrar la sección en el home</div>
+              <div className="adm-cell-sub">Apágala para ocultarla temporalmente.</div>
+            </div>
             <Toggle on={w.show} onClick={() => setW('show', !w.show)} />
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 4, padding: 5, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 14, marginBottom: 22, flexWrap: 'wrap' }}>
-            {([['contenido', 'Contenido', 'ph-text-aa'], ['razones', 'Razones', 'ph-list-checks'], ['pagina', 'Página completa', 'ph-identification-card'], ['estilo', 'Imagen y estilo', 'ph-paint-brush']] as const).map(([id, label, icon]) => (
-              <button key={id} type="button" onClick={() => setTab(id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', cursor: 'pointer', borderRadius: 10, padding: '9px 15px', fontWeight: 700, fontSize: '13.5px', fontFamily: 'inherit', background: tab === id ? D.amber : 'transparent', color: tab === id ? '#0a0a0b' : D.muted2 }}><i className={`ph ${icon}`} style={{ fontSize: 16 }} /> {label}</button>
-            ))}
+          <div style={{ marginBottom: 18 }}>
+            <Segmented<Tab>
+              ariaLabel="Qué editar"
+              value={tab}
+              onChange={setTab}
+              items={[
+                { key: 'contenido', label: 'Contenido' },
+                { key: 'razones', label: 'Razones' },
+                { key: 'pagina', label: 'Página completa' },
+                { key: 'estilo', label: 'Imagen y estilo' },
+              ]}
+            />
           </div>
 
           {/* CONTENIDO */}
@@ -184,12 +195,12 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
                 <h3 style={h3Style}>Textos</h3>
                 <Field label="Eyebrow (línea pequeña arriba)"><input value={config.eyebrow} onChange={(e) => set('eyebrow', e.target.value)} placeholder="Nuestro compromiso" style={inputStyle} /></Field>
                 <Field label="Título"><input value={config.title} onChange={(e) => set('title', e.target.value)} placeholder="¿Por qué elegirnos?" style={inputStyle} /></Field>
-                <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={2} placeholder="Más que un proveedor de maquinaria…" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+                <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={2} placeholder="Más que un proveedor de maquinaria…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
               </div>
 
               <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div><h3 style={h3Style}>Tarjeta de años</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>La tarjeta flotante sobre la imagen.</p></div>
+                  <div><h3 style={h3Style}>Tarjeta de años</h3><p style={desc}>La tarjeta flotante sobre la imagen.</p></div>
                   <Toggle on={w.showYearsBadge} onClick={() => setW('showYearsBadge', !w.showYearsBadge)} />
                 </div>
                 {w.showYearsBadge ? (
@@ -202,11 +213,11 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
 
               <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div><h3 style={h3Style}>Barra de estadísticas</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>Los 3 números animados al pie.</p></div>
+                  <div><h3 style={h3Style}>Barra de estadísticas</h3><p style={desc}>Los 3 números animados al pie.</p></div>
                   <Toggle on={w.showStats} onClick={() => setW('showStats', !w.showStats)} />
                 </div>
                 {w.showStats ? config.stats.map((s, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 14, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? `1px solid ${D.cardBorder}` : 'none' }}>
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 14, paddingTop: i > 0 ? 12 : 0, borderTop: i > 0 ? '1px solid var(--adm-border)' : 'none' }}>
                     <Field label={`Número ${i + 1}`}><input value={s.num} onChange={(e) => setStat(i, { num: e.target.value })} placeholder="500+" style={inputStyle} /></Field>
                     <Field label={`Etiqueta ${i + 1}`}><input value={s.label} onChange={(e) => setStat(i, { label: e.target.value })} placeholder="Equipos disponibles" style={inputStyle} /></Field>
                   </div>
@@ -234,11 +245,11 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
           {tab === 'estilo' ? (
             <div style={{ animation: 'fadeIn .25s ease' }}>
               <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                <div><h3 style={h3Style}>Imagen principal</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>La foto grande de la izquierda de la sección. Vacío ⇒ se muestra un marcador.</p></div>
+                <div><h3 style={h3Style}>Imagen principal</h3><p style={desc}>La foto grande de la izquierda de la sección. Vacío ⇒ se muestra un marcador.</p></div>
                 <label
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) upload(f); }}
-                  style={{ position: 'relative', display: 'grid', placeItems: 'center', minHeight: w.image ? 170 : 120, border: `1.5px dashed ${D.inputBorder}`, borderRadius: 12, background: w.image ? '#0d0d10' : D.inputBg, cursor: 'pointer', overflow: 'hidden', padding: 12 }}
+                  style={{ position: 'relative', display: 'grid', placeItems: 'center', minHeight: w.image ? 170 : 120, border: '1.5px dashed var(--adm-border-strong)', borderRadius: 12, background: w.image ? 'var(--adm-page)' : D.inputBg, cursor: 'pointer', overflow: 'hidden', padding: 12 }}
                 >
                   {w.image ? (
                     <>
@@ -247,7 +258,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
                       <button type="button" onClick={(e) => { e.preventDefault(); setW('image', null); }} style={{ position: 'absolute', top: 8, right: 8, display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><i className="ph ph-trash" /> Quitar</button>
                     </>
                   ) : (
-                    <div style={{ textAlign: 'center', color: D.muted2, fontSize: 13 }}>
+                    <div style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 13 }}>
                       <i className="ph ph-image" style={{ fontSize: 22, display: 'block', marginBottom: 6 }} />
                       {uploading ? 'Subiendo…' : 'Arrastra una imagen o haz clic'}
                     </div>
@@ -285,11 +296,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
         </div>
       </div>
 
-      {toast ? (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: toast.ok ? '#16281c' : '#2a1416', border: `1px solid ${toast.ok ? 'rgba(63,191,143,0.4)' : 'rgba(245,80,80,0.4)'}`, color: toast.ok ? '#dff5e8' : '#f8d7d7', padding: '13px 20px', borderRadius: 13, fontSize: 14, fontWeight: 600, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.7)', zIndex: 100 }}>
-          <i className={`ph-bold ${toast.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} style={{ fontSize: 19, color: toast.ok ? '#3fbf8f' : '#f55' }} /> {toast.text}
-        </div>
-      ) : null}
+      {toast ? <Toast kind={toast.ok ? 'ok' : 'bad'}>{toast.text}</Toast> : null}
     </div>
   );
 }
@@ -298,10 +305,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
 /* Reusa /admin/cms/why-choose-us (POST/PATCH multipart, DELETE). Cada razón se
  * guarda por sí sola y se aplica al instante (no pasa por borrador/publicar). */
 
-const textareaStyle: CSSProperties = { ...inputStyle, height: 'auto', minHeight: 66, padding: '11px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' };
-const btnGhost: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${D.inputBorder}`, background: 'transparent', color: D.text, borderRadius: 10, padding: '8px 13px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
-const btnDanger: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid rgba(245,80,80,0.3)', background: 'rgba(245,80,80,0.08)', color: '#f87171', borderRadius: 10, padding: '8px 11px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
-const btnPrimary = (on: boolean): CSSProperties => ({ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '10px 16px', fontWeight: 800, fontSize: 13.5, cursor: on ? 'pointer' : 'default', opacity: on ? 1 : 0.5, fontFamily: 'inherit' });
+const textareaStyle: CSSProperties = { ...inputStyle, height: 'auto', minHeight: 66, padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' };
 
 const PLACEMENTS: { id: Placement; label: string; icon: string }[] = [
   { id: 'both', label: 'Ambas', icon: 'ph-squares-four' },
@@ -313,11 +317,13 @@ function PlacementSeg({ value, onChange }: { value: Placement; onChange: (v: Pla
   return (
     <div style={{ display: 'grid', gap: 6 }}>
       <span style={smallLabel}>Dónde se muestra</span>
-      <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 11, width: 'fit-content', flexWrap: 'wrap' }}>
-        {PLACEMENTS.map((p) => {
-          const on = value === p.id;
-          return <button key={p.id} type="button" onClick={() => onChange(p.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: 'none', cursor: 'pointer', borderRadius: 8, padding: '7px 12px', fontWeight: 700, fontSize: 12.5, fontFamily: 'inherit', background: on ? D.amber : 'transparent', color: on ? '#0a0a0b' : D.muted2 }}><i className={`ph ${p.icon}`} style={{ fontSize: 14 }} /> {p.label}</button>;
-        })}
+      <div>
+        <Segmented<Placement>
+          ariaLabel="Dónde se muestra"
+          value={value}
+          onChange={onChange}
+          items={PLACEMENTS.map((p) => ({ key: p.id, label: p.label }))}
+        />
       </div>
     </div>
   );
@@ -326,7 +332,7 @@ function PlacementSeg({ value, onChange }: { value: Placement; onChange: (v: Pla
 function PlaceBadge({ value }: { value: Placement }) {
   const def = PLACEMENTS.find((x) => x.id === value) ?? PLACEMENTS[0];
   const solo = value !== 'both';
-  return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: solo ? 'color-mix(in srgb, var(--color-primary) 14%, transparent)' : 'rgba(255,255,255,0.06)', color: solo ? D.amber : D.muted2, whiteSpace: 'nowrap' }}><i className={`ph ${def.icon}`} style={{ fontSize: 12 }} /> {def.label}</span>;
+  return <Chip tone={solo ? 'accent' : undefined}><i className={`ph ${def.icon}`} style={{ fontSize: 12 }} aria-hidden /> {def.label}</Chip>;
 }
 
 function ReasonEditRow({ reason, busy, onSave, onCancel }: {
@@ -336,16 +342,17 @@ function ReasonEditRow({ reason, busy, onSave, onCancel }: {
   const [text, setText] = useState(reason.text);
   const [placement, setPlacement] = useState<Placement>(reason.placement);
   const ready = !!title.trim() && !!text.trim();
+  // La razón en edición se abre dentro de su fila, con un fondo apenas más claro.
   return (
-    <div style={{ ...cardStyle, marginBottom: 12, display: 'grid', gap: 12, border: `1px solid ${D.amber}44` }}>
+    <div className="adm-trow" style={{ display: 'grid', gap: 12, padding: 20, background: 'rgba(255,255,255,0.02)' }}>
       <div style={{ display: 'grid', gap: 10 }}>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título" style={inputStyle} />
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="Descripción" style={textareaStyle} />
       </div>
       <PlacementSeg value={placement} onChange={setPlacement} />
       <div style={{ display: 'flex', gap: 8 }}>
-        <button type="button" onClick={() => onSave(title, text, placement)} disabled={busy || !ready} style={btnPrimary(!busy && ready)}><i className="ph-bold ph-check" /> {busy ? 'Guardando…' : 'Guardar'}</button>
-        <button type="button" onClick={onCancel} disabled={busy} style={btnGhost}>Cancelar</button>
+        <Btn icon="ph-check" onClick={() => onSave(title, text, placement)} disabled={busy || !ready}>{busy ? 'Guardando…' : 'Guardar'}</Btn>
+        <Btn variant="ghost" onClick={onCancel} disabled={busy}>Cancelar</Btn>
       </div>
     </div>
   );
@@ -396,45 +403,61 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
   return (
     <>
       {/* Nueva razón: en modal (2026-09-25). */}
-      <div style={{ marginBottom: 14 }}>
-        <button type="button" onClick={() => setNuevaAbierta(true)} style={btnPrimary(true)}><i className="ph-bold ph-plus" /> Nueva razón</button>
-      </div>
-      <Modal abierto={nuevaAbierta} titulo="Nueva razón" subtitulo="Se aplica al instante (no pasa por «Guardar y publicar»)." onCerrar={() => setNuevaAbierta(false)} ancho={620}>
-      <div style={{ display: 'grid', gap: 14 }}>
-        <div style={{ display: 'grid', gap: 10 }}>
-          <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} placeholder="Título (ej. Transparencia total)" style={inputStyle} />
-          <textarea value={nText} onChange={(e) => setNText(e.target.value)} rows={2} placeholder="Descripción breve…" style={textareaStyle} />
+      <Modal
+        abierto={nuevaAbierta}
+        titulo="Nueva razón"
+        subtitulo="Se aplica al instante (no pasa por «Guardar y publicar»)."
+        onCerrar={() => setNuevaAbierta(false)}
+        ancho={620}
+        pie={
+          <>
+            <Btn variant="ghost" onClick={() => setNuevaAbierta(false)} disabled={busy === 'new'}>Cancelar</Btn>
+            <Btn variant="primary" icon="ph-plus" onClick={create} disabled={busy === 'new' || !newReady}>{busy === 'new' ? 'Agregando…' : 'Agregar razón'}</Btn>
+          </>
+        }
+      >
+        <div style={{ display: 'grid', gap: 14 }}>
+          <div style={{ display: 'grid', gap: 10 }}>
+            <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} placeholder="Título (ej. Transparencia total)" style={inputStyle} />
+            <textarea value={nText} onChange={(e) => setNText(e.target.value)} rows={2} placeholder="Descripción breve…" style={textareaStyle} />
+          </div>
+          <PlacementSeg value={nPlacement} onChange={setNPlacement} />
         </div>
-        <PlacementSeg value={nPlacement} onChange={setNPlacement} />
-        <div><button type="button" onClick={create} disabled={busy === 'new' || !newReady} style={btnPrimary(busy !== 'new' && newReady)}><i className="ph-bold ph-plus" /> {busy === 'new' ? 'Agregando…' : 'Agregar razón'}</button></div>
-      </div>
       </Modal>
 
-      {err ? <div style={{ marginBottom: 12, fontSize: 12.5, color: '#f87171', display: 'flex', alignItems: 'center', gap: 7 }}><i className="ph ph-warning-circle" /> {err}</div> : null}
+      {err ? <Note tone="bad" style={{ marginBottom: 12 }}>{err}</Note> : null}
 
-      {/* Lista */}
-      {reasons.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: 'center', color: D.muted2, fontSize: 13 }}>Aún no hay razones. Agrega la primera con «Nueva razón».</div>
-      ) : reasons.map((r) => (
-        editing === r.id ? (
-          <ReasonEditRow key={r.id} reason={r} busy={busy === r.id} onCancel={() => setEditing(null)} onSave={(t, x, p) => update(r.id, t, x, p)} />
-        ) : (
-          <div key={r.id} style={{ ...cardStyle, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, flexShrink: 0, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', fontSize: 15 }}>◆</div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
-                <strong style={{ fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.title}</strong>
-                <PlaceBadge value={r.placement} />
+      {/* Lista: filas en un solo panel, no una tarjeta por razón. */}
+      <Panel
+        title="Razones"
+        desc="Cada razón se guarda por sí sola y se aplica al instante."
+        action={<Btn size="sm" icon="ph-plus" onClick={() => setNuevaAbierta(true)}>Nueva razón</Btn>}
+        flush
+        clip
+      >
+        {reasons.length === 0 ? (
+          <EmptyState icon="ph-list-checks" title="Aún no hay razones" sub="Agrega la primera con «Nueva razón»." />
+        ) : reasons.map((r) => (
+          editing === r.id ? (
+            <ReasonEditRow key={r.id} reason={r} busy={busy === r.id} onCancel={() => setEditing(null)} onSave={(t, x, p) => update(r.id, t, x, p)} />
+          ) : (
+            <div key={r.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <span aria-hidden style={{ width: 16, flexShrink: 0, textAlign: 'center', fontSize: 12, color: 'var(--adm-faint)' }}>◆</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                  <span className="adm-cell-title adm-ellipsis" style={{ minWidth: 0 }}>{r.title}</span>
+                  <PlaceBadge value={r.placement} />
+                </div>
+                <p className="adm-cell-sub" style={{ margin: '3px 0 0', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{r.text}</p>
               </div>
-              <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{r.text}</p>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <IconBtn icon="ph-pencil-simple" label="Editar" onClick={() => setEditing(r.id)} />
+                <IconBtn icon="ph-trash" label="Eliminar" danger onClick={() => remove(r.id)} disabled={busy === r.id} />
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button type="button" onClick={() => setEditing(r.id)} style={btnGhost}><i className="ph ph-pencil-simple" /> Editar</button>
-              <button type="button" onClick={() => remove(r.id)} disabled={busy === r.id} title="Eliminar" style={btnDanger}><i className="ph ph-trash" /></button>
-            </div>
-          </div>
-        )
-      ))}
+          )
+        ))}
+      </Panel>
     </>
   );
 }
@@ -506,13 +529,8 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
 
   return (
     <>
-      <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(91,157,255,0.14)', color: '#5b9dff', display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-identification-card" style={{ fontSize: 20 }} /></div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <strong style={{ fontSize: 14 }}>Página pública /quienes-somos</strong>
-          <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>El texto de la página completa Quiénes somos. Se guarda con su propio botón y se aplica al instante (no pasa por «Guardar y publicar»).</p>
-        </div>
-      </div>
+      <SectionHead title="Página pública /quienes-somos" />
+      <p style={intro}>El texto de la página completa Quiénes somos. Se guarda con su propio botón y se aplica al instante (no pasa por «Guardar y publicar»).</p>
 
       <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
         <h3 style={h3Style}>Encabezado</h3>
@@ -522,25 +540,25 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
       </div>
 
       <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-        <div><h3 style={h3Style}>Imágenes del hero</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>El mosaico junto al título (se recomiendan 2: obra + flota). Se aplican al instante.</p></div>
+        <div><h3 style={h3Style}>Imágenes del hero</h3><p style={desc}>El mosaico junto al título (se recomiendan 2: obra + flota). Se aplican al instante.</p></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {imgs.map((src, i) => (
-            <div key={i} style={{ position: 'relative', width: 104, height: 78, borderRadius: 10, overflow: 'hidden', border: `1px solid ${D.inputBorder}` }}>
+            <div key={i} style={{ position: 'relative', width: 104, height: 78, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--adm-border-strong)' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <button type="button" onClick={() => removeImg(i)} disabled={imgBusy} title="Quitar" style={{ position: 'absolute', top: 5, right: 5, border: 'none', background: 'rgba(0,0,0,0.62)', color: '#fff', borderRadius: 7, width: 22, height: 22, cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'grid', placeItems: 'center', fontFamily: 'inherit' }}>✕</button>
+              <button type="button" onClick={() => removeImg(i)} disabled={imgBusy} title="Quitar" aria-label="Quitar" style={{ position: 'absolute', top: 5, right: 5, border: 'none', background: 'rgba(0,0,0,0.62)', color: '#fff', borderRadius: 6, width: 22, height: 22, cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'grid', placeItems: 'center', fontFamily: 'inherit' }}><i className="ph ph-x" aria-hidden /></button>
             </div>
           ))}
           <label
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); const fl = e.dataTransfer.files?.[0]; if (fl) uploadImg(fl); }}
-            style={{ width: 104, height: 78, borderRadius: 10, border: `1.5px dashed ${D.inputBorder}`, background: D.inputBg, display: 'grid', placeItems: 'center', cursor: 'pointer', color: D.muted2, fontSize: 12, textAlign: 'center' }}
+            style={{ width: 104, height: 78, borderRadius: 8, border: '1.5px dashed var(--adm-border-strong)', background: D.inputBg, display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--adm-muted)', fontSize: 12.5, textAlign: 'center' }}
           >
             <span><i className="ph ph-plus" style={{ fontSize: 17, display: 'block', marginBottom: 2 }} />{imgBusy ? 'Subiendo…' : 'Agregar'}</span>
             <input type="file" accept="image/*" onChange={(e) => { const fl = e.target.files?.[0]; if (fl) uploadImg(fl); e.target.value = ''; }} style={{ display: 'none' }} />
           </label>
         </div>
-        {imgErr ? <span style={{ fontSize: 12, color: '#f87171' }}>{imgErr}</span> : null}
+        {imgErr ? <span style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>{imgErr}</span> : null}
       </div>
 
       <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
@@ -551,8 +569,8 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-        <button type="button" onClick={save} disabled={busy || !dirty} style={btnPrimary(!busy && dirty)}><i className="ph-bold ph-floppy-disk" /> {busy ? 'Guardando…' : 'Guardar textos'}</button>
-        {msg ? <span style={{ fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 7, color: msg.ok ? '#3fbf8f' : '#f87171' }}><i className={`ph-bold ${msg.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} /> {msg.text}</span> : (dirty ? <span style={{ fontSize: 12.5, color: D.muted2 }}>Cambios sin guardar</span> : null)}
+        <Btn icon="ph-floppy-disk" onClick={save} disabled={busy || !dirty}>{busy ? 'Guardando…' : 'Guardar textos'}</Btn>
+        {msg ? <span style={{ fontSize: 13, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 7, color: msg.ok ? 'var(--adm-ok)' : 'var(--adm-bad)' }}><i className={`ph ${msg.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} aria-hidden /> {msg.text}</span> : (dirty ? <StatusText tone="warn">Cambios sin guardar</StatusText> : null)}
       </div>
     </>
   );
@@ -566,20 +584,18 @@ function QsSections({ qs, setQs }: { qs: QuienesSomos; setQs: (patch: Partial<Qu
   const setValues = (v: QsValue[]) => setQs({ values: v });
   const setTimeline = (v: QsMilestone[]) => setQs({ timeline: v });
   const del = (onClick: () => void) => (
-    <button type="button" onClick={onClick} title="Quitar" style={{ ...btnDanger, padding: '10px 11px', alignSelf: 'end' }}><i className="ph ph-x" /></button>
+    <IconBtn icon="ph-x" label="Quitar" danger onClick={onClick} style={{ alignSelf: 'end', marginBottom: 3 }} />
   );
   const add = (label: string, onClick: () => void) => (
-    <button type="button" onClick={onClick} style={{ ...btnGhost, width: 'fit-content' }}><i className="ph ph-plus" /> {label}</button>
+    <div><Btn size="sm" icon="ph-plus" onClick={onClick}>{label}</Btn></div>
   );
 
   return (
     <>
-      <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14, border: `1px solid ${D.amber}33` }}>
-        <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-layout" style={{ fontSize: 20 }} /></div>
-        <div style={{ minWidth: 0 }}>
-          <strong style={{ fontSize: 14 }}>Secciones de la página</strong>
-          <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Franja de stats, valores, trayectoria, marcas y CTA. Se guardan con <b>«Guardar y publicar»</b> (arriba). El bloque «Por qué elegirnos» de la página usa las <b>Razones</b>.</p>
-        </div>
+      {/* Otro bloque de la pestaña, con otro botón de guardado: un título de sección lo separa del de arriba. */}
+      <div className="adm-section">
+        <SectionHead title="Secciones de la página" />
+        <p style={intro}>Franja de stats, valores, trayectoria, marcas y CTA. Se guardan con <b>«Guardar y publicar»</b> (arriba). El bloque «Por qué elegirnos» de la página usa las <b>Razones</b>.</p>
       </div>
 
       <div style={{ ...cardStyle, display: 'grid', gap: 14 }}>
@@ -606,7 +622,7 @@ function QsSections({ qs, setQs }: { qs: QuienesSomos; setQs: (patch: Partial<Qu
 
       <div style={{ ...cardStyle, display: 'grid', gap: 14 }}>
         <h3 style={h3Style}>Propósito · encabezado</h3>
-        <p style={{ margin: 0, fontSize: 12, color: D.muted }}>Los textos de misión/visión/objetivos se editan arriba (Textos).</p>
+        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>Los textos de misión/visión/objetivos se editan arriba (Textos).</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <Field label="Eyebrow"><input value={qs.propositoEyebrow} onChange={(e) => setQs({ propositoEyebrow: e.target.value })} style={inputStyle} /></Field>
           <Field label="Título"><input value={qs.propositoTitle} onChange={(e) => setQs({ propositoTitle: e.target.value })} style={inputStyle} /></Field>
@@ -632,13 +648,13 @@ function QsSections({ qs, setQs }: { qs: QuienesSomos; setQs: (patch: Partial<Qu
           <Field label="Título"><input value={qs.timelineTitle} onChange={(e) => setQs({ timelineTitle: e.target.value })} style={inputStyle} /></Field>
         </div>
         {qs.timeline.map((m, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr auto', gap: 10, alignItems: 'start', paddingTop: 12, borderTop: `1px solid ${D.cardBorder}` }}>
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr auto', gap: 10, alignItems: 'start', paddingTop: 12, borderTop: '1px solid var(--adm-border)' }}>
             <Field label="Año"><input value={m.year} onChange={(e) => setTimeline(qs.timeline.map((x, j) => (j === i ? { ...x, year: e.target.value } : x)))} placeholder="2020" style={inputStyle} /></Field>
             <div style={{ display: 'grid', gap: 8 }}>
               <input value={m.title} onChange={(e) => setTimeline(qs.timeline.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} placeholder="Título del hito" style={inputStyle} />
               <textarea value={m.desc} onChange={(e) => setTimeline(qs.timeline.map((x, j) => (j === i ? { ...x, desc: e.target.value } : x)))} rows={2} placeholder="Descripción" style={textareaStyle} />
             </div>
-            <button type="button" onClick={() => setTimeline(qs.timeline.filter((_, j) => j !== i))} title="Quitar" style={{ ...btnDanger, padding: '10px 11px', alignSelf: 'start' }}><i className="ph ph-x" /></button>
+            <IconBtn icon="ph-x" label="Quitar" danger onClick={() => setTimeline(qs.timeline.filter((_, j) => j !== i))} />
           </div>
         ))}
         {add('Agregar hito', () => setTimeline([...qs.timeline, { year: '', title: '', desc: '' }]))}
@@ -646,7 +662,7 @@ function QsSections({ qs, setQs }: { qs: QuienesSomos; setQs: (patch: Partial<Qu
 
       <div style={{ ...cardStyle, display: 'grid', gap: 14 }}>
         <h3 style={h3Style}>Por qué elegirnos · encabezado</h3>
-        <p style={{ margin: 0, fontSize: 12, color: D.muted }}>Las tarjetas usan las <b>Razones</b> (pestaña Razones). Aquí solo el encabezado.</p>
+        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>Las tarjetas usan las <b>Razones</b> (pestaña Razones). Aquí solo el encabezado.</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <Field label="Eyebrow"><input value={qs.ventajasEyebrow} onChange={(e) => setQs({ ventajasEyebrow: e.target.value })} style={inputStyle} /></Field>
           <Field label="Título"><input value={qs.ventajasTitle} onChange={(e) => setQs({ ventajasTitle: e.target.value })} style={inputStyle} /></Field>

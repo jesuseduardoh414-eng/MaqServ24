@@ -1,10 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { unidadesDe, atributosDe, tipoDeCatalogo, type TipoCatalogo } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
+import { Modal } from '@/components/Modal';
+import {
+  Btn, Chip, EmptyState, FormField, IconBtn, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Switch, Thumb, Toast, Toolbar,
+  type Tone,
+} from '@/components/ui';
 
 export interface ProductRow {
   id: number;
@@ -21,17 +26,10 @@ export interface ProductRow {
 }
 export interface CatOption { id: number; name: string; slug: string }
 
-const C = {
-  panel: '#141416', panel2: '#1b1e26', panel3: '#212530',
-  line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
-  ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  amber: 'var(--color-primary)', amberInk: 'var(--color-primary-fg)', warn: 'var(--color-warning)', ok: 'var(--color-success)', blue: '#4f9cff', green: '#31c46b', red: '#ff5c5c',
-};
-const FONT = "'Inter', system-ui, sans-serif";
-const GRID = '64px minmax(0,1.7fr) minmax(0,1.05fr) 0.9fr 0.95fr 0.9fr 1.35fr';
-const inputStyle: CSSProperties = { width: '100%', background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 11, padding: '12px 14px', fontSize: 14, outline: 'none', fontFamily: 'inherit' };
-const labelStyle: CSSProperties = { display: 'block', fontSize: 12, color: C.muted, fontWeight: 600, marginBottom: 7 };
+const GRID = '48px minmax(0,1.7fr) minmax(0,1.05fr) 0.9fr 0.95fr 0.9fr 1.35fr';
 const fmt = (n: number | null) => '$' + Number(n ?? 0).toLocaleString('en-US');
+
+type Filtro = 'todos' | 'activos' | 'destacados';
 
 interface Form {
   name: string; brand: string; categoryId: number; price: string; oldPrice: string;
@@ -65,7 +63,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
   );
   const [query, setQuery] = useState('');
   const [catFilter, setCatFilter] = useState('todas');
-  const [filter, setFilter] = useState<'todos' | 'activos' | 'destacados'>('todos');
+  const [filter, setFilter] = useState<Filtro>('todos');
   const [sort, setSort] = useState('rel');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(12);
@@ -257,78 +255,90 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
     ? 'Sin resultados'
     : `Mostrando ${start + 1}–${start + pageRows.length} de ${rows.length}${rows.length !== stats.total ? ` (de ${stats.total})` : ''}`;
 
-  const stockInfo = (stock: number | null) => {
-    if (stock == null) return { color: C.dim, label: 'Sin dato', val: '—' as number | string };
+  const stockInfo = (stock: number | null): { tone?: Tone; label: string; val: number | string } => {
+    if (stock == null) return { tone: 'muted', label: 'Sin dato', val: '—' };
     // En un servicio es cuántas unidades hay, no inventario que se agota.
-    if (tipo === 'servicio') return { color: C.ink, label: stock === 1 ? 'unidad' : 'unidades', val: stock };
-    if (stock === 0) return { color: C.red, label: 'Agotado', val: stock };
-    if (stock <= 3) return { color: C.warn, label: 'Bajo stock', val: stock };
-    return { color: C.green, label: 'Disponible', val: stock };
+    if (tipo === 'servicio') return { label: stock === 1 ? 'unidad' : 'unidades', val: stock };
+    if (stock === 0) return { tone: 'bad', label: 'Agotado', val: stock };
+    if (stock <= 3) return { tone: 'warn', label: 'Bajo stock', val: stock };
+    return { tone: 'ok', label: 'Disponible', val: stock };
   };
 
-  const statCard = (label: string, value: number, icon: string, color: string, valColor?: string) => (
-    <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: '18px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 12.5, color: C.muted, fontWeight: 500 }}>{label}</div>
-        <div style={{ width: 34, height: 34, borderRadius: 9, background: `color-mix(in srgb, ${color} 14%, transparent)`, display: 'grid', placeItems: 'center', color }}><i className={`ph ${icon}`} style={{ fontSize: 16 }} /></div>
-      </div>
-      <div style={{ fontWeight: 800, fontSize: 30, marginTop: 8, color: valColor ?? C.ink }}>{value}</div>
-    </div>
-  );
-  const chip = (on: boolean): CSSProperties => ({ background: on ? C.amber : C.panel, color: on ? C.amberInk : C.muted, border: `1px solid ${on ? C.amber : C.line}`, fontWeight: 600, fontSize: 13, padding: '9px 15px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' });
-  const selStyle: CSSProperties = { background: C.panel, border: `1px solid ${C.line}`, color: C.ink, borderRadius: 11, padding: '11px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', outline: 'none', fontFamily: 'inherit', colorScheme: 'dark' };
-  const Switch = ({ on }: { on: boolean }) => (
-    <span style={{ width: 40, height: 22, borderRadius: 999, background: on ? C.green : '#3a4150', position: 'relative', display: 'inline-block', flexShrink: 0 }}><span style={{ position: 'absolute', top: 2, left: on ? 20 : 2, width: 18, height: 18, borderRadius: 999, background: '#fff', transition: 'left .2s' }} /></span>
-  );
-
   return (
-    <div style={{ fontFamily: FONT, color: C.ink }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+    <div>
       <style>{`
-        /* Las 7 columnas de la tabla no caben en móvil: cada fila pasa a ser
-           una tarjeta (imagen + nombre arriba; categoría, precio, stock y
-           estado envueltos debajo; acciones en su propio renglón).
-           Se oculta la cabecera porque ya no encabeza nada. */
+        .pr-row { display: grid; grid-template-columns: ${GRID}; gap: 16px; align-items: center; }
+        .pr-img { position: relative; width: 48px; height: 48px; }
+        /* Marca de destacado sobre la miniatura: se ve sin leer la columna de acciones. */
+        .pr-star {
+          position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 999px;
+          display: grid; place-items: center; font-size: 10px;
+          background: var(--adm-accent); color: var(--color-primary-fg, #fff); border: 2px solid var(--adm-card);
+        }
+        .adm-ibtn.pr-fav-on, .adm-ibtn.pr-fav-on:hover {
+          color: var(--adm-accent);
+          border-color: color-mix(in srgb, var(--adm-accent) 45%, transparent);
+          background: color-mix(in srgb, var(--adm-accent) 12%, transparent);
+        }
+        /* Las 7 columnas de la tabla no caben en móvil: cada fila pasa a bloque
+           (imagen + nombre arriba; categoría, precio, stock y estado envueltos
+           debajo; acciones en su propio renglón). Se oculta la cabecera porque
+           ya no encabeza nada. */
         @media (max-width: 900px) {
-          .pr-stats { grid-template-columns: 1fr 1fr !important; }
           .pr-head { display: none !important; }
-          .pr-row { display: flex !important; flex-wrap: wrap; align-items: center; gap: 10px 12px !important; padding: 16px !important; }
+          .pr-row { display: flex; flex-wrap: wrap; gap: 10px 12px; }
           .pr-row > .pr-img { flex: 0 0 auto; }
           /* base = ancho restante tras la imagen (48px + 12 de gap): así el
              nombre agota el primer renglón y las demás celdas bajan juntas,
              en vez de acomodarse distinto según lo largo que sea el nombre. */
           .pr-row > .pr-name { flex: 1 1 calc(100% - 60px); }
-          .pr-row > .pr-cat, .pr-row > .pr-price, .pr-row > .pr-stock, .pr-row > .pr-state { flex: 0 0 auto; }
+          .pr-row > .pr-price, .pr-row > .pr-stock, .pr-row > .pr-state { flex: 0 0 auto; }
+          .pr-row > .pr-cat { flex: 0 1 auto; max-width: 100%; }
           .pr-row > .pr-actions { flex: 1 0 100%; }
         }
       `}</style>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ fontSize: 12, color: C.dim, fontWeight: 300, marginBottom: 6 }}>Catálogo <span style={{ margin: '0 6px' }}>/</span> <span style={{ color: C.muted }}>{nombre}</span></div>
-          <h1 style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.01em', margin: 0 }}>{nombre} <span style={{ color: C.dim, fontWeight: 600, fontSize: 22 }}>({stats.total})</span></h1>
-        </div>
-        <button type="button" onClick={openNew} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.amber, color: C.amberInk, border: 'none', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 12px 26px -14px color-mix(in srgb, var(--color-primary) 70%, transparent)' }}><i className="ph-bold ph-plus" style={{ fontSize: 15 }} /> Nuevo {singular}</button>
-      </div>
+      <PageHeader
+        eyebrow={['Red y oferta', tipo === 'servicio' ? 'Inventario' : 'Catálogo']}
+        title={nombre}
+        count={stats.total}
+        actions={<Btn variant="primary" icon="ph-plus" onClick={openNew}>Nuevo {singular}</Btn>}
+      />
 
-      {/* Stats */}
-      <div className="pr-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 22 }}>
-        {statCard(nombre, stats.total, 'ph-cube', C.blue)}
-        {statCard('Activos', stats.activos, 'ph-check-circle', C.green, C.green)}
-        {statCard('Destacados', stats.destacados, 'ph-star', C.amber, C.amber)}
+      <Stats>
+        <Stat label={nombre} icon="ph-cube" tone="info" value={stats.total} />
+        <Stat label="Activos" icon="ph-check-circle" tone="ok" value={stats.activos} hint={`de ${stats.total}`} />
+        <Stat label="Destacados" icon="ph-star" tone="accent" value={stats.destacados} hint="en el inicio del sitio" />
         {/* Un servicio no tiene "existencias": su alarma útil es la ficha sin foto. */}
-        {tipo === 'servicio'
-          ? statCard('Sin foto', stats.sinFoto, 'ph-image', C.red)
-          : statCard('Bajo stock', stats.bajo, 'ph-warning', C.red)}
-      </div>
+        {tipo === 'servicio' ? (
+          <Stat label="Sin foto" icon="ph-image" tone={stats.sinFoto > 0 ? 'bad' : 'muted'} value={stats.sinFoto} />
+        ) : (
+          <Stat label="Bajo stock" icon="ph-warning" tone={stats.bajo > 0 ? 'bad' : 'muted'} value={stats.bajo} hint="3 o menos" />
+        )}
+      </Stats>
 
-      {/* Toolbar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 220px', maxWidth: 320, display: 'flex', alignItems: 'center', gap: 10, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 12, padding: '10px 14px' }}>
-          <i className="ph ph-magnifying-glass" style={{ color: C.dim, fontSize: 15 }} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar producto o marca..." style={{ flex: 1, border: 'none', background: 'transparent', color: C.ink, fontSize: 13.5, outline: 'none', fontFamily: 'inherit' }} />
-        </div>
+      <Toolbar
+        end={
+          <>
+            <span className="adm-num">{rows.length} de {stats.total}</span>
+            <AdminSelect
+              size="sm"
+              className="w-auto min-w-[180px]"
+              ariaLabel="Ordenar"
+              value={sort}
+              onChange={setSort}
+              options={[
+                { value: 'rel', label: 'Ordenar: Relevancia' },
+                { value: 'asc', label: 'Precio: menor' },
+                { value: 'desc', label: 'Precio: mayor' },
+                { value: 'stock', label: 'Stock' },
+                { value: 'name', label: 'Nombre A-Z' },
+              ]}
+            />
+          </>
+        }
+      >
+        <SearchBox value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar producto o marca…" aria-label="Buscar producto o marca" />
         <AdminSelect
           size="sm"
           className="w-auto min-w-[190px]"
@@ -337,293 +347,306 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
           onChange={setCatFilter}
           options={[{ value: 'todas', label: tipo === 'servicio' ? 'Todas las líneas' : 'Todas las categorías' }, ...categoriasTipo.map((c) => ({ value: c.name, label: c.name }))]}
         />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => setFilter('todos')} style={chip(filter === 'todos')}>Todos</button>
-          <button type="button" onClick={() => setFilter('activos')} style={chip(filter === 'activos')}>Activos</button>
-          <button type="button" onClick={() => setFilter('destacados')} style={chip(filter === 'destacados')}>★ Destacados</button>
-        </div>
-        <div style={{ marginLeft: 'auto' }}>
-          <AdminSelect
-            size="sm"
-            className="w-auto min-w-[180px]"
-            ariaLabel="Ordenar"
-            value={sort}
-            onChange={setSort}
-            options={[
-              { value: 'rel', label: 'Ordenar: Relevancia' },
-              { value: 'asc', label: 'Precio: menor' },
-              { value: 'desc', label: 'Precio: mayor' },
-              { value: 'stock', label: 'Stock' },
-              { value: 'name', label: 'Nombre A-Z' },
-            ]}
-          />
-        </div>
-      </div>
+        <Segmented<Filtro>
+          ariaLabel="Filtrar por estado"
+          value={filter}
+          onChange={setFilter}
+          items={[
+            { key: 'todos', label: 'Todos', count: stats.total },
+            { key: 'activos', label: 'Activos', count: stats.activos },
+            { key: 'destacados', label: 'Destacados', count: stats.destacados },
+          ]}
+        />
+      </Toolbar>
 
-      {/* Tabla */}
-      <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 18, overflow: 'hidden' }}>
-        <div className="pr-head" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 14, padding: '15px 22px', borderBottom: `1px solid ${C.line}`, fontSize: 11.5, letterSpacing: '.06em', color: C.dim, fontWeight: 700, textTransform: 'uppercase', alignItems: 'center' }}>
+      <Panel
+        flush
+        clip
+        footer={
+          // Pagination trae su propio margen superior (vive fuera de un panel en
+          // otros módulos); aquí va en el pie, así que se compensa.
+          <div style={{ flex: 1, minWidth: 0, marginTop: -16 }}>
+            <Pagination
+              page={current}
+              pageCount={pageCount}
+              onPageChange={setPage}
+              pageSize={pageSize}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[12, 24, 48]}
+              info={rangeInfo}
+            />
+          </div>
+        }
+      >
+        <div className="adm-thead pr-row pr-head">
           <div /><div>Producto</div><div>Categoría</div><div>{tipo === 'servicio' ? 'Tarifa' : 'Precio'}</div><div>{tipo === 'servicio' ? 'Unidades' : 'Stock'}</div><div>Estado</div><div style={{ textAlign: 'right' }}>Acciones</div>
         </div>
         {rows.length === 0 ? (
-          <div style={{ padding: '56px 20px', textAlign: 'center', color: C.dim }}>
-            <i className="ph ph-cube" style={{ fontSize: 34, opacity: 0.5, display: 'block', marginBottom: 10 }} />
-            <div style={{ fontWeight: 600, fontSize: 15, color: C.muted }}>No se encontraron productos</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>Ajusta los filtros o crea un nuevo producto.</div>
-          </div>
+          <EmptyState icon="ph-cube" title="No se encontraron productos" sub="Ajusta los filtros o crea un nuevo producto." />
         ) : pageRows.map((p) => {
           const s = stockInfo(p.stock);
           const confirming = confirmId === p.id;
           return (
-            <div key={p.id} className="pr-row" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 14, padding: '13px 22px', borderBottom: `1px solid ${C.line}`, alignItems: 'center' }}>
+            <div key={p.id} className="adm-trow pr-row">
               {/* Imagen + estrella */}
-              <div className="pr-img" style={{ position: 'relative', width: 48, height: 48, borderRadius: 11, overflow: 'hidden', background: C.panel3, display: 'grid', placeItems: 'center', color: C.dim }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {p.image ? <img src={p.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <i className="ph ph-image" style={{ fontSize: 17 }} />}
-                {p.featured ? <span style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: 999, background: C.amber, color: C.amberInk, fontSize: 11, display: 'grid', placeItems: 'center', boxShadow: '0 2px 6px rgba(0,0,0,.5)' }}><i className="ph ph-star" style={{ fontSize: 10 }} /></span> : null}
+              <div className="pr-img">
+                <Thumb src={p.image} size={48} />
+                {p.featured ? <span className="pr-star" title="Destacado"><i className="ph-bold ph-star" aria-hidden /></span> : null}
               </div>
               {/* Nombre + marca */}
               <div className="pr-name" style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                <div style={{ fontSize: 12, color: C.dim, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.brand || '—'}</div>
+                <div className="adm-cell-title adm-ellipsis">{p.name}</div>
+                <div className="adm-cell-sub adm-ellipsis">{p.brand || '—'}</div>
               </div>
               {/* Categoría */}
-              <div className="pr-cat" style={{ minWidth: 0 }}>{p.categoryName ? <span style={{ display: 'inline-block', fontSize: 12, color: C.blue, fontWeight: 600, background: 'rgba(79,156,255,.1)', padding: '4px 10px', borderRadius: 999, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.categoryName}</span> : <span style={{ color: C.dim, fontSize: 12 }}>—</span>}</div>
+              <div className="pr-cat" style={{ minWidth: 0 }}>
+                {p.categoryName ? (
+                  <Chip title={p.categoryName} style={{ maxWidth: '100%' }}><span className="adm-ellipsis">{p.categoryName}</span></Chip>
+                ) : (
+                  <span style={{ color: 'var(--adm-faint)', fontSize: 13 }}>—</span>
+                )}
+              </div>
               {/* Precio */}
               {/* PRECIO ÚNICO (2026-10-08): un servicio no lleva precio propio, lo da el
                   tabulador del cotizador. Enseñar aquí un número hacía creer que la
                   ficha tenía su propio precio. */}
               {tipo === 'servicio' ? (
-                <a className="pr-price" href="/cotizador/tarifas" title="La tarifa de los servicios se edita en Ajustes › Tarifas y condiciones" style={{ fontSize: 12.5, fontWeight: 600, color: C.muted, textDecoration: 'none' }}>
+                <a className="pr-price adm-link" href="/cotizador/tarifas" title="La tarifa de los servicios se edita en Ajustes › Tarifas y condiciones" style={{ fontSize: 13, color: 'var(--adm-muted)' }}>
                   En el cotizador <i className="ph ph-arrow-up-right" aria-hidden />
                 </a>
               ) : (
-                <div className="pr-price" style={{ fontWeight: 800, fontSize: 14.5 }}>{fmt(p.price)}</div>
+                <div className="pr-price adm-num" style={{ fontWeight: 600, fontSize: 14 }}>{fmt(p.price)}</div>
               )}
               {/* Stock */}
               <div className="pr-stock">
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: s.color }}><span style={{ width: 7, height: 7, borderRadius: 999, background: s.color }} />{s.val}</span>
-                <div style={{ fontSize: 10.5, color: C.dim, fontWeight: 500, marginTop: 1 }}>{s.label}</div>
+                {s.tone ? (
+                  <StatusText tone={s.tone}><span className="adm-num">{s.val}</span></StatusText>
+                ) : (
+                  <span className="adm-num" style={{ fontSize: 13.5, fontWeight: 600 }}>{s.val}</span>
+                )}
+                <div className="adm-cell-sub" style={{ marginTop: 1 }}>{s.label}</div>
               </div>
               {/* Estado */}
               <div className="pr-state">
                 {/* status 2 = lo ofreció un aliado desde su portal: se publica
                     desde su expediente (le avisa), no con el interruptor. */}
                 {p.status === 2 ? (
-                  <a href="/proveedores" style={{ fontSize: 12, fontWeight: 700, color: '#e0a23a', textDecoration: 'none' }}>● Por revisar</a>
+                  <a href="/proveedores" style={{ textDecoration: 'none' }}><StatusText tone="warn">Por revisar</StatusText></a>
                 ) : (
-                  <button type="button" onClick={() => toggleStatus(p)} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    <Switch on={p.status === 1} />
-                    <span style={{ fontSize: 12, fontWeight: 700, color: p.status === 1 ? C.green : C.dim }}>{p.status === 1 ? 'Activo' : 'Inactivo'}</span>
-                  </button>
+                  <Switch on={p.status === 1} onClick={() => toggleStatus(p)} label={p.status === 1 ? 'Activo' : 'Inactivo'} title="Activar / desactivar" />
                 )}
               </div>
               {/* Acciones */}
               <div className="pr-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
                 {confirming ? (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'rgba(255,92,92,.1)', border: '1px solid rgba(255,92,92,.3)', borderRadius: 10, padding: '6px 10px' }}>
-                    <span style={{ fontSize: 12, color: C.red, fontWeight: 600 }}>¿Eliminar?</span>
-                    <button type="button" onClick={() => del(p)} style={{ fontSize: 12, fontWeight: 800, color: C.red, cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit' }}>Sí</button>
-                    <button type="button" onClick={() => setConfirmId(null)} style={{ fontSize: 12, fontWeight: 700, color: C.muted, cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit' }}>No</button>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 12.5, color: 'var(--adm-bad)', fontWeight: 500, whiteSpace: 'nowrap' }}>¿Eliminar?</span>
+                    <Btn size="sm" variant="danger" onClick={() => del(p)}>Sí</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => setConfirmId(null)}>No</Btn>
                   </span>
                 ) : (
                   <>
-                    <button type="button" title={p.featured ? 'Quitar destacado' : 'Destacar'} onClick={() => toggleFeature(p)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${p.featured ? C.amber : C.line}`, background: p.featured ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : C.panel2, color: p.featured ? C.amber : C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className={p.featured ? 'ph ph-star' : 'ph ph-star'} style={{ fontSize: 14 }} /></button>
-                    <button type="button" title="Editar" onClick={() => openEdit(p)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-pencil-simple" style={{ fontSize: 14 }} /></button>
-                    <button type="button" title="Eliminar" onClick={() => { setConfirmId(p.id); }} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-trash" style={{ fontSize: 14 }} /></button>
+                    <IconBtn
+                      icon="ph-star"
+                      label={p.featured ? 'Quitar destacado' : 'Destacar'}
+                      aria-pressed={p.featured}
+                      className={p.featured ? 'pr-fav-on' : undefined}
+                      onClick={() => toggleFeature(p)}
+                    />
+                    <IconBtn icon="ph-pencil-simple" label="Editar" onClick={() => openEdit(p)} />
+                    <IconBtn icon="ph-trash" label="Eliminar" danger onClick={() => { setConfirmId(p.id); }} />
                   </>
                 )}
               </div>
             </div>
           );
         })}
-      </div>
-      <Pagination
-        page={current}
-        pageCount={pageCount}
-        onPageChange={setPage}
-        pageSize={pageSize}
-        onPageSizeChange={setPageSize}
-        pageSizeOptions={[12, 24, 48]}
-        info={rangeInfo}
-      />
+      </Panel>
 
-
-      {/* Modal crear/editar */}
-      {modalOpen ? (
-        <div onClick={() => { if (!saving) setModalOpen(false); }} style={{ position: 'fixed', inset: 0, background: 'rgba(3,4,7,.7)', display: 'grid', placeItems: 'center', zIndex: 300, padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(560px, 100%)', maxHeight: '90vh', overflowY: 'auto', background: C.panel, border: `1px solid ${C.line2}`, borderRadius: 20, boxShadow: '0 30px 70px -30px rgba(0,0,0,.85)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 26px', borderBottom: `1px solid ${C.line}`, position: 'sticky', top: 0, background: C.panel, zIndex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 18 }}>{editingId ? 'Editar producto' : 'Nuevo producto'}{loadingDetail ? ' · cargando…' : ''}</div>
-              <button type="button" onClick={() => setModalOpen(false)} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${C.line}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center' }}><i className="ph ph-x" /></button>
-            </div>
-            <div style={{ padding: '22px 26px', display: 'grid', gap: 15 }}>
-              {/* Imagen */}
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                <div style={{ width: 72, height: 72, borderRadius: 12, overflow: 'hidden', background: C.panel3, display: 'grid', placeItems: 'center', color: C.dim, flexShrink: 0 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {preview ? <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : currentImage ? <img src={currentImage} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <i className="ph ph-image" style={{ fontSize: 22 }} />}
-                </div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  <button type="button" onClick={() => fileRef.current?.click()} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 10, padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><i className="ph ph-upload-simple" /> {preview || currentImage ? 'Cambiar imagen' : 'Subir imagen'}</button>
-                  <span style={{ fontSize: 11.5, color: C.dim }}>PNG, JPG o WebP</span>
-                  <input ref={fileRef} type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setPreview(f ? URL.createObjectURL(f) : null); }} style={{ display: 'none' }} />
-                </div>
-              </div>
-              {/* Galería (máx. 6) */}
-              {editingId ? (
-                <div>
-                  <label style={labelStyle}>Galería <span style={{ color: C.dim, fontWeight: 400 }}>· máx. 6 imágenes ({gallery.length}/6)</span></label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 8 }}>
-                    {gallery.map((g) => (
-                      <div key={g.id} style={{ position: 'relative', height: 72, borderRadius: 10, overflow: 'hidden', background: C.panel3, border: `1px solid ${C.line}` }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={g.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        <button type="button" onClick={() => delGallery(g.id)} title="Quitar" style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 11 }}><i className="ph ph-x" /></button>
-                      </div>
-                    ))}
-                    {gallery.length < 6 ? (
-                      <button type="button" onClick={() => galRef.current?.click()} disabled={galBusy} style={{ height: 72, borderRadius: 10, border: `1px dashed ${C.line2}`, background: C.panel2, color: C.muted, cursor: galBusy ? 'default' : 'pointer', display: 'grid', placeItems: 'center', fontSize: 20 }}>{galBusy ? <span style={{ fontSize: 11 }}>…</span> : <i className="ph ph-plus" />}</button>
-                    ) : null}
-                  </div>
-                  <input ref={galRef} type="file" accept="image/*" multiple onChange={(e) => { uploadGallery(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: C.dim, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 14px' }}>💡 Guarda el producto primero para agregar imágenes a la galería (máx. 6).</div>
-              )}
-              {/* Nombre */}
-              <div><label style={labelStyle}>Nombre del producto</label><input value={form.name} onChange={(e) => setF('name', e.target.value)} placeholder="Ej. Excavadora CAT 320" style={inputStyle} /></div>
-              {/* Marca + Categoría */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div><label style={labelStyle}>Marca</label><input value={form.brand} onChange={(e) => setF('brand', e.target.value)} placeholder="Ej. Caterpillar" style={inputStyle} /></div>
-                <div><label style={labelStyle}>Categoría</label><AdminSelect ariaLabel="Categoría" value={String(form.categoryId)} onChange={(v) => setF('categoryId', Number(v))} options={categories.map((c) => ({ value: String(c.id), label: c.name }))} /></div>
-              </div>
-              {/* Precio + Precio anterior */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={labelStyle}>Precio (MXN)</label>
-                  <input value={form.price} onChange={(e) => setF('price', e.target.value)} type="number" placeholder="0" style={inputStyle} />
-                  {/*
-                    En que unidad esta ese precio. Antes se asumia que toda renta
-                    era mensual y el sitio pintaba "/mes" para todo — falso para
-                    pipas (viaje), volteos (viaje) y triturados (tonelada).
-                    Las opciones salen de la categoria elegida.
-                  */}
-                  <div style={{ marginTop: 8 }}>
-                    <AdminSelect
-                      ariaLabel="Unidad del precio"
-                      value={form.priceUnit}
-                      onChange={(v) => setF('priceUnit', v)}
-                      options={[
-                        { value: '', label: 'Por pieza (venta)' },
-                        ...unidadesDe(categories.find((c) => c.id === form.categoryId)?.slug).map((u) => ({ value: u.clave, label: `Por ${u.singular}` })),
-                      ]}
-                    />
-                  </div>
-                </div>
-                <div><label style={labelStyle}>Precio anterior (opcional)</label><input value={form.oldPrice} onChange={(e) => setF('oldPrice', e.target.value)} type="number" placeholder="Para mostrar descuento" style={inputStyle} /></div>
-              </div>
-              {/* Stock */}
-              <div style={{ display: 'grid', gridTemplateColumns: form.isRental ? '1fr 1fr' : '1fr', gap: 14 }}>
-                <div><label style={labelStyle}>Stock</label><input value={form.stock} onChange={(e) => setF('stock', e.target.value)} type="number" placeholder="0" style={inputStyle} /></div>
-                {form.isRental ? <div><label style={labelStyle}>Flete de renta (opcional)</label><input value={form.rentalFreight} onChange={(e) => setF('rentalFreight', e.target.value)} type="number" placeholder="0" style={inputStyle} /></div> : null}
-              </div>
-              {/*
-                FICHA TECNICA ESTRUCTURADA (documento institucional, 17).
-                Los campos salen de la CATEGORIA elegida, y sus llaves coinciden
-                con las del formulario de solicitud: ese es el puente que
-                permite descartar una plataforma que no alcanza la altura pedida.
-              */}
-              {(() => {
-                const attrs = atributosDe(categories.find((c) => c.id === form.categoryId)?.slug);
-                if (attrs.length === 0) return null;
-                return (
-                  <div style={{ border: `1px solid ${C.line}`, borderRadius: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: C.ink, marginBottom: 4 }}>Ficha técnica</div>
-                    <p style={{ margin: '0 0 12px', fontSize: 12.5, color: C.muted, lineHeight: 1.55 }}>
-                      Lo que se llene aquí se puede buscar y comparar. Lo que se deje vacío no descarta
-                      el equipo: se trata como desconocido, no como incumplido.
-                    </p>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12 }}>
-                      {attrs.map((a) => (
-                        <div key={a.clave}>
-                          <label style={labelStyle}>
-                            {a.label}{a.unidad ? ` (${a.unidad})` : ''}
-                            {a.compara ? <span style={{ color: C.amber }} title="Se compara contra lo que pide la solicitud"> ·</span> : null}
-                          </label>
-                          {a.tipo === 'opcion' ? (
-                            <AdminSelect
-                              ariaLabel={a.label}
-                              value={form.attributes[a.clave] ?? ''}
-                              onChange={(v) => setF('attributes', { ...form.attributes, [a.clave]: v })}
-                              options={[{ value: '', label: 'Sin especificar' }, ...(a.opciones ?? []).map((o) => ({ value: o, label: o }))]}
-                            />
-                          ) : (
-                            <input
-                              type={a.tipo === 'numero' ? 'number' : 'text'}
-                              step="any"
-                              value={form.attributes[a.clave] ?? ''}
-                              onChange={(e) => setF('attributes', { ...form.attributes, [a.clave]: e.target.value })}
-                              placeholder={a.hint ?? ''}
-                              style={inputStyle}
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Descripción corta */}
-              <div><label style={labelStyle}>Descripción corta (resumen arriba de la ficha)</label><input value={form.short} onChange={(e) => setF('short', e.target.value)} placeholder="Miniexcavadora compacta para espacios reducidos…" style={inputStyle} /></div>
-              {/* Descripción */}
-              <div><label style={labelStyle}>Descripción</label><textarea value={form.description} onChange={(e) => setF('description', e.target.value)} rows={3} placeholder="Especificaciones, capacidad, condiciones…" style={{ ...inputStyle, height: 'auto', lineHeight: 1.5, resize: 'vertical' }} /></div>
-              {/* Ficha técnica */}
-              <div>
-                <label style={labelStyle}>Ficha técnica <span style={{ color: C.dim, fontWeight: 400 }}>· los primeros 3 salen como cuadros destacados</span></label>
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {form.specs.map((s, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
-                      <input value={s.label} onChange={(e) => setF('specs', form.specs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Peso operativo" style={{ ...inputStyle, padding: '10px 12px' }} />
-                      <input value={s.value} onChange={(e) => setF('specs', form.specs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} placeholder="3,500 kg" style={{ ...inputStyle, padding: '10px 12px' }} />
-                      <button type="button" onClick={() => setF('specs', form.specs.filter((_, j) => j !== i))} title="Quitar" style={{ width: 38, height: 38, borderRadius: 9, border: `1px solid ${C.line2}`, background: C.panel2, color: C.muted, cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-x" /></button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => setF('specs', [...form.specs, { label: '', value: '' }])} style={{ justifySelf: 'start', display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px dashed ${C.line2}`, background: 'transparent', color: C.amber, borderRadius: 10, padding: '9px 13px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}><i className="ph ph-plus" /> Agregar especificación</button>
-                </div>
-              </div>
-              {/* Toggles */}
-              <div style={{ display: 'grid', gap: 12, background: C.panel2, border: `1px solid ${C.line}`, borderRadius: 12, padding: '14px 16px' }}>
-                {[
-                  { k: 'featured' as const, label: 'Destacado', help: 'Aparece en la sección de destacados del home.' },
-                  { k: 'isRental' as const, label: 'En renta', help: 'Flujo de cotización. La unidad del precio se elige arriba.' },
-                ].map((t) => (
-                  <label key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
-                    <span><span style={{ fontSize: 13.5, fontWeight: 600 }}>{t.label}</span><span style={{ display: 'block', fontSize: 11.5, color: C.dim }}>{t.help}</span></span>
-                    <button type="button" onClick={() => setF(t.k, !form[t.k])} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}><Switch on={form[t.k]} /></button>
-                  </label>
-                ))}
-                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
-                  <span><span style={{ fontSize: 13.5, fontWeight: 600 }}>Activo</span><span style={{ display: 'block', fontSize: 11.5, color: C.dim }}>Visible en el catálogo del sitio.</span></span>
-                  <button type="button" onClick={() => setF('status', form.status === 1 ? 0 : 1)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}><Switch on={form.status === 1} /></button>
-                </label>
-              </div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 26px', borderTop: `1px solid ${C.line}`, background: C.panel2, position: 'sticky', bottom: 0 }}>
-              <button type="button" onClick={() => setModalOpen(false)} disabled={saving} style={{ background: 'transparent', border: `1px solid ${C.line2}`, color: C.ink, fontWeight: 600, fontSize: 14, padding: '11px 20px', borderRadius: 11, cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}>Cancelar</button>
-              <button type="button" onClick={save} disabled={saving} style={{ background: C.amber, color: C.amberInk, border: 'none', fontWeight: 800, fontSize: 14, padding: '11px 24px', borderRadius: 11, cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>{saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Crear producto'}</button>
+      {/* Modal crear/editar (sin uso: ver openEdit) */}
+      <Modal
+        abierto={modalOpen}
+        titulo={`${editingId ? 'Editar producto' : 'Nuevo producto'}${loadingDetail ? ' · cargando…' : ''}`}
+        onCerrar={() => { if (!saving) setModalOpen(false); }}
+        ancho={560}
+        pie={
+          <>
+            <Btn variant="ghost" onClick={() => setModalOpen(false)} disabled={saving}>Cancelar</Btn>
+            <Btn variant="primary" onClick={save} disabled={saving}>{saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Crear producto'}</Btn>
+          </>
+        }
+      >
+        <div style={{ display: 'grid', gap: 16 }}>
+          {/* Imagen */}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <Thumb src={preview ?? currentImage} size={72} />
+            <div style={{ display: 'grid', gap: 4 }}>
+              <Btn size="sm" icon="ph-upload-simple" onClick={() => fileRef.current?.click()}>{preview || currentImage ? 'Cambiar imagen' : 'Subir imagen'}</Btn>
+              <span className="adm-help">PNG, JPG o WebP</span>
+              <input ref={fileRef} type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] ?? null; setFile(f); setPreview(f ? URL.createObjectURL(f) : null); }} style={{ display: 'none' }} />
             </div>
           </div>
-        </div>
-      ) : null}
+          {/* Galería (máx. 6) */}
+          {editingId ? (
+            <div className="adm-field">
+              <span className="adm-label">Galería <span style={{ color: 'var(--adm-faint)', fontWeight: 400 }}>· máx. 6 imágenes ({gallery.length}/6)</span></span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(76px, 1fr))', gap: 8 }}>
+                {gallery.map((g) => (
+                  <div key={g.id} style={{ position: 'relative', height: 72, borderRadius: 8, overflow: 'hidden', background: 'var(--adm-raised)', border: '1px solid var(--adm-border)' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={g.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button type="button" onClick={() => delGallery(g.id)} title="Quitar" aria-label="Quitar" style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 11 }}><i className="ph ph-x" aria-hidden /></button>
+                  </div>
+                ))}
+                {gallery.length < 6 ? (
+                  <button type="button" onClick={() => galRef.current?.click()} disabled={galBusy} aria-label="Agregar imágenes" style={{ height: 72, borderRadius: 8, border: '1px dashed var(--adm-border-strong)', background: 'transparent', color: 'var(--adm-muted)', cursor: galBusy ? 'default' : 'pointer', display: 'grid', placeItems: 'center', fontSize: 20 }}>{galBusy ? <span style={{ fontSize: 11 }}>…</span> : <i className="ph ph-plus" aria-hidden />}</button>
+                ) : null}
+              </div>
+              <input ref={galRef} type="file" accept="image/*" multiple onChange={(e) => { uploadGallery(e.target.files); e.target.value = ''; }} style={{ display: 'none' }} />
+            </div>
+          ) : (
+            <Note>Guarda el producto primero para agregar imágenes a la galería (máx. 6).</Note>
+          )}
+          {/* Nombre */}
+          <FormField label="Nombre del producto">
+            <input className="adm-input" value={form.name} onChange={(e) => setF('name', e.target.value)} placeholder="Ej. Excavadora CAT 320" />
+          </FormField>
+          {/* Marca + Categoría */}
+          <div className="adm-form-grid">
+            <FormField label="Marca">
+              <input className="adm-input" value={form.brand} onChange={(e) => setF('brand', e.target.value)} placeholder="Ej. Caterpillar" />
+            </FormField>
+            <div className="adm-field">
+              <span className="adm-label">Categoría</span>
+              <AdminSelect ariaLabel="Categoría" value={String(form.categoryId)} onChange={(v) => setF('categoryId', Number(v))} options={categories.map((c) => ({ value: String(c.id), label: c.name }))} />
+            </div>
+          </div>
+          {/* Precio + Precio anterior */}
+          <div className="adm-form-grid">
+            <div className="adm-field">
+              <span className="adm-label">Precio (MXN)</span>
+              <input className="adm-input" value={form.price} onChange={(e) => setF('price', e.target.value)} type="number" placeholder="0" aria-label="Precio (MXN)" />
+              {/*
+                En que unidad esta ese precio. Antes se asumia que toda renta
+                era mensual y el sitio pintaba "/mes" para todo — falso para
+                pipas (viaje), volteos (viaje) y triturados (tonelada).
+                Las opciones salen de la categoria elegida.
+              */}
+              <AdminSelect
+                ariaLabel="Unidad del precio"
+                value={form.priceUnit}
+                onChange={(v) => setF('priceUnit', v)}
+                options={[
+                  { value: '', label: 'Por pieza (venta)' },
+                  ...unidadesDe(categories.find((c) => c.id === form.categoryId)?.slug).map((u) => ({ value: u.clave, label: `Por ${u.singular}` })),
+                ]}
+              />
+            </div>
+            <FormField label="Precio anterior (opcional)">
+              <input className="adm-input" value={form.oldPrice} onChange={(e) => setF('oldPrice', e.target.value)} type="number" placeholder="Para mostrar descuento" />
+            </FormField>
+          </div>
+          {/* Stock */}
+          <div className="adm-form-grid">
+            <FormField label="Stock">
+              <input className="adm-input" value={form.stock} onChange={(e) => setF('stock', e.target.value)} type="number" placeholder="0" />
+            </FormField>
+            {form.isRental ? (
+              <FormField label="Flete de renta (opcional)">
+                <input className="adm-input" value={form.rentalFreight} onChange={(e) => setF('rentalFreight', e.target.value)} type="number" placeholder="0" />
+              </FormField>
+            ) : null}
+          </div>
+          {/*
+            FICHA TECNICA ESTRUCTURADA (documento institucional, 17).
+            Los campos salen de la CATEGORIA elegida, y sus llaves coinciden
+            con las del formulario de solicitud: ese es el puente que
+            permite descartar una plataforma que no alcanza la altura pedida.
+          */}
+          {(() => {
+            const attrs = atributosDe(categories.find((c) => c.id === form.categoryId)?.slug);
+            if (attrs.length === 0) return null;
+            return (
+              <div style={{ border: '1px solid var(--adm-border)', borderRadius: 12, padding: '14px 16px' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)', marginBottom: 4 }}>Ficha técnica</div>
+                <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>
+                  Lo que se llene aquí se puede buscar y comparar. Lo que se deje vacío no descarta
+                  el equipo: se trata como desconocido, no como incumplido.
+                </p>
+                <div className="adm-form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))' }}>
+                  {attrs.map((a) => (
+                    <div key={a.clave} className="adm-field">
+                      <span className="adm-label">
+                        {a.label}{a.unidad ? ` (${a.unidad})` : ''}
+                        {a.compara ? <span style={{ color: 'var(--adm-accent)' }} title="Se compara contra lo que pide la solicitud"> ·</span> : null}
+                      </span>
+                      {a.tipo === 'opcion' ? (
+                        <AdminSelect
+                          ariaLabel={a.label}
+                          value={form.attributes[a.clave] ?? ''}
+                          onChange={(v) => setF('attributes', { ...form.attributes, [a.clave]: v })}
+                          options={[{ value: '', label: 'Sin especificar' }, ...(a.opciones ?? []).map((o) => ({ value: o, label: o }))]}
+                        />
+                      ) : (
+                        <input
+                          className="adm-input"
+                          aria-label={a.label}
+                          type={a.tipo === 'numero' ? 'number' : 'text'}
+                          step="any"
+                          value={form.attributes[a.clave] ?? ''}
+                          onChange={(e) => setF('attributes', { ...form.attributes, [a.clave]: e.target.value })}
+                          placeholder={a.hint ?? ''}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
-      {/* Toast */}
-      {toast ? (
-        <div style={{ position: 'fixed', bottom: 26, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: C.panel3, border: `1px solid ${C.line2}`, color: C.ink, padding: '13px 20px', borderRadius: 12, boxShadow: '0 24px 60px -30px rgba(0,0,0,.85)', fontSize: 14, fontWeight: 600, zIndex: 400 }}>
-          <i className={`ph-bold ${toast.kind === 'warn' ? 'ph-warning-circle' : toast.kind === 'trash' ? 'ph-trash' : 'ph-check-circle'}`} style={{ fontSize: 18, color: toast.kind === 'warn' ? C.red : C.ok }} /> {toast.text}
+          {/* Descripción corta */}
+          <FormField label="Descripción corta (resumen arriba de la ficha)">
+            <input className="adm-input" value={form.short} onChange={(e) => setF('short', e.target.value)} placeholder="Miniexcavadora compacta para espacios reducidos…" />
+          </FormField>
+          {/* Descripción */}
+          <FormField label="Descripción">
+            <textarea className="adm-textarea" value={form.description} onChange={(e) => setF('description', e.target.value)} rows={3} placeholder="Especificaciones, capacidad, condiciones…" />
+          </FormField>
+          {/* Ficha técnica */}
+          <div className="adm-field">
+            <span className="adm-label">Ficha técnica <span style={{ color: 'var(--adm-faint)', fontWeight: 400 }}>· los primeros 3 salen como cuadros destacados</span></span>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {form.specs.map((s, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) auto', gap: 8, alignItems: 'center' }}>
+                  <input className="adm-input" value={s.label} onChange={(e) => setF('specs', form.specs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Peso operativo" />
+                  <input className="adm-input" value={s.value} onChange={(e) => setF('specs', form.specs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} placeholder="3,500 kg" />
+                  <IconBtn icon="ph-x" label="Quitar" onClick={() => setF('specs', form.specs.filter((_, j) => j !== i))} />
+                </div>
+              ))}
+              <Btn size="sm" variant="ghost" icon="ph-plus" style={{ justifySelf: 'start' }} onClick={() => setF('specs', [...form.specs, { label: '', value: '' }])}>Agregar especificación</Btn>
+            </div>
+          </div>
+          {/* Toggles */}
+          <div style={{ display: 'grid', gap: 12, border: '1px solid var(--adm-border)', borderRadius: 12, padding: '14px 16px' }}>
+            {[
+              { k: 'featured' as const, label: 'Destacado', help: 'Aparece en la sección de destacados del home.' },
+              { k: 'isRental' as const, label: 'En renta', help: 'Flujo de cotización. La unidad del precio se elige arriba.' },
+            ].map((t) => (
+              <label key={t.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
+                <span><span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>{t.label}</span><span className="adm-help" style={{ display: 'block' }}>{t.help}</span></span>
+                <Switch on={form[t.k]} onClick={() => setF(t.k, !form[t.k])} title={t.label} />
+              </label>
+            ))}
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
+              <span><span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>Activo</span><span className="adm-help" style={{ display: 'block' }}>Visible en el catálogo del sitio.</span></span>
+              <Switch on={form.status === 1} onClick={() => setF('status', form.status === 1 ? 0 : 1)} title="Activo" />
+            </label>
+          </div>
         </div>
-      ) : null}
+      </Modal>
+
+      {toast ? <Toast kind={toast.kind === 'warn' ? 'bad' : 'ok'}>{toast.text}</Toast> : null}
     </div>
   );
 }

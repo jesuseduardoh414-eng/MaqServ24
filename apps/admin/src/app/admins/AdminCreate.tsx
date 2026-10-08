@@ -5,19 +5,10 @@ import { useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { ROLES_ADMIN, modulosDe, type RolAdmin } from '@maqserv/config';
-import { D } from '@/components/design-tokens';
+import { Btn, Chip, Note, StatusText } from '@/components/ui';
 import { ReglasContrasena } from '@/components/ReglasContrasena';
 
 const ROLES = Object.values(ROLES_ADMIN);
-
-const labelStyle: React.CSSProperties = {
-  display: 'block', fontSize: 10.5, letterSpacing: '1px', fontWeight: 700,
-  color: '#7A7A7F', marginBottom: 7, textTransform: 'uppercase',
-};
-const inputStyle: React.CSSProperties = {
-  width: '100%', background: D.inputBg, border: `1px solid ${D.inputBorder}`, borderRadius: 9,
-  padding: '10px 12px', color: D.text, fontSize: 13.5, fontFamily: 'inherit', outline: 'none',
-};
 
 /** Alta de administrador: crea la fila con su contraseña (hash bcrypt); con eso ya puede entrar. */
 export function AdminCreate({ soyPrincipal }: { soyPrincipal: boolean }) {
@@ -68,94 +59,90 @@ export function AdminCreate({ soyPrincipal }: { soyPrincipal: boolean }) {
     }
   }
 
+  const cerrar = () => { setOpen(false); setError(null); };
+
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <style>{`.ad-new:hover{ filter: brightness(1.1); }`}</style>
-        <button
-          type="button"
-          className="ad-new"
-          onClick={() => { setOpen(true); setOk(null); }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 10, padding: '10px 18px', cursor: 'pointer' }}
-        >
-          <i className="ph ph-plus" style={{ fontSize: 14 }} /> Nuevo administrador
-        </button>
-        {ok ? <span role="status" style={{ fontSize: 12.5, fontWeight: 600, color: '#3fbf8f' }}>✓ {ok}</span> : null}
-      </div>
+      {ok ? (
+        <span role="status">
+          <StatusText tone="ok">{ok}</StatusText>
+        </span>
+      ) : null}
+      <Btn variant="primary" icon="ph-plus" onClick={() => { setOpen(true); setOk(null); }}>
+        Nuevo administrador
+      </Btn>
 
       {/* Alta en modal (2026-09-25): antes se abría encima de la lista. */}
       <Modal
         abierto={open}
         titulo="Nuevo administrador"
         subtitulo="Elige el rol con cuidado: decide qué secciones verá. Dile la contraseña por un canal seguro: no se la mandamos por correo."
-        onCerrar={() => { setOpen(false); setError(null); }}
+        onCerrar={cerrar}
         ancho={720}
+        pie={
+          <>
+            <Btn variant="ghost" onClick={cerrar}>Cancelar</Btn>
+            {/* Fuera del <form> (va en el pie fijo del modal): `form` lo sigue enviando. */}
+            <Btn variant="primary" type="submit" form="ad-form" disabled={busy}>
+              {busy ? 'Creando…' : 'Crear administrador'}
+            </Btn>
+          </>
+        }
       >
-      <style>{`.ad-btn:hover:not(:disabled){ filter: brightness(1.1); } .ad-ghost:hover{ background: rgba(255,255,255,0.06); }`}</style>
+        {/*
+          `autoComplete="off"` + nombres no estándar: sin esto el navegador rellenaba
+          este formulario con las credenciales del admin que ya está dentro (se veía en
+          la pantalla: el correo de la sesión activa dentro del alta de otra cuenta).
+        */}
+        <form id="ad-form" onSubmit={onSubmit} autoComplete="off" style={{ display: 'grid', gap: 16 }}>
+          <div className="adm-form-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', alignItems: 'start' }}>
+            <div className="adm-field">
+              <label className="adm-label" htmlFor="ad-name">Nombre</label>
+              <input id="ad-name" name="name" className="adm-input" required minLength={2} maxLength={100} autoComplete="off" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+            </div>
+            <div className="adm-field">
+              <label className="adm-label" htmlFor="ad-email">Correo</label>
+              <input id="ad-email" name="email" type="email" className="adm-input" required autoComplete="off" value={correo} onChange={(e) => setCorreo(e.target.value)} />
+            </div>
+            <div className="adm-field">
+              <label className="adm-label" htmlFor="ad-pass">Contraseña</label>
+              <input id="ad-pass" name="password" type="password" className="adm-input" required autoComplete="new-password" value={clave} onChange={(e) => setClave(e.target.value)} />
+              <ReglasContrasena password={clave} nombre={nombre} correo={correo} />
+            </div>
+            <div className="adm-field">
+              <label className="adm-label" htmlFor="ad-rol">Rol</label>
+              <AdminSelect
+                id="ad-rol"
+                name="rol"
+                ariaLabel="Rol"
+                value={rol}
+                onChange={(v) => setRol(v as RolAdmin)}
+                options={roles.map((r) => ({ value: r.clave, label: r.nombre }))}
+              />
+            </div>
+          </div>
 
-      {/*
-        `autoComplete="off"` + nombres no estándar: sin esto el navegador rellenaba
-        este formulario con las credenciales del admin que ya está dentro (se veía en
-        la pantalla: el correo de la sesión activa dentro del alta de otra cuenta).
-      */}
-      <form onSubmit={onSubmit} autoComplete="off" style={{ display: 'grid', gap: 16 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 16 }}>
-          <div>
-            <label style={labelStyle} htmlFor="ad-name">Nombre</label>
-            <input id="ad-name" name="name" required minLength={2} maxLength={100} autoComplete="off" value={nombre} onChange={(e) => setNombre(e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle} htmlFor="ad-email">Correo</label>
-            <input id="ad-email" name="email" type="email" required autoComplete="off" value={correo} onChange={(e) => setCorreo(e.target.value)} style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle} htmlFor="ad-pass">Contraseña</label>
-            <input id="ad-pass" name="password" type="password" required autoComplete="new-password" value={clave} onChange={(e) => setClave(e.target.value)} style={inputStyle} />
-            <ReglasContrasena password={clave} nombre={nombre} correo={correo} />
-          </div>
-          <div>
-            <label style={labelStyle} htmlFor="ad-rol">Rol</label>
-            <AdminSelect
-              id="ad-rol"
-              name="rol"
-              ariaLabel="Rol"
-              value={rol}
-              onChange={(v) => setRol(v as RolAdmin)}
-              options={roles.map((r) => ({ value: r.clave, label: r.nombre }))}
-            />
-          </div>
-        </div>
+          {/* Qué implica el rol elegido, en la misma pantalla donde se elige. */}
+          <Note icon="ph-user-gear">
+            <div>{ROLES_ADMIN[rol].descripcion}</div>
+            <div style={{ marginTop: 9, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {modulosDe(rol).map((m) => (
+                <Chip key={m}>{m}</Chip>
+              ))}
+            </div>
+          </Note>
 
-        {/* Qué implica el rol elegido, en la misma pantalla donde se elige. */}
-        <div style={{ background: D.inputBg, border: `1px solid ${D.inputBorder}`, borderRadius: 10, padding: '12px 14px' }}>
-          <div style={{ fontSize: 12.5, color: '#B4B4B9', lineHeight: 1.5 }}>{ROLES_ADMIN[rol].descripcion}</div>
-          <div style={{ marginTop: 9, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {modulosDe(rol).map((m) => (
-              <span key={m} style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.4px', color: '#8A8A8F', background: 'rgba(255,255,255,0.045)', border: `1px solid ${D.inputBorder}`, borderRadius: 20, padding: '3px 9px' }}>{m}</span>
-            ))}
-          </div>
-        </div>
-
-        <p style={{ margin: 0, fontSize: 11.5, color: '#5C5C61', lineHeight: 1.55 }}>
-          Dirección General es el único rol que administra cuentas y permisos. Si dudas, elige el más
-          estrecho: ampliar un rol después toma un clic; enterarse de que sobraba, no.
-        </p>
-
-        {error ? (
-          <p role="alert" style={{ margin: 0, background: 'rgba(255,85,85,0.08)', border: '1px solid rgba(255,85,85,0.3)', color: '#f55', padding: '11px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600 }}>
-            {error}
+          <p className="adm-help" style={{ margin: 0 }}>
+            Dirección General es el único rol que administra cuentas y permisos. Si dudas, elige el más
+            estrecho: ampliar un rol después toma un clic; enterarse de que sobraba, no.
           </p>
-        ) : null}
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button type="submit" className="ad-btn" disabled={busy} style={{ fontSize: 13, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 9, padding: '10px 20px', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1 }}>
-            {busy ? 'Creando…' : 'Crear administrador'}
-          </button>
-          <button type="button" className="ad-ghost" onClick={() => { setOpen(false); setError(null); }} style={{ fontSize: 13, fontWeight: 600, fontFamily: 'inherit', background: 'transparent', color: '#8A8A8F', border: `1px solid ${D.inputBorder}`, borderRadius: 9, padding: '10px 18px', cursor: 'pointer' }}>
-            Cancelar
-          </button>
-        </div>
-      </form>
+          {error ? (
+            <div role="alert">
+              <Note tone="bad">{error}</Note>
+            </div>
+          ) : null}
+        </form>
       </Modal>
     </>
   );

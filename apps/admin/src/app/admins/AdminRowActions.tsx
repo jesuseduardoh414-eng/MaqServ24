@@ -4,15 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { ROLES_ADMIN, contrasenaSegura, type RolAdmin } from '@maqserv/config';
-import { D } from '@/components/design-tokens';
+import { Btn, StatusText } from '@/components/ui';
 import { ReglasContrasena } from '@/components/ReglasContrasena';
 
 const ROLES = Object.values(ROLES_ADMIN);
 
-const ghost: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: 'transparent',
-  color: '#8A8A8F', border: `1px solid ${D.inputBorder}`, borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
-};
+const nota: React.CSSProperties = { fontSize: 12.5, color: 'var(--adm-muted)' };
 
 /**
  * Acciones sobre un administrador. La contraseña se cambia en `admins.password` (bcrypt), que
@@ -123,16 +120,15 @@ export function AdminRowActions({
   if (!isMe && !soyPrincipal && (principal || rol === 'direccion')) {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-        <span style={{ fontSize: 11.5, color: '#5C5C61' }}>{principal ? 'Cuenta principal' : 'Solo la cuenta principal la modifica'}</span>
+        <span style={nota}>{principal ? 'Cuenta principal' : 'Solo la cuenta principal la modifica'}</span>
       </div>
     );
   }
   const roles = soyPrincipal ? ROLES : ROLES.filter((r) => r.clave !== 'direccion');
+  const segura = contrasenaSegura(pass, { nombre: name });
 
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-      <style>{`.ar-ghost:hover:not(:disabled){ background: rgba(255,255,255,0.06); color:#f5f5f4; }`}</style>
-
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
       {/*
         El rol se cambia aquí mismo, sin abrir nada: es el dato que más se
         corrige (alguien entra a un equipo, alguien cambia de área) y esconderlo
@@ -142,7 +138,8 @@ export function AdminRowActions({
       {!isMe ? (
         <AdminSelect
           size="sm"
-          className="w-auto min-w-[150px] max-w-[190px]"
+          // 30px, como los botones `sm` de la fila (el `sm` del desplegable mide 36).
+          className="w-auto min-w-[150px] max-w-[190px] h-[30px] text-[12.5px]"
           ariaLabel={`Rol de ${name}`}
           value={rol}
           disabled={busy}
@@ -153,74 +150,75 @@ export function AdminRowActions({
 
       {/* Transferir la cuenta principal: solo a otra Dirección activa que pueda entrar. */}
       {soyPrincipal && !isMe && !principal && rol === 'direccion' && status === 1 && canLogin ? (
-        <button type="button" className="ar-ghost" disabled={busy} onClick={() => void hacerPrincipal()} style={{ ...ghost, opacity: busy ? 0.5 : 1 }}>
+        <Btn size="sm" disabled={busy} onClick={() => void hacerPrincipal()}>
           Hacer principal
-        </button>
+        </Btn>
       ) : null}
 
       {/* Sin cuenta de acceso no hay contraseña que cambiar. */}
       {canLogin ? (
-        <button type="button" className="ar-ghost" disabled={busy} onClick={() => { setAsking((v) => !v); setDone(false); }} style={{ ...ghost, opacity: busy ? 0.5 : 1 }}>
+        <Btn size="sm" disabled={busy} onClick={() => { setAsking((v) => !v); setDone(false); }} aria-expanded={asking}>
           Contraseña
-        </button>
+        </Btn>
       ) : null}
 
       {/* Nadie se desactiva a sí mismo: la API también lo rechaza. */}
       {!isMe ? (
-        <button
-          type="button"
-          className="ar-ghost"
-          disabled={busy}
-          onClick={toggle}
-          style={{ ...ghost, color: status === 1 ? '#8A8A8F' : '#3fbf8f', opacity: busy ? 0.5 : 1 }}
-        >
+        <Btn size="sm" disabled={busy} onClick={toggle}>
           {status === 1 ? 'Desactivar' : 'Activar'}
-        </button>
+        </Btn>
       ) : (
-        <span style={{ fontSize: 11.5, color: '#5C5C61' }}>Tu cuenta</span>
+        <span style={nota}>Tu cuenta</span>
       )}
 
       {/* Eliminar: solo cuentas desactivadas y nunca la propia. */}
       {!isMe && status === 0 ? (
-        <button
-          type="button"
-          className="ar-ghost"
-          disabled={busy}
-          onClick={() => void remove()}
-          style={{ ...ghost, color: '#f55', borderColor: 'rgba(255,85,85,0.35)', opacity: busy ? 0.5 : 1 }}
-        >
+        <Btn size="sm" variant="danger" disabled={busy} onClick={() => void remove()}>
           Eliminar
-        </button>
+        </Btn>
       ) : null}
 
       {asking ? (
-        <div ref={box} style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50, width: 300, background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 12, padding: 16, boxShadow: '0 18px 44px -14px rgba(0,0,0,0.75)', textAlign: 'left' }}>
-          <div style={{ fontSize: 13.5, fontWeight: 700, color: '#FBFBFA', marginBottom: 6 }}>Nueva contraseña</div>
-          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#8A8A8F', lineHeight: 1.5 }}>
-            Para <strong style={{ color: '#B4B4B9' }}>{name}</strong>. Dísela por un canal seguro.
+        <div
+          ref={box}
+          style={{
+            position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 50, width: 'min(300px, calc(100vw - 40px))',
+            background: 'var(--adm-raised)', border: '1px solid var(--adm-border-strong)', borderRadius: 12, padding: 16,
+            boxShadow: '0 20px 50px -20px rgba(0,0,0,0.85)', textAlign: 'left',
+          }}
+        >
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)', marginBottom: 4 }}>Nueva contraseña</div>
+          <p style={{ margin: '0 0 12px', fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
+            Para <strong style={{ color: 'var(--adm-text-2)', fontWeight: 600 }}>{name}</strong>. Dísela por un canal seguro.
           </p>
           <input
             type="password"
+            className="adm-input"
             value={pass}
             onChange={(e) => setPass(e.target.value)}
             autoComplete="new-password"
             placeholder="Mínimo 10 caracteres"
-            style={{ width: '100%', background: D.inputBg, border: `1px solid ${D.inputBorder}`, borderRadius: 8, padding: '9px 11px', color: D.text, fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+            aria-label={`Nueva contraseña para ${name}`}
           />
           <ReglasContrasena password={pass} nombre={name} />
-          <button
-            type="button"
-            disabled={busy || !contrasenaSegura(pass, { nombre: name })}
+          <Btn
+            variant="primary"
+            size="sm"
+            disabled={busy || !segura}
             onClick={() => void send({ password: pass }, () => { setPass(''); setAsking(false); setDone(true); })}
-            style={{ width: '100%', marginTop: 12, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', background: D.amber, color: 'var(--color-primary-fg)', border: 'none', borderRadius: 8, padding: '9px 12px', cursor: busy ? 'wait' : !contrasenaSegura(pass, { nombre: name }) ? 'not-allowed' : 'pointer', opacity: busy || !contrasenaSegura(pass, { nombre: name }) ? 0.45 : 1 }}
+            style={{ width: '100%', marginTop: 12 }}
           >
             Cambiar contraseña
-          </button>
+          </Btn>
         </div>
       ) : null}
 
-      {done ? <span role="status" style={{ fontSize: 11.5, color: '#3fbf8f', fontWeight: 600 }}>✓ Cambiada</span> : null}
-      {error ? <span role="alert" style={{ fontSize: 11.5, color: '#f55', fontWeight: 600, width: '100%', textAlign: 'right' }}>{error}</span> : null}
+      {done ? (
+        <span role="status">
+          <StatusText tone="ok">Cambiada</StatusText>
+        </span>
+      ) : null}
+      {error ? <span role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', fontWeight: 500, width: '100%', textAlign: 'right' }}>{error}</span> : null}
     </div>
   );
 }

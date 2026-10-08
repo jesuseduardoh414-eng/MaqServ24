@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle } from '@/components/editor-kit';
+import { D, cardStyle, inputStyle, h3Style, Field, Toggle } from '@/components/editor-kit';
+import { Btn, Note, PageHeader } from '@/components/ui';
 
 export interface BlogFormData {
   id?: number;
@@ -55,27 +55,18 @@ export function BlogForm({ initial }: { initial: BlogFormData }) {
     router.refresh();
   }
 
-  const selectStyle: React.CSSProperties = { ...inputStyle, appearance: 'none', cursor: 'pointer' };
-
   return (
-    <form onSubmit={onSubmit} encType="multipart/form-data" style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-
-      {/* Cabecera */}
-      <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: D.muted2, fontSize: 12.5, fontWeight: 600, marginBottom: 5 }}>
-            <i className="ph ph-article" style={{ fontSize: 14 }} /> Diseño del sitio <span style={{ opacity: 0.5 }}>·</span> Blog
-          </div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>{isEdit ? 'Editar entrada' : 'Nueva entrada'}</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link href="/blog" style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: D.text, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, textDecoration: 'none', fontFamily: 'inherit' }}>Cancelar</Link>
-          <button type="submit" disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1, display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
-            <i className="ph-bold ph-check" style={{ fontSize: 17 }} /> {busy ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Publicar entrada'}
-          </button>
-        </div>
-      </div>
+    <form onSubmit={onSubmit} encType="multipart/form-data">
+      <PageHeader
+        eyebrow={['Sitio web', ['Blog', '/blog']]}
+        title={isEdit ? 'Editar entrada' : 'Nueva entrada'}
+        actions={
+          <>
+            <Btn variant="ghost" href="/blog">Cancelar</Btn>
+            <Btn variant="primary" type="submit" icon="ph-check" disabled={busy}>{busy ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Publicar entrada'}</Btn>
+          </>
+        }
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 320px', gap: 22, alignItems: 'start' }} className="blog-form-grid">
         {/* Columna principal */}
@@ -90,17 +81,18 @@ export function BlogForm({ initial }: { initial: BlogFormData }) {
               <Field label="Autor (opcional)"><input name="source" defaultValue={initial.source ?? ''} placeholder="Ej. Ing. Ramón Salas" style={inputStyle} /></Field>
             </div>
             <Field label="Cuerpo del artículo (HTML permitido)">
-              <textarea name="details" required minLength={4} rows={16} defaultValue={initial.details ?? ''} placeholder="<p>Escribe el contenido…</p>" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.6, resize: 'vertical', fontFamily: 'ui-monospace, monospace', fontSize: 13.5 }} />
+              {/* Es código HTML: va en la monoespaciada del panel. */}
+              <textarea name="details" required minLength={4} rows={16} defaultValue={initial.details ?? ''} placeholder="<p>Escribe el contenido…</p>" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.6, resize: 'vertical', fontFamily: 'var(--adm-mono)', fontSize: 13 }} />
             </Field>
           </div>
 
           <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
             <div>
               <h3 style={h3Style}>SEO (opcional)</h3>
-              <p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>Cómo aparece en Google y al compartir. Si lo dejas vacío se usa el título y un extracto.</p>
+              <p style={{ margin: '3px 0 0', fontSize: 12.5, color: 'var(--adm-muted)' }}>Cómo aparece en Google y al compartir. Si lo dejas vacío se usa el título y un extracto.</p>
             </div>
             <Field label="Meta título"><input name="metaTag" defaultValue={initial.metaTag ?? ''} placeholder="Título para buscadores" style={inputStyle} /></Field>
-            <Field label="Meta descripción"><textarea name="metaDescription" defaultValue={initial.metaDescription ?? ''} rows={2} placeholder="Resumen breve (≤160 caracteres)" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+            <Field label="Meta descripción"><textarea name="metaDescription" defaultValue={initial.metaDescription ?? ''} rows={2} placeholder="Resumen breve (≤160 caracteres)" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
           </div>
         </div>
 
@@ -109,37 +101,34 @@ export function BlogForm({ initial }: { initial: BlogFormData }) {
           <div style={{ ...cardStyle, display: 'grid', gap: 12, marginBottom: 0 }}>
             <h3 style={h3Style}>Imagen destacada</h3>
             <label
-              style={{ position: 'relative', display: 'grid', placeItems: 'center', minHeight: preview ? 150 : 118, border: `1.5px dashed ${D.inputBorder}`, borderRadius: 12, background: preview ? '#0d0d10' : D.inputBg, cursor: 'pointer', overflow: 'hidden', padding: 12 }}
+              style={{ position: 'relative', display: 'grid', placeItems: 'center', minHeight: preview ? 150 : 118, border: '1.5px dashed var(--adm-border-strong)', borderRadius: 12, background: preview ? 'var(--adm-page)' : D.inputBg, cursor: 'pointer', overflow: 'hidden', padding: 12 }}
             >
               {preview ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={preview} alt="" style={{ maxHeight: 150, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }} />
               ) : (
-                <div style={{ textAlign: 'center', color: D.muted2, fontSize: 13 }}>
+                <div style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 13 }}>
                   <i className="ph ph-image" style={{ fontSize: 24, display: 'block', marginBottom: 6 }} />
                   Haz clic para subir una imagen
                 </div>
               )}
               <input type="file" name="photo" accept="image/*" onChange={onFile} style={{ display: 'none' }} />
             </label>
-            {fileName ? <span style={{ fontSize: 12, color: D.muted2 }}><i className="ph ph-paperclip" /> {fileName}</span> : preview ? <span style={{ fontSize: 12, color: D.muted2 }}>Imagen actual — sube una nueva para reemplazarla.</span> : null}
+            {fileName ? <span style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}><i className="ph ph-paperclip" /> {fileName}</span> : preview ? <span style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>Imagen actual — sube una nueva para reemplazarla.</span> : null}
           </div>
 
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 0 }}>
+          {/* Un solo interruptor: texto plano, sin tarjeta. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '4px 2px' }}>
             <div>
-              <strong style={{ fontSize: 13.5 }}>{status === 1 ? 'Publicada' : 'Oculta'}</strong>
-              <p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>{status === 1 ? 'Visible en el sitio.' : 'No se muestra al público.'}</p>
+              <div className="adm-cell-title" style={{ fontSize: 13.5 }}>{status === 1 ? 'Publicada' : 'Oculta'}</div>
+              <div className="adm-cell-sub">{status === 1 ? 'Visible en el sitio.' : 'No se muestra al público.'}</div>
             </div>
             <Toggle on={status === 1} onClick={() => setStatus((s) => (s === 1 ? 0 : 1))} />
           </div>
         </div>
       </div>
 
-      {error ? (
-        <div style={{ marginTop: 18, display: 'flex', alignItems: 'center', gap: 10, background: '#2a1416', border: '1px solid rgba(245,80,80,0.4)', color: '#f8d7d7', padding: '12px 16px', borderRadius: 12, fontSize: 14, fontWeight: 600 }}>
-          <i className="ph-bold ph-warning-circle" style={{ fontSize: 18, color: '#f55' }} /> {error}
-        </div>
-      ) : null}
+      {error ? <Note tone="bad" style={{ marginTop: 18 }}>{error}</Note> : null}
 
       <style>{`@media (max-width: 860px){ .blog-form-grid{ grid-template-columns:1fr !important; } .blog-form-side{ position:static !important; } }`}</style>
     </form>

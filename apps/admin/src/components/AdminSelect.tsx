@@ -77,7 +77,15 @@ export function AdminSelect({
     onChange?.(real);
   }
 
-  const compacto = size === 'sm' ? 'h-8 px-2.5 text-xs gap-1.5' : '';
+  /*
+   * Medidas del kit del panel (2026-10-08): el disparador de shadcn trae 44px y
+   * el radio redondeado del sitio; junto a `.adm-input` (38px) y a la búsqueda
+   * y los filtros (36px) se veía de otra familia. `md` iguala a `.adm-input` y
+   * `sm` a la barra de herramientas; quien lo use dentro de una fila de tabla
+   * puede bajarlo con `className` (p. ej. `h-[30px]`), que gana por tailwind-merge.
+   */
+  const kit = 'rounded-[8px] border-[var(--adm-border-strong)] bg-[rgba(255,255,255,0.025)]';
+  const medida = size === 'sm' ? 'h-9 px-3 text-[13px] gap-1.5' : 'h-[38px] px-3 text-[14px]';
 
   return (
     <div style={{ position: 'relative', display: 'inline-flex', width: className?.includes('w-auto') ? 'auto' : '100%' }}>
@@ -93,7 +101,7 @@ export function AdminSelect({
         />
       ) : null}
       <ShSelect value={valorRadix} onValueChange={cambiar} disabled={disabled}>
-        <ShSelectTrigger id={id} aria-label={ariaLabel} className={[compacto, className].filter(Boolean).join(' ')} style={style}>
+        <ShSelectTrigger id={id} aria-label={ariaLabel} className={[kit, medida, className].filter(Boolean).join(' ')} style={style}>
           <ShSelectValue placeholder={placeholder ?? 'Selecciona…'} />
         </ShSelectTrigger>
         <ShSelectContent>

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { D, FONT } from '@/components/design-tokens';
+import { Note, PageHeader } from '@/components/ui';
 import { PermisosMatrix, type ModuloFila, type RolFila } from './PermisosMatrix';
 
 export const dynamic = 'force-dynamic';
@@ -23,27 +23,25 @@ export default async function PermisosPage() {
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <div style={{ fontFamily: FONT, color: D.text }}>
-        <header style={{ marginBottom: 18 }}>
-          <h1 className="adm-page-title">Permisos</h1>
-          <p className="adm-page-sub">
-            Lo que un rol no puede hacer, no le aparece en el menú — y la API tampoco se lo sirve.
-            Los cambios se aplican en la siguiente pantalla que abra cada persona.
-          </p>
-        </header>
+      <div>
+        <PageHeader
+          eyebrow={['Ajustes', ['Administradores', '/admins']]}
+          title="Permisos"
+          subtitle="Lo que un rol no puede hacer, no le aparece en el menú — y la API tampoco se lo sirve. Los cambios se aplican en la siguiente pantalla que abra cada persona."
+        />
 
         {data ? (
           <PermisosMatrix modulos={data.modulos} roles={data.roles} />
         ) : (
-          <p style={{ color: '#8A8A8F', fontSize: 14 }}>
+          <Note tone="bad">
             No se pudo leer el reparto de permisos. Si acaba de desplegarse, falta correr{' '}
-            <code style={{ color: D.text }}>sql/admin_role_modules.sql</code> en esta base.
-          </p>
+            <code className="adm-mono" style={{ color: 'var(--adm-text)' }}>sql/admin_role_modules.sql</code> en esta base.
+          </Note>
         )}
 
-        <p style={{ marginTop: 18, fontSize: 12.5, color: '#7A7A7F', lineHeight: 1.6 }}>
+        <p style={{ marginTop: 18, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.6 }}>
           Cada cambio queda en la bitácora con quién lo hizo y cómo estaba antes; se ve en{' '}
-          <Link href="/admins" style={{ color: D.accent }}>Administradores</Link>.
+          <Link href="/admins" style={{ color: 'var(--adm-accent)', textDecoration: 'none' }}>Administradores</Link>.
         </p>
       </div>
     </AdminShell>

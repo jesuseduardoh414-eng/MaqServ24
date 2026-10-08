@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { D } from '@/components/design-tokens';
+import { Btn } from '@/components/ui';
 
 /**
  * MANDARLE LA COTIZACIÓN AL CLIENTE.
@@ -57,34 +57,17 @@ export function BotonEnviarCliente({
 
   return (
     <>
-      <button
-        type="button"
+      <Btn
+        icon="ph-paper-plane-tilt"
         onClick={enviar}
         disabled={enviando || sinCorreo}
         title={sinCorreo ? 'Esta cotización no tiene correo del cliente' : `Enviar a ${correo}`}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 7,
-          height: 34,
-          padding: '0 14px',
-          borderRadius: 8,
-          border: `1px solid ${D.cardBorder}`,
-          background: 'transparent',
-          color: sinCorreo ? D.muted : D.text,
-          fontSize: 13,
-          fontWeight: 600,
-          fontFamily: 'inherit',
-          cursor: enviando || sinCorreo ? 'not-allowed' : 'pointer',
-          opacity: enviando ? 0.6 : 1,
-        }}
       >
-        <i className="ph ph-paper-plane-tilt" />
         {enviando ? 'Enviando…' : estado === 'enviada' ? 'Reenviar al cliente' : 'Enviar al cliente'}
-      </button>
+      </Btn>
 
       {sinCorreo ? (
-        <span style={{ fontSize: 12.5, color: D.muted2, alignSelf: 'center' }}>
+        <span style={{ fontSize: 13, color: 'var(--adm-muted)', alignSelf: 'center' }}>
           Sin correo del cliente: captúralo para poder enviarla.
         </span>
       ) : null}
@@ -92,11 +75,15 @@ export function BotonEnviarCliente({
       {resultado ? (
         <span
           style={{
-            fontSize: 12.5,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 13,
             alignSelf: 'center',
-            color: resultado.tono === 'ok' ? D.ok : D.bad,
+            color: resultado.tono === 'ok' ? 'var(--adm-ok)' : 'var(--adm-bad)',
           }}
         >
+          <i className={`ph ${resultado.tono === 'ok' ? 'ph-check-circle' : 'ph-warning-circle'}`} aria-hidden />
           {resultado.texto}
         </span>
       ) : null}

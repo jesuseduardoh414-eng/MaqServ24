@@ -16,7 +16,7 @@ import {
   type CatalogoTriturados,
   type CotizadorTipo,
 } from '@maqserv/config';
-import { D } from '@/components/design-tokens';
+import { Btn, Chip, FormField, Note, Panel, Segmented, Switch, Toolbar } from '@/components/ui';
 
 /**
  * TABULADOR DE LOS COTIZADORES.
@@ -117,24 +117,24 @@ export function TarifasEditor({
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18, flexWrap: 'wrap' }}>
-        {(Object.keys(cats) as CotizadorTipo[]).filter((t) => COTIZADORES_ACTIVOS.includes(t)).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => { setTipo(t); setMensaje(null); }}
-            style={{
-              height: 40, padding: '0 16px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-              fontSize: 13.5, fontWeight: 700,
-              background: t === tipo ? D.accentSoft : 'transparent',
-              color: t === tipo ? D.accent : D.muted2,
-              border: `1px solid ${t === tipo ? D.accent : D.cardBorder}`,
-            }}
-          >
-            {COTIZADORES_META[t].titulo}
-          </button>
-        ))}
-      </div>
+      <style>{`
+        /* Renglones (equipos, servicios, materiales, zonas, condiciones): filas
+           separadas por una línea fina dentro del panel, no una caja por cada uno. */
+        .tf-renglon{ padding:18px 0; border-top:1px solid var(--adm-border); }
+        .tf-renglon:first-child{ padding-top:0; border-top:0; }
+        .tf-renglon-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:14px 16px; }
+      `}</style>
+
+      <Toolbar>
+        <Segmented<CotizadorTipo>
+          ariaLabel="Cotizador"
+          value={tipo}
+          onChange={(t) => { setTipo(t); setMensaje(null); }}
+          items={(Object.keys(cats) as CotizadorTipo[])
+            .filter((t) => COTIZADORES_ACTIVOS.includes(t))
+            .map((t) => ({ key: t, label: COTIZADORES_META[t].titulo }))}
+        />
+      </Toolbar>
 
       <Bloque
         titulo="Publicación"
@@ -158,40 +158,40 @@ export function TarifasEditor({
       <Bloque titulo="Datos del documento" ayuda="Lo que sale impreso en el encabezado y el pie de la cotización. Los campos vacíos sencillamente no se imprimen.">
         <Rejilla>
           <Campo etiqueta="Razón social">
-            <input style={input} value={cat.empresa.nombre} onChange={(e) => set({ empresa: { ...cat.empresa, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.empresa.nombre} onChange={(e) => set({ empresa: { ...cat.empresa, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="RFC">
-            <input style={input} value={cat.empresa.rfc} placeholder="Sin capturar" onChange={(e) => set({ empresa: { ...cat.empresa, rfc: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.empresa.rfc} placeholder="Sin capturar" onChange={(e) => set({ empresa: { ...cat.empresa, rfc: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Domicilio fiscal" ancho>
-            <input style={input} value={cat.empresa.direccion} placeholder="Sin capturar" onChange={(e) => set({ empresa: { ...cat.empresa, direccion: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.empresa.direccion} placeholder="Sin capturar" onChange={(e) => set({ empresa: { ...cat.empresa, direccion: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Teléfono">
-            <input style={input} value={cat.empresa.telefono} onChange={(e) => set({ empresa: { ...cat.empresa, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.empresa.telefono} onChange={(e) => set({ empresa: { ...cat.empresa, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Correo">
-            <input style={input} value={cat.empresa.correo} onChange={(e) => set({ empresa: { ...cat.empresa, correo: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.empresa.correo} onChange={(e) => set({ empresa: { ...cat.empresa, correo: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Sitio web">
-            <input style={input} value={cat.empresa.web} onChange={(e) => set({ empresa: { ...cat.empresa, web: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.empresa.web} onChange={(e) => set({ empresa: { ...cat.empresa, web: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Firma · nombre" nota="Vacío = el documento no lleva bloque de firma.">
-            <input style={input} value={cat.firma.nombre} placeholder="Sin capturar" onChange={(e) => set({ firma: { ...cat.firma, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.firma.nombre} placeholder="Sin capturar" onChange={(e) => set({ firma: { ...cat.firma, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Firma · puesto">
-            <input style={input} value={cat.firma.puesto} onChange={(e) => set({ firma: { ...cat.firma, puesto: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.firma.puesto} onChange={(e) => set({ firma: { ...cat.firma, puesto: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Firma · teléfono">
-            <input style={input} value={cat.firma.telefono} onChange={(e) => set({ firma: { ...cat.firma, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.firma.telefono} onChange={(e) => set({ firma: { ...cat.firma, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Párrafo de saludo" ancho>
-            <textarea style={{ ...input, height: 78, padding: '11px 13px', lineHeight: 1.5, resize: 'vertical' }} value={cat.saludo} onChange={(e) => set({ saludo: e.target.value } as Partial<CatalogoCotizador>)} />
+            <textarea className="adm-textarea" rows={3} value={cat.saludo} onChange={(e) => set({ saludo: e.target.value } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="IVA" nota="0.16 = 16 %">
-            <input style={input} type="number" step="0.01" min="0" max="1" value={cat.iva} onChange={(e) => set({ iva: Number(e.target.value) } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="number" step="0.01" min="0" max="1" value={cat.iva} onChange={(e) => set({ iva: Number(e.target.value) } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Versión" nota="Se guarda con cada cotización emitida.">
-            <input style={input} value={cat.version} onChange={(e) => set({ version: e.target.value } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.version} onChange={(e) => set({ version: e.target.value } as Partial<CatalogoCotizador>)} />
           </Campo>
         </Rejilla>
       </Bloque>
@@ -204,18 +204,18 @@ export function TarifasEditor({
 
       <Bloque titulo="Condiciones comerciales" ayuda="Se imprimen al pie, y solo los bloques que apliquen a las partidas de esa cotización. Un punto por renglón.">
         {Object.entries(cat.condiciones).map(([clave, bloque]) => (
-          <div key={clave} style={{ marginBottom: 16 }}>
+          <div key={clave} className="tf-renglon" style={{ display: 'grid', gap: 12 }}>
             <Campo etiqueta={`Título · ${clave}`} ancho>
               <input
-                style={input}
+                className="adm-input"
                 value={bloque.titulo}
                 onChange={(e) => set({ condiciones: { ...cat.condiciones, [clave]: { ...bloque, titulo: e.target.value } } } as Partial<CatalogoCotizador>)}
               />
             </Campo>
-            <div style={{ height: 10 }} />
             <Campo etiqueta="Puntos (uno por renglón)" ancho>
               <TextoLista
-                style={{ ...input, height: 150, padding: '11px 13px', lineHeight: 1.6, resize: 'vertical' }}
+                className="adm-textarea"
+                style={{ height: 150, lineHeight: 1.6 }}
                 valor={bloque.puntos}
                 onCambio={(puntos) =>
                   set({
@@ -233,39 +233,46 @@ export function TarifasEditor({
 
       <Bloque titulo="Municipios sugeridos" ayuda="Salen como sugerencia en el campo de entrega. Uno por renglón.">
         {/* TRES ESTADOS (2026-09-28): NL, Coahuila y Chihuahua. Nota pendiente del cliente. */}
-        <div style={{ marginBottom: 10, padding: '10px 13px', borderRadius: 10, border: `1px solid color-mix(in srgb, ${D.warn} 45%, transparent)`, fontSize: 13, lineHeight: 1.55, color: D.text }}>
-          <strong style={{ color: D.warn }}>Pendiente de definir:</strong> la operación se extiende a Nuevo León, Coahuila y Chihuahua,
+        <Note tone="warn" style={{ marginBottom: 12 }}>
+          <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>Pendiente de definir:</strong> la operación se extiende a Nuevo León, Coahuila y Chihuahua,
           pero aún no se decide si estas tarifas valen igual en los tres estados o si cada uno tendrá su tabla.
           Hoy el municipio NO cambia el precio: solo aparece en el documento.
-        </div>
-        <button
-          type="button"
+        </Note>
+        <Btn
+          size="sm"
+          icon="ph-plus"
           onClick={() => set({ municipios: [...new Set([...cat.municipios, ...MUNICIPIOS_NORTE])] } as Partial<CatalogoCotizador>)}
-          style={{ marginBottom: 10, background: 'none', border: `1px solid ${D.cardBorder}`, color: D.text, borderRadius: 9, padding: '8px 13px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          style={{ marginBottom: 12 }}
         >
-          + Agregar municipios de NL, Coahuila y Chihuahua
-        </button>
+          Agregar municipios de NL, Coahuila y Chihuahua
+        </Btn>
         <TextoLista
-          style={{ ...input, height: 130, padding: '11px 13px', lineHeight: 1.6, resize: 'vertical' }}
+          className="adm-textarea"
+          style={{ height: 130, lineHeight: 1.6 }}
           valor={cat.municipios}
           onCambio={(lista) => set({ municipios: [...new Set(lista)] } as Partial<CatalogoCotizador>)}
         />
       </Bloque>
 
+      {/* Barra de guardar pegada abajo: el tabulador es largo y se guarda
+          entero. Fondo sólido del panel con una línea fina, sin degradado. */}
       <div
         style={{
-          position: 'sticky', bottom: 0, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
-          padding: '14px 0', background: 'linear-gradient(to top, #0a0a0b 70%, transparent)',
+          position: 'sticky', bottom: 0, zIndex: 2, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap',
+          marginTop: 20, padding: '14px 0', background: 'var(--adm-page)', borderTop: '1px solid var(--adm-border)',
         }}
       >
-        <button type="button" onClick={guardar} disabled={guardando} style={{ ...boton, background: D.accent, color: D.accentInk, borderColor: 'transparent' }}>
+        <Btn variant="primary" onClick={guardar} disabled={guardando}>
           {guardando ? 'Guardando…' : `Guardar ${COTIZADORES_META[tipo].titulo.toLowerCase()}`}
-        </button>
-        <button type="button" onClick={restaurar} disabled={guardando} style={boton}>
+        </Btn>
+        <Btn onClick={restaurar} disabled={guardando}>
           Restaurar valores de fábrica
-        </button>
+        </Btn>
         {mensaje ? (
-          <span style={{ fontSize: 13, color: mensaje.tono === 'ok' ? D.ok : D.bad }}>{mensaje.texto}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: mensaje.tono === 'ok' ? 'var(--adm-ok)' : 'var(--adm-bad)' }}>
+            <i className={`ph ${mensaje.tono === 'ok' ? 'ph-check-circle' : 'ph-warning-circle'}`} aria-hidden />
+            {mensaje.texto}
+          </span>
         ) : null}
       </div>
     </div>
@@ -289,13 +296,13 @@ function EditorMaquinaria({
       <Bloque titulo="Jornada y tramos" ayuda="Los tramos deciden qué tarifa se aplica según los días de renta.">
         <Rejilla>
           <Campo etiqueta="Horas por jornada">
-            <input style={input} type="number" min="1" max="24" value={cat.jornada_horas} onChange={(e) => set({ jornada_horas: Number(e.target.value) } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="number" min="1" max="24" value={cat.jornada_horas} onChange={(e) => set({ jornada_horas: Number(e.target.value) } as Partial<CatalogoCotizador>)} />
           </Campo>
           {cat.tiers.map((t, i) => (
             <Campo key={t.id} etiqueta={`${t.label} · desde / hasta días`}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
-                  style={input}
+                  className="adm-input"
                   type="number"
                   min="1"
                   value={t.desde_dias}
@@ -306,7 +313,7 @@ function EditorMaquinaria({
                   }}
                 />
                 <input
-                  style={input}
+                  className="adm-input"
                   type="number"
                   min="1"
                   placeholder="sin tope"
@@ -328,7 +335,7 @@ function EditorMaquinaria({
           {tiposFlete.map((k) => (
             <Campo key={k} etiqueta={k}>
               <input
-                style={input}
+                className="adm-input"
                 type="number"
                 min="0"
                 value={cat.fletes[k]}
@@ -350,7 +357,7 @@ function EditorMaquinaria({
           >
             <Campo etiqueta="Nombre" ancho>
               <input
-                style={input}
+                className="adm-input"
                 value={eq.nombre}
                 onChange={(e) => {
                   const equipos = [...cat.equipos];
@@ -361,6 +368,7 @@ function EditorMaquinaria({
             </Campo>
             <Campo etiqueta="Tipo de flete">
               <AdminSelect
+                className="h-[38px]"
                 ariaLabel="Tipo de flete"
                 value={eq.flete_tipo}
                 onChange={(v) => {
@@ -385,7 +393,7 @@ function EditorMaquinaria({
             {(['dia', 'semana', 'mes'] as const).map((k) => (
               <Campo key={k} etiqueta={`Tarifa ${k}`}>
                 <input
-                  style={input}
+                  className="adm-input"
                   type="number"
                   min="0"
                   value={eq.tarifas[k]}
@@ -419,7 +427,7 @@ function EditorMaquinaria({
           <Renglon key={sv.id} onQuitar={() => set({ servicios: cat.servicios.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)}>
             <Campo etiqueta="Nombre" ancho>
               <input
-                style={input}
+                className="adm-input"
                 value={sv.nombre}
                 onChange={(e) => {
                   const servicios = [...cat.servicios];
@@ -430,7 +438,7 @@ function EditorMaquinaria({
             </Campo>
             <Campo etiqueta="Unidad">
               <input
-                style={input}
+                className="adm-input"
                 value={sv.unidad}
                 onChange={(e) => {
                   const servicios = [...cat.servicios];
@@ -441,7 +449,7 @@ function EditorMaquinaria({
             </Campo>
             <Campo etiqueta="Precio">
               <input
-                style={input}
+                className="adm-input"
                 type="number"
                 min="0"
                 value={sv.precio}
@@ -454,6 +462,7 @@ function EditorMaquinaria({
             </Campo>
             <Campo etiqueta="Línea de servicio" nota="Con esta línea se registra la solicitud y se busca al aliado.">
               <AdminSelect
+                className="h-[38px]"
                 ariaLabel="Línea de servicio"
                 value={lineaDeServicio(sv)}
                 onChange={(v) => {
@@ -480,6 +489,7 @@ function EditorMaquinaria({
             />
             <Campo etiqueta="Condición">
               <AdminSelect
+                className="h-[38px]"
                 ariaLabel="Bloque de condiciones"
                 value={sv.cond}
                 onChange={(v) => {
@@ -492,7 +502,7 @@ function EditorMaquinaria({
             </Campo>
             <Campo etiqueta="Precios sugeridos (coma)" ancho>
               <input
-                style={input}
+                className="adm-input"
                 value={sv.presets.join(', ')}
                 onChange={(e) => {
                   const servicios = [...cat.servicios];
@@ -535,7 +545,7 @@ function EditorTriturados({
           <Renglon key={p.id} onQuitar={() => set({ productos: cat.productos.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)}>
             <Campo etiqueta="Nombre" ancho>
               <input
-                style={input}
+                className="adm-input"
                 value={p.nombre}
                 onChange={(e) => {
                   const productos = [...cat.productos];
@@ -546,7 +556,7 @@ function EditorTriturados({
             </Campo>
             <Campo etiqueta="Precio / ton">
               <input
-                style={input}
+                className="adm-input"
                 type="number"
                 min="0"
                 value={p.precio_ton}
@@ -582,18 +592,18 @@ function EditorTriturados({
       >
         <Rejilla>
           <Campo etiqueta="Toneladas por viaje">
-            <input style={input} type="number" min="1" value={cat.ton_por_viaje} onChange={(e) => set({ ton_por_viaje: Number(e.target.value) } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="number" min="1" value={cat.ton_por_viaje} onChange={(e) => set({ ton_por_viaje: Number(e.target.value) } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Nota del viaje" ancho>
-            <input style={input} value={cat.nota_zona} onChange={(e) => set({ nota_zona: e.target.value } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.nota_zona} onChange={(e) => set({ nota_zona: e.target.value } as Partial<CatalogoCotizador>)} />
           </Campo>
         </Rejilla>
-        <div style={{ height: 14 }} />
+        <div style={{ height: 18 }} />
         {cat.zonas.map((z, i) => (
           <Renglon key={z.id} onQuitar={() => set({ zonas: cat.zonas.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)}>
             <Campo etiqueta="Zona" ancho>
               <input
-                style={input}
+                className="adm-input"
                 value={z.nombre}
                 onChange={(e) => {
                   const zonas = [...cat.zonas];
@@ -604,7 +614,7 @@ function EditorTriturados({
             </Campo>
             <Campo etiqueta="Flete del viaje">
               <input
-                style={input}
+                className="adm-input"
                 type="number"
                 min="0"
                 value={z.flete}
@@ -627,19 +637,19 @@ function EditorTriturados({
         <Rejilla>
           <Campo etiqueta="Fletes sugeridos por tonelada (coma)" ancho nota="Salen como botones rápidos al cotizar.">
             <input
-              style={input}
+              className="adm-input"
               value={cat.fletes_ton.join(', ')}
               onChange={(e) => set({ fletes_ton: e.target.value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0) } as Partial<CatalogoCotizador>)}
             />
           </Campo>
           <Campo etiqueta="Material de banco · nombre">
-            <input style={input} value={cat.material_banco.nombre} onChange={(e) => set({ material_banco: { ...cat.material_banco, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" value={cat.material_banco.nombre} onChange={(e) => set({ material_banco: { ...cat.material_banco, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Precio por m³">
-            <input style={input} type="number" min="0" value={cat.material_banco.precio_m3_default} onChange={(e) => set({ material_banco: { ...cat.material_banco, precio_m3_default: Number(e.target.value) } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="number" min="0" value={cat.material_banco.precio_m3_default} onChange={(e) => set({ material_banco: { ...cat.material_banco, precio_m3_default: Number(e.target.value) } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="m³ del camión">
-            <input style={input} type="number" min="0" value={cat.material_banco.camion_m3} onChange={(e) => set({ material_banco: { ...cat.material_banco, camion_m3: Number(e.target.value) } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="number" min="0" value={cat.material_banco.camion_m3} onChange={(e) => set({ material_banco: { ...cat.material_banco, camion_m3: Number(e.target.value) } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <CampoEquipos
             ligas={ligas}
@@ -649,7 +659,7 @@ function EditorTriturados({
             onChange={(patch) => set({ material_banco: { ...cat.material_banco, ...patch } } as Partial<CatalogoCotizador>)}
           />
         </Rejilla>
-        <div style={{ height: 14 }} />
+        <div style={{ height: 8 }} />
         <Interruptor
           etiqueta="Cotizar con IVA por defecto"
           nota="Se puede cambiar en cada cotización; esto es solo con qué arranca."
@@ -696,6 +706,7 @@ function CampoProveedor({
       }
     >
       <AdminSelect
+        className="h-[38px]"
         ariaLabel="Proveedor dueño"
         value={valor === null || valor === undefined ? '' : String(valor)}
         onChange={(v) => onChange(v ? Number(v) : null)}
@@ -740,6 +751,7 @@ function CampoEquipos({
       <Campo
         etiqueta="Equipos que cuentan como este renglón"
         ancho
+        grupo
         nota={
           // Precio único (2026-09-28): la solicitud SIEMPRE queda por asignar y
           // la asigna MAQSER24; quién tiene el equipo es sólo una sugerencia.
@@ -750,25 +762,32 @@ function CampoEquipos({
               : 'La solicitud queda por asignar; en Servicios verás a su dueño como sugerido.'
         }
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: ids.length ? 6 : 0 }}>
           {ids.map((id) => {
             const e = porId.get(id);
             return (
-              <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, border: `1px solid ${D.cardBorder}`, borderRadius: 999, padding: '4px 6px 4px 10px', color: e ? D.text : D.muted2 }}>
+              <Chip
+                key={id}
+                tone={e ? undefined : 'muted'}
+                style={{ height: 'auto', minHeight: 26, padding: '3px 3px 3px 9px', fontSize: 12.5, fontWeight: 500, whiteSpace: 'normal', lineHeight: 1.35 }}
+              >
                 {e ? `${e.name} · ${e.provider ?? 'sin aliado'}` : `Equipo #${id} (ya no está publicado)`}
                 <button
                   type="button"
                   aria-label="Quitar equipo"
+                  title="Quitar equipo"
+                  className="adm-ibtn is-plain"
                   onClick={() => onChange({ productos: ids.filter((x) => x !== id) })}
-                  style={{ background: 'none', border: 'none', color: D.muted2, cursor: 'pointer', fontSize: 15, lineHeight: 1 }}
+                  style={{ width: 20, height: 20, borderRadius: 4 }}
                 >
-                  ×
+                  <i className="ph ph-x" aria-hidden style={{ fontSize: 12 }} />
                 </button>
-              </span>
+              </Chip>
             );
           })}
         </div>
         <AdminSelect
+          className="h-[38px]"
           ariaLabel="Ligar un equipo"
           value=""
           onChange={(v) => { if (v) onChange({ productos: [...ids, Number(v)] }); }}
@@ -811,91 +830,93 @@ function MargenAliado() {
     <Bloque titulo="Margen sobre el costo del aliado (solo PRODUCTOS)" ayuda="Solo para productos que se venden a precio fijo: al publicarlos, el precio al cliente se propone como lo que cobra el aliado más este porcentaje. Los SERVICIOS no lo usan: se cotizan con este tabulador.">
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', width: 140 }}>
-          <input style={{ ...input, paddingRight: 30 }} type="number" min={0} max={300} step="1" value={margen} disabled={estado === 'cargando'} onChange={(e) => { setMargen(e.target.value); setEstado('listo'); }} />
-          <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: D.muted2, fontSize: 13 }}>%</span>
+          <input className="adm-input adm-num" style={{ paddingRight: 30 }} type="number" min={0} max={300} step="1" value={margen} disabled={estado === 'cargando'} onChange={(e) => { setMargen(e.target.value); setEstado('listo'); }} aria-label="Margen en porcentaje" />
+          <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--adm-muted)', fontSize: 13, pointerEvents: 'none' }}>%</span>
         </div>
-        <button type="button" onClick={() => void guardar()} disabled={estado === 'cargando' || estado === 'guardando' || margen === ''} style={boton}>
+        <Btn onClick={() => void guardar()} disabled={estado === 'cargando' || estado === 'guardando' || margen === ''}>
           {estado === 'guardando' ? 'Guardando…' : 'Guardar margen'}
-        </button>
-        {estado === 'ok' ? <span style={{ fontSize: 13, color: D.ok }}>Guardado.</span> : null}
-        {estado === 'error' ? <span style={{ fontSize: 13, color: D.bad }}>No se pudo leer o guardar (¿falta correr el SQL de platform_settings?).</span> : null}
+        </Btn>
+        {estado === 'ok' ? <span style={{ fontSize: 13, color: 'var(--adm-ok)' }}>Guardado.</span> : null}
+        {estado === 'error' ? <span style={{ fontSize: 13, color: 'var(--adm-bad)' }}>No se pudo leer o guardar (¿falta correr el SQL de platform_settings?).</span> : null}
       </div>
     </Bloque>
   );
 }
 
+/** Una sección del tabulador: es un formulario, así que va en un panel con su título y su ayuda. */
 function Bloque({ titulo, ayuda, children }: { titulo: string; ayuda?: string; children: ReactNode }) {
   return (
-    <section style={{ background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18, padding: 22, marginBottom: 16 }}>
-      <h2 style={{ margin: 0, fontSize: 16, color: D.text }}>{titulo}</h2>
-      {ayuda ? <p style={{ margin: '5px 0 16px', fontSize: 12.5, color: D.muted2, maxWidth: '78ch', lineHeight: 1.6 }}>{ayuda}</p> : <div style={{ height: 14 }} />}
+    <Panel
+      title={titulo}
+      desc={ayuda ? <span style={{ display: 'block', maxWidth: '78ch', lineHeight: 1.55 }}>{ayuda}</span> : undefined}
+    >
       {children}
-    </section>
+    </Panel>
   );
 }
 
 function Rejilla({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 13 }}>{children}</div>;
+  return <div className="adm-form-grid">{children}</div>;
 }
 
-function Campo({ etiqueta, nota, ancho, children }: { etiqueta: string; nota?: string; ancho?: boolean; children: ReactNode }) {
+/**
+ * `grupo`: el campo trae VARIOS controles (chips con su "×", un selector…).
+ * Dentro de un <label> el clic en la etiqueta o en la ayuda activaba el
+ * primero de ellos: en "Equipos que cuentan" eso quitaba el primer equipo.
+ */
+function Campo({ etiqueta, nota, ancho, grupo, children }: { etiqueta: string; nota?: string; ancho?: boolean; grupo?: boolean; children: ReactNode }) {
+  const estilo = ancho ? { gridColumn: '1 / -1' } : undefined;
+  if (grupo) {
+    return (
+      <div className="adm-field" role="group" aria-label={etiqueta} style={estilo}>
+        <span className="adm-label">{etiqueta}</span>
+        {children}
+        {nota ? <span className="adm-help">{nota}</span> : null}
+      </div>
+    );
+  }
   return (
-    <label style={{ display: 'grid', gap: 6, gridColumn: ancho ? '1 / -1' : undefined, minWidth: 0 }}>
-      <span style={{ fontSize: 11.5, fontWeight: 700, color: D.muted2 }}>{etiqueta}</span>
+    <FormField label={etiqueta} help={nota} style={estilo}>
       {children}
-      {nota ? <span style={{ fontSize: 11.5, color: D.muted }}>{nota}</span> : null}
-    </label>
+    </FormField>
   );
 }
 
 function Renglon({ children, onQuitar }: { children: ReactNode; onQuitar: () => void }) {
   return (
-    <div style={{ border: `1px solid ${D.cardBorder}`, borderRadius: 14, padding: 14, marginBottom: 11, background: D.inputBg }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 11 }}>{children}</div>
-      <button type="button" onClick={onQuitar} style={{ marginTop: 10, border: 'none', background: 'transparent', color: D.muted2, cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit' }}>
-        <i className="ph ph-trash" /> Quitar
-      </button>
+    <div className="tf-renglon">
+      <div className="tf-renglon-grid">{children}</div>
+      <Btn size="sm" variant="ghost" icon="ph-trash" onClick={onQuitar} style={{ marginTop: 10, marginLeft: -10 }}>
+        Quitar
+      </Btn>
     </div>
   );
 }
 
 function BotonAgregar({ texto, onClick }: { texto: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} style={{ ...boton, borderStyle: 'dashed', width: '100%' }}>
-      <i className="ph ph-plus" /> {texto}
-    </button>
+    <Btn icon="ph-plus" onClick={onClick} style={{ width: '100%', borderStyle: 'dashed', marginTop: 4 }}>
+      {texto}
+    </Btn>
   );
 }
 
 function Interruptor({ etiqueta, nota, on, onChange }: { etiqueta: string; nota?: string; on: boolean; onChange: (v: boolean) => void }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 13, padding: '10px 0' }}>
-      <button
-        type="button"
+    <div style={{ padding: '8px 0' }}>
+      <Switch
+        on={on}
         onClick={() => onChange(!on)}
-        aria-pressed={on}
-        style={{ position: 'relative', width: 44, height: 25, borderRadius: 999, border: 'none', cursor: 'pointer', background: on ? D.accent : 'rgba(255,255,255,0.12)', flexShrink: 0, marginTop: 2 }}
-      >
-        <span style={{ position: 'absolute', top: 3, left: on ? 22 : 3, width: 19, height: 19, borderRadius: 999, background: '#fff', transition: 'left .15s' }} />
-      </button>
-      <span>
-        <b style={{ display: 'block', fontSize: 13.5, color: D.text, fontWeight: 600 }}>{etiqueta}</b>
-        {nota ? <span style={{ fontSize: 12, color: D.muted2 }}>{nota}</span> : null}
-      </span>
+        label={
+          <span style={{ display: 'grid', gap: 2, textAlign: 'left' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--adm-text)' }}>{etiqueta}</span>
+            {nota ? <span style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>{nota}</span> : null}
+          </span>
+        }
+      />
     </div>
   );
 }
-
-const input = {
-  width: '100%', height: 42, padding: '0 12px', borderRadius: 10, border: `1px solid ${D.inputBorder}`,
-  background: D.inputBg, color: D.text, fontFamily: 'inherit', fontSize: 13.5, outline: 'none',
-} as const;
-
-const boton = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, height: 42, padding: '0 18px',
-  borderRadius: 11, border: `1px solid ${D.cardBorder}`, background: 'transparent', color: D.text,
-  fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer',
-} as const;
 
 /**
  * Lista "uno por renglón" que SÍ deja escribir (QA 2026-09-28): antes cada
@@ -903,7 +924,7 @@ const boton = {
  * que no se podía agregar un municipio al final. Ahora el texto es libre y se
  * limpia (renglones vacíos fuera) al salir del campo.
  */
-function TextoLista({ valor, onCambio, style }: { valor: string[]; onCambio: (lista: string[]) => void; style: CSSProperties }) {
+function TextoLista({ valor, onCambio, className, style }: { valor: string[]; onCambio: (lista: string[]) => void; className?: string; style?: CSSProperties }) {
   const [texto, setTexto] = useState(valor.join('\n'));
   const [editando, setEditando] = useState(false);
   const externo = valor.join('\n');
@@ -912,6 +933,7 @@ function TextoLista({ valor, onCambio, style }: { valor: string[]; onCambio: (li
   const limpiar = (t: string) => t.split('\n').map((s) => s.trim()).filter(Boolean);
   return (
     <textarea
+      className={className}
       style={style}
       value={texto}
       onFocus={() => setEditando(true)}

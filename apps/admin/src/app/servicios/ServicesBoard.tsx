@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
-import { Incidencias } from './Incidencias';
+import { Modal } from '@/components/Modal';
+import {
+  Bar, Btn, Chip, EmptyState, FormField, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toolbar, type Tone,
+} from '@/components/ui';
+import { Incidencias, VentanaFormulario } from './Incidencias';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 
 /**
@@ -50,43 +53,26 @@ export interface ServicioRow {
   }>;
 }
 
-const C = {
-  panel: '#141416', panel2: '#1b1e26', line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
-  ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  accent: 'var(--color-primary)', accentInk: 'var(--color-primary-fg)',
-  warn: 'var(--color-warning)', ok: 'var(--color-success)', bad: 'var(--color-error)',
+const TONO_ESTADO: Record<string, Tone> = {
+  por_asignar: 'warn',
+  asignado: 'accent',
+  en_traslado: 'accent',
+  en_sitio: 'accent',
+  en_curso: 'accent',
+  terminado: 'ok',
+  cerrado: 'muted',
+  cancelado: 'bad',
 };
 
-const COLOR_ESTADO: Record<string, string> = {
-  por_asignar: C.warn,
-  asignado: C.accent,
-  en_traslado: C.accent,
-  en_sitio: C.accent,
-  en_curso: C.accent,
-  terminado: C.ok,
-  cerrado: C.dim,
-  cancelado: C.bad,
+const ESTADO_ASIGNACION: Record<string, { texto: string; tono: Tone }> = {
+  propuesto: { texto: 'Esperando respuesta', tono: 'warn' },
+  aceptado: { texto: 'Aceptó', tono: 'ok' },
+  rechazado: { texto: 'Rechazó', tono: 'bad' },
+  retirado: { texto: 'Se retiró', tono: 'muted' },
 };
 
-const ESTADO_ASIGNACION: Record<string, { texto: string; color: string }> = {
-  propuesto: { texto: 'Esperando respuesta', color: C.warn },
-  aceptado: { texto: 'Aceptó', color: C.ok },
-  rechazado: { texto: 'Rechazó', color: C.bad },
-  retirado: { texto: 'Se retiró', color: C.dim },
-};
-
-const input: CSSProperties = {
-  width: '100%', background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink,
-  borderRadius: 10, padding: '10px 12px', fontSize: 13.5, outline: 'none', fontFamily: 'inherit',
-};
-const boton: CSSProperties = {
-  background: C.accent, color: C.accentInk, border: 'none', borderRadius: 9,
-  padding: '8px 14px', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit',
-};
-const botonSec: CSSProperties = {
-  background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 9,
-  padding: '8px 14px', fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit',
-};
+/** Estados en los que ya hay aliado trabajando (o a punto de salir). */
+const EN_OPERACION = ['asignado', 'en_traslado', 'en_sitio', 'en_curso'];
 
 const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -94,14 +80,6 @@ function fecha(iso: string | null): string {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
-
-/** Pestaña del tablero: activa con borde de acento, inactiva neutra. */
-const pestana = (on: boolean): CSSProperties => ({
-  fontSize: 13, fontWeight: 600, textDecoration: 'none', padding: '7px 13px', borderRadius: 999,
-  border: `1px solid ${on ? 'color-mix(in srgb, var(--color-primary) 55%, transparent)' : 'rgba(255,255,255,.12)'}`,
-  background: on ? 'color-mix(in srgb, var(--color-primary) 14%, transparent)' : 'transparent',
-  color: on ? '#fff' : 'rgba(255,255,255,.62)',
-});
 
 export function ServicesBoard({ initial, historial = false }: { initial: ServicioRow[]; historial?: boolean }) {
   const router = useRouter();
@@ -153,6 +131,16 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
     );
   }, [initial, filtro]);
 
+  // Conteos de lo que ya está en pantalla: responden "¿qué hay que empujar?"
+  // antes de bajar por las tarjetas.
+  const cuenta = useMemo(() => ({
+    total: initial.length,
+    porAsignar: initial.filter((s) => s.state === 'por_asignar').length,
+    esperando: initial.filter((s) => s.assignments.some((a) => a.state === 'propuesto')).length,
+    enOperacion: initial.filter((s) => EN_OPERACION.includes(s.state)).length,
+    porCerrar: initial.filter((s) => s.state === 'terminado').length,
+  }), [initial]);
+
   async function mover(s: ServicioRow, state: string, extra?: { quantity?: number; unit?: string; note?: string }) {
     setOcupado(s.id);
     setError(null);
@@ -193,111 +181,153 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
   }
 
   return (
-    <div style={{ color: C.ink }}>
-      <header style={{ marginBottom: 22 }}>
-        <h1 style={{ margin: 0, fontSize: 25, fontWeight: 800, letterSpacing: '-0.02em' }}>Servicios</h1>
-        <p style={{ margin: '7px 0 0', fontSize: 13.5, color: C.muted, lineHeight: 1.6, maxWidth: 640 }}>
-          Lo que pasa después de que el cliente acepta: a quién se le asignó, en qué va y con qué se cerró.
-          {historial ? ' Estás viendo también los cerrados y cancelados.' : ' Los cerrados y cancelados se consultan en el historial.'}
-        </p>
-        {/* Historial (2026-10-05): antes un servicio cerrado desaparecía y no había forma de verlo. */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <Link href="/servicios" style={pestana(!historial)} aria-current={!historial ? 'page' : undefined}>En curso</Link>
-          <Link href="/servicios?historial=1" style={pestana(historial)} aria-current={historial ? 'page' : undefined}>Todos, con cerrados y cancelados</Link>
-        </div>
-      </header>
+    <div>
+      <style>{`
+        .srv-card { padding: 16px 18px; }
+        .srv-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px 16px; flex-wrap: wrap; }
+        .srv-asig { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--adm-border); }
+        .srv-asig:last-child { border-bottom: 0; padding-bottom: 0; }
+        .srv-acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--adm-border); }
+        @media (max-width: 560px) {
+          .srv-card { padding: 14px; }
+          .srv-precio { align-items: flex-start !important; }
+        }
+      `}</style>
 
-      <input
-        value={filtro}
-        onChange={(e) => setFiltro(e.target.value)}
-        placeholder="Buscar por folio, cliente, servicio o zona…"
-        style={{ ...input, maxWidth: 420, marginBottom: 18 }}
+      <PageHeader
+        eyebrow={['3 · Ejecutar', 'Operaciones']}
+        title="Servicios"
+        subtitle={
+          <>
+            Lo que pasa después de que el cliente acepta: a quién se le asignó, en qué va y con qué se cerró.
+            {historial ? ' Estás viendo también los cerrados y cancelados.' : ' Los cerrados y cancelados se consultan en el historial.'}
+          </>
+        }
       />
 
-      {error ? (
-        <div style={{ background: 'color-mix(in srgb, var(--color-error) 12%, transparent)', border: `1px solid ${C.bad}`, color: C.ink, borderRadius: 11, padding: '12px 15px', fontSize: 13, marginBottom: 16 }}>
-          {error}
-        </div>
-      ) : null}
+      <Stats>
+        <Stat label="Servicios" icon="ph-truck" tone="accent" value={cuenta.total} hint={historial ? 'con cerrados y cancelados' : 'en curso'} />
+        <Stat
+          label="Por asignar"
+          icon="ph-user-plus"
+          tone={cuenta.porAsignar > 0 ? 'warn' : 'muted'}
+          value={cuenta.porAsignar}
+          hint="sin aliado confirmado"
+        />
+        <Stat label="Esperando respuesta" icon="ph-hourglass-medium" tone={cuenta.esperando > 0 ? 'info' : 'muted'} value={cuenta.esperando} hint="de un aliado" />
+        <Stat label="En operación" icon="ph-steering-wheel" tone="accent" value={cuenta.enOperacion} hint="asignados o en marcha" />
+        <Stat
+          label="Por cerrar"
+          icon="ph-flag-checkered"
+          tone={cuenta.porCerrar > 0 ? 'ok' : 'muted'}
+          value={cuenta.porCerrar}
+          hint="terminados, falta el cierre"
+        />
+      </Stats>
+
+      <Toolbar end={`${filtrados.length} de ${initial.length}`}>
+        <SearchBox
+          value={filtro}
+          onChange={(e) => setFiltro(e.target.value)}
+          placeholder="Buscar por folio, cliente, servicio o zona…"
+          aria-label="Buscar servicio"
+          style={{ maxWidth: 420 }}
+        />
+        {/* Historial (2026-10-05): antes un servicio cerrado desaparecía y no había forma de verlo. */}
+        <Segmented
+          ariaLabel="Qué servicios ver"
+          value={historial ? 'todos' : 'curso'}
+          items={[
+            { key: 'curso', label: 'En curso', href: '/servicios' },
+            { key: 'todos', label: 'Todos, con cerrados y cancelados', href: '/servicios?historial=1' },
+          ]}
+        />
+      </Toolbar>
+
+      {error ? <Note tone="bad" style={{ marginBottom: 14 }}>{error}</Note> : null}
 
       {filtrados.length === 0 ? (
-        <div style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: '56px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.muted }}>
-            {initial.length === 0 ? 'No hay servicios activos' : 'Sin resultados'}
-          </div>
-          <div style={{ fontSize: 13, color: C.dim, marginTop: 7, lineHeight: 1.6 }}>
-            {initial.length === 0
-              ? 'Un servicio entra aquí cuando el cliente acepta su cotización.'
-              : 'Prueba con otro término.'}
-          </div>
-        </div>
+        <Panel flush>
+          <EmptyState
+            icon="ph-truck"
+            title={initial.length === 0 ? 'No hay servicios activos' : 'Sin resultados'}
+            sub={initial.length === 0 ? 'Un servicio entra aquí cuando el cliente acepta su cotización.' : 'Prueba con otro término.'}
+          />
+        </Panel>
       ) : null}
 
-      <div style={{ display: 'grid', gap: 14 }}>
+      {/* Cada servicio sigue siendo una tarjeta: lleva aliados con su propia
+          respuesta, avisos y los botones de su siguiente paso. Una fila de
+          tabla no aguanta todo eso sin esconder lo que hay que hacer. */}
+      <div style={{ display: 'grid', gap: 12 }}>
         {filtrados.map((s) => {
-          const color = COLOR_ESTADO[s.state] ?? C.accent;
+          const tono = TONO_ESTADO[s.state] ?? 'accent';
           const aceptado = s.assignments.filter((a) => a.state === 'aceptado');
           const esperando = s.assignments.filter((a) => a.state === 'propuesto');
+          const alterno = acciones[s.id];
 
           return (
-            <div key={s.id} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 16, padding: '18px 20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 15.5, fontWeight: 700 }}>{s.client}</span>
-                    <span style={{ fontSize: 12, color: C.dim, fontFamily: 'ui-monospace, monospace' }}>{s.quoteNumber}</span>
+            <article key={s.id} className="adm-card srv-card">
+              <div className="srv-top">
+                <div style={{ minWidth: 0, flex: '1 1 300px' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px 10px', flexWrap: 'wrap' }}>
+                    <span className="adm-cell-title" style={{ fontSize: 15 }}>{s.client}</span>
+                    <span className="adm-mono" style={{ fontSize: 12, color: 'var(--adm-faint)' }}>{s.quoteNumber}</span>
                   </div>
-                  <div style={{ fontSize: 12.5, color: C.muted, marginTop: 5 }}>
+                  <div className="adm-cell-sub" style={{ marginTop: 3 }}>
                     {s.category ?? 'Sin línea de servicio'}
                     {s.address ? ` · ${s.address}` : ''}
-                    {s.phone ? ` · ${s.phone}` : ''}
+                    {s.phone ? <> · <span className="adm-mono">{s.phone}</span></> : null}
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'right' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color, background: `color-mix(in srgb, ${color} 11%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 26%, transparent)`, padding: '4px 11px', borderRadius: 20 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
-                    {s.stateLabel}
-                  </span>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 7, fontFamily: 'ui-monospace, monospace' }}>{money(s.total)}</div>
+                <div className="srv-precio" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                  <StatusText tone={tono}>{s.stateLabel}</StatusText>
+                  <span className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>{money(s.total)}</span>
                 </div>
               </div>
 
               {/* Barra de avance: dice de un vistazo qué tan lejos va sin
                   obligar a leer el nombre del estado. */}
-              <div style={{ height: 3, background: C.line2, borderRadius: 3, margin: '14px 0 6px', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${Math.round(s.progress * 100)}%`, background: color, borderRadius: 3 }} />
+              <div style={{ margin: '12px 0 6px' }}>
+                <Bar pct={Math.round(s.progress * 100)} tone={tono} label={`Avance: ${s.stateLabel}`} />
               </div>
-              <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.55 }}>{s.stateHint}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>{s.stateHint}</div>
 
               {/* Aliados */}
               {s.assignments.length > 0 ? (
-                <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${C.line}`, display: 'grid', gap: 8 }}>
+                <div style={{ marginTop: 12, paddingTop: 4, borderTop: '1px solid var(--adm-border)' }}>
                   {s.assignments.map((a) => {
-                    const e = ESTADO_ASIGNACION[a.state] ?? { texto: a.state, color: C.dim };
+                    const e = ESTADO_ASIGNACION[a.state] ?? { texto: a.state, tono: 'muted' as Tone };
                     return (
-                      <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <div style={{ minWidth: 0, fontSize: 13 }}>
-                          <span style={{ fontWeight: 600 }}>{a.provider}</span>
-                          <span style={{ color: e.color, marginLeft: 9, fontSize: 11.5, fontWeight: 700 }}>{e.texto}</span>
-                          {a.reason ? <span style={{ color: C.dim, marginLeft: 8, fontSize: 12 }}>· {a.reason}</span> : null}
-                          {a.phone ? <a href={`tel:${a.phone}`} style={{ color: C.accent, marginLeft: 9, fontSize: 12, textDecoration: 'none' }}>{a.phone}</a> : null}
+                      <div key={a.id} className="srv-asig">
+                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '2px 10px', flexWrap: 'wrap', fontSize: 13.5 }}>
+                          <span style={{ fontWeight: 600, color: 'var(--adm-text)' }}>{a.provider}</span>
+                          <StatusText tone={e.tono}>{e.texto}</StatusText>
+                          {a.reason ? <span style={{ color: 'var(--adm-muted)', fontSize: 12.5 }}>· {a.reason}</span> : null}
+                          {a.phone ? (
+                            <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                              <i className="ph ph-phone" aria-hidden style={{ color: 'var(--adm-muted)' }} />
+                              {a.phone}
+                            </a>
+                          ) : null}
                         </div>
                         {a.state === 'propuesto' ? (
-                          <div style={{ display: 'flex', gap: 7 }}>
-                            <button type="button" onClick={() => responderAliado(a.id, 'aceptado')} style={{ ...botonSec, color: C.ok, borderColor: 'color-mix(in srgb, var(--color-success) 40%, transparent)' }}>Aceptó</button>
-                            <button
-                              type="button"
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <Btn size="sm" icon="ph-check" onClick={() => responderAliado(a.id, 'aceptado')}>Aceptó</Btn>
+                            <Btn
+                              size="sm"
+                              variant="danger"
+                              icon="ph-x"
                               onClick={() => {
                                 // Por qué rechazó es el dato que dice si la red
                                 // alcanza para esa zona; sin él solo queda un "no".
                                 const r = window.prompt('¿Por qué no puede? (para saber qué le falta a la red)');
                                 if (r !== null) responderAliado(a.id, 'rechazado', r || undefined);
                               }}
-                              style={{ ...botonSec, color: C.bad, borderColor: 'color-mix(in srgb, var(--color-error) 40%, transparent)' }}
                             >
                               No puede
-                            </button>
+                            </Btn>
                           </div>
                         ) : null}
                       </div>
@@ -309,14 +339,14 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
               {/* Sugeridos (2026-10-05): quién tiene publicado el equipo pedido.
                   Se anotaba en el historial pero aquí, donde se asigna, no se veía. */}
               {s.suggested && s.assignments.length === 0 ? (
-                <div style={{ marginTop: 12, fontSize: 12.5, color: C.muted }}>
-                  Sugeridos (tienen el equipo publicado): <span style={{ color: C.ink, fontWeight: 600 }}>{s.suggested}</span>
+                <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
+                  Sugeridos (tienen el equipo publicado): <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{s.suggested}</span>
                 </div>
               ) : null}
 
               {s.closed ? (
-                <div style={{ marginTop: 12, fontSize: 12.5, color: C.muted }}>
-                  Cierre: <span style={{ color: C.ink, fontWeight: 600 }}>{s.closed}</span> · {fecha(s.closedAt)}
+                <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
+                  Cierre: <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{s.closed}</span> · {fecha(s.closedAt)}
                 </div>
               ) : null}
 
@@ -327,23 +357,23 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
                 fijo: cuatro horas dicen algo de quien contesta en once minutos
                 y no dicen nada de quien siempre tarda dos horas y media.
               */}
-              {acciones[s.id]?.accion ? (
-                <div style={{ marginTop: 12, background: 'color-mix(in srgb, var(--color-warning) 9%, transparent)', border: `1px solid color-mix(in srgb, var(--color-warning) 30%, transparent)`, borderRadius: 11, padding: '10px 13px', display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 12.5, color: C.ink }}>{acciones[s.id].accion}</span>
-                  {acciones[s.id].alternativas > 0 ? (
-                    <button type="button" onClick={() => setAsignando(s)} style={{ ...botonSec, borderColor: C.warn, color: C.ink }}>
-                      Ver {acciones[s.id].alternativas} alterno(s)
-                    </button>
-                  ) : null}
-                </div>
+              {alterno?.accion ? (
+                <Note tone="warn" style={{ marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: '8px 12px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                    <span style={{ color: 'var(--adm-text)' }}>{alterno.accion}</span>
+                    {alterno.alternativas > 0 ? (
+                      <Btn size="sm" onClick={() => setAsignando(s)}>Ver {alterno.alternativas} alterno(s)</Btn>
+                    ) : null}
+                  </div>
+                </Note>
               ) : null}
 
               {/* Acciones */}
-              <div style={{ marginTop: 14, paddingTop: 13, borderTop: `1px solid ${C.line}`, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div className="srv-acciones">
                 {(s.state === 'por_asignar' || esperando.length === 0) && aceptado.length === 0 ? (
-                  <button type="button" onClick={() => setAsignando(s)} style={boton}>Buscar aliado</button>
+                  <Btn size="sm" icon="ph-magnifying-glass" onClick={() => setAsignando(s)}>Buscar aliado</Btn>
                 ) : (
-                  <button type="button" onClick={() => setAsignando(s)} style={botonSec}>Sumar otro aliado</button>
+                  <Btn size="sm" icon="ph-user-plus" onClick={() => setAsignando(s)}>Sumar otro aliado</Btn>
                 )}
 
                 {/*
@@ -351,43 +381,38 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
                   trabajo no se levanta, y entonces el registro dice que todo va
                   bien porque nadie tuvo tiempo de decir lo contrario.
                 */}
-                <button type="button" onClick={() => setIncidencias(s)} style={botonSec}>
+                <Btn size="sm" icon="ph-warning-diamond" onClick={() => setIncidencias(s)}>
                   Incidencias
-                </button>
+                </Btn>
 
                 {s.next.map((n) =>
                   n.state === 'cerrado' ? (
-                    <button key={n.state} type="button" onClick={() => setCerrando(s)} disabled={ocupado === s.id} style={botonSec}>
+                    <Btn key={n.state} size="sm" icon="ph-flag-checkered" onClick={() => setCerrando(s)} disabled={ocupado === s.id}>
                       Cerrar…
-                    </button>
+                    </Btn>
                   ) : n.state === 'cancelado' ? null : (
-                    <button
-                      key={n.state}
-                      type="button"
-                      onClick={() => mover(s, n.state)}
-                      disabled={ocupado === s.id}
-                      style={{ ...botonSec, opacity: ocupado === s.id ? 0.5 : 1 }}
-                    >
+                    <Btn key={n.state} size="sm" onClick={() => mover(s, n.state)} disabled={ocupado === s.id}>
                       {n.label}
-                    </button>
+                    </Btn>
                   ),
                 )}
 
                 {s.next.some((n) => n.state === 'cancelado') ? (
-                  <button
-                    type="button"
+                  <Btn
+                    size="sm"
+                    variant="ghost"
                     onClick={() => {
                       const nota = window.prompt('¿Por qué se cancela?');
                       if (nota !== null) mover(s, 'cancelado', { note: nota || undefined });
                     }}
                     disabled={ocupado === s.id}
-                    style={{ ...botonSec, color: C.dim, marginLeft: 'auto' }}
+                    style={{ marginLeft: 'auto', color: 'var(--adm-muted)' }}
                   >
                     Cancelar
-                  </button>
+                  </Btn>
                 ) : null}
               </div>
-            </div>
+            </article>
           );
         })}
       </div>
@@ -419,66 +444,58 @@ function ModalCierre({
   const n = Number(cantidad);
   const valido = Number.isFinite(n) && n > 0;
 
+  // Ventana sin Esc (ver VentanaFormulario): lleva un desplegable y una nota
+  // escrita que no deben perderse al cerrar el desplegable.
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Cerrar servicio"
-      onClick={onCerrar}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 200 }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: C.panel, border: `1px solid ${C.line2}`, borderRadius: 18, padding: 24, width: 'min(460px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', color: C.ink }}
-      >
-        <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>Cerrar servicio</h2>
-        <p style={{ margin: '0 0 18px', fontSize: 12.5, color: C.muted, lineHeight: 1.55 }}>
-          {servicio.client} · {servicio.quoteNumber}. Registra cuánto se usó: es de lo que dependen la factura y el historial.
-        </p>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 12 }}>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={{ fontSize: 12, color: C.muted }}>Cantidad</span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={cantidad}
-              onChange={(e) => setCantidad(e.target.value)}
-              autoFocus
-              style={input}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={{ fontSize: 12, color: C.muted }}>Unidad</span>
-            <AdminSelect ariaLabel="Unidad" value={unidad} onChange={setUnidad} options={servicio.units.map((u) => ({ value: u.clave, label: u.label }))} />
-          </label>
-        </div>
-
-        <label style={{ display: 'grid', gap: 6, marginTop: 14 }}>
-          <span style={{ fontSize: 12, color: C.muted }}>Observaciones del cierre (opcional)</span>
-          <textarea
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            rows={3}
-            placeholder="Ajustes, incidencias, tiempos de espera…"
-            style={{ ...input, resize: 'vertical', lineHeight: 1.55 }}
-          />
-        </label>
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-          <button type="button" onClick={onCerrar} style={{ ...botonSec, flex: 1, padding: '11px 16px' }}>Cancelar</button>
-          <button
-            type="button"
+    <VentanaFormulario
+      titulo="Cerrar servicio"
+      ancho={460}
+      onCerrar={onCerrar}
+      subtitulo={
+        <>
+          {servicio.client} · <span className="adm-mono">{servicio.quoteNumber}</span>. Registra cuánto se usó: es de lo que dependen la factura y el historial.
+        </>
+      }
+      pie={
+        <>
+          <Btn variant="ghost" onClick={onCerrar}>Cancelar</Btn>
+          <Btn
+            variant="primary"
             disabled={!valido || ocupado}
             onClick={() => onGuardar(servicio, 'cerrado', { quantity: n, unit: unidad, note: nota.trim() || undefined })}
-            style={{ ...boton, flex: 2, padding: '11px 18px', fontSize: 14, opacity: !valido || ocupado ? 0.5 : 1, cursor: !valido || ocupado ? 'default' : 'pointer' }}
           >
             {ocupado ? 'Cerrando…' : 'Cerrar servicio'}
-          </button>
-        </div>
+          </Btn>
+        </>
+      }
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: 12 }}>
+        <FormField label="Cantidad">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="adm-input adm-num"
+            value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
+            autoFocus
+          />
+        </FormField>
+        <FormField label="Unidad">
+          <AdminSelect ariaLabel="Unidad" value={unidad} onChange={setUnidad} options={servicio.units.map((u) => ({ value: u.clave, label: u.label }))} />
+        </FormField>
       </div>
-    </div>
+
+      <FormField label="Observaciones del cierre (opcional)" style={{ marginTop: 14 }}>
+        <textarea
+          className="adm-textarea"
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          rows={3}
+          placeholder="Ajustes, incidencias, tiempos de espera…"
+        />
+      </FormField>
+    </VentanaFormulario>
   );
 }
 
@@ -552,47 +569,41 @@ function ModalAsignar({
     onListo();
   }
 
+  const matches = datos?.matches ?? [];
+
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Buscar aliado"
-      onClick={onCerrar}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 200 }}
+    <Modal
+      abierto
+      titulo="Buscar aliado"
+      subtitulo={`${servicio.category ?? 'Sin línea'} · ${servicio.address ?? 'Sin zona'}. Ofrecerlo no lo asigna: queda esperando su respuesta.`}
+      onCerrar={onCerrar}
+      ancho={600}
+      pie={<Btn onClick={onCerrar}>Cerrar</Btn>}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{ background: C.panel, border: `1px solid ${C.line2}`, borderRadius: 18, padding: 24, width: 'min(600px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', color: C.ink }}
-      >
-        <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>Buscar aliado</h2>
-        <p style={{ margin: '0 0 18px', fontSize: 12.5, color: C.muted, lineHeight: 1.55 }}>
-          {servicio.category ?? 'Sin línea'} · {servicio.address ?? 'Sin zona'}. Ofrecerlo no lo asigna: queda esperando su respuesta.
-        </p>
+      {cargando ? <div style={{ fontSize: 13, color: 'var(--adm-muted)', padding: '6px 0 14px' }}>Consultando la red…</div> : null}
 
-        {cargando ? <div style={{ fontSize: 13, color: C.muted, padding: '18px 0' }}>Consultando la red…</div> : null}
-
-        {/* El mapa antes de la lista: al asignar, la primera pregunta es quién
-            está cerca, y "a 12 km" no dice hacia qué lado. */}
-        {puntos.length > 1 ? (
-          <div style={{ marginBottom: 16 }}>
-            <MapaCobertura puntos={puntos} alto={230} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, color: C.muted }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0A32E' }} /> La obra
-              </span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#008CFF' }} /> Aliado y hasta dónde llega
-              </span>
-            </div>
+      {/* El mapa antes de la lista: al asignar, la primera pregunta es quién
+          está cerca, y "a 12 km" no dice hacia qué lado. */}
+      {puntos.length > 1 ? (
+        <div style={{ marginBottom: 16 }}>
+          <MapaCobertura puntos={puntos} alto={230} />
+          {/* Los colores de la leyenda son los de los marcadores de MapaCobertura. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 12, color: 'var(--adm-muted)' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0A32E' }} /> La obra
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#008CFF' }} /> Aliado y hasta dónde llega
+            </span>
           </div>
-        ) : null}
+        </div>
+      ) : null}
 
-        {datos && datos.matches.length === 0 && !cargando ? (
-          <div style={{ padding: '22px 0', fontSize: 13, color: C.muted, lineHeight: 1.6 }}>{datos.motivo}</div>
-        ) : null}
+      {datos && matches.length === 0 && !cargando && datos.motivo ? <Note>{datos.motivo}</Note> : null}
 
-        <div style={{ display: 'grid', gap: 10 }}>
-          {(datos?.matches ?? []).map((m) => {
+      {matches.length > 0 ? (
+        <Panel flush clip>
+          {matches.map((m) => {
             // Quien ya paso por aqui no es una alternativa: al que espera
             // respuesta se le estaria duplicando, y al que ya dijo que no,
             // insistir es solo ruido. Sin esto el mejor puntuado se propondria
@@ -605,39 +616,44 @@ function ModalAsignar({
                   : previa ? 'Ya se le ofreció'
                     : null;
             return (
-              <div key={m.providerId} style={{ border: `1px solid ${C.line2}`, borderRadius: 13, padding: '13px 15px' }}>
+              <div key={m.providerId} className="adm-trow">
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div>
-                    <span style={{ fontSize: 14, fontWeight: 700 }}>{m.name}</span>
-                    {m.verified ? <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: C.accent }}>✓ VERIFICADO</span> : null}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+                    <span className="adm-cell-title">{m.name}</span>
+                    {m.verified ? <Chip tone="ok"><i className="ph ph-seal-check" aria-hidden />Verificado</Chip> : null}
                   </div>
-                  <button
-                    type="button"
+                  <Btn
+                    size="sm"
+                    variant={yaTiene ? 'ghost' : 'secondary'}
+                    icon={yaTiene ? undefined : 'ph-paper-plane-tilt'}
                     disabled={yaTiene || enviando !== null}
                     onClick={() => ofrecer(m.providerId)}
-                    style={{ ...(yaTiene ? botonSec : boton), opacity: yaTiene || enviando !== null ? 0.5 : 1, cursor: yaTiene ? 'default' : 'pointer' }}
                   >
                     {etiqueta ?? (enviando === m.providerId ? 'Enviando…' : 'Ofrecerle')}
-                  </button>
+                  </Btn>
                 </div>
                 {previa?.reason ? (
-                  <div style={{ marginTop: 7, fontSize: 12, color: C.dim }}>Dijo: “{previa.reason}”</div>
+                  <div className="adm-cell-sub" style={{ marginTop: 5 }}>Dijo: “{previa.reason}”</div>
                 ) : null}
-                <ul style={{ margin: '9px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 3 }}>
-                  {m.reasons.map((r) => (
-                    <li key={r} style={{ fontSize: 12.5, color: C.muted }}><span style={{ color: C.accent, marginRight: 7 }}>+</span>{r}</li>
-                  ))}
-                  {m.warnings.map((w) => (
-                    <li key={w} style={{ fontSize: 12.5, color: C.dim }}><span style={{ color: C.warn, marginRight: 7 }}>!</span>{w}</li>
-                  ))}
-                </ul>
+                {m.reasons.length + m.warnings.length > 0 ? (
+                  <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 3 }}>
+                    {m.reasons.map((r) => (
+                      <li key={r} style={{ display: 'flex', gap: 7, fontSize: 12.5, color: 'var(--adm-text-2)', lineHeight: 1.5 }}>
+                        <i className="ph ph-plus" aria-hidden style={{ color: 'var(--adm-accent)', marginTop: 3, fontSize: 11 }} />{r}
+                      </li>
+                    ))}
+                    {m.warnings.map((w) => (
+                      <li key={w} style={{ display: 'flex', gap: 7, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
+                        <i className="ph ph-warning" aria-hidden style={{ color: 'var(--adm-warn)', marginTop: 3, fontSize: 11 }} />{w}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
             );
           })}
-        </div>
-
-        <button type="button" onClick={onCerrar} style={{ ...botonSec, width: '100%', marginTop: 20, padding: '11px 16px' }}>Cerrar</button>
-      </div>
-    </div>
+        </Panel>
+      ) : null}
+    </Modal>
   );
 }

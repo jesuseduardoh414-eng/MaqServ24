@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { D, FONT } from '@/components/design-tokens';
+import { Chip, EmptyState, Note, PageHeader, Panel, Stat, Stats, StatusText, type Tone } from '@/components/ui';
 import type { RolAdmin } from '@maqserv/config';
 import { AdminCreate } from './AdminCreate';
 import { AdminRowActions } from './AdminRowActions';
@@ -33,12 +33,7 @@ interface Bitacora {
   cuando: string;
 }
 
-const MONO = "'JetBrains Mono', ui-monospace, monospace";
-const GREEN = '#3fbf8f';
-const RED = '#f55';
-const GRID = '1.5fr 1.8fr 1fr 1.6fr';
-const th: React.CSSProperties = { fontSize: 10.5, letterSpacing: '1px', fontWeight: 700, color: '#7A7A7F' };
-const statCard: React.CSSProperties = { minWidth: 150, background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 14, padding: '14px 18px' };
+const GRID = 'minmax(0,1.5fr) minmax(0,1.6fr) 130px minmax(0,2fr)';
 
 /** Quién puede entrar al panel y hasta dónde llega cada quien. */
 export default async function AdminAdmins() {
@@ -57,130 +52,120 @@ export default async function AdminAdmins() {
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <div style={{ fontFamily: FONT, color: D.text }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
+      <div>
         <style>{`
-          .am-row:hover{ background: rgba(255,255,255,0.022); }
-          @media (max-width: 900px){ .am-grid{ grid-template-columns: 1fr 1fr !important; row-gap: 10px !important; } .am-head{ display:none !important; } }
+          .am-row { display: grid; grid-template-columns: ${GRID}; gap: 16px; align-items: center; }
+          /* En tablet/móvil: nombre y correo arriba, estado y acciones debajo. */
+          @media (max-width: 900px) {
+            .am-thead { display: none !important; }
+            .am-row { grid-template-columns: minmax(0,1fr) minmax(0,1fr); row-gap: 10px; }
+            .am-row > .am-c-actions { grid-column: 1 / -1; }
+          }
+          @media (max-width: 560px) {
+            .am-row { grid-template-columns: minmax(0,1fr); }
+          }
+          .am-log { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
         `}</style>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8A8A8F', fontWeight: 500 }}>
-              <span>Configuración</span><span style={{ color: '#4C4C51' }}>/</span><span style={{ color: '#B4B4B9' }}>Administradores</span>
-            </div>
-            <h1 style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 800, letterSpacing: '-0.8px', color: '#FBFBFA' }}>Administradores</h1>
-            <p style={{ margin: '6px 0 0', fontSize: 13.5, color: '#8A8A8F', maxWidth: '70ch' }}>
-              Quién puede entrar a este panel y qué parte le toca. El rol decide qué secciones ve: lo que no le toca, ni le aparece en el menú ni lo puede pedir por su cuenta.
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div style={statCard}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: GREEN, boxShadow: `0 0 10px ${GREEN}99` }} />
-                <span style={{ fontSize: 12, color: '#8A8A8F', fontWeight: 600 }}>Con acceso</span>
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 800, marginTop: 6, color: GREEN, fontFamily: MONO }}>{activos}</div>
-            </div>
-          </div>
-        </div>
+        <PageHeader
+          eyebrow={['Ajustes', 'Configuración']}
+          title="Administradores"
+          count={admins.length}
+          subtitle="Quién puede entrar a este panel y qué parte le toca. El rol decide qué secciones ve: lo que no le toca, ni le aparece en el menú ni lo puede pedir por su cuenta."
+          actions={<AdminCreate soyPrincipal={soyPrincipal} />}
+        />
+
+        <Stats>
+          <Stat label="Con acceso" icon="ph-user-check" tone="ok" value={activos} hint={`de ${admins.length}`} />
+        </Stats>
 
         {/* Cuentas que se ven "Activo" pero no pueden entrar (creadas antes del arreglo). */}
         {rotos.length > 0 ? (
-          <div style={{ marginTop: 20, display: 'flex', alignItems: 'flex-start', gap: 11, background: 'rgba(255,85,85,0.06)', border: '1px solid rgba(255,85,85,0.3)', borderRadius: 12, padding: '13px 17px' }}>
-            <i className="ph ph-warning" style={{ color: RED, fontSize: 16, marginTop: 1 }} />
-            <div style={{ fontSize: 13, color: '#D4D4D8', lineHeight: 1.55 }}>
-              <strong style={{ color: '#FBFBFA' }}>
-                {rotos.length} cuenta{rotos.length === 1 ? '' : 's'} sin acceso configurado.
-              </strong>{' '}
-              Existe{rotos.length === 1 ? '' : 'n'} en la lista pero no puede{rotos.length === 1 ? '' : 'n'} entrar: le{rotos.length === 1 ? '' : 's'} falta la cuenta
-              de acceso. Bórrala{rotos.length === 1 ? '' : 's'} y vuelve a crearla{rotos.length === 1 ? '' : 's'} desde aquí.
-            </div>
-          </div>
+          <Note tone="bad" style={{ marginBottom: 20 }}>
+            <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>
+              {rotos.length} cuenta{rotos.length === 1 ? '' : 's'} sin acceso configurado.
+            </strong>{' '}
+            Existe{rotos.length === 1 ? '' : 'n'} en la lista pero no puede{rotos.length === 1 ? '' : 'n'} entrar: le{rotos.length === 1 ? '' : 's'} falta la cuenta
+            de acceso. Bórrala{rotos.length === 1 ? '' : 's'} y vuelve a crearla{rotos.length === 1 ? '' : 's'} desde aquí.
+          </Note>
         ) : null}
 
-        <div style={{ marginTop: 20 }}>
-          <AdminCreate soyPrincipal={soyPrincipal} />
-        </div>
-
-        <div style={{ marginTop: 18, background: '#0F0F11', border: `1px solid ${D.inputBorder}`, borderRadius: 16, overflow: 'hidden' }}>
-          <div className="am-head" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 16, padding: '15px 24px', borderBottom: `1px solid ${D.cardBorder}`, background: '#131315' }}>
-            <div style={th}>NOMBRE</div>
-            <div style={th}>CORREO</div>
-            <div style={th}>ESTADO</div>
-            <div style={{ ...th, textAlign: 'right' }}>ACCIONES</div>
+        <Panel flush clip>
+          <div className="adm-thead am-row am-thead">
+            <div>Nombre</div>
+            <div>Correo</div>
+            <div>Estado</div>
+            <div style={{ textAlign: 'right' }}>Acciones</div>
           </div>
 
           {admins.map((a) => {
             const activo = a.status === 1;
             // "Activo" sin cuenta de acceso es mentira: se dice.
-            const color = !a.canLogin ? RED : activo ? GREEN : '#6B6B71';
+            const tone: Tone = !a.canLogin ? 'bad' : activo ? 'ok' : 'muted';
             const label = !a.canLogin ? 'Sin acceso' : activo ? 'Activo' : 'Inactivo';
             return (
-              <div key={a.id} className="am-row am-grid" style={{ display: 'grid', gridTemplateColumns: GRID, gap: 16, padding: '15px 24px', borderBottom: '1px solid rgba(255,255,255,0.045)', alignItems: 'center', opacity: activo ? 1 : 0.6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                  <span style={{ width: 3, alignSelf: 'stretch', minHeight: 24, borderRadius: 3, background: color, flexShrink: 0 }} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 700, color: '#EDEDEC' }}>
-                      {a.name}
-                      {a.isMe ? <span style={{ color: D.amber, fontWeight: 600, fontSize: 11.5 }}> · tú</span> : null}
-                    </div>
-                    <div style={{ fontSize: 10.5, color: '#5C5C61', marginTop: 3 }}>
-                      {a.rolNombre}
-                      {a.principal ? (
-                        <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, letterSpacing: '0.6px', color: D.amber, border: `1px solid ${D.amber}`, borderRadius: 4, padding: '1px 6px' }}>
-                          <i className="ph ph-crown-simple" style={{ marginRight: 4 }} />PRINCIPAL
-                        </span>
-                      ) : null}
-                    </div>
+              <div key={a.id} className="adm-trow am-row" style={{ opacity: activo ? 1 : 0.6 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="adm-cell-title adm-ellipsis">
+                    {a.name}
+                    {a.isMe ? <span style={{ color: 'var(--adm-accent)', fontWeight: 500, fontSize: 12.5 }}> · tú</span> : null}
+                  </div>
+                  <div className="adm-meta">
+                    <span>{a.rolNombre}</span>
+                    {a.principal ? (
+                      <Chip tone="accent">
+                        <i className="ph ph-crown-simple" aria-hidden />Principal
+                      </Chip>
+                    ) : null}
                   </div>
                 </div>
 
-                <div style={{ fontSize: 12.5, color: '#B4B4B9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.email}</div>
+                <div className="adm-ellipsis" style={{ fontSize: 13.5, color: 'var(--adm-text-2)' }}>{a.email}</div>
 
                 <div>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color, whiteSpace: 'nowrap', background: `color-mix(in srgb, ${color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${color} 26%, transparent)`, borderRadius: 20, padding: '5px 11px' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                    {label}
-                  </span>
+                  <StatusText tone={tone}>{label}</StatusText>
                 </div>
 
-                <AdminRowActions adminId={a.id} name={a.name} status={a.status} isMe={a.isMe} canLogin={a.canLogin} rol={a.rol} principal={a.principal} soyPrincipal={soyPrincipal} />
+                <div className="am-c-actions">
+                  <AdminRowActions adminId={a.id} name={a.name} status={a.status} isMe={a.isMe} canLogin={a.canLogin} rol={a.rol} principal={a.principal} soyPrincipal={soyPrincipal} />
+                </div>
               </div>
             );
           })}
-        </div>
+        </Panel>
 
         {/* Sección 30 · Riesgos y controles: quién hizo qué, con fecha. */}
-        <div style={{ marginTop: 28 }}>
-          <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Actividad reciente</h2>
-          <p style={{ margin: '0 0 14px', fontSize: 12.5, color: '#7A7A7F', maxWidth: '70ch' }}>
-            Las acciones que cambian permisos, dinero o lo que ve el público. No se puede borrar desde el panel.
-          </p>
+        <Panel
+          flush
+          clip
+          title="Actividad reciente"
+          icon="ph-clock-counter-clockwise"
+          desc="Las acciones que cambian permisos, dinero o lo que ve el público. No se puede borrar desde el panel."
+          style={{ marginTop: 28 }}
+        >
           {bitacora.length === 0 ? (
-            <div style={{ background: '#0F0F11', border: `1px solid ${D.inputBorder}`, borderRadius: 14, padding: '20px 24px', fontSize: 13, color: '#7A7A7F' }}>
-              Todavía no hay nada anotado. Aquí irán apareciendo las altas y bajas de cuentas, los cambios de rol,
-              los métodos de pago, los retiros pagados y las publicaciones de diseño.
-            </div>
+            <EmptyState
+              icon="ph-notebook"
+              title="Todavía no hay nada anotado"
+              sub="Aquí irán apareciendo las altas y bajas de cuentas, los cambios de rol, los métodos de pago, los retiros pagados y las publicaciones de diseño."
+            />
           ) : (
-            <div style={{ background: '#0F0F11', border: `1px solid ${D.inputBorder}`, borderRadius: 14, overflow: 'hidden' }}>
-              {bitacora.map((b) => (
-                <div key={b.id} style={{ display: 'flex', gap: 14, alignItems: 'baseline', flexWrap: 'wrap', padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.045)' }}>
-                  <span style={{ fontFamily: MONO, fontSize: 11, color: '#5C5C61', whiteSpace: 'nowrap' }}>
-                    {new Date(b.cuando).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
-                  </span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#EDEDEC' }}>{b.accion}</span>
-                  {b.objetivo ? <span style={{ fontSize: 12.5, color: '#B4B4B9' }}>{b.objetivo}</span> : null}
-                  <span style={{ fontSize: 11.5, color: '#7A7A7F', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-                    {b.quien} · {b.rol}
-                  </span>
-                </div>
-              ))}
-            </div>
+            bitacora.map((b) => (
+              <div key={b.id} className="adm-trow am-log">
+                <span className="adm-mono adm-num" style={{ fontSize: 12, color: 'var(--adm-faint)', whiteSpace: 'nowrap' }}>
+                  {new Date(b.cuando).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
+                </span>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>{b.accion}</span>
+                {b.objetivo ? <span style={{ fontSize: 13.5, color: 'var(--adm-text-2)' }}>{b.objetivo}</span> : null}
+                <span style={{ fontSize: 12.5, color: 'var(--adm-muted)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                  {b.quien} · {b.rol}
+                </span>
+              </div>
+            ))
           )}
-        </div>
+        </Panel>
 
-        <p style={{ margin: '16px 0 0', fontSize: 11.5, color: '#5C5C61', lineHeight: 1.55, maxWidth: '80ch' }}>
+        <p style={{ margin: '16px 0 0', fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.6, maxWidth: '80ch' }}>
           Desactivar corta el acceso de inmediato, incluso si la persona tiene la sesión abierta. No puedes desactivar tu propia cuenta ni cambiarte el rol a ti mismo: esta pantalla solo la ve Dirección, y quien se la quita no tiene cómo devolvérsela. La cuenta principal es la del dueño: solo ella da o quita Dirección General y modifica a las otras cuentas de Dirección, y nadie más puede tocarla. Se puede transferir a otra cuenta de Dirección.
         </p>
       </div>

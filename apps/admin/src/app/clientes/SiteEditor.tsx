@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { C, input, label, boton, botonSec } from './ClientsManager';
+import { useState, type CSSProperties } from 'react';
+import { Btn, Chip, FormField, StatusText } from '@/components/ui';
 
 /**
  * UNA OBRA.
@@ -107,9 +107,12 @@ export function SiteEditor({
     onListo();
   }
 
-  const caja = {
-    background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 12,
-    padding: '14px 16px', opacity: obra && obra.status === 0 ? 0.55 : 1,
+  // Una obra es un bloque con acciones, requisitos e historial propio: se
+  // queda como tarjeta (la del kit, sin sombra). La de alta vive dentro del
+  // modal y ahí no necesita otra caja alrededor.
+  const caja: CSSProperties = {
+    background: 'var(--adm-card)', border: '1px solid var(--adm-border)', borderRadius: 12,
+    padding: 16, opacity: obra && obra.status === 0 ? 0.55 : 1,
   };
 
   if (!editando && obra) {
@@ -117,93 +120,98 @@ export function SiteEditor({
       <div style={caja}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: C.ink }}>
-              {obra.name}
-              {obra.status === 0 ? <span style={{ marginLeft: 8, fontSize: 10.5, color: C.dim }}>DADA DE BAJA</span> : null}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span className="adm-cell-title">{obra.name}</span>
+              {obra.status === 0 ? <Chip tone="muted">Dada de baja</Chip> : null}
             </div>
-            {obra.address ? <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>{obra.address}</div> : null}
+            {obra.address ? <div className="adm-cell-sub">{obra.address}</div> : null}
             {obra.contactName || obra.contactPhone ? (
-              <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>
+              <div className="adm-cell-sub">
                 {obra.contactName ?? ''}{obra.contactName && obra.contactPhone ? ' · ' : ''}
-                {obra.contactPhone ? <a href={`tel:${obra.contactPhone}`} style={{ color: C.accent, textDecoration: 'none' }}>{obra.contactPhone}</a> : null}
+                {obra.contactPhone ? <a href={`tel:${obra.contactPhone}`} className="adm-link adm-mono">{obra.contactPhone}</a> : null}
               </div>
             ) : null}
           </div>
-          <button type="button" style={{ ...botonSec, padding: '6px 12px', fontSize: 12.5 }} onClick={() => setEditando(true)}>
-            Editar
-          </button>
+          <Btn size="sm" icon="ph-pencil-simple" onClick={() => setEditando(true)}>Editar</Btn>
         </div>
 
         {obra.requirements.length > 0 ? (
-          <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {obra.requirements.map((r) => (
-              <span key={r} style={{ fontSize: 11.5, color: C.warn, border: `1px solid color-mix(in srgb, var(--color-warning) 34%, transparent)`, borderRadius: 20, padding: '2px 9px' }}>
-                {r}
-              </span>
-            ))}
+          <div style={{ marginTop: 12, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {obra.requirements.map((r) => <Chip key={r} tone="warn">{r}</Chip>)}
           </div>
         ) : null}
 
         {obra.history.length > 0 ? (
-          <div style={{ marginTop: 12, paddingTop: 10, borderTop: `1px solid ${C.line}` }}>
-            <div style={{ fontSize: 11.5, color: C.dim, marginBottom: 6 }}>
-              {obra.history.length} servicio{obra.history.length === 1 ? '' : 's'} en esta obra
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--adm-border)' }}>
+            <div style={{ fontSize: 12, color: 'var(--adm-faint)', marginBottom: 8 }}>
+              <span className="adm-num">{obra.history.length}</span> servicio{obra.history.length === 1 ? '' : 's'} en esta obra
             </div>
-            <div style={{ display: 'grid', gap: 4 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
               {obra.history.slice(0, 6).map((h) => (
-                <div key={h.id} style={{ display: 'flex', gap: 10, fontSize: 12.5, flexWrap: 'wrap' }}>
-                  <span style={{ fontFamily: 'ui-monospace, monospace', color: C.dim, minWidth: 112 }}>{h.quoteNumber}</span>
-                  <span style={{ color: C.muted, minWidth: 130 }}>{h.category ?? 'sin línea'}</span>
-                  <span style={{ color: C.ink }}>{money(h.total)}</span>
-                  {h.serviceLabel ? <span style={{ color: C.accent }}>{h.serviceLabel}</span> : null}
-                  <span style={{ color: C.dim, marginLeft: 'auto' }}>{fecha(h.createdAt)}</span>
+                <div key={h.id} style={{ display: 'flex', gap: 12, fontSize: 13, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <span className="adm-mono" style={{ color: 'var(--adm-faint)', minWidth: 112 }}>{h.quoteNumber}</span>
+                  <span style={{ color: 'var(--adm-muted)', minWidth: 130 }}>{h.category ?? 'sin línea'}</span>
+                  <span className="adm-num" style={{ color: 'var(--adm-text)' }}>{money(h.total)}</span>
+                  {h.serviceLabel ? <StatusText tone="accent">{h.serviceLabel}</StatusText> : null}
+                  <span style={{ color: 'var(--adm-faint)', marginLeft: 'auto', fontSize: 12.5 }}>{fecha(h.createdAt)}</span>
                 </div>
               ))}
             </div>
           </div>
         ) : (
-          <div style={{ marginTop: 10, fontSize: 12, color: C.dim }}>Todavía no se le ha servido nada a esta obra.</div>
+          <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-faint)' }}>Todavía no se le ha servido nada a esta obra.</div>
         )}
       </div>
     );
   }
 
+  // Botones-chip del editor de requisitos: el reset de <button> + la forma de `.adm-chip`.
+  const chipBtn: CSSProperties = { border: 0, cursor: 'pointer', fontFamily: 'inherit' };
+
   return (
-    <div style={{ ...caja, background: C.panel3 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12 }}>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <span style={label}>Cómo le dicen a la obra *</span>
-          <input style={input} value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="Torre Vasconcelos · Frente 3" autoFocus />
-        </div>
-        <div style={{ gridColumn: '1 / -1' }}>
-          <span style={label}>Dirección</span>
-          <input style={input} value={f.address} onChange={(e) => set('address', e.target.value)} placeholder="Av. Vasconcelos 1500, Monterrey, N.L." />
-        </div>
-        <div><span style={label}>Municipio</span><input style={input} value={f.municipality} onChange={(e) => set('municipality', e.target.value)} placeholder="Monterrey" /></div>
-        <div><span style={label}>Quién responde en obra</span><input style={input} value={f.contactName} onChange={(e) => set('contactName', e.target.value)} placeholder="Ing. residente" /></div>
-        <div><span style={label}>Su teléfono</span><input style={input} value={f.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="81 8000 0000" /></div>
+    <div style={nueva ? undefined : caja}>
+      <div className="adm-form-grid">
+        <FormField label="Cómo le dicen a la obra *" style={{ gridColumn: '1 / -1' }}>
+          <input className="adm-input" value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="Torre Vasconcelos · Frente 3" autoFocus />
+        </FormField>
+        <FormField label="Dirección" style={{ gridColumn: '1 / -1' }}>
+          <input className="adm-input" value={f.address} onChange={(e) => set('address', e.target.value)} placeholder="Av. Vasconcelos 1500, Monterrey, N.L." />
+        </FormField>
+        <FormField label="Municipio">
+          <input className="adm-input" value={f.municipality} onChange={(e) => set('municipality', e.target.value)} placeholder="Monterrey" />
+        </FormField>
+        <FormField label="Quién responde en obra">
+          <input className="adm-input" value={f.contactName} onChange={(e) => set('contactName', e.target.value)} placeholder="Ing. residente" />
+        </FormField>
+        <FormField label="Su teléfono">
+          <input className="adm-input" value={f.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="81 8000 0000" />
+        </FormField>
       </div>
 
       {/* Lo que la obra exige. Es el campo que evita la llamada de "¿y traen
           inducción?" cuando la máquina ya está en la puerta. */}
-      <div style={{ marginTop: 14 }}>
-        <span style={label}>Qué exige esta obra para dejar entrar</span>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-          {reqs.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setReqs(reqs.filter((x) => x !== r))}
-              title="Quitar"
-              style={{ fontSize: 11.5, color: C.warn, background: 'none', border: `1px solid color-mix(in srgb, var(--color-warning) 34%, transparent)`, borderRadius: 20, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              {r} ×
-            </button>
-          ))}
-        </div>
+      <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
+        <span className="adm-label">Qué exige esta obra para dejar entrar</span>
+        {reqs.length > 0 ? (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {reqs.map((r) => (
+              <button
+                key={r}
+                type="button"
+                className="adm-chip t-warn"
+                onClick={() => setReqs(reqs.filter((x) => x !== r))}
+                title="Quitar"
+                style={chipBtn}
+              >
+                {r} <i className="ph ph-x" aria-hidden />
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <input
-            style={{ ...input, maxWidth: 280 }}
+            className="adm-input"
+            style={{ maxWidth: 280 }}
             value={nuevoReq}
             onChange={(e) => setNuevoReq(e.target.value)}
             onKeyDown={(e) => {
@@ -219,40 +227,43 @@ export function SiteEditor({
             <button
               key={s}
               type="button"
+              className="adm-chip"
               onClick={() => setReqs([...reqs, s])}
-              style={{ fontSize: 11.5, color: C.muted, background: 'none', border: `1px dashed ${C.line2}`, borderRadius: 20, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ ...chipBtn, background: 'transparent', border: '1px dashed var(--adm-border-strong)', color: 'var(--adm-muted)' }}
             >
-              + {s}
+              <i className="ph ph-plus" aria-hidden /> {s}
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ marginTop: 14 }}>
-        <span style={label}>Notas</span>
+      <FormField label="Notas" style={{ marginTop: 16 }}>
         <textarea
-          style={{ ...input, minHeight: 62, resize: 'vertical', lineHeight: 1.5 }}
+          className="adm-textarea"
+          rows={3}
           value={f.notes}
           onChange={(e) => set('notes', e.target.value)}
           placeholder="Acceso por terracería, entra lowboy. Preguntar por el velador después de las 18:00."
         />
-      </div>
+      </FormField>
 
-      <div style={{ display: 'flex', gap: 9, marginTop: 16, flexWrap: 'wrap' }}>
-        <button type="button" style={{ ...boton, opacity: guardando ? 0.6 : 1 }} onClick={guardar} disabled={guardando}>
+      <div style={{ display: 'flex', gap: 8, marginTop: 18, flexWrap: 'wrap' }}>
+        {/* Primario solo en el alta (es la acción del modal); al editar una obra
+            dentro de la ficha, la acción principal de la página sigue siendo otra. */}
+        <Btn variant={nueva ? 'primary' : 'secondary'} size={nueva ? 'md' : 'sm'} icon={nueva ? undefined : 'ph-check'} onClick={guardar} disabled={guardando}>
           {guardando ? 'Guardando…' : nueva ? 'Agregar obra' : 'Guardar'}
-        </button>
-        <button
-          type="button"
-          style={botonSec}
+        </Btn>
+        <Btn
+          variant="ghost"
+          size={nueva ? 'md' : 'sm'}
           onClick={() => { if (nueva) onCancelar?.(); else setEditando(false); }}
         >
           Cancelar
-        </button>
+        </Btn>
         {!nueva && obra!.status === 1 ? (
-          <button type="button" style={{ ...botonSec, color: C.dim, marginLeft: 'auto' }} onClick={archivar}>
+          <Btn variant="ghost" size="sm" icon="ph-archive" style={{ marginLeft: 'auto' }} onClick={archivar}>
             Dar de baja
-          </button>
+          </Btn>
         ) : null}
       </div>
     </div>

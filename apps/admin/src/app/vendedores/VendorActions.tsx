@@ -2,9 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { D } from '@/components/design-tokens';
-
-type Variant = 'solid' | 'ghost' | 'danger';
+import { Btn } from '@/components/ui';
 
 /**
  * Cambia el estado de un vendedor (is_vendor 0|1|2).
@@ -12,6 +10,10 @@ type Variant = 'solid' | 'ghost' | 'danger';
  * Las etiquetas dependen del estado actual: a un PENDIENTE se le "Rechaza" (no hay
  * nada que revocar todavía) y a un APROBADO se le "Revoca". Antes ambos decían
  * "Revocar", que en una solicitud nueva no significaba nada.
+ *
+ * `size="md"` es la ficha del vendedor: ahí Aprobar/Reactivar es LA acción de la
+ * página y va como primaria. En la lista (`sm`) hay una por fila, así que va
+ * como secundaria para no llenar la tabla de botones de color.
  */
 export function VendorActions({
   vendorId,
@@ -45,56 +47,41 @@ export function VendorActions({
     }
   }
 
-  const pad = size === 'md' ? '9px 16px' : '6px 12px';
-  const font = size === 'md' ? 13 : 12;
-  const btn = (v: Variant): React.CSSProperties => ({
-    fontSize: font, fontWeight: 700, fontFamily: 'inherit', borderRadius: 8, padding: pad,
-    cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.5 : 1, whiteSpace: 'nowrap',
-    background: v === 'solid' ? D.amber : 'transparent',
-    color: v === 'solid' ? 'var(--color-primary-fg)' : v === 'danger' ? '#f55' : '#B4B4B9',
-    border: v === 'solid' ? 'none' : `1px solid ${v === 'danger' ? 'rgba(255,85,85,0.3)' : D.inputBorder}`,
-  });
+  const principal = size === 'md' ? 'primary' : 'secondary';
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <style>{`
-        .vd-btn:hover:not(:disabled){ filter: brightness(1.12); }
-        .vd-ghost:hover:not(:disabled){ background: rgba(255,255,255,0.06); }
-      `}</style>
-
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       {status === 1 ? (
         <>
-          <button type="button" className="vd-btn" disabled={busy} onClick={() => set(2)} style={btn('solid')}>
+          <Btn size={size} variant={principal} icon="ph-check" disabled={busy} onClick={() => set(2)}>
             Aprobar
-          </button>
-          <button
-            type="button" className="vd-ghost" disabled={busy}
+          </Btn>
+          <Btn
+            size={size} variant="danger" disabled={busy}
             onClick={() => set(0, '¿Rechazar esta solicitud? El usuario seguirá siendo cliente.')}
-            style={btn('danger')}
           >
             Rechazar
-          </button>
+          </Btn>
         </>
       ) : null}
 
       {status === 2 ? (
-        <button
-          type="button" className="vd-ghost" disabled={busy}
+        <Btn
+          size={size} variant="danger" disabled={busy}
           onClick={() => set(0, '¿Revocar el acceso de vendedor? Sus productos seguirán publicados hasta que los desactives.')}
-          style={btn('danger')}
         >
           Revocar acceso
-        </button>
+        </Btn>
       ) : null}
 
       {/* Un revocado ya no desaparece: se puede reactivar sin volver a solicitar. */}
       {status !== 1 && status !== 2 ? (
-        <button type="button" className="vd-btn" disabled={busy} onClick={() => set(2)} style={btn('solid')}>
+        <Btn size={size} variant={principal} disabled={busy} onClick={() => set(2)}>
           Reactivar
-        </button>
+        </Btn>
       ) : null}
 
-      {error ? <span role="alert" style={{ fontSize: 12, color: '#f55', fontWeight: 600 }}>{error}</span> : null}
+      {error ? <span role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', fontWeight: 500 }}>{error}</span> : null}
     </div>
   );
 }

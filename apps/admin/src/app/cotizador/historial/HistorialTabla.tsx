@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { COTIZADORES_META, COTIZADOR_TIPOS, type CotizadorTipo } from '@maqserv/config';
 import { money, fechaCorta } from '@maqserv/ui';
-import { D } from '@/components/design-tokens';
+import { Btn, EmptyState, IconBtn, Note, Panel, SearchBox, Toolbar } from '@/components/ui';
 
 export interface FilaCotizacion {
   id: number;
@@ -33,21 +33,24 @@ export interface FilaCotizacion {
  * que el mismo pendiente aparecía dos veces. Aquí solo se informa.
  */
 const ESTADOS: Record<string, { texto: string; color: string }> = {
-  solicitada: { texto: 'Esperando aliado', color: '#5b9dff' },
-  borrador: { texto: 'Borrador', color: '#8a8a93' },
-  enviada: { texto: 'Enviada', color: 'var(--color-warning)' },
-  aceptada: { texto: 'Aceptada', color: 'var(--color-success)' },
-  cancelada: { texto: 'Cancelada', color: 'var(--color-error)' },
+  solicitada: { texto: 'Esperando aliado', color: 'var(--adm-info)' },
+  borrador: { texto: 'Borrador', color: 'var(--adm-muted)' },
+  enviada: { texto: 'Enviada', color: 'var(--adm-warn)' },
+  aceptada: { texto: 'Aceptada', color: 'var(--adm-ok)' },
+  cancelada: { texto: 'Cancelada', color: 'var(--adm-bad)' },
 };
 
 export function HistorialTabla({
   items,
   total,
   filtros,
+  pie,
 }: {
   items: FilaCotizacion[];
   total: number;
   filtros: { kind: string; state: string; search: string };
+  /** Paginación (enlaces armados en el servidor): va al pie del panel. */
+  pie?: ReactNode;
 }) {
   const router = useRouter();
   const [pendiente, empezar] = useTransition();
@@ -89,10 +92,10 @@ export function HistorialTabla({
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
+      <Toolbar end={`${items.length} de ${total}`}>
         <AdminSelect
           size="sm"
-          className="w-auto min-w-[180px]"
+          className="w-auto min-w-[180px] h-9"
           ariaLabel="Cotizador"
           value={filtros.kind}
           onChange={(v) => navegar({ kind: v })}
@@ -103,7 +106,7 @@ export function HistorialTabla({
         />
         <AdminSelect
           size="sm"
-          className="w-auto min-w-[170px]"
+          className="w-auto min-w-[170px] h-9"
           ariaLabel="Estado"
           value={filtros.state}
           onChange={(v) => navegar({ state: v })}
@@ -112,108 +115,89 @@ export function HistorialTabla({
             ...Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto })),
           ]}
         />
+        {/* La búsqueda va al servidor: se manda con Enter o con el botón. */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             navegar({ search: busqueda });
           }}
-          style={{ display: 'flex', gap: 8, flex: 1, minWidth: 220 }}
+          style={{ display: 'flex', gap: 8, flex: '1 1 280px', maxWidth: 480 }}
         >
-          <input
+          <SearchBox
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Folio, cliente, obra o correo"
-            style={{ ...control, flex: 1 }}
+            aria-label="Buscar cotización"
+            style={{ maxWidth: 'none' }}
           />
-          <button type="submit" style={{ ...control, cursor: 'pointer', color: D.accent, fontWeight: 700 }}>
-            Buscar
-          </button>
+          <Btn type="submit">Buscar</Btn>
         </form>
-      </div>
+      </Toolbar>
 
-      {error ? (
-        <p style={{ color: D.bad, fontSize: 13, marginBottom: 12 }}>{error}</p>
-      ) : null}
+      {error ? <Note tone="bad" style={{ marginBottom: 14 }}>{error}</Note> : null}
 
       {items.length === 0 ? (
-        <div style={{ ...tarjeta, textAlign: 'center', padding: '44px 20px', color: D.muted2 }}>
-          <i className="ph ph-file-dashed" style={{ fontSize: 30, display: 'block', marginBottom: 10 }} />
-          {total === 0 ? 'Todavía no se ha emitido ninguna cotización.' : 'Ninguna cotización coincide con el filtro.'}
-        </div>
+        <Panel>
+          <EmptyState
+            icon="ph-file-dashed"
+            title={total === 0 ? 'Todavía no se ha emitido ninguna cotización.' : 'Ninguna cotización coincide con el filtro.'}
+          />
+        </Panel>
       ) : (
-        <div style={{ ...tarjeta, overflowX: 'auto', opacity: pendiente ? 0.6 : 1 }}>
-          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 760 }}>
-            <thead>
-              <tr>
-                {['Folio', 'Cliente', 'Cotizador', 'Origen', 'Total', 'Fecha', 'Estado', ''].map((h) => (
-                  <th key={h} style={th}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((q) => {
-                const est = ESTADOS[q.estado] ?? { texto: q.estado, color: D.muted2 };
-                return (
-                  <tr key={q.id}>
-                    <td style={td}>
-                      <Link href={`/cotizador/historial/${q.id}`} style={{ color: D.accent, fontWeight: 700, textDecoration: 'none' }}>
-                        {q.folio}
-                      </Link>
-                    </td>
-                    <td style={td}>
-                      <b>{q.cliente}</b>
-                      {q.obra ? <div style={{ fontSize: 12, color: D.muted2 }}>{q.obra}</div> : null}
-                      {q.correo || q.telefono ? (
-                        <div style={{ fontSize: 12, color: D.muted2 }}>{[q.correo, q.telefono].filter(Boolean).join(' · ')}</div>
-                      ) : null}
-                    </td>
-                    <td style={td}>{COTIZADORES_META[q.tipo as CotizadorTipo]?.titulo ?? q.tipo}</td>
-                    <td style={{ ...td, color: D.muted2 }}>{q.origen === 'sitio' ? 'Sitio público' : q.admin || 'Panel'}</td>
-                    <td style={{ ...td, fontWeight: 700, whiteSpace: 'nowrap' }}>{money(q.total)}</td>
-                    <td style={{ ...td, color: D.muted2, whiteSpace: 'nowrap' }}>{fechaCorta(q.fecha)}</td>
-                    <td style={td}>
-                      <AdminSelect
-                        size="sm"
-                        className="w-auto min-w-[140px]"
-                        ariaLabel={`Estado de ${q.folio}`}
-                        value={q.estado}
-                        onChange={(v) => cambiarEstado(q.id, v)}
-                        style={{ color: est.color, fontWeight: 700 }}
-                        options={Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto }))}
-                      />
-                    </td>
-                    <td style={{ ...td, textAlign: 'right' }}>
-                      <button
-                        type="button"
-                        onClick={() => eliminar(q)}
-                        title="Borrar"
-                        style={{ border: 'none', background: 'transparent', color: D.muted2, cursor: 'pointer', fontSize: 16 }}
-                      >
-                        <i className="ph ph-trash" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Panel flush clip footer={pie} style={{ opacity: pendiente ? 0.6 : 1, transition: 'opacity .15s ease' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="adm-tbl" style={{ minWidth: 760 }}>
+              <thead>
+                <tr>
+                  {['Folio', 'Cliente', 'Cotizador', 'Origen', 'Total', 'Fecha', 'Estado', ''].map((h, i) => (
+                    <th key={h || i} style={i === 4 ? { textAlign: 'right' } : undefined}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((q) => {
+                  const est = ESTADOS[q.estado] ?? { texto: q.estado, color: 'var(--adm-muted)' };
+                  return (
+                    <tr key={q.id}>
+                      <td>
+                        <Link href={`/cotizador/historial/${q.id}`} className="adm-link adm-mono" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          {q.folio}
+                        </Link>
+                      </td>
+                      <td>
+                        <div className="adm-cell-title">{q.cliente}</div>
+                        {q.obra ? <div className="adm-cell-sub">{q.obra}</div> : null}
+                        {q.correo || q.telefono ? (
+                          <div className="adm-cell-sub">{[q.correo, q.telefono].filter(Boolean).join(' · ')}</div>
+                        ) : null}
+                      </td>
+                      <td style={{ color: 'var(--adm-text-2)' }}>{COTIZADORES_META[q.tipo as CotizadorTipo]?.titulo ?? q.tipo}</td>
+                      <td style={{ color: 'var(--adm-muted)' }}>{q.origen === 'sitio' ? 'Sitio público' : q.admin || 'Panel'}</td>
+                      <td className="adm-num" style={{ fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right' }}>{money(q.total)}</td>
+                      <td className="adm-num" style={{ color: 'var(--adm-muted)', whiteSpace: 'nowrap' }}>{fechaCorta(q.fecha)}</td>
+                      <td>
+                        {/* Se cambia aquí mismo: el color del texto es el del estado. */}
+                        <AdminSelect
+                          size="sm"
+                          className="w-auto min-w-[140px]"
+                          ariaLabel={`Estado de ${q.folio}`}
+                          value={q.estado}
+                          onChange={(v) => cambiarEstado(q.id, v)}
+                          style={{ color: est.color, fontWeight: 600 }}
+                          options={Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto }))}
+                        />
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <IconBtn icon="ph-trash" label="Borrar" danger onClick={() => eliminar(q)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       )}
     </div>
   );
 }
-
-const tarjeta = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 16 } as const;
-const control = {
-  height: 40, padding: '0 12px', borderRadius: 10, border: `1px solid ${D.inputBorder}`,
-  background: D.inputBg, color: D.text, fontFamily: 'inherit', fontSize: 13.5, outline: 'none',
-} as const;
-const th = {
-  textAlign: 'left', padding: '11px 14px', borderBottom: `1px solid ${D.cardBorder}`,
-  fontSize: 11.5, letterSpacing: '.05em', textTransform: 'uppercase', color: D.muted2, whiteSpace: 'nowrap',
-} as const;
-const td = {
-  padding: '12px 14px', borderBottom: `1px solid ${D.cardBorder}`, fontSize: 13.5, color: D.text, verticalAlign: 'top',
-} as const;

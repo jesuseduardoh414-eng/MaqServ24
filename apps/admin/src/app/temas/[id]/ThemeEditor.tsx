@@ -1,10 +1,9 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Button, Card, Input } from '@maqserv/ui';
 import type { Copys, Palette, ThemeTokens } from '@maqserv/config';
+import { Btn, Chip, FormField, GroupLabel, IconBtn, Note, PageHeader, Panel, StatusText, Switch } from '@/components/ui';
 
 /** Contraste WCAG (luminancia relativa). AA texto normal: ≥ 4.5. */
 function contrast(hex1: string, hex2: string): number {
@@ -64,10 +63,6 @@ const SECTION_META: Record<string, SectionMeta> = {
 /** Secciones con página de edición dedicada (se irán sumando: 2, 3, …). */
 const SECTION_EDITOR_HREF: Record<string, string> = { 'home.hero': '/diseno/hero', 'home.categories': '/diseno/categorias' };
 
-const UPPER_LABEL: React.CSSProperties = {
-  fontSize: '11px', fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--color-text-muted)',
-};
-
 function PaletteEditor({
   title,
   palette,
@@ -84,36 +79,44 @@ function PaletteEditor({
   if (cPrimary < 4.5) warnings.push(`Texto sobre primario: ${cPrimary}:1 (mínimo 4.5:1)`);
 
   return (
-    <Card style={{ display: 'grid', gap: '.7rem' }}>
-      <strong>{title}</strong>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: '.6rem' }}>
+    <Panel
+      title={title}
+      action={warnings.length > 0
+        ? <StatusText tone="bad">Contraste insuficiente</StatusText>
+        : <StatusText tone="ok">Contraste WCAG AA correcto</StatusText>}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(170px, 100%), 1fr))', gap: '14px 16px' }}>
         {(Object.keys(PALETTE_LABELS) as Array<keyof Palette>).map((key) => (
-          <label key={key} style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-            {PALETTE_LABELS[key]}
-            <span style={{ display: 'flex', gap: '.4rem', alignItems: 'center' }}>
+          <label key={key} className="adm-field">
+            <span className="adm-label">{PALETTE_LABELS[key]}</span>
+            <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <input
                 type="color"
                 value={palette[key]}
                 onChange={(e) => onChange({ ...palette, [key]: e.target.value.toUpperCase() })}
-                style={{ width: 34, height: 30, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', background: 'none', padding: 0, cursor: 'pointer' }}
+                style={{ width: 36, height: 32, flexShrink: 0, border: '1px solid var(--adm-border-strong)', borderRadius: 8, background: 'none', padding: 2, cursor: 'pointer' }}
               />
-              <code style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text)' }}>{palette[key]}</code>
+              <code className="adm-mono" style={{ fontSize: 13, color: 'var(--adm-text)' }}>{palette[key]}</code>
             </span>
           </label>
         ))}
       </div>
       {warnings.length > 0 ? (
-        <div role="alert" style={{ color: 'var(--color-error)', fontSize: 'var(--text-sm)', display: 'grid', gap: '.2rem' }}>
-          {warnings.map((w) => <span key={w}>⚠ Contraste insuficiente — {w}</span>)}
+        <div role="alert" style={{ marginTop: 16 }}>
+          <Note tone="bad">
+            {warnings.map((w) => <div key={w}>Contraste insuficiente — {w}</div>)}
+          </Note>
         </div>
-      ) : (
-        <span style={{ color: 'var(--color-success)', fontSize: 'var(--text-sm)' }}>✓ Contraste WCAG AA correcto</span>
-      )}
-    </Card>
+      ) : null}
+    </Panel>
   );
 }
 
-/** Preview con los tokens del borrador aplicados como variables locales. */
+/**
+ * Preview con los tokens del borrador aplicados como variables locales.
+ * Aquí NO va el kit del panel a propósito: es una muestra del SITIO, con sus
+ * colores, su fuente y sus radios.
+ */
 function Preview({ tokens, copys }: { tokens: ThemeTokens; copys: Copys }) {
   const p = tokens.colors.light;
   const vars = {
@@ -138,7 +141,7 @@ function Preview({ tokens, copys }: { tokens: ThemeTokens; copys: Copys }) {
   const t = (k: string) => copys['es']?.[k] ?? k;
 
   return (
-    <div style={{ ...vars, background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '1.4rem', display: 'grid', gap: '.9rem', position: 'sticky', top: 16 }}>
+    <div className="te-preview" style={{ ...vars, background: 'var(--color-bg)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '1.4rem', display: 'grid', gap: '.9rem' }}>
       <span style={{ color: 'var(--color-accent)', fontWeight: 700, fontSize: '.8em', letterSpacing: '.06em' }}>VISTA PREVIA</span>
       <h3 style={{ fontFamily: 'var(--font-heading)', fontSize: 'var(--text-2xl)', color: 'var(--color-text)', margin: 0, lineHeight: 1.15 }}>
         {t('home.hero.title')}
@@ -166,11 +169,15 @@ function Preview({ tokens, copys }: { tokens: ThemeTokens; copys: Copys }) {
 
 export function ThemeEditor({
   themeId,
+  themeName,
+  active,
   initialTokens,
   initialCopys,
   hasDraft,
 }: {
   themeId: number;
+  themeName: string;
+  active: boolean;
   initialTokens: ThemeTokens;
   initialCopys: Copys;
   hasDraft: boolean;
@@ -238,160 +245,158 @@ export function ThemeEditor({
     });
   };
 
-  const inputStyle = { width: '100%' } as const;
-
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '1.2rem', alignItems: 'start' }}>
-      <div style={{ display: 'grid', gap: '1rem' }}>
-        {/* Barra de acciones */}
-        <Card style={{ display: 'flex', gap: '.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <Button onClick={publish} disabled={busy}>Publicar</Button>
-          <Button variant="outline" onClick={saveDraft} disabled={busy}>Guardar borrador</Button>
-          {hasDraft ? <Button variant="ghost" onClick={discard} disabled={busy}>Descartar borrador</Button> : null}
-          {msg ? (
-            <span role={msg.ok ? 'status' : 'alert'} style={{ color: msg.ok ? 'var(--color-success)' : 'var(--color-error)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>
-              {msg.text}
-            </span>
-          ) : null}
-        </Card>
+    <div>
+      <style>{`
+        .te-grid { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 20px; align-items: start; }
+        .te-main { display: grid; gap: 20px; min-width: 0; }
+        .te-main .adm-panel + .adm-panel { margin-top: 0; }
+        .te-preview { position: sticky; top: 16px; }
+        .te-sec { display: grid; grid-template-columns: 28px minmax(0,1fr) auto auto; gap: 14px; align-items: center; }
+        .te-copy { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 12px; align-items: center; padding-top: 8px; padding-bottom: 8px; }
+        /* Editor y vista previa se apilan antes de que la columna fija apriete el formulario. */
+        @media (max-width: 1080px) {
+          .te-grid { grid-template-columns: minmax(0,1fr); }
+          .te-preview { position: static; }
+        }
+        @media (max-width: 700px) {
+          .te-sec { grid-template-columns: 28px minmax(0,1fr); row-gap: 10px; }
+          .te-sec > .te-sec-cfg, .te-sec > .te-sec-ctl { grid-column: 2; }
+          .te-copy { grid-template-columns: minmax(0,1fr); gap: 6px; }
+        }
+      `}</style>
 
-        <PaletteEditor title="Colores — modo claro" palette={tokens.colors.light} onChange={(p) => setTokens({ ...tokens, colors: { ...tokens.colors, light: p } })} />
-        <PaletteEditor title="Colores — modo oscuro" palette={tokens.colors.dark} onChange={(p) => setTokens({ ...tokens, colors: { ...tokens.colors, dark: p } })} />
+      <PageHeader
+        eyebrow={['Sitio web', ['Temas', '/temas'], themeName]}
+        title={
+          <>
+            Tema: {themeName}
+            {active ? <Chip tone="ok" style={{ marginLeft: 12, verticalAlign: 'middle' }}>Activo</Chip> : null}
+          </>
+        }
+        subtitle="Los cambios se guardan como borrador; el sitio no cambia hasta Publicar."
+        actions={
+          <>
+            {hasDraft ? <Btn variant="ghost" onClick={discard} disabled={busy}>Descartar borrador</Btn> : null}
+            <Btn onClick={saveDraft} disabled={busy}>Guardar borrador</Btn>
+            <Btn variant="primary" icon="ph-upload-simple" onClick={publish} disabled={busy}>Publicar</Btn>
+          </>
+        }
+      />
 
-        <Card style={{ display: 'grid', gap: '.7rem' }}>
-          <strong>Tipografía y forma</strong>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '.7rem' }}>
-            <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-              Fuente (Google Fonts)
-              <Input value={tokens.typography.fontSans} onChange={(e) => setTokens({ ...tokens, typography: { ...tokens.typography, fontSans: e.target.value, fontHeading: e.target.value } })} style={inputStyle} />
-            </label>
-            <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-              Tamaño base (px)
-              <Input type="number" min={12} max={22} value={tokens.typography.baseSizePx} onChange={(e) => setTokens({ ...tokens, typography: { ...tokens.typography, baseSizePx: Number(e.target.value) || 16 } })} style={inputStyle} />
-            </label>
-            <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-              Radio de botones
-              <Input value={tokens.shape.buttonRadius} onChange={(e) => setTokens({ ...tokens, shape: { ...tokens.shape, buttonRadius: e.target.value } })} style={inputStyle} />
-            </label>
-            <label style={{ display: 'grid', gap: '.2rem', fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>
-              Radio de tarjetas
-              <Input value={tokens.shape.radiusLg} onChange={(e) => setTokens({ ...tokens, shape: { ...tokens.shape, radiusLg: e.target.value } })} style={inputStyle} />
-            </label>
-          </div>
-          <label style={{ display: 'flex', gap: '.5rem', alignItems: 'center', fontSize: 'var(--text-sm)' }}>
-            <input type="checkbox" checked={tokens.quoteMode} onChange={(e) => setTokens({ ...tokens, quoteMode: e.target.checked })} />
-            Modo Cotización (oculta precios y carrito; muestra CTA de cotización)
-          </label>
-        </Card>
+      {msg ? (
+        <div role={msg.ok ? 'status' : 'alert'} style={{ marginBottom: 20 }}>
+          <Note tone={msg.ok ? 'ok' : 'bad'}>{msg.text}</Note>
+        </div>
+      ) : null}
 
-        <Card style={{ display: 'grid', gap: '.8rem' }}>
-          <div>
-            <strong>Constructor del Home</strong>
-            <p style={{ margin: '.25rem 0 0', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', lineHeight: 1.45 }}>
-              Cada bloque de la página de inicio, en orden. Actívalo, muévelo y —según la sección— configúralo aquí mismo.
-              Como cada giro es distinto, la <em>recomendación</em> te dice qué conviene poner en cada sección.
-            </p>
-          </div>
+      <div className="te-grid">
+        <div className="te-main">
+          <PaletteEditor title="Colores — modo claro" palette={tokens.colors.light} onChange={(p) => setTokens({ ...tokens, colors: { ...tokens.colors, light: p } })} />
+          <PaletteEditor title="Colores — modo oscuro" palette={tokens.colors.dark} onChange={(p) => setTokens({ ...tokens, colors: { ...tokens.colors, dark: p } })} />
 
-          {/* Página: Home (las secciones van indentadas debajo) */}
-          <div style={{ display: 'grid', gap: '.5rem' }}>
-            <span style={{ ...UPPER_LABEL, color: 'var(--color-text)' }}>▾ Página: Home</span>
-            <div style={{ display: 'grid', gap: '.6rem', paddingLeft: '.9rem', borderLeft: '2px solid var(--color-border)' }}>
-              {[...tokens.sections].sort((a, b) => a.order - b.order).map((s, i, arr) => {
-                const meta = SECTION_META[s.key] ?? { name: s.key, recommendation: '' };
-                const editorHref = SECTION_EDITOR_HREF[s.key];
-                return (
-                  <div
-                    key={s.key}
+          <Panel title="Tipografía y forma">
+            <div className="adm-form-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))' }}>
+              <FormField label="Fuente (Google Fonts)">
+                <input className="adm-input" value={tokens.typography.fontSans} onChange={(e) => setTokens({ ...tokens, typography: { ...tokens.typography, fontSans: e.target.value, fontHeading: e.target.value } })} />
+              </FormField>
+              <FormField label="Tamaño base (px)">
+                <input className="adm-input" type="number" min={12} max={22} value={tokens.typography.baseSizePx} onChange={(e) => setTokens({ ...tokens, typography: { ...tokens.typography, baseSizePx: Number(e.target.value) || 16 } })} />
+              </FormField>
+              <FormField label="Radio de botones">
+                <input className="adm-input" value={tokens.shape.buttonRadius} onChange={(e) => setTokens({ ...tokens, shape: { ...tokens.shape, buttonRadius: e.target.value } })} />
+              </FormField>
+              <FormField label="Radio de tarjetas">
+                <input className="adm-input" value={tokens.shape.radiusLg} onChange={(e) => setTokens({ ...tokens, shape: { ...tokens.shape, radiusLg: e.target.value } })} />
+              </FormField>
+            </div>
+            <div style={{ marginTop: 18 }}>
+              <Switch
+                on={tokens.quoteMode}
+                onClick={() => setTokens({ ...tokens, quoteMode: !tokens.quoteMode })}
+                label="Modo Cotización (oculta precios y carrito; muestra CTA de cotización)"
+              />
+            </div>
+          </Panel>
+
+          <Panel
+            flush
+            clip
+            title="Constructor del Home"
+            desc={<>Cada bloque de la página de inicio, en orden. Actívalo, muévelo y —según la sección— configúralo aquí mismo. Como cada giro es distinto, la <em>recomendación</em> te dice qué conviene poner en cada sección.</>}
+          >
+            {/* Página: Home (sus secciones van debajo, en el orden en que salen en el sitio) */}
+            <GroupLabel>Página: Home</GroupLabel>
+            {[...tokens.sections].sort((a, b) => a.order - b.order).map((s, i, arr) => {
+              const meta = SECTION_META[s.key] ?? { name: s.key, recommendation: '' };
+              const editorHref = SECTION_EDITOR_HREF[s.key];
+              return (
+                <div key={s.key} className="adm-trow te-sec" style={{ opacity: s.enabled ? 1 : 0.75 }}>
+                  <span
+                    aria-hidden
+                    className="adm-num"
                     style={{
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 'var(--radius-md)',
-                      background: s.enabled ? 'var(--color-surface)' : 'color-mix(in srgb, var(--color-text) 4%, transparent)',
-                      opacity: s.enabled ? 1 : 0.75,
-                      padding: '.7rem .8rem',
-                      display: 'grid',
-                      gap: '.5rem',
+                      width: 28, height: 28, borderRadius: 8, display: 'grid', placeItems: 'center',
+                      border: '1px solid var(--adm-border-strong)', fontSize: 13, fontWeight: 600,
+                      color: s.enabled ? 'var(--adm-accent)' : 'var(--adm-faint)',
                     }}
                   >
-                    <div style={{ display: 'flex', gap: '.7rem', alignItems: 'flex-start' }}>
-                      <span
-                        aria-hidden
-                        style={{
-                          flexShrink: 0, width: 26, height: 26, borderRadius: '50%',
-                          background: s.enabled ? 'var(--color-primary)' : 'var(--color-border)',
-                          color: s.enabled ? 'var(--color-primary-fg)' : 'var(--color-text-muted)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 'var(--text-sm)',
-                        }}
-                      >
-                        {i + 1}
-                      </span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '.5rem', flexWrap: 'wrap' }}>
-                          <strong style={{ fontSize: 'var(--text-base)' }}>Sección {i + 1} · {meta.name}</strong>
-                          {!s.enabled ? (
-                            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-muted)', border: '1px solid var(--color-border)', borderRadius: '999px', padding: '1px 8px' }}>Oculta</span>
-                          ) : null}
-                        </div>
-                        {meta.recommendation ? (
-                          <p style={{ margin: '.3rem 0 0', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', lineHeight: 1.4 }}>💡 {meta.recommendation}</p>
-                        ) : null}
-                      </div>
-                      <div style={{ display: 'flex', gap: '.2rem', alignItems: 'center', flexShrink: 0 }}>
-                        <label title={s.enabled ? 'Ocultar sección' : 'Mostrar sección'} style={{ display: 'inline-flex', alignItems: 'center' }}>
-                          <input type="checkbox" checked={s.enabled} onChange={(e) => setSection(s.key, { enabled: e.target.checked })} aria-label={`Mostrar ${meta.name}`} />
-                        </label>
-                        <Button size="sm" variant="ghost" onClick={() => moveSection(s.key, -1)} disabled={i === 0} aria-label="Subir">↑</Button>
-                        <Button size="sm" variant="ghost" onClick={() => moveSection(s.key, 1)} disabled={i === arr.length - 1} aria-label="Bajar">↓</Button>
-                      </div>
+                    {i + 1}
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span className="adm-cell-title">Sección {i + 1} · {meta.name}</span>
+                      {!s.enabled ? <Chip tone="muted">Oculta</Chip> : null}
                     </div>
-
-                    <div>
-                      {editorHref ? (
-                        <Link
-                          href={editorHref}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '.4rem', textDecoration: 'none',
-                            color: 'var(--color-primary-fg)', background: 'var(--color-primary)', fontWeight: 700,
-                            fontSize: 'var(--text-sm)', padding: '.4em .9em', borderRadius: 'var(--radius-button)',
-                          }}
-                        >
-                          ⚙ Configurar contenido →
-                        </Link>
-                      ) : (
-                        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-muted)' }}>Configuración detallada próximamente</span>
-                      )}
-                    </div>
+                    {meta.recommendation ? (
+                      <div className="adm-cell-sub" style={{ lineHeight: 1.5 }}>
+                        <i className="ph ph-lightbulb" aria-hidden style={{ marginRight: 5, color: 'var(--adm-faint)' }} />
+                        {meta.recommendation}
+                      </div>
+                    ) : null}
                   </div>
-                );
-              })}
+                  <div className="te-sec-cfg">
+                    {editorHref ? (
+                      <Btn size="sm" icon="ph-gear-six" href={editorHref}>Configurar contenido</Btn>
+                    ) : (
+                      <span style={{ fontSize: 12.5, color: 'var(--adm-faint)' }}>Configuración detallada próximamente</span>
+                    )}
+                  </div>
+                  <div className="te-sec-ctl" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Switch on={s.enabled} onClick={() => setSection(s.key, { enabled: !s.enabled })} title={`Mostrar ${meta.name}`} />
+                    <IconBtn icon="ph-arrow-up" label="Subir" onClick={() => moveSection(s.key, -1)} disabled={i === 0} />
+                    <IconBtn icon="ph-arrow-down" label="Bajar" onClick={() => moveSection(s.key, 1)} disabled={i === arr.length - 1} />
+                  </div>
+                </div>
+              );
+            })}
+          </Panel>
+
+          <Panel
+            flush
+            clip
+            title="Todos los textos del sitio (avanzado)"
+            desc={<>Lista completa por clave. Para el Home usa mejor el <em>Constructor</em> de arriba; esto es el respaldo para textos que aún no tienen editor por sección.</>}
+          >
+            <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+              {copyKeys.map((key) => (
+                <label key={key} className="adm-trow te-copy">
+                  <code className="adm-mono adm-ellipsis" style={{ fontSize: 12.5, color: 'var(--adm-muted)' }} title={key}>{key}</code>
+                  <input
+                    className="adm-input"
+                    value={copys['es']?.[key] ?? ''}
+                    onChange={(e) => setCopys({ ...copys, es: { ...copys['es'], [key]: e.target.value } })}
+                    aria-label={key}
+                    style={{ height: 34, fontSize: 13.5 }}
+                  />
+                </label>
+              ))}
             </div>
-          </div>
-        </Card>
+          </Panel>
+        </div>
 
-        <Card style={{ display: 'grid', gap: '.5rem' }}>
-          <div>
-            <strong>Todos los textos del sitio (avanzado)</strong>
-            <p style={{ margin: '.25rem 0 0', color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>
-              Lista completa por clave. Para el Home usa mejor el <em>Constructor</em> de arriba; esto es el respaldo para textos que aún no tienen editor por sección.
-            </p>
-          </div>
-          <div style={{ display: 'grid', gap: '.4rem', maxHeight: 420, overflowY: 'auto', paddingRight: '.4rem' }}>
-            {copyKeys.map((key) => (
-              <label key={key} style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: '.6rem', alignItems: 'center', fontSize: 'var(--text-sm)' }}>
-                <code style={{ color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{key}</code>
-                <Input
-                  value={copys['es']?.[key] ?? ''}
-                  onChange={(e) => setCopys({ ...copys, es: { ...copys['es'], [key]: e.target.value } })}
-                  aria-label={key}
-                  style={inputStyle}
-                />
-              </label>
-            ))}
-          </div>
-        </Card>
+        <Preview tokens={tokens} copys={copys} />
       </div>
-
-      <Preview tokens={tokens} copys={copys} />
     </div>
   );
 }

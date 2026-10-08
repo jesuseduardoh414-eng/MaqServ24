@@ -1,14 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Faq, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
-import { D, FONT, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
+import { cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
+import { Btn, PageHeader, PanelLink, StatusText, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
 const FAQ_DEFAULTS: Faq = { show: true, eyebrowColor: null, titleColor: null, accentColor: null };
 const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
+
+/** Un interruptor suelto va en texto plano con una línea fina debajo: una tarjeta para un solo switch sobraba. */
+const showRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 0 16px', marginBottom: 16, borderBottom: '1px solid var(--adm-border)' };
 
 interface Config { eyebrow: string; title: string; faq: Faq }
 
@@ -59,34 +63,32 @@ export function FaqEditor({ themeId, copys, tokens, faqCfg, count }: {
   }
 
   return (
-    <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-
-      <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: D.muted2, fontSize: '12.5px', fontWeight: 600, marginBottom: 5 }}><i className="ph ph-paint-brush-broad" style={{ fontSize: 14 }} /> Diseño del sitio <span style={{ opacity: 0.5 }}>·</span> FAQ</div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 8 · Preguntas frecuentes</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
-          <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
-          <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow={['Sitio web', 'Secciones del home']}
+        title="Sección 8 · Preguntas frecuentes"
+        subtitle={
+          <>
+            La banda de preguntas frecuentes del home. Aquí defines los textos y el estilo. Las preguntas las hacen los <b>clientes</b>; destaca las que quieras que salgan aquí en <b>Clientes → Preguntas</b>. Hay <b className="adm-num">{count}</b> destacada(s).{' '}
+            <PanelLink href="/preguntas">Destacar preguntas</PanelLink>
+          </>
+        }
+        actions={
+          <>
+            <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
+            <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
+            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
+          </>
+        }
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 468px', gap: 26, alignItems: 'start' }} className="hero-ed-grid">
         <div style={{ minWidth: 0 }}>
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-question" style={{ fontSize: 20 }} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ fontSize: 14 }}>La banda de preguntas frecuentes del home</strong>
-              <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Aquí defines los textos y el estilo. Las preguntas las hacen los <b>clientes</b>; destaca las que quieras que salgan aquí en <b>Clientes → Preguntas</b>. Hay <b>{count}</b> destacada(s).</p>
+          <div style={showRow}>
+            <div style={{ minWidth: 0 }}>
+              <div className="adm-cell-title">Mostrar la sección en el home</div>
+              <div className="adm-cell-sub">Apágala para ocultarla temporalmente.</div>
             </div>
-            <a href="/preguntas" style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 7, border: `1px solid ${D.inputBorder}`, background: 'rgba(255,255,255,0.03)', color: D.text, borderRadius: 11, padding: '9px 14px', fontWeight: 700, fontSize: 13, textDecoration: 'none', fontFamily: 'inherit', whiteSpace: 'nowrap' }}><i className="ph ph-star" style={{ fontSize: 16, color: D.amber }} /> Destacar preguntas</a>
-          </div>
-
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div><strong style={{ fontSize: 13.5 }}>Mostrar la sección en el home</strong><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>Apágala para ocultarla temporalmente.</p></div>
             <Toggle on={f.show} onClick={() => setF('show', !f.show)} />
           </div>
 
@@ -110,11 +112,7 @@ export function FaqEditor({ themeId, copys, tokens, faqCfg, count }: {
         </div>
       </div>
 
-      {toast ? (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: toast.ok ? '#16281c' : '#2a1416', border: `1px solid ${toast.ok ? 'rgba(63,191,143,0.4)' : 'rgba(245,80,80,0.4)'}`, color: toast.ok ? '#dff5e8' : '#f8d7d7', padding: '13px 20px', borderRadius: 13, fontSize: 14, fontWeight: 600, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.7)', zIndex: 100 }}>
-          <i className={`ph-bold ${toast.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} style={{ fontSize: 19, color: toast.ok ? '#3fbf8f' : '#f55' }} /> {toast.text}
-        </div>
-      ) : null}
+      {toast ? <Toast kind={toast.ok ? 'ok' : 'bad'}>{toast.text}</Toast> : null}
     </div>
   );
 }

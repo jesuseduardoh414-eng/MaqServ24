@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState, type ReactNode, type CSSProperties } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { CategoriesSettings, CategoriesView, CtaBlock, ThemeTokens } from '@maqserv/config';
+import { D, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle } from '@/components/editor-kit';
+import { Btn, PageHeader, PanelLink, Segmented, StatusText, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
 interface Cat { id: number; name: string; slug: string; image: string | null; productCount: number }
@@ -16,13 +17,13 @@ interface Config extends CategoriesSettings {
   pageEyebrow: string; pageTitle: string; pageSubtitle: string;
 }
 
-const D = {
-  card: '#141416', cardBorder: 'rgba(255,255,255,0.06)',
-  inputBg: 'rgba(255,255,255,0.03)', inputBorder: 'rgba(255,255,255,0.08)',
-  amber: 'var(--color-primary)', text: '#f5f5f4', muted: '#6b6b72', muted2: '#71717a', previewBg: '#0e0e12', tabsBg: '#101012',
-};
-const FONT = "'Inter', system-ui, sans-serif";
+/* Colores sugeridos para el SITIO (no son del panel): se quedan tal cual. */
 const PRESETS = ['var(--color-primary)', '#5b9dff', '#3fbf8f', '#ff7a59', '#b98cff', '#ffffff', '#c2c6cf'];
+
+/** Descripción bajo el título de cada bloque. */
+const desc: CSSProperties = { margin: '3px 0 0', fontSize: 12.5, color: 'var(--adm-muted)' };
+/** Un interruptor suelto va en texto plano con una línea fina debajo: una tarjeta para un solo switch sobraba. */
+const showRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 0 16px', marginBottom: 16, borderBottom: '1px solid var(--adm-border)' };
 
 // Defaults defensivos: si el @maqserv/config del admin quedó viejo, `view`/`settings`
 // pueden llegar undefined (zod los descarta). Así el editor nunca crashea.
@@ -30,37 +31,23 @@ const BLOCK_DEFAULTS: CtaBlock = { enabled: false, eyebrow: '', title: '', subti
 const VIEW_DEFAULTS: CategoriesView = { columns: 3, cardRadius: '8px', imageHeight: 300, eyebrowColor: null, titleColor: null, cardAccentColor: null, featuredSlug: null, hero: { ...BLOCK_DEFAULTS }, promo: { ...BLOCK_DEFAULTS } };
 const SETTINGS_DEFAULTS: CategoriesSettings = { show: true, perView: 4, cardRadius: '8px', imageHeight: 260, eyebrowColor: null, titleColor: null, cardAccentColor: null };
 
-const cardStyle: CSSProperties = { background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18, padding: 24, marginBottom: 18 };
-const inputStyle: CSSProperties = { width: '100%', height: 46, padding: '0 14px', borderRadius: 11, border: `1px solid ${D.inputBorder}`, background: D.inputBg, color: D.text, fontFamily: 'inherit', fontSize: '14.5px', outline: 'none' };
-const h3Style: CSSProperties = { margin: 0, fontSize: '15.5px', fontWeight: 700, color: D.text };
-const smallLabel: CSSProperties = { fontSize: 12, fontWeight: 600, color: D.muted2 };
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label style={{ display: 'grid', gap: 7 }}><span style={smallLabel}>{label}</span>{children}</label>;
-}
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return (
-    <button type="button" onClick={onClick} aria-pressed={on} style={{ position: 'relative', width: 44, height: 25, borderRadius: 999, border: 'none', cursor: 'pointer', background: on ? D.amber : 'rgba(255,255,255,0.12)', transition: 'background .15s', flexShrink: 0 }}>
-      <span style={{ position: 'absolute', top: 3, left: on ? 22 : 3, width: 19, height: 19, borderRadius: 999, background: '#fff', transition: 'left .15s' }} />
-    </button>
-  );
-}
 function ColorField({ label, value, onChange }: { label: string; value: string | null; onChange: (v: string | null) => void }) {
   const isTheme = value === null;
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <span style={smallLabel}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => onChange(null)} title="Heredar del tema" style={{ height: 32, padding: '0 12px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: isTheme ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : 'transparent', color: isTheme ? D.amber : D.muted2, border: `2px solid ${isTheme ? D.amber : 'rgba(255,255,255,0.12)'}` }}>Tema</button>
+        {/* Mismo aspecto que el ColorField de editor-kit; aquí solo cambian los colores sugeridos. */}
+        <button type="button" onClick={() => onChange(null)} title="Heredar del tema" style={{ height: 32, padding: '0 12px', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit', background: isTheme ? 'color-mix(in srgb, var(--adm-accent) 16%, transparent)' : 'transparent', color: isTheme ? 'var(--adm-accent)' : 'var(--adm-muted)', border: `2px solid ${isTheme ? 'var(--adm-accent)' : 'rgba(255,255,255,0.12)'}` }}>Tema</button>
         {PRESETS.map((col) => {
           const sel = !isTheme && col.toLowerCase() === (value ?? '').toLowerCase();
-          return <button key={col} type="button" onClick={() => onChange(col)} title={col} style={{ width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
+          return <button key={col} type="button" onClick={() => onChange(col)} title={col} style={{ width: 32, height: 32, borderRadius: 8, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
         })}
-        <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 9, border: '2px dashed rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
-          <i className="ph ph-eyedropper" style={{ fontSize: 13, color: D.muted2 }} />
+        <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 8, border: '2px dashed rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
+          <i className="ph ph-eyedropper" style={{ fontSize: 13, color: 'var(--adm-muted)' }} />
           <input type="color" value={value ?? '#008CFF'} onChange={(e) => onChange(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
         </label>
-        <code style={{ fontSize: 12, color: D.text }}>{isTheme ? 'del tema' : value}</code>
+        <code className="adm-mono" style={{ fontSize: 12, color: 'var(--adm-text-2)' }}>{isTheme ? 'del tema' : value}</code>
       </div>
     </div>
   );
@@ -81,9 +68,9 @@ function copysCategorias(c: Config): Record<string, string> {
 }
 
 const TABS = [
-  { id: 'contenido', label: 'Home · Textos', icon: 'ph-text-aa' },
-  { id: 'estilos', label: 'Home · Estilos', icon: 'ph-paint-brush' },
-  { id: 'vista', label: 'Vista de categorías', icon: 'ph-squares-four' },
+  { id: 'contenido', label: 'Home · Textos' },
+  { id: 'estilos', label: 'Home · Estilos' },
+  { id: 'vista', label: 'Vista de categorías' },
 ] as const;
 
 export function CategoriesEditor({
@@ -159,8 +146,8 @@ export function CategoriesEditor({
       <div style={{ ...cardStyle, display: 'grid', gap: 15 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className={`ph ${icon}`} style={{ fontSize: 19 }} /></div>
-            <div style={{ minWidth: 0 }}><h3 style={h3Style}>{label}</h3><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>{help}</p></div>
+            <i className={`ph ${icon}`} style={{ fontSize: 18, color: 'var(--adm-muted)', flexShrink: 0 }} aria-hidden />
+            <div style={{ minWidth: 0 }}><h3 style={h3Style}>{label}</h3><p style={desc}>{help}</p></div>
           </div>
           <Toggle on={b.enabled} onClick={() => setBlock(which, 'enabled', !b.enabled)} />
         </div>
@@ -168,7 +155,7 @@ export function CategoriesEditor({
           <div style={{ display: 'grid', gap: 15, animation: 'fadeIn .2s ease' }}>
             <Field label="Eyebrow (línea pequeña arriba)"><input value={b.eyebrow} onChange={(e) => setBlock(which, 'eyebrow', e.target.value)} placeholder="Catálogo de equipos" style={inputStyle} /></Field>
             <Field label="Título"><input value={b.title} onChange={(e) => setBlock(which, 'title', e.target.value)} placeholder="Renta de maquinaria pesada" style={inputStyle} /></Field>
-            <Field label="Subtítulo"><textarea value={b.subtitle} onChange={(e) => setBlock(which, 'subtitle', e.target.value)} rows={2} placeholder="Descripción breve…" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+            <Field label="Subtítulo"><textarea value={b.subtitle} onChange={(e) => setBlock(which, 'subtitle', e.target.value)} rows={2} placeholder="Descripción breve…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <Field label="Texto del botón (vacío = sin botón)"><input value={b.cta} onChange={(e) => setBlock(which, 'cta', e.target.value)} placeholder="Ver catálogo" style={inputStyle} /></Field>
               <Field label="Enlace del botón"><input value={b.ctaLink} onChange={(e) => setBlock(which, 'ctaLink', e.target.value)} placeholder="/productos" style={inputStyle} /></Field>
@@ -178,7 +165,7 @@ export function CategoriesEditor({
               <label
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) uploadImage(which, f); }}
-                style={{ position: 'relative', display: 'grid', placeItems: 'center', minHeight: b.image ? 150 : 108, border: `1.5px dashed ${D.inputBorder}`, borderRadius: 12, background: b.image ? '#0d0d10' : D.inputBg, cursor: 'pointer', overflow: 'hidden', padding: 12 }}
+                style={{ position: 'relative', display: 'grid', placeItems: 'center', minHeight: b.image ? 150 : 108, border: '1.5px dashed var(--adm-border-strong)', borderRadius: 12, background: b.image ? 'var(--adm-page)' : D.inputBg, cursor: 'pointer', overflow: 'hidden', padding: 12 }}
               >
                 {b.image ? (
                   <>
@@ -187,7 +174,7 @@ export function CategoriesEditor({
                     <button type="button" onClick={(e) => { e.preventDefault(); setBlock(which, 'image', null); }} style={{ position: 'absolute', top: 8, right: 8, display: 'inline-flex', alignItems: 'center', gap: 5, border: 'none', background: 'rgba(0,0,0,0.6)', color: '#fff', borderRadius: 8, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}><i className="ph ph-trash" /> Quitar</button>
                   </>
                 ) : (
-                  <div style={{ textAlign: 'center', color: D.muted2, fontSize: 13 }}>
+                  <div style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 13 }}>
                     <i className="ph ph-image" style={{ fontSize: 22, display: 'block', marginBottom: 6 }} />
                     {uploading === which ? 'Subiendo…' : 'Arrastra una imagen o haz clic'}
                   </div>
@@ -207,39 +194,36 @@ export function CategoriesEditor({
   };
 
   return (
-    <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-
-      {/* Barra de acciones */}
-      <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: D.muted2, fontSize: '12.5px', fontWeight: 600, marginBottom: 5 }}><i className="ph ph-paint-brush-broad" style={{ fontSize: 14 }} /> Diseño del sitio <span style={{ opacity: 0.5 }}>·</span> Home + Vista</div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 2 · Categorías</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
-          <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
-          <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
-        </div>
-      </div>
+    <div>
+      {/* Nota de contenido: el texto que iba en una tarjeta aparte ahora es el subtítulo. */}
+      <PageHeader
+        eyebrow={['Sitio web', 'Secciones del home']}
+        title="Sección 2 · Categorías"
+        subtitle={
+          <>
+            El contenido son las categorías de productos: <b className="adm-num">{categories.length}</b> categorías. Nombres e imágenes se administran en el catálogo. Aquí defines los estilos del <b>home</b> y de la <b>vista completa</b>.{' '}
+            <PanelLink href="/categorias">Administrar</PanelLink>
+          </>
+        }
+        actions={
+          <>
+            <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
+            <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
+            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
+          </>
+        }
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 468px', gap: 26, alignItems: 'start' }} className="hero-ed-grid">
         <div style={{ minWidth: 0 }}>
-          {/* Nota de contenido */}
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(91,157,255,0.14)', color: '#5b9dff', display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-squares-four" style={{ fontSize: 20 }} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ fontSize: 14 }}>El contenido son las categorías de productos</strong>
-              <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>{categories.length} categorías. Nombres e imágenes se administran en el catálogo. Aquí defines los estilos del <b>home</b> y de la <b>vista completa</b>.</p>
-            </div>
-            <Link href="/categorias" style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${D.inputBorder}`, color: D.text, borderRadius: 10, padding: '9px 13px', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Administrar <i className="ph ph-arrow-up-right" /></Link>
-          </div>
-
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 4, padding: 5, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 14, marginBottom: 22, flexWrap: 'wrap' }}>
-            {TABS.map((tt) => (
-              <button key={tt.id} type="button" onClick={() => setTab(tt.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', cursor: 'pointer', borderRadius: 10, padding: '9px 15px', fontWeight: 700, fontSize: '13.5px', fontFamily: 'inherit', background: tab === tt.id ? D.amber : 'transparent', color: tab === tt.id ? '#0a0a0b' : D.muted2 }}><i className={`ph ${tt.icon}`} style={{ fontSize: 16 }} /> {tt.label}</button>
-            ))}
+          <div style={{ marginBottom: 18 }}>
+            <Segmented
+              ariaLabel="Qué editar"
+              value={tab}
+              onChange={setTab}
+              items={TABS.map((tt) => ({ key: tt.id, label: tt.label }))}
+            />
           </div>
 
           {/* HOME · TEXTOS */}
@@ -248,7 +232,7 @@ export function CategoriesEditor({
               <h3 style={h3Style}>Textos del adelanto en el home</h3>
               <Field label="Eyebrow"><input value={config.eyebrow} onChange={(e) => set('eyebrow', e.target.value)} placeholder="Explora el catálogo" style={inputStyle} /></Field>
               <Field label="Título (última palabra en color de acento)"><input value={config.title} onChange={(e) => set('title', e.target.value)} placeholder="Categorías de equipos" style={inputStyle} /></Field>
-              <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={2} placeholder="Maquinaria pesada lista para tu obra…" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+              <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={2} placeholder="Maquinaria pesada lista para tu obra…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <Field label="Enlace «Ver todas» (vacío = ocultar)"><input value={config.viewAll} onChange={(e) => set('viewAll', e.target.value)} placeholder="Ver todas las categorías" style={inputStyle} /></Field>
                 <Field label="Palabra del conteo"><input value={config.unit} onChange={(e) => set('unit', e.target.value)} placeholder="equipos" style={inputStyle} /></Field>
@@ -259,8 +243,11 @@ export function CategoriesEditor({
           {/* HOME · ESTILOS */}
           {tab === 'estilos' ? (
             <div style={{ animation: 'fadeIn .25s ease' }}>
-              <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div><h3 style={h3Style}>Mostrar el adelanto en el home</h3><p style={{ margin: '4px 0 0', fontSize: 12, color: D.muted }}>Ocúltalo si este giro no usa categorías en el home.</p></div>
+              <div style={showRow}>
+                <div style={{ minWidth: 0 }}>
+                  <div className="adm-cell-title">Mostrar el adelanto en el home</div>
+                  <div className="adm-cell-sub">Ocúltalo si este giro no usa categorías en el home.</div>
+                </div>
                 <Toggle on={config.show} onClick={() => set('show', !config.show)} />
               </div>
               <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>
@@ -272,11 +259,11 @@ export function CategoriesEditor({
               <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>
                 <h3 style={h3Style}>Estilo de tarjeta (home)</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <Field label={`Tarjetas por vista: ${config.perView}`}><input type="range" min={2} max={6} value={config.perView} onChange={(e) => set('perView', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: D.amber }} /></Field>
-                  <Field label={`Alto de imagen: ${config.imageHeight}px`}><input type="range" min={140} max={320} step={10} value={config.imageHeight} onChange={(e) => set('imageHeight', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: D.amber }} /></Field>
+                  <Field label={`Tarjetas por vista: ${config.perView}`}><input type="range" min={2} max={6} value={config.perView} onChange={(e) => set('perView', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: 'var(--adm-accent)' }} /></Field>
+                  <Field label={`Alto de imagen: ${config.imageHeight}px`}><input type="range" min={140} max={320} step={10} value={config.imageHeight} onChange={(e) => set('imageHeight', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: 'var(--adm-accent)' }} /></Field>
                 </div>
                 <Field label="Radio de esquinas"><input value={config.cardRadius} onChange={(e) => set('cardRadius', e.target.value)} placeholder="18px" style={{ ...inputStyle, maxWidth: 160 }} /></Field>
-                <p style={{ margin: 0, fontSize: 12, color: D.muted }}>Avance del carrusel: {step === config.perView ? `de ${config.perView} en ${config.perView}` : 'de 1 en 1'} (según si el total ({categories.length}) es múltiplo de {config.perView}).</p>
+                <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>Avance del carrusel: {step === config.perView ? `de ${config.perView} en ${config.perView}` : 'de 1 en 1'} (según si el total ({categories.length}) es múltiplo de {config.perView}).</p>
               </div>
             </div>
           ) : null}
@@ -290,11 +277,10 @@ export function CategoriesEditor({
                 <h3 style={h3Style}>Textos de la página /categorias</h3>
                 <Field label="Eyebrow"><input value={config.pageEyebrow} onChange={(e) => set('pageEyebrow', e.target.value)} placeholder="Catálogo" style={inputStyle} /></Field>
                 <Field label="Título (última palabra en acento)"><input value={config.pageTitle} onChange={(e) => set('pageTitle', e.target.value)} placeholder="Todas las categorías" style={inputStyle} /></Field>
-                <Field label="Subtítulo"><textarea value={config.pageSubtitle} onChange={(e) => set('pageSubtitle', e.target.value)} rows={2} placeholder="Explora nuestra maquinaria por categoría…" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+                <Field label="Subtítulo"><textarea value={config.pageSubtitle} onChange={(e) => set('pageSubtitle', e.target.value)} rows={2} placeholder="Explora nuestra maquinaria por categoría…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
               </div>
               <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-                <h3 style={h3Style}>Categoría destacada</h3>
-                <p style={{ margin: 0, fontSize: 12, color: D.muted }}>Se muestra grande arriba de la página. Deja «Ninguna» para solo el grid.</p>
+                <div><h3 style={h3Style}>Categoría destacada</h3><p style={desc}>Se muestra grande arriba de la página. Deja «Ninguna» para solo el grid.</p></div>
                 <div style={{ maxWidth: 320 }}>
                   <AdminSelect
                     ariaLabel="Categoría destacada"
@@ -313,8 +299,8 @@ export function CategoriesEditor({
               <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>
                 <h3 style={h3Style}>Estilo del grid</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                  <Field label={`Columnas: ${cv.columns}`}><input type="range" min={2} max={5} value={cv.columns} onChange={(e) => setV('columns', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: D.amber }} /></Field>
-                  <Field label={`Alto de imagen: ${cv.imageHeight}px`}><input type="range" min={140} max={360} step={10} value={cv.imageHeight} onChange={(e) => setV('imageHeight', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: D.amber }} /></Field>
+                  <Field label={`Columnas: ${cv.columns}`}><input type="range" min={2} max={5} value={cv.columns} onChange={(e) => setV('columns', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: 'var(--adm-accent)' }} /></Field>
+                  <Field label={`Alto de imagen: ${cv.imageHeight}px`}><input type="range" min={140} max={360} step={10} value={cv.imageHeight} onChange={(e) => setV('imageHeight', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: 'var(--adm-accent)' }} /></Field>
                 </div>
                 <Field label="Radio de esquinas"><input value={cv.cardRadius} onChange={(e) => setV('cardRadius', e.target.value)} placeholder="18px" style={{ ...inputStyle, maxWidth: 160 }} /></Field>
               </div>
@@ -334,11 +320,7 @@ export function CategoriesEditor({
         </div>
       </div>
 
-      {toast ? (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: toast.ok ? '#16281c' : '#2a1416', border: `1px solid ${toast.ok ? 'rgba(63,191,143,0.4)' : 'rgba(245,80,80,0.4)'}`, color: toast.ok ? '#dff5e8' : '#f8d7d7', padding: '13px 20px', borderRadius: 13, fontSize: 14, fontWeight: 600, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.7)', zIndex: 100 }}>
-          <i className={`ph-bold ${toast.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} style={{ fontSize: 19, color: toast.ok ? '#3fbf8f' : '#f55' }} /> {toast.text}
-        </div>
-      ) : null}
+      {toast ? <Toast kind={toast.ok ? 'ok' : 'bad'}>{toast.text}</Toast> : null}
     </div>
   );
 }

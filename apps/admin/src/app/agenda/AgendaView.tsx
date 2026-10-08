@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
+import { Bar, Btn, EmptyState, Note, PageHeader, Panel, Stat, Stats, StatusText, Toolbar, type Tone } from '@/components/ui';
 
 /**
  * AGENDA DE OPERACIONES.
@@ -35,25 +36,27 @@ export interface Agenda {
   contexto: { equiposActivos: number; bloqueosVigentes: number; serviciosComprometidos: number };
 }
 
-const C = {
-  panel: '#141416', panel2: '#1b1e26', panel3: '#212530',
-  line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
-  ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  accent: 'var(--color-primary)', accentInk: 'var(--color-primary-fg)',
-  warn: 'var(--color-warning)', ok: 'var(--color-success)', bad: 'var(--color-error)',
+const TONO_ESTADO: Record<string, Tone> = {
+  reservado: 'warn',
+  'en-traslado': 'accent',
+  'en-servicio': 'accent',
+  mantenimiento: 'bad',
+  inactivo: 'muted',
 };
 
-const COLOR_ESTADO: Record<string, string> = {
-  reservado: C.warn,
-  'en-traslado': C.accent,
-  'en-servicio': C.accent,
-  mantenimiento: C.bad,
-  inactivo: C.dim,
+const COLOR_TONO: Record<Tone, string> = {
+  accent: 'var(--adm-accent)', ok: 'var(--adm-ok)', warn: 'var(--adm-warn)',
+  bad: 'var(--adm-bad)', info: 'var(--adm-info)', muted: 'var(--adm-faint)',
 };
 
-const input: CSSProperties = {
-  background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink,
-  borderRadius: 9, padding: '8px 11px', fontSize: 13, outline: 'none', fontFamily: 'inherit',
+/** Servicio en verde; un bloqueo, según su estado (reservado si no se conoce). */
+const tonoDe = (c: Compromiso): Tone => (c.tipo === 'servicio' ? 'ok' : TONO_ESTADO[c.estado] ?? 'warn');
+
+/** "en-traslado" → "En traslado". */
+const rotulo = (c: Compromiso) => {
+  if (c.tipo === 'servicio') return 'Servicio';
+  const t = c.estado.replace(/-/g, ' ');
+  return t.charAt(0).toUpperCase() + t.slice(1);
 };
 
 const DIAS = ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'];
@@ -67,6 +70,14 @@ function toca(c: Compromiso, dia: string): boolean {
   if (c.hasta === null) return true;
   return c.hasta >= dia;
 }
+
+const ENCABEZADO = (
+  <PageHeader
+    eyebrow={['3 · Ejecutar', 'Operaciones']}
+    title="Agenda"
+    subtitle="Qué viene y qué unidad está comprometida. El tablero de Servicios dice qué está pasando; esto sirve para no prometer dos veces la misma máquina."
+  />
+);
 
 export function AgendaView({
   agenda, filtros,
@@ -87,7 +98,12 @@ export function AgendaView({
   }, [agenda]);
 
   if (!agenda) {
-    return <div style={{ color: C.muted, fontSize: 14 }}>No se pudo cargar la agenda.</div>;
+    return (
+      <div>
+        {ENCABEZADO}
+        <Note tone="bad">No se pudo cargar la agenda.</Note>
+      </div>
+    );
   }
 
   function mover(semanas: number) {
@@ -101,21 +117,55 @@ export function AgendaView({
   const maxDensidad = Math.max(1, ...agenda.semanas.flatMap((s) => s.densidad));
   const hoy = hoyISO();
   const delDia = dia ? porDia.get(dia) ?? [] : [];
+  const fechaDia = dia
+    ? new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
+    : '';
+  const n = agenda.compromisos.length;
 
   return (
-    <div style={{ color: C.ink }}>
-      <header style={{ marginBottom: 18 }}>
-        <h1 className="adm-page-title">Agenda</h1>
-        <p style={{ color: C.muted, fontSize: 14, margin: '6px 0 0', maxWidth: 640, lineHeight: 1.6 }}>
-          Qué viene y qué unidad está comprometida. El tablero de Servicios dice qué está pasando;
-          esto sirve para no prometer dos veces la misma máquina.
-        </p>
-      </header>
+    <div>
+      <style>{`
+        .agd-cols { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        .agd-head.adm-thead { padding: 0; }
+        .agd-head > div { padding: 10px 10px; }
+        .agd-semana + .agd-semana { border-top: 1px solid var(--adm-border); }
+        .agd-dia {
+          min-width: 0; min-height: 112px; padding: 10px 10px 12px;
+          display: flex; flex-direction: column; gap: 7px;
+          background: transparent; color: var(--adm-text); text-align: left; cursor: pointer; font-family: inherit;
+          border: 0; border-left: 1px solid var(--adm-border);
+          /* El día de hoy se marca con una línea arriba, no con un fondo: el
+             fondo compite con la carga del día. */
+          border-top: 2px solid transparent;
+          transition: background .12s ease;
+        }
+        .agd-dia:first-child { border-left: 0; }
+        .agd-dia:hover { background: rgba(255, 255, 255, 0.018); }
+        .agd-dia.is-sel { background: var(--adm-raised); }
+        .agd-dia.is-hoy { border-top-color: var(--adm-accent); }
+        .agd-fila { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 6px 14px; align-items: center; }
+        @media (max-width: 600px) {
+          .agd-head > div { padding: 9px 6px; }
+          .agd-dia { min-height: 96px; padding: 8px 6px 10px; }
+          .agd-fila { grid-template-columns: minmax(0, 1fr) auto; }
+          .agd-fila > :first-child { grid-column: 1 / -1; }
+        }
+      `}</style>
 
-      <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-        <button type="button" onClick={() => mover(-1)} style={{ ...input, cursor: 'pointer' }}>‹ Semana anterior</button>
-        <button type="button" onClick={() => router.push('/agenda')} style={{ ...input, cursor: 'pointer' }}>Hoy</button>
-        <button type="button" onClick={() => mover(1)} style={{ ...input, cursor: 'pointer' }}>Semana siguiente ›</button>
+      {ENCABEZADO}
+
+      <Stats>
+        <Stat label="Bloqueos" icon="ph-lock-simple" tone="warn" value={agenda.contexto.bloqueosVigentes} hint="vigentes" />
+        <Stat label="Servicios" icon="ph-truck" tone="ok" value={agenda.contexto.serviciosComprometidos} hint="con hora comprometida" />
+        <Stat label="Equipos" icon="ph-package" tone="info" value={agenda.contexto.equiposActivos} hint="en total" />
+      </Stats>
+
+      <Toolbar end={`${n} compromiso${n === 1 ? '' : 's'} en la vista`}>
+        <Btn size="sm" icon="ph-caret-left" onClick={() => mover(-1)}>Semana anterior</Btn>
+        <Btn size="sm" onClick={() => router.push('/agenda')}>Hoy</Btn>
+        <Btn size="sm" onClick={() => mover(1)}>
+          Semana siguiente <i className="ph ph-caret-right" aria-hidden />
+        </Btn>
         <AdminSelect
           size="sm"
           className="w-auto min-w-[130px]"
@@ -134,129 +184,98 @@ export function AgendaView({
             { value: '6', label: '6 semanas' },
           ]}
         />
-      </div>
+      </Toolbar>
 
-      <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 16 }}>
-        {agenda.contexto.bloqueosVigentes} bloqueo(s) · {agenda.contexto.serviciosComprometidos} servicio(s)
-        con hora comprometida · {agenda.contexto.equiposActivos} equipos en total
-      </div>
-
-      <div style={{ display: 'grid', gap: 16 }}>
+      {/* Todas las semanas en un solo panel; el nombre del día va una vez arriba. */}
+      <Panel flush clip>
+        <div className="adm-thead agd-cols agd-head">
+          {DIAS.map((d) => <div key={d}>{d}</div>)}
+        </div>
         {agenda.semanas.map((s) => (
-          <div key={s.dias[0]} style={{ background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, background: C.line }}>
-              {s.dias.map((d, i) => {
-                const items = porDia.get(d) ?? [];
-                const esHoy = d === hoy;
-                const carga = s.densidad[i] / maxDensidad;
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    onClick={() => setDia(dia === d ? null : d)}
-                    style={{
-                      background: dia === d ? C.panel3 : C.panel,
-                      border: 'none', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                      color: C.ink, padding: '11px 10px 13px', minHeight: 118,
-                      display: 'flex', flexDirection: 'column', gap: 7,
-                      // El día de hoy se marca con una línea arriba, no con un
-                      // fondo: el fondo compite con la carga del día.
-                      borderTop: `2px solid ${esHoy ? C.accent : 'transparent'}`,
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontSize: 11, color: esHoy ? C.accent : C.dim, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {DIAS[i]}
-                      </span>
-                      <span style={{ fontSize: 15, fontWeight: esHoy ? 800 : 600, color: esHoy ? C.accent : C.ink }}>
-                        {Number(d.slice(8, 10))}
-                      </span>
-                    </div>
+          <div key={s.dias[0]} className="agd-cols agd-semana">
+            {s.dias.map((d, i) => {
+              const items = porDia.get(d) ?? [];
+              const esHoy = d === hoy;
+              const carga = s.densidad[i] / maxDensidad;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDia(dia === d ? null : d)}
+                  aria-pressed={dia === d}
+                  aria-label={`${DIAS[i]} ${Number(d.slice(8, 10))}${items.length ? `, ${items.length} compromiso(s)` : ''}`}
+                  className={`agd-dia${dia === d ? ' is-sel' : ''}${esHoy ? ' is-hoy' : ''}`}
+                >
+                  <span className="adm-num" style={{ fontSize: 14.5, fontWeight: 600, color: esHoy ? 'var(--adm-accent)' : 'var(--adm-text)' }}>
+                    {Number(d.slice(8, 10))}
+                  </span>
 
-                    {/* La carga del día, para ver de un vistazo dónde aprieta. */}
-                    <div style={{ height: 3, background: C.line2, borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.round(carga * 100)}%`, background: items.length > 0 ? C.accent : 'transparent' }} />
-                    </div>
+                  {/* La carga del día, para ver de un vistazo dónde aprieta. */}
+                  <Bar pct={items.length > 0 ? Math.round(carga * 100) : 0} />
 
-                    <div style={{ display: 'grid', gap: 3 }}>
-                      {items.slice(0, 3).map((c) => (
-                        <div
-                          key={c.id}
-                          style={{
-                            fontSize: 11, lineHeight: 1.35, color: C.muted,
-                            borderLeft: `2px solid ${c.tipo === 'servicio' ? C.ok : COLOR_ESTADO[c.estado] ?? C.warn}`,
-                            paddingLeft: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {c.titulo}
-                        </div>
-                      ))}
-                      {items.length > 3 ? (
-                        <div style={{ fontSize: 11, color: C.dim, paddingLeft: 8 }}>+{items.length - 3} más</div>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                  <div style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+                    {items.slice(0, 3).map((c) => (
+                      <div
+                        key={c.id}
+                        className="adm-ellipsis"
+                        style={{
+                          fontSize: 11.5, lineHeight: 1.35, color: 'var(--adm-muted)',
+                          borderLeft: `2px solid ${COLOR_TONO[tonoDe(c)]}`, paddingLeft: 6,
+                        }}
+                      >
+                        {c.titulo}
+                      </div>
+                    ))}
+                    {items.length > 3 ? (
+                      <div style={{ fontSize: 11.5, color: 'var(--adm-faint)', paddingLeft: 8 }}>+{items.length - 3} más</div>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         ))}
-      </div>
+      </Panel>
 
       {/* El detalle del día elegido. Va debajo y no en un modal: la agenda se
           consulta comparando días, y un modal tapa justo lo que se compara. */}
       {dia ? (
-        <div style={{ marginTop: 18, background: C.panel, border: `1px solid ${C.line}`, borderRadius: 14, padding: '17px 19px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-              {new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </h2>
-            <button type="button" onClick={() => setDia(null)} style={{ background: 'none', border: 'none', color: C.muted, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Cerrar
-            </button>
-          </div>
-
+        <Panel
+          flush
+          clip
+          style={{ marginTop: 20 }}
+          title={fechaDia.charAt(0).toUpperCase() + fechaDia.slice(1)}
+          action={<Btn variant="ghost" size="sm" onClick={() => setDia(null)}>Cerrar</Btn>}
+        >
           {delDia.length === 0 ? (
             // Un día vacío ES información: es donde se puede prometer.
-            <div style={{ fontSize: 13.5, color: C.muted }}>
-              Nada comprometido este día. Es un hueco donde se puede prometer.
-            </div>
+            <EmptyState icon="ph-calendar-check" title="Nada comprometido este día." sub="Es un hueco donde se puede prometer." />
           ) : (
-            <div style={{ display: 'grid', gap: 9 }}>
-              {delDia.map((c) => (
-                <div key={c.id} style={{ display: 'flex', gap: 11, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <span
-                    style={{
-                      fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em',
-                      color: c.tipo === 'servicio' ? C.ok : COLOR_ESTADO[c.estado] ?? C.warn,
-                      minWidth: 96, textTransform: 'uppercase',
-                    }}
-                  >
-                    {c.tipo === 'servicio' ? 'Servicio' : c.estado}
-                  </span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{c.titulo}</div>
-                    {c.detalle ? <div style={{ fontSize: 12.5, color: C.muted, marginTop: 2 }}>{c.detalle}</div> : null}
-                  </div>
-                  <span style={{ fontSize: 12, color: C.dim, whiteSpace: 'nowrap' }}>
-                    {c.hasta === null
-                      ? 'sin fecha de fin'
-                      : c.hasta === c.desde
-                        ? '—'
-                        : `hasta ${c.hasta.slice(8, 10)}/${c.hasta.slice(5, 7)}`}
-                  </span>
+            delDia.map((c) => (
+              <div key={c.id} className="adm-trow agd-fila">
+                <div><StatusText tone={tonoDe(c)}>{rotulo(c)}</StatusText></div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="adm-cell-title">{c.titulo}</div>
+                  {c.detalle ? <div className="adm-cell-sub">{c.detalle}</div> : null}
                 </div>
-              ))}
-            </div>
+                <span className="adm-num" style={{ fontSize: 12.5, color: 'var(--adm-muted)', whiteSpace: 'nowrap', textAlign: 'right' }}>
+                  {c.hasta === null
+                    ? 'sin fecha de fin'
+                    : c.hasta === c.desde
+                      ? '—'
+                      : `hasta ${c.hasta.slice(8, 10)}/${c.hasta.slice(5, 7)}`}
+                </span>
+              </div>
+            ))
           )}
-        </div>
+        </Panel>
       ) : null}
 
       {agenda.compromisos.length === 0 ? (
-        <div style={{ marginTop: 18, fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
+        <Note style={{ marginTop: 20 }}>
           No hay nada comprometido en esta ventana. Los servicios aparecen aquí cuando un aliado
           acepta y se compromete a una hora de llegada; los bloqueos, desde Disponibilidad.
-        </div>
+        </Note>
       ) : null}
     </div>
   );

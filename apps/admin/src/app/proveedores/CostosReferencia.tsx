@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ESTADO_SOLICITUD_PROVEEDOR } from '@maqserv/config';
+import { Btn, FormField, IconBtn, Note, Panel } from '@/components/ui';
 
 /**
  * EL CRM, DENTRO DEL EXPEDIENTE (2026-10-08).
@@ -42,11 +43,6 @@ interface ProveedorCrm {
   maquinas: Maquina[];
 }
 
-export interface ColoresCrm {
-  panel2: string; line: string; line2: string; ink: string; muted: string; dim: string;
-  accent: string; accentInk: string; bad: string; ok: string; warn: string;
-}
-
 type Form = { tipo: string; marca: string; modelo: string; caracteristicas: string; costoSinOp: string; costoConOp: string; costoTodo: string; notas: string };
 const vacia: Form = { tipo: '', marca: '', modelo: '', caracteristicas: '', costoSinOp: '', costoConOp: '', costoTodo: '', notas: '' };
 
@@ -61,7 +57,7 @@ async function leerCrm(): Promise<ProveedorCrm[] | null> {
   return r.ok ? ((await r.json()) as ProveedorCrm[]) : null;
 }
 
-export function CostosReferencia({ providerId, colores: C }: { providerId: number; colores: ColoresCrm }) {
+export function CostosReferencia({ providerId }: { providerId: number }) {
   const [maquinas, setMaquinas] = useState<Maquina[] | null>(null);
   const [edit, setEdit] = useState<{ id: number | null; form: Form } | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -72,9 +68,6 @@ export function CostosReferencia({ providerId, colores: C }: { providerId: numbe
     setMaquinas(todos?.find((p) => p.id === providerId)?.maquinas ?? []);
   }, [providerId]);
   useEffect(() => { void cargar(); }, [cargar]);
-
-  const input: CSSProperties = { width: '100%', background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 9, padding: '9px 11px', fontSize: 13.5, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
-  const chico: CSSProperties = { background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 9, padding: '6px 11px', fontWeight: 600, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' };
 
   async function guardar() {
     if (!edit || guardando) return;
@@ -97,65 +90,66 @@ export function CostosReferencia({ providerId, colores: C }: { providerId: numbe
   }
 
   const campo = (k: keyof Form, titulo: string, extra?: { num?: boolean; ancho?: boolean; ph?: string; lista?: string }) => (
-    <label style={{ display: 'block', gridColumn: extra?.ancho ? '1 / -1' : undefined }}>
-      <span style={{ display: 'block', fontSize: 11.5, color: C.muted, marginBottom: 5 }}>{titulo}</span>
-      <input style={input} type={extra?.num ? 'number' : 'text'} min={extra?.num ? 0 : undefined} step={extra?.num ? '0.01' : undefined}
+    <FormField label={titulo} style={{ gridColumn: extra?.ancho ? '1 / -1' : undefined }}>
+      <input className={extra?.num ? 'adm-input adm-num' : 'adm-input'} type={extra?.num ? 'number' : 'text'} min={extra?.num ? 0 : undefined} step={extra?.num ? '0.01' : undefined}
         inputMode={extra?.num ? 'decimal' : undefined} placeholder={extra?.ph} list={extra?.lista} value={edit?.form[k] ?? ''}
         onChange={(e) => edit && setEdit({ ...edit, form: { ...edit.form, [k]: e.target.value } })} />
-    </label>
+    </FormField>
   );
 
   return (
-    <section style={{ borderTop: `1px solid ${C.line}`, marginTop: 22, paddingTop: 18 }}>
+    <section style={{ borderTop: '1px solid var(--adm-border)', marginTop: 24, paddingTop: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.ink }}>Costos de referencia</h3>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--adm-text)' }}>Costos de referencia</h3>
         {!edit ? (
-          <button type="button" style={chico} onClick={() => { setError(null); setEdit({ id: null, form: vacia }); }}>+ Agregar máquina</button>
+          <Btn size="sm" icon="ph-plus" onClick={() => { setError(null); setEdit({ id: null, form: vacia }); }}>Agregar máquina</Btn>
         ) : null}
       </div>
-      <p style={{ margin: '4px 0 12px', fontSize: 12.5, color: C.muted, lineHeight: 1.5 }}>
+      <p style={{ margin: '4px 0 14px', fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.6 }}>
         Lo que este aliado te cobra por hora, por máquina (antes el CRM). Solo de referencia para negociar: no cambia ningún
         precio del cotizador.
       </p>
 
       {maquinas === null ? (
-        <p style={{ fontSize: 13, color: C.dim, margin: 0 }}>Cargando…</p>
-      ) : maquinas.length === 0 && !edit ? (
-        <p style={{ fontSize: 13, color: C.dim, margin: 0 }}>Sin costos registrados.</p>
+        <p style={{ fontSize: 13, color: 'var(--adm-faint)', margin: 0 }}>Cargando…</p>
+      ) : maquinas.length === 0 ? (
+        !edit ? <p style={{ fontSize: 13, color: 'var(--adm-faint)', margin: 0 }}>Sin costos registrados.</p> : null
       ) : (
-        <div style={{ display: 'grid', gap: 8 }}>
+        <Panel flush clip>
           {maquinas.map((m) => (
-            <div key={m.id} style={{ border: `1px solid ${C.line}`, borderRadius: 10, padding: '10px 12px', display: 'grid', gap: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: 13.5 }}>{m.tipo}</strong>
-                {m.marca || m.modelo ? <span style={{ fontSize: 12.5, color: C.muted }}>{[m.marca, m.modelo].filter(Boolean).join(' ')}</span> : null}
-                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                  <button type="button" style={chico} onClick={() => {
-                    const t = (v: number | null) => (v == null ? '' : String(v));
-                    setError(null);
-                    setEdit({ id: m.id, form: { tipo: m.tipo, marca: m.marca ?? '', modelo: m.modelo ?? '', caracteristicas: m.caracteristicas ?? '', costoSinOp: t(m.costoSinOp), costoConOp: t(m.costoConOp), costoTodo: t(m.costoTodo), notas: m.notas ?? '' } });
-                  }}>Editar</button>
-                  <button type="button" style={{ ...chico, color: C.bad }} onClick={() => void borrar(m)}>Borrar</button>
-                </span>
+            <div key={m.id} className="adm-trow" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 16px' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                  <span className="adm-cell-title" style={{ fontSize: 13.5 }}>{m.tipo}</span>
+                  {m.marca || m.modelo ? <span style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>{[m.marca, m.modelo].filter(Boolean).join(' ')}</span> : null}
+                </div>
+                {m.caracteristicas ? <div className="adm-cell-sub">{m.caracteristicas}</div> : null}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '2px 12px', marginTop: 6, fontSize: 12.5, color: 'var(--adm-text)' }}>
+                  <span><span style={{ color: 'var(--adm-faint)' }}>Sin op. ni diésel</span> · <span className="adm-num">{pesos(m.costoSinOp)}/h</span></span>
+                  <span><span style={{ color: 'var(--adm-faint)' }}>Con op., sin diésel</span> · <span className="adm-num">{pesos(m.costoConOp)}/h</span></span>
+                  <span><span style={{ color: 'var(--adm-faint)' }}>Con op. y diésel</span> · <span className="adm-num">{pesos(m.costoTodo)}/h</span></span>
+                </div>
+                {m.notas ? <div style={{ fontSize: 12, color: 'var(--adm-faint)', marginTop: 4 }}>{m.notas}</div> : null}
               </div>
-              {m.caracteristicas ? <div style={{ fontSize: 12.5, color: C.muted }}>{m.caracteristicas}</div> : null}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 6, fontSize: 12.5 }}>
-                <span><span style={{ color: C.dim }}>Sin op. ni diésel</span> · {pesos(m.costoSinOp)}/h</span>
-                <span><span style={{ color: C.dim }}>Con op., sin diésel</span> · {pesos(m.costoConOp)}/h</span>
-                <span><span style={{ color: C.dim }}>Con op. y diésel</span> · {pesos(m.costoTodo)}/h</span>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <IconBtn icon="ph-pencil-simple" label="Editar" onClick={() => {
+                  const t = (v: number | null) => (v == null ? '' : String(v));
+                  setError(null);
+                  setEdit({ id: m.id, form: { tipo: m.tipo, marca: m.marca ?? '', modelo: m.modelo ?? '', caracteristicas: m.caracteristicas ?? '', costoSinOp: t(m.costoSinOp), costoConOp: t(m.costoConOp), costoTodo: t(m.costoTodo), notas: m.notas ?? '' } });
+                }} />
+                <IconBtn icon="ph-trash" label="Borrar" danger onClick={() => void borrar(m)} />
               </div>
-              {m.notas ? <div style={{ fontSize: 12, color: C.dim }}>{m.notas}</div> : null}
             </div>
           ))}
-        </div>
+        </Panel>
       )}
 
       {/* Formulario en línea y no en otra ventana: el expediente ya es una. */}
       {edit ? (
-        <div style={{ marginTop: 12, background: C.panel2, border: `1px solid ${C.line2}`, borderRadius: 12, padding: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{edit.id == null ? 'Agregar máquina' : 'Editar máquina'}</div>
-          {error ? <div role="alert" style={{ marginBottom: 10, color: C.bad, fontSize: 13 }}>{error}</div> : null}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+        <div className="adm-card" style={{ marginTop: 12, padding: 16 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)', marginBottom: 12 }}>{edit.id == null ? 'Agregar máquina' : 'Editar máquina'}</div>
+          {error ? <div role="alert" style={{ marginBottom: 12 }}><Note tone="bad">{error}</Note></div> : null}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px 14px' }}>
             {campo('tipo', 'Tipo de maquinaria *', { lista: 'costos-ref-tipos', ph: 'Excavadora, retroexcavadora…' })}
             {campo('marca', 'Marca', { ph: 'Caterpillar, JCB…' })}
             {campo('modelo', 'Modelo', { ph: '320, 416, 3CX…' })}
@@ -166,12 +160,12 @@ export function CostosReferencia({ providerId, colores: C }: { providerId: numbe
             {campo('notas', 'Notas', { ancho: true, ph: 'Disponibilidad, condiciones, mínimo de horas…' })}
           </div>
           <datalist id="costos-ref-tipos">{TIPOS.map((t) => <option key={t} value={t} />)}</datalist>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
-            <button type="button" style={chico} onClick={() => setEdit(null)}>Cancelar</button>
-            <button type="button" onClick={() => void guardar()} disabled={guardando}
-              style={{ ...chico, background: C.accent, color: C.accentInk, border: 'none', opacity: guardando ? 0.6 : 1 }}>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
+            <Btn size="sm" variant="ghost" onClick={() => setEdit(null)}>Cancelar</Btn>
+            {/* Primario dentro de su formulario: solo existe mientras se edita. */}
+            <Btn size="sm" variant="primary" onClick={() => void guardar()} disabled={guardando}>
               {guardando ? 'Guardando…' : 'Guardar'}
-            </button>
+            </Btn>
           </div>
         </div>
       ) : null}
@@ -190,7 +184,7 @@ const SITUACION: Record<number, string> = { 1: 'Activo en la red', [ESTADO_SOLIC
  * El Excel del CRM, ahora desde Proveedores: una fila por máquina con sus
  * costos; el aliado sin máquinas sale en una fila sola.
  */
-export function DescargarExcelProveedores({ estilo }: { estilo: CSSProperties }) {
+export function DescargarExcelProveedores() {
   const [ocupado, setOcupado] = useState(false);
   async function descargar() {
     setOcupado(true);
@@ -217,8 +211,6 @@ export function DescargarExcelProveedores({ estilo }: { estilo: CSSProperties })
     URL.revokeObjectURL(url);
   }
   return (
-    <button type="button" style={{ ...estilo, opacity: ocupado ? 0.6 : 1 }} onClick={() => void descargar()} disabled={ocupado}>
-      <i className="ph ph-download-simple" style={{ marginRight: 6 }} aria-hidden />Descargar Excel
-    </button>
+    <Btn icon="ph-download-simple" onClick={() => void descargar()} disabled={ocupado}>Descargar Excel</Btn>
   );
 }

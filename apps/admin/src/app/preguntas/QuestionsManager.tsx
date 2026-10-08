@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useMemo, useState } from 'react';
+import { Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, Segmented, StatusText, Toast, Toolbar } from '@/components/ui';
 
 export interface AdminQuestion {
   id: number;
@@ -15,20 +16,11 @@ export interface AdminQuestion {
   createdAt: string | null;
 }
 
-const C = {
-  card: '#151A21', cardBorder: '#1F242E', line: '#232833', line2: '#3A414F', tabsBg: '#101012',
-  text: '#E7EAF0', muted: '#8B93A0', muted2: '#6B7280', amber: '#F4B400', green: '#34D399', yellow: '#FBBF24', red: '#F87171',
-};
-const FONT = "'Inter', system-ui, sans-serif";
 const fmt = (iso: string | null) => {
   if (!iso) return '';
   const d = new Date(iso);
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 };
-const inputStyle: CSSProperties = { width: '100%', border: `1px solid ${C.line}`, background: '#0d0d10', color: C.text, borderRadius: 10, padding: '11px 13px', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.5, resize: 'vertical', outline: 'none' };
-const btnPrimary = (on: boolean): CSSProperties => ({ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: C.amber, color: '#16202E', borderRadius: 11, padding: '9px 16px', fontWeight: 800, fontSize: 13.5, cursor: on ? 'pointer' : 'default', opacity: on ? 1 : 0.5, fontFamily: 'inherit' });
-const btnGhost: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${C.line}`, background: 'transparent', color: C.text, borderRadius: 10, padding: '8px 13px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
-const btnDanger: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid rgba(245,80,80,0.3)', background: 'rgba(245,80,80,0.08)', color: C.red, borderRadius: 10, padding: '8px 11px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
 
 export function QuestionsManager({ initial }: { initial: AdminQuestion[] }) {
   const [list, setList] = useState<AdminQuestion[]>(initial);
@@ -80,78 +72,92 @@ export function QuestionsManager({ initial }: { initial: AdminQuestion[] }) {
   }
 
   return (
-    <div style={{ fontFamily: FONT, color: C.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Archivo:wght@700;800;900&display=swap" />
+    <div>
+      <PageHeader
+        eyebrow={['Ajustes', 'Sitio web']}
+        title="Preguntas de productos"
+        subtitle="Responde las dudas que dejan tus clientes en cada producto. Las respondidas se muestran en la página del producto."
+      />
 
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: '0 0 5px', fontFamily: "'Archivo', sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: '-0.01em' }}>Preguntas de productos</h1>
-        <p style={{ margin: 0, fontSize: 14.5, color: C.muted }}>Responde las dudas que dejan tus clientes en cada producto. Las respondidas se muestran en la pagina del producto.</p>
-      </div>
+      {/* Segmented envuelve: las 3 pestañas no se salen en móvil. */}
+      <Toolbar end={`${filtered.length} de ${list.length}`}>
+        <Segmented<typeof tab>
+          ariaLabel="Filtrar preguntas"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { key: 'pend', label: 'Por responder', count: pending },
+            { key: 'resp', label: 'Respondidas', count: answered },
+            { key: 'todas', label: 'Todas', count: list.length },
+          ]}
+        />
+      </Toolbar>
 
-      {/* `fit-content` + sin envolver = las 3 pestañas nunca bajan de su ancho
-          natural (380px) y se salían en móvil. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 12, padding: 4, width: 'fit-content', maxWidth: '100%', marginBottom: 20 }}>
-        {([['pend', 'Por responder', pending], ['resp', 'Respondidas', answered], ['todas', 'Todas', list.length]] as const).map(([id, label, count]) => {
-          const on = tab === id;
-          return (
-            <button key={id} type="button" onClick={() => setTab(id)} style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600, padding: '8px 15px', borderRadius: 9, cursor: 'pointer', background: on ? C.amber : 'transparent', color: on ? '#16202E' : C.muted }}>
-              {label}
-              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: on ? 'rgba(22,32,46,.18)' : (id === 'pend' && count > 0 ? 'rgba(251,191,36,.2)' : C.line), color: on ? '#16202E' : (id === 'pend' && count > 0 ? C.yellow : C.muted) }}>{count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {filtered.length === 0 ? (
-        <div style={{ background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 16, padding: '48px 20px', textAlign: 'center', color: C.muted2 }}>
-          {tab === 'pend' ? 'No hay preguntas por responder. ¡Todo al día!' : 'No hay preguntas en esta vista.'}
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 14 }}>
-          {filtered.map((q) => (
-            <div key={q.id} style={{ background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 16, padding: '18px 20px', display: 'grid', gap: 12, opacity: q.status === 1 ? 1 : 0.6 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, color: C.amber, background: 'rgba(244,180,0,.12)', padding: '2px 9px', borderRadius: 999 }}>{q.product}</span>
-                    <span style={{ fontSize: 12, color: C.muted2 }}>{q.author}{q.createdAt ? ` · ${fmt(q.createdAt)}` : ''}</span>
-                    {!q.answered ? <span style={{ fontSize: 11.5, fontWeight: 700, color: C.yellow }}>● Por responder</span> : null}
-                    {q.featured ? <span style={{ fontSize: 11.5, fontWeight: 700, color: C.amber }}>★ En el home</span> : null}
-                    {q.status === 0 ? <span style={{ fontSize: 11.5, fontWeight: 700, color: C.muted2 }}>Oculta</span> : null}
-                  </div>
-                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: C.text }}>{q.question}</p>
+      <Panel flush clip>
+        {filtered.length === 0 ? (
+          <EmptyState
+            icon="ph-question"
+            title={tab === 'pend' ? 'No hay preguntas por responder. ¡Todo al día!' : 'No hay preguntas en esta vista.'}
+          />
+        ) : filtered.map((q) => (
+          <div key={q.id} className="adm-trow" style={{ display: 'grid', gap: 12, paddingTop: 16, paddingBottom: 16, opacity: q.status === 1 ? 1 : 0.6 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <Chip>{q.product}</Chip>
+                  <span style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>{q.author}{q.createdAt ? ` · ${fmt(q.createdAt)}` : ''}</span>
+                  {!q.answered ? <StatusText tone="warn">Por responder</StatusText> : null}
+                  {q.featured ? <Chip tone="accent"><i className="ph-bold ph-star" aria-hidden />En el home</Chip> : null}
+                  {q.status === 0 ? <Chip tone="muted">Oculta</Chip> : null}
                 </div>
-                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                  <button type="button" onClick={() => toggleHide(q)} disabled={busy === q.id} title={q.status === 1 ? 'Ocultar' : 'Mostrar'} style={btnGhost}><i className={`ph ${q.status === 1 ? 'ph-eye-slash' : 'ph-eye'}`} /></button>
-                  <button type="button" onClick={() => remove(q.id)} disabled={busy === q.id} title="Eliminar" style={btnDanger}><i className="ph ph-trash" /></button>
+                <p style={{ margin: 0, fontSize: 14.5, fontWeight: 600, color: 'var(--adm-text)', lineHeight: 1.45 }}>{q.question}</p>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <IconBtn icon={q.status === 1 ? 'ph-eye-slash' : 'ph-eye'} label={q.status === 1 ? 'Ocultar' : 'Mostrar'} onClick={() => toggleHide(q)} disabled={busy === q.id} />
+                <IconBtn icon="ph-trash" label="Eliminar" danger onClick={() => remove(q.id)} disabled={busy === q.id} />
+              </div>
+            </div>
+
+            {q.answered ? (
+              <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--adm-border)', paddingTop: 12 }}>
+                <span style={{ color: 'var(--adm-ok)', fontWeight: 600, flexShrink: 0 }}>R:</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: 'var(--adm-text-2)' }}>{q.answer}</p>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                    <Btn size="sm" variant="ghost" icon="ph-pencil-simple" onClick={() => { setDraft((d) => ({ ...d, [q.id]: q.answer ?? '' })); setList((l) => l.map((x) => (x.id === q.id ? { ...x, answered: false } : x))); }}>
+                      Editar respuesta
+                    </Btn>
+                    <Btn
+                      size="sm"
+                      icon="ph-star"
+                      onClick={() => toggleFeatured(q)}
+                      disabled={busy === q.id}
+                      aria-pressed={q.featured}
+                      style={q.featured ? { color: 'var(--adm-accent)', borderColor: 'color-mix(in srgb, var(--adm-accent) 40%, transparent)', background: 'color-mix(in srgb, var(--adm-accent) 8%, transparent)' } : undefined}
+                    >
+                      {q.featured ? 'Destacada en el home' : 'Destacar en el home'}
+                    </Btn>
+                  </div>
                 </div>
               </div>
-
-              {q.answered ? (
-                <div style={{ display: 'flex', gap: 10, borderTop: `1px solid ${C.line}`, paddingTop: 12 }}>
-                  <span style={{ color: C.green, fontWeight: 800, flexShrink: 0 }}>R:</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6, color: C.text }}>{q.answer}</p>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-                      <button type="button" onClick={() => { setDraft((d) => ({ ...d, [q.id]: q.answer ?? '' })); setList((l) => l.map((x) => (x.id === q.id ? { ...x, answered: false } : x))); }} style={{ ...btnGhost, padding: '6px 11px' }}><i className="ph ph-pencil-simple" /> Editar respuesta</button>
-                      <button type="button" onClick={() => toggleFeatured(q)} disabled={busy === q.id} style={{ ...btnGhost, padding: '6px 11px', ...(q.featured ? { color: C.amber, borderColor: 'rgba(244,180,0,.4)', background: 'rgba(244,180,0,.1)' } : {}) }}><i className="ph ph-star" style={q.featured ? { fontWeight: 700 } : undefined} /> {q.featured ? 'Destacada en el home' : 'Destacar en el home'}</button>
-                    </div>
-                  </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 8, borderTop: '1px solid var(--adm-border)', paddingTop: 12 }}>
+                <textarea className="adm-textarea" value={draft[q.id] ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [q.id]: e.target.value }))} rows={2} placeholder="Escribe tu respuesta…" aria-label={`Respuesta a: ${q.question}`} />
+                <div>
+                  <Btn size="sm" icon="ph-paper-plane-tilt" onClick={() => answer(q.id)} disabled={busy === q.id}>
+                    {busy === q.id ? 'Publicando…' : 'Responder'}
+                  </Btn>
                 </div>
-              ) : (
-                <div style={{ display: 'grid', gap: 8, borderTop: `1px solid ${C.line}`, paddingTop: 12 }}>
-                  <textarea value={draft[q.id] ?? ''} onChange={(e) => setDraft((d) => ({ ...d, [q.id]: e.target.value }))} rows={2} placeholder="Escribe tu respuesta…" style={inputStyle} />
-                  <div><button type="button" onClick={() => answer(q.id)} disabled={busy === q.id} style={btnPrimary(busy !== q.id)}><i className="ph-bold ph-paper-plane-tilt" /> {busy === q.id ? 'Publicando…' : 'Responder'}</button></div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              </div>
+            )}
+          </div>
+        ))}
+      </Panel>
 
+      {/* El aviso se queda hasta que se toca: no tiene temporizador. */}
       {toast ? (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: toast.ok ? '#16281c' : '#2a1416', border: `1px solid ${toast.ok ? 'rgba(63,191,143,0.4)' : 'rgba(245,80,80,0.4)'}`, color: toast.ok ? '#dff5e8' : '#f8d7d7', padding: '13px 20px', borderRadius: 13, fontSize: 14, fontWeight: 600, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.7)', zIndex: 100 }} onClick={() => setToast(null)}>
-          <i className={`ph-bold ${toast.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} style={{ fontSize: 19 }} /> {toast.text}
+        <div onClick={() => setToast(null)} style={{ cursor: 'pointer' }}>
+          <Toast kind={toast.ok ? 'ok' : 'bad'}>{toast.text}</Toast>
         </div>
       ) : null}
     </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { D, FONT } from '@/components/editor-kit';
+import { Modal } from '@/components/Modal';
+import { Btn, Chip, EmptyState, Note } from '@/components/ui';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 
 /**
@@ -111,156 +112,115 @@ export function QuoteMatches({ quoteId }: { quoteId: number }) {
     }
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={abrir}
-        title="Ver qué aliados pueden atender esta solicitud"
-        style={{
-          border: `1px solid ${D.inputBorder}`, background: 'transparent', color: '#B4B4B9',
-          borderRadius: 9, padding: '8px 12px', fontWeight: 600, fontSize: 12.5,
-          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-        }}
-      >
-        ¿Quién puede?
-      </button>
-    );
-  }
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Aliados que pueden atender"
-      onClick={() => setOpen(false)}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 200, fontFamily: FONT }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18,
-          padding: 24, width: 'min(620px, 100%)', textAlign: 'left',
-          boxShadow: '0 30px 80px -20px rgba(0,0,0,0.8)',
-          // La lista crece con el número de aliados: sin tope, el modal se sale
-          // de la pantalla y no hay forma de llegar al final.
-          maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
-        }}
+    <>
+      <Btn size="sm" variant="ghost" icon="ph-users-three" onClick={abrir} title="Ver qué aliados pueden atender esta solicitud">
+        ¿Quién puede?
+      </Btn>
+
+      {/* El Modal del kit ya trae el tope de alto y el scroll interno: la lista
+          crece con el número de aliados y sin tope se salía de la pantalla. */}
+      <Modal
+        abierto={open}
+        titulo="Quién puede atender esto"
+        subtitulo={data ? `${data.categoria ?? 'Sin línea de servicio'}${data.zona ? ` · ${data.zona}` : ''}` : 'Consultando la red…'}
+        onCerrar={() => setOpen(false)}
+        ancho={620}
+        pie={<Btn onClick={() => setOpen(false)}>Cerrar</Btn>}
       >
-        <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800, color: D.text, letterSpacing: '-0.02em' }}>
-          Quién puede atender esto
-        </h2>
-        <p style={{ margin: '0 0 18px', fontSize: 12.5, color: D.muted, lineHeight: 1.55 }}>
-          {data
-            ? `${data.categoria ?? 'Sin línea de servicio'}${data.zona ? ` · ${data.zona}` : ''}`
-            : 'Consultando la red…'}
-        </p>
+        <div style={{ display: 'grid', gap: 16 }}>
+          {error ? <Note tone="warn">{error}</Note> : null}
 
-        {error ? (
-          <div style={{ fontSize: 13, color: D.warn, padding: '14px 0' }}>{error}</div>
-        ) : null}
-
-        {/* El mapa antes de la lista: la primera pregunta al asignar es "¿quién
-            está cerca?", y eso se ve, no se lee. */}
-        {puntos.length > 1 ? (
-          <div style={{ marginBottom: 16 }}>
-            <MapaCobertura puntos={puntos} alto={240} />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 11.5, color: D.muted }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0A32E' }} /> La obra
-              </span>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#008CFF' }} /> Aliado y hasta dónde llega
-              </span>
-              {sinUbicar > 0 ? (
-                <span style={{ color: D.warn }}>
-                  {sinUbicar} candidato{sinUbicar === 1 ? '' : 's'} sin ubicar: no aparece{sinUbicar === 1 ? '' : 'n'} en el mapa
+          {/* El mapa antes de la lista: la primera pregunta al asignar es "¿quién
+              está cerca?", y eso se ve, no se lee. */}
+          {puntos.length > 1 ? (
+            <div>
+              <MapaCobertura puntos={puntos} alto={240} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 12.5, color: 'var(--adm-muted)' }}>
+                {/* Mismos colores que los marcadores de MapaCobertura. */}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0A32E' }} /> La obra
                 </span>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
-        {/* Sin mapa hay que decir POR QUÉ, o parece que se rompió. */}
-        {data && data.matches.length > 0 && puntos.length <= 1 ? (
-          <div style={{ marginBottom: 16, padding: '11px 14px', border: `1px solid ${D.cardBorder}`, borderRadius: 11, fontSize: 12.5, color: D.muted, lineHeight: 1.55 }}>
-            {!data.obra
-              ? 'No hay mapa porque la obra todavía no tiene ubicación. Ponle coordenadas en Clientes y obras y aquí verás quién está cerca.'
-              : 'No hay mapa porque ninguno de los candidatos está ubicado. Usa “Ponerlo en el mapa” en el expediente de cada aliado.'}
-          </div>
-        ) : null}
-
-        {data && data.matches.length === 0 ? (
-          <div style={{ padding: '26px 0', textAlign: 'center' }}>
-            <div style={{ fontSize: 14.5, fontWeight: 700, color: '#B4B4B9' }}>Nadie en la red cubre esto todavía</div>
-            <div style={{ fontSize: 13, color: D.muted, marginTop: 7, lineHeight: 1.6 }}>{data.motivo}</div>
-          </div>
-        ) : null}
-
-        <div style={{ display: 'grid', gap: 12 }}>
-          {(data?.matches ?? []).map((m, i) => (
-            <div
-              key={m.providerId}
-              style={{
-                border: `1px solid ${i === 0 ? 'color-mix(in srgb, var(--color-primary) 34%, transparent)' : D.cardBorder}`,
-                borderRadius: 13, padding: '14px 16px',
-                background: i === 0 ? 'color-mix(in srgb, var(--color-primary) 5%, transparent)' : 'transparent',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ minWidth: 0 }}>
-                  <span style={{ fontSize: 14.5, fontWeight: 700, color: D.text }}>{m.name}</span>
-                  {m.verified ? (
-                    <span title="Expediente completo y vigente" style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 700, color: D.amber }}>✓ VERIFICADO</span>
-                  ) : null}
-                </div>
-                <span style={{ fontSize: 11.5, color: D.muted2, whiteSpace: 'nowrap' }}>
-                  {/* La distancia, al frente: es lo que decide entre dos
-                      aliados equivalentes y lo que se paga en el traslado. */}
-                  {m.distanceKm != null ? (
-                    <span style={{ color: D.text, fontWeight: 700 }}>{m.distanceKm} km · </span>
-                  ) : null}
-                  {NIVEL[m.level] ?? m.level}
-                  {/* El puntaje se muestra en chico y al final: es para ordenar,
-                      no para que nadie decida con él. Lo que se lee son las razones. */}
-                  <span style={{ opacity: 0.5 }}> · {m.score} pts</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#008CFF' }} /> Aliado y hasta dónde llega
                 </span>
+                {sinUbicar > 0 ? (
+                  <span style={{ color: 'var(--adm-warn)' }}>
+                    {sinUbicar} candidato{sinUbicar === 1 ? '' : 's'} sin ubicar: no aparece{sinUbicar === 1 ? '' : 'n'} en el mapa
+                  </span>
+                ) : null}
               </div>
+            </div>
+          ) : null}
 
-              <ul style={{ margin: '10px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
-                {m.reasons.map((r) => (
-                  <li key={r} style={{ fontSize: 12.5, color: '#9A9A9F', lineHeight: 1.5 }}>
-                    <span style={{ color: D.amber, marginRight: 7 }}>+</span>{r}
-                  </li>
-                ))}
-                {m.warnings.map((w) => (
-                  <li key={w} style={{ fontSize: 12.5, color: '#8A8A90', lineHeight: 1.5 }}>
-                    <span style={{ color: D.warn, marginRight: 7 }}>!</span>{w}
-                  </li>
-                ))}
-              </ul>
+          {/* Sin mapa hay que decir POR QUÉ, o parece que se rompió. */}
+          {data && data.matches.length > 0 && puntos.length <= 1 ? (
+            <Note icon="ph-map-trifold">
+              {!data.obra
+                ? 'No hay mapa porque la obra todavía no tiene ubicación. Ponle coordenadas en Clientes y obras y aquí verás quién está cerca.'
+                : 'No hay mapa porque ninguno de los candidatos está ubicado. Usa “Ponerlo en el mapa” en el expediente de cada aliado.'}
+            </Note>
+          ) : null}
 
-              {m.phone || m.contactName ? (
-                <div style={{ marginTop: 11, paddingTop: 10, borderTop: `1px solid ${D.cardBorder}`, fontSize: 12.5, color: D.muted2 }}>
-                  {m.contactName ? <span>{m.contactName}</span> : null}
-                  {m.contactName && m.phone ? ' · ' : ''}
-                  {m.phone ? (
-                    <a href={`tel:${m.phone}`} style={{ color: D.amber, textDecoration: 'none', fontWeight: 600 }}>{m.phone}</a>
+          {data && data.matches.length === 0 ? (
+            <EmptyState icon="ph-users-three" title="Nadie en la red cubre esto todavía" sub={data.motivo} />
+          ) : null}
+
+          {/* Una sola lista con filas: el primero va apenas resaltado porque es
+              la propuesta del sistema, no porque esté decidido. */}
+          {data && data.matches.length > 0 ? (
+            <div className="adm-panel is-clip">
+              {data.matches.map((m, i) => (
+                <div
+                  key={m.providerId}
+                  className="adm-trow"
+                  style={i === 0 ? { background: 'color-mix(in srgb, var(--adm-accent) 5%, transparent)' } : undefined}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span className="adm-cell-title">{m.name}</span>
+                      {m.verified ? <Chip tone="ok" title="Expediente completo y vigente">Verificado</Chip> : null}
+                    </div>
+                    <span style={{ fontSize: 12.5, color: 'var(--adm-muted)', whiteSpace: 'nowrap' }}>
+                      {/* La distancia, al frente: es lo que decide entre dos
+                          aliados equivalentes y lo que se paga en el traslado. */}
+                      {m.distanceKm != null ? (
+                        <span className="adm-num" style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{m.distanceKm} km · </span>
+                      ) : null}
+                      {NIVEL[m.level] ?? m.level}
+                      {/* El puntaje se muestra en chico y al final: es para ordenar,
+                          no para que nadie decida con él. Lo que se lee son las razones. */}
+                      <span className="adm-num" style={{ color: 'var(--adm-faint)' }}> · {m.score} pts</span>
+                    </span>
+                  </div>
+
+                  <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+                    {m.reasons.map((r) => (
+                      <li key={r} style={{ display: 'flex', gap: 8, fontSize: 13, color: 'var(--adm-text-2)', lineHeight: 1.5 }}>
+                        <i className="ph ph-plus" aria-hidden style={{ color: 'var(--adm-ok)', marginTop: 3, fontSize: 12 }} />{r}
+                      </li>
+                    ))}
+                    {m.warnings.map((w) => (
+                      <li key={w} style={{ display: 'flex', gap: 8, fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
+                        <i className="ph ph-warning" aria-hidden style={{ color: 'var(--adm-warn)', marginTop: 3, fontSize: 12 }} />{w}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {m.phone || m.contactName ? (
+                    <div className="adm-meta" style={{ marginTop: 8 }}>
+                      {m.contactName ? <span>{m.contactName}</span> : null}
+                      {m.phone ? (
+                        <a href={`tel:${m.phone}`} className="adm-link adm-mono" style={{ fontWeight: 500 }}>{m.phone}</a>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
-              ) : null}
+              ))}
             </div>
-          ))}
+          ) : null}
         </div>
-
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          style={{ marginTop: 20, width: '100%', border: `1px solid ${D.inputBorder}`, background: 'transparent', color: D.text, borderRadius: 11, padding: '11px 16px', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
-        >
-          Cerrar
-        </button>
-      </div>
-    </div>
+      </Modal>
+    </>
   );
 }

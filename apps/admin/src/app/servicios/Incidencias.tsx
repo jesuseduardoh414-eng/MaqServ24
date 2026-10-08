@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
+import { Btn, btnClass, Chip, EmptyState, FormField, IconBtn, Panel, type Tone } from '@/components/ui';
 
 /**
  * INCIDENCIAS DE CAMPO (documento institucional, sección 30).
@@ -37,36 +38,66 @@ interface Incidencia {
 
 interface Tipo { clave: string; label: string; ejemplo: string }
 
-const C = {
-  panel: '#141416', panel2: '#1b1e26', panel3: '#212530',
-  line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)',
-  ink: '#f2f4f7', muted: '#9aa1ad', dim: '#6b7280',
-  accent: 'var(--color-primary)', accentInk: 'var(--color-primary-fg)',
-  warn: 'var(--color-warning)', ok: 'var(--color-success)', bad: 'var(--color-error)',
-};
-
-const COLOR_SEV: Record<string, string> = { alta: C.bad, media: C.warn, baja: C.dim };
+const TONO_SEV: Record<string, Tone> = { alta: 'bad', media: 'warn', baja: 'muted' };
 const RESPONSABLE: Record<string, string> = {
   cliente: 'Del cliente', aliado: 'Del aliado', plataforma: 'Nuestra', nadie: 'De nadie',
-};
-
-const input: CSSProperties = {
-  width: '100%', background: C.panel2, border: `1px solid ${C.line2}`, color: C.ink,
-  borderRadius: 10, padding: '10px 12px', fontSize: 13.5, outline: 'none', fontFamily: 'inherit',
-};
-const boton: CSSProperties = {
-  background: C.accent, color: C.accentInk, border: 'none', borderRadius: 9,
-  padding: '9px 15px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
-};
-const botonSec: CSSProperties = {
-  background: 'none', border: `1px solid ${C.line2}`, color: C.ink, borderRadius: 9,
-  padding: '9px 15px', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
 };
 
 const fecha = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
 
 const MAX_FOTOS = 6;
+
+const miniatura = { width: 60, height: 60, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--adm-border-strong)', display: 'block' } as const;
+
+/**
+ * Ventana con el mismo aspecto que `Modal`, pero SIN cerrar con Esc. Las
+ * ventanas de este módulo son formularios con desplegables (AdminSelect): Esc
+ * cierra primero el desplegable abierto y `Modal` lo tomaba también como
+ * "cerrar la ventana", con lo que se perdía lo ya escrito. Aquí solo cierran
+ * la X, el botón del pie o el clic fuera, como antes del rediseño.
+ */
+export function VentanaFormulario({
+  titulo, subtitulo, ancho = 600, onCerrar, pie, children,
+}: {
+  titulo: string;
+  subtitulo?: ReactNode;
+  ancho?: number;
+  onCerrar: () => void;
+  pie?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={titulo}
+      onClick={onCerrar}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 200 }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)', borderRadius: 14,
+          width: `min(${ancho}px, 100%)`, maxHeight: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column',
+          boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)', color: 'var(--adm-text)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '18px 22px 14px', borderBottom: '1px solid var(--adm-border)' }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, letterSpacing: '-0.01em', fontFamily: 'inherit', color: 'var(--adm-text)' }}>{titulo}</h2>
+            {subtitulo ? <div style={{ marginTop: 4, fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.5 }}>{subtitulo}</div> : null}
+          </div>
+          <IconBtn icon="ph-x" label="Cerrar" plain onClick={onCerrar} style={{ marginTop: -4, marginRight: -6 }} />
+        </div>
+        <div style={{ padding: 22, overflowY: 'auto' }}>{children}</div>
+        {pie ? (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 22px', borderTop: '1px solid var(--adm-border)' }}>{pie}</div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Sube fotos y devuelve sus rutas. El navegador arma el FormData y NO fija el
@@ -181,162 +212,137 @@ export function Incidencias({
   const elegido = tipos.find((t) => t.clave === f.kind);
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Incidencias del servicio"
-      onClick={onCerrar}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 200 }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: C.panel, border: `1px solid ${C.line2}`, borderRadius: 18, padding: 24,
-          width: 'min(600px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', color: C.ink,
-        }}
-      >
-        <h2 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 800 }}>Incidencias</h2>
-        <p style={{ margin: '0 0 18px', fontSize: 12.5, color: C.muted, lineHeight: 1.55 }}>
-          {quoteNumber} · {abiertas.length > 0 ? `${abiertas.length} sin resolver` : 'nada sin resolver'}.
+    <VentanaFormulario
+      titulo="Incidencias"
+      ancho={600}
+      onCerrar={onCerrar}
+      subtitulo={
+        <>
+          <span className="adm-mono">{quoteNumber}</span> · {abiertas.length > 0 ? `${abiertas.length} sin resolver` : 'nada sin resolver'}.
           Lo que no se registra no se puede corregir.
-        </p>
-
-        {!abriendo ? (
-          <button type="button" style={{ ...boton, marginBottom: 16 }} onClick={() => setAbriendo(true)}>
-            + Levantar incidencia
-          </button>
-        ) : (
-          <div style={{ background: C.panel3, border: `1px solid ${C.line2}`, borderRadius: 12, padding: 16, marginBottom: 18 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 11 }}>
-              <label style={{ display: 'grid', gap: 5 }}>
-                <span style={{ fontSize: 12, color: C.muted }}>Qué pasó</span>
-                <AdminSelect ariaLabel="Qué pasó" value={f.kind} onChange={(v) => setF({ ...f, kind: v })} options={tipos.map((t) => ({ value: t.clave, label: t.label }))} />
-              </label>
-              <label style={{ display: 'grid', gap: 5 }}>
-                <span style={{ fontSize: 12, color: C.muted }}>Qué tan grave</span>
-                <AdminSelect
-                  ariaLabel="Qué tan grave"
-                  value={f.severity}
-                  onChange={(v) => setF({ ...f, severity: v })}
-                  options={[{ value: 'baja', label: 'Baja' }, { value: 'media', label: 'Media' }, { value: 'alta', label: 'Alta' }]}
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 5 }}>
-                <span style={{ fontSize: 12, color: C.muted }}>De quién fue</span>
-                {/* "De nadie" primero y por defecto: muchas incidencias no son
-                    culpa de alguien, y obligar a señalar culpable haría que
-                    nadie quisiera levantarlas. */}
-                <AdminSelect
-                  ariaLabel="De quién fue"
-                  value={f.responsible}
-                  onChange={(v) => setF({ ...f, responsible: v })}
-                  options={[
-                    { value: 'nadie', label: 'De nadie / aún no se sabe' },
-                    { value: 'aliado', label: 'Del aliado' },
-                    { value: 'cliente', label: 'Del cliente' },
-                    { value: 'plataforma', label: 'Nuestra' },
-                  ]}
-                />
-              </label>
-            </div>
-
-            {elegido ? (
-              <div style={{ fontSize: 12, color: C.dim, marginTop: 9, lineHeight: 1.5 }}>{elegido.ejemplo}</div>
-            ) : null}
-
-            <label style={{ display: 'grid', gap: 5, marginTop: 13 }}>
-              <span style={{ fontSize: 12, color: C.muted }}>Qué pasó, con detalle</span>
-              <textarea
-                value={f.description}
-                onChange={(e) => setF({ ...f, description: e.target.value })}
-                rows={3}
-                placeholder="La unidad llegó a las 10:40, comprometida para las 8:00. El residente ya había movido la cuadrilla."
-                style={{ ...input, resize: 'vertical', lineHeight: 1.55 }}
-                autoFocus
+        </>
+      }
+      pie={<Btn onClick={onCerrar}>Cerrar</Btn>}
+    >
+      {!abriendo ? (
+        <Btn variant="primary" icon="ph-plus" onClick={() => setAbriendo(true)} style={{ marginBottom: 18 }}>
+          Levantar incidencia
+        </Btn>
+      ) : (
+        <div style={{ background: 'var(--adm-raised)', border: '1px solid var(--adm-border)', borderRadius: 12, padding: 16, marginBottom: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 12 }}>
+            <FormField label="Qué pasó">
+              <AdminSelect ariaLabel="Qué pasó" value={f.kind} onChange={(v) => setF({ ...f, kind: v })} options={tipos.map((t) => ({ value: t.clave, label: t.label }))} />
+            </FormField>
+            <FormField label="Qué tan grave">
+              <AdminSelect
+                ariaLabel="Qué tan grave"
+                value={f.severity}
+                onChange={(v) => setF({ ...f, severity: v })}
+                options={[{ value: 'baja', label: 'Baja' }, { value: 'media', label: 'Media' }, { value: 'alta', label: 'Alta' }]}
               />
-            </label>
-
-            {/* Fotos. `capture` no se fuerza: en el celular abre la cámara y en
-                la computadora el explorador, y a veces la foto ya la mandaron
-                por WhatsApp y solo hay que adjuntarla. */}
-            <label style={{ display: 'grid', gap: 6, marginTop: 13 }}>
-              <span style={{ fontSize: 12, color: C.muted }}>Fotos (opcional, hasta {MAX_FOTOS})</span>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={(e) => setFotos(Array.from(e.target.files ?? []).slice(0, MAX_FOTOS))}
-                style={{ ...input, padding: '8px 10px', fontSize: 12.5, cursor: 'pointer' }}
+            </FormField>
+            <FormField label="De quién fue">
+              {/* "De nadie" primero y por defecto: muchas incidencias no son
+                  culpa de alguien, y obligar a señalar culpable haría que
+                  nadie quisiera levantarlas. */}
+              <AdminSelect
+                ariaLabel="De quién fue"
+                value={f.responsible}
+                onChange={(v) => setF({ ...f, responsible: v })}
+                options={[
+                  { value: 'nadie', label: 'De nadie / aún no se sabe' },
+                  { value: 'aliado', label: 'Del aliado' },
+                  { value: 'cliente', label: 'Del cliente' },
+                  { value: 'plataforma', label: 'Nuestra' },
+                ]}
               />
-            </label>
+            </FormField>
+          </div>
 
-            {fotos.length > 0 ? (
-              <div style={{ display: 'flex', gap: 8, marginTop: 9, flexWrap: 'wrap' }}>
-                {fotos.map((file, i) => (
-                  <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={file.name}
-                      style={{ width: 62, height: 62, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line2}` }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFotos(fotos.filter((_, j) => j !== i))}
-                      aria-label={`Quitar ${file.name}`}
-                      style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: C.panel, color: C.ink, border: `1px solid ${C.line2}`, fontSize: 11, cursor: 'pointer', lineHeight: 1, padding: 0 }}
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))}
-              </div>
-            ) : null}
+          {elegido ? <div className="adm-help" style={{ marginTop: 8 }}>{elegido.ejemplo}</div> : null}
 
-            <div style={{ display: 'flex', gap: 9, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button type="button" style={{ ...boton, opacity: ocupado ? 0.6 : 1 }} onClick={abrir} disabled={ocupado}>
-                {ocupado ? 'Guardando…' : 'Registrar'}
-              </button>
-              <button type="button" style={botonSec} onClick={() => { setAbriendo(false); setFotos([]); }}>Cancelar</button>
-              {error ? <span role="alert" style={{ fontSize: 12.5, color: C.bad, fontWeight: 600 }}>{error}</span> : null}
+          <FormField label="Qué pasó, con detalle" style={{ marginTop: 14 }}>
+            <textarea
+              className="adm-textarea"
+              value={f.description}
+              onChange={(e) => setF({ ...f, description: e.target.value })}
+              rows={3}
+              placeholder="La unidad llegó a las 10:40, comprometida para las 8:00. El residente ya había movido la cuadrilla."
+              autoFocus
+            />
+          </FormField>
+
+          {/* Fotos. `capture` no se fuerza: en el celular abre la cámara y en
+              la computadora el explorador, y a veces la foto ya la mandaron
+              por WhatsApp y solo hay que adjuntarla. */}
+          <FormField label={`Fotos (opcional, hasta ${MAX_FOTOS})`} style={{ marginTop: 14 }}>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="adm-input"
+              onChange={(e) => setFotos(Array.from(e.target.files ?? []).slice(0, MAX_FOTOS))}
+              style={{ height: 'auto', padding: '7px 10px', fontSize: 12.5, cursor: 'pointer' }}
+            />
+          </FormField>
+
+          {fotos.length > 0 ? (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              {fotos.map((file, i) => (
+                <span key={i} style={{ position: 'relative', display: 'inline-block' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={URL.createObjectURL(file)} alt={file.name} style={miniatura} />
+                  <button
+                    type="button"
+                    onClick={() => setFotos(fotos.filter((_, j) => j !== i))}
+                    aria-label={`Quitar ${file.name}`}
+                    title="Quitar"
+                    style={{
+                      position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', padding: 0,
+                      display: 'grid', placeItems: 'center', cursor: 'pointer',
+                      background: 'var(--adm-card)', color: 'var(--adm-text)', border: '1px solid var(--adm-border-strong)',
+                    }}
+                  >
+                    <i className="ph ph-x" aria-hidden style={{ fontSize: 11 }} />
+                  </button>
+                </span>
+              ))}
             </div>
+          ) : null}
+
+          <div style={{ display: 'flex', gap: 8, marginTop: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Btn variant="primary" onClick={abrir} disabled={ocupado}>
+              {ocupado ? 'Guardando…' : 'Registrar'}
+            </Btn>
+            <Btn variant="ghost" onClick={() => { setAbriendo(false); setFotos([]); }}>Cancelar</Btn>
+            {error ? <span role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', fontWeight: 600 }}>{error}</span> : null}
           </div>
-        )}
+        </div>
+      )}
 
-        {cargando ? <div style={{ fontSize: 13, color: C.dim }}>Cargando…</div> : null}
+      {cargando ? <div style={{ fontSize: 13, color: 'var(--adm-muted)' }}>Cargando…</div> : null}
 
-        {!cargando && lista.length === 0 ? (
-          <div style={{ fontSize: 13, color: C.dim, padding: '14px 0' }}>
-            Este servicio no ha tenido incidencias.
-          </div>
-        ) : null}
+      {!cargando && lista.length === 0 ? (
+        <EmptyState icon="ph-check-circle" title="Este servicio no ha tenido incidencias." />
+      ) : null}
 
-        <div style={{ display: 'grid', gap: 10 }}>
+      {lista.length > 0 ? (
+        <Panel flush clip>
           {lista.map((i) => (
-            <div
-              key={i.id}
-              style={{
-                border: `1px solid ${i.state === 'abierta' ? `color-mix(in srgb, ${COLOR_SEV[i.severity]} 40%, transparent)` : C.line}`,
-                borderRadius: 12, padding: '13px 15px',
-                opacity: i.state === 'cerrada' ? 0.62 : 1,
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'baseline' }}>
-                <div>
-                  <span style={{ fontSize: 14.5, fontWeight: 700 }}>{i.kindLabel}</span>
-                  <span style={{ marginLeft: 9, fontSize: 11, fontWeight: 700, color: COLOR_SEV[i.severity] }}>
-                    {i.severity.toUpperCase()}
-                  </span>
-                  <span style={{ marginLeft: 9, fontSize: 11.5, color: C.dim }}>
-                    {RESPONSABLE[i.responsible] ?? i.responsible}
-                  </span>
+            <div key={i.id} className="adm-trow" style={{ opacity: i.state === 'cerrada' ? 0.62 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '6px 12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px 9px', flexWrap: 'wrap', minWidth: 0 }}>
+                  <span className="adm-cell-title">{i.kindLabel}</span>
+                  <Chip tone={TONO_SEV[i.severity] ?? 'muted'}>{i.severity.charAt(0).toUpperCase() + i.severity.slice(1)}</Chip>
+                  <span style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>{RESPONSABLE[i.responsible] ?? i.responsible}</span>
                 </div>
-                <span style={{ fontSize: 11.5, color: C.dim }}>
+                <span className="adm-num" style={{ fontSize: 12, color: 'var(--adm-faint)' }}>
                   {i.state === 'cerrada' ? `cerrada ${fecha(i.closedAt)}` : fecha(i.openedAt)}
                 </span>
               </div>
 
-              <p style={{ margin: '8px 0 0', fontSize: 13.5, color: C.muted, lineHeight: 1.55 }}>{i.description}</p>
+              <p style={{ margin: '6px 0 0', fontSize: 13.5, color: 'var(--adm-text-2)', lineHeight: 1.55 }}>{i.description}</p>
 
               {/* La evidencia es la mitad del registro: una incidencia sin foto
                   es la palabra de alguien contra la de otro. */}
@@ -345,37 +351,28 @@ export function Incidencias({
                   {i.evidence.map((src, n) => (
                     <a key={src} href={src} target="_blank" rel="noopener noreferrer" title="Abrir la foto">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={src}
-                        alt={`Evidencia ${n + 1} de ${i.kindLabel}`}
-                        loading="lazy"
-                        style={{ width: 62, height: 62, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.line2}`, display: 'block' }}
-                      />
+                      <img src={src} alt={`Evidencia ${n + 1} de ${i.kindLabel}`} loading="lazy" style={miniatura} />
                     </a>
                   ))}
                 </div>
               ) : null}
 
               {i.resolution ? (
-                <p style={{ margin: '8px 0 0', fontSize: 13, color: C.ok, lineHeight: 1.55 }}>
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--adm-ok)', lineHeight: 1.55 }}>
                   Se resolvió: {i.resolution}
                 </p>
               ) : null}
 
               {i.state === 'abierta' ? (
-                <div style={{ display: 'flex', gap: 9, marginTop: 11, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    style={{ ...botonSec, padding: '7px 13px', fontSize: 12.5 }}
-                    onClick={() => cerrar(i.id)}
-                    disabled={ocupado}
-                  >
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <Btn size="sm" icon="ph-check" onClick={() => cerrar(i.id)} disabled={ocupado}>
                     Marcar resuelta
-                  </button>
+                  </Btn>
                   {/* La foto casi nunca llega con el aviso: llega después. */}
                   {i.evidence.length < 12 ? (
-                    <label style={{ ...botonSec, padding: '7px 13px', fontSize: 12.5, cursor: ocupado ? 'wait' : 'pointer', display: 'inline-flex', alignItems: 'center' }}>
-                      + Agregar foto
+                    <label className={btnClass('secondary', 'sm')} style={{ cursor: ocupado ? 'wait' : 'pointer' }}>
+                      <i className="ph ph-camera" aria-hidden />
+                      Agregar foto
                       <input
                         type="file"
                         accept="image/*"
@@ -390,12 +387,8 @@ export function Incidencias({
               ) : null}
             </div>
           ))}
-        </div>
-
-        <button type="button" onClick={onCerrar} style={{ ...botonSec, width: '100%', marginTop: 20, padding: '11px 16px' }}>
-          Cerrar
-        </button>
-      </div>
-    </div>
+        </Panel>
+      ) : null}
+    </VentanaFormulario>
   );
 }

@@ -4,13 +4,18 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Catalog, CtaBlock, Featured, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
-import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField, BlockEditor } from '@/components/editor-kit';
+import { cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField, BlockEditor } from '@/components/editor-kit';
+import { Btn, PageHeader, Segmented, StatusText, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
 
 const FEATURED_DEFAULTS: Featured = { limit: 8, showTabs: true, align: 'left', eyebrowColor: null, titleColor: null };
 const BLOCK_DEFAULTS: CtaBlock = { enabled: false, eyebrow: '', title: '', subtitle: '', cta: '', ctaLink: '/productos', image: null, bg: null, textColor: null, accentColor: null };
 const mergeBlock = (b?: Partial<CtaBlock>): CtaBlock => ({ ...BLOCK_DEFAULTS, ...(b ?? {}) });
+
+/** Qué edita cada pestaña: una línea de texto plano en vez de una tarjeta con icono. */
+const intro: CSSProperties = { margin: '0 0 16px', fontSize: 13, lineHeight: 1.55, color: 'var(--adm-muted)' };
+const introTitle: CSSProperties = { color: 'var(--adm-text)', fontWeight: 600 };
 
 interface Config {
   eyebrow: string; title: string; subtitle: string; allLabel: string; viewAll: string;
@@ -27,8 +32,8 @@ function copysDestacados(c: Config): Record<string, string> {
 }
 
 const TABS = [
-  { id: 'destacados', label: 'Destacados (home)', icon: 'ph-star' },
-  { id: 'catalogo', label: 'Catálogo (vista)', icon: 'ph-squares-four' },
+  { id: 'destacados', label: 'Destacados (home)' },
+  { id: 'catalogo', label: 'Catálogo (vista)' },
 ] as const;
 
 export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
@@ -81,50 +86,44 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
   // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
   const borrador = useMemo(() => ({ tokens: { featured: config.featured, catalog: config.catalog }, copys: copysDestacados(config) }), [config]);
 
-  const seg = (active: boolean): CSSProperties => ({ border: 'none', cursor: 'pointer', borderRadius: 9, padding: '9px 15px', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', background: active ? D.amber : 'transparent', color: active ? '#0a0a0b' : D.muted2 });
-
   return (
-    <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-
-      {/* Barra de acciones */}
-      <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: D.muted2, fontSize: '12.5px', fontWeight: 600, marginBottom: 5 }}><i className="ph ph-paint-brush-broad" style={{ fontSize: 14 }} /> Diseño del sitio <span style={{ opacity: 0.5 }}>·</span> Productos</div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 3 · Productos</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
-          <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
-          <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow={['Sitio web', 'Secciones del home']}
+        title="Sección 3 · Productos"
+        actions={
+          <>
+            <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
+            <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
+            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
+          </>
+        }
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 468px', gap: 26, alignItems: 'start' }} className="hero-ed-grid">
         <div style={{ minWidth: 0 }}>
           {/* Tabs */}
-          <div style={{ display: 'flex', gap: 4, padding: 5, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 14, marginBottom: 22, flexWrap: 'wrap' }}>
-            {TABS.map((tt) => (
-              <button key={tt.id} type="button" onClick={() => setTab(tt.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', cursor: 'pointer', borderRadius: 10, padding: '9px 15px', fontWeight: 700, fontSize: '13.5px', fontFamily: 'inherit', background: tab === tt.id ? D.amber : 'transparent', color: tab === tt.id ? '#0a0a0b' : D.muted2 }}><i className={`ph ${tt.icon}`} style={{ fontSize: 16 }} /> {tt.label}</button>
-            ))}
+          <div style={{ marginBottom: 18 }}>
+            <Segmented
+              ariaLabel="Qué editar"
+              value={tab}
+              onChange={setTab}
+              items={TABS.map((tt) => ({ key: tt.id, label: tt.label }))}
+            />
           </div>
 
           {/* DESTACADOS */}
           {tab === 'destacados' ? (
             <div style={{ animation: 'fadeIn .25s ease' }}>
-              <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-package" style={{ fontSize: 20 }} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong style={{ fontSize: 14 }}>Los productos salen del catálogo</strong>
-                  <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Se muestran los destacados (o los más recientes). Aquí defines textos y estilo de la sección del home.</p>
-                </div>
-              </div>
+              <p style={intro}>
+                <span style={introTitle}>Los productos salen del catálogo.</span> Se muestran los destacados (o los más recientes). Aquí defines textos y estilo de la sección del home.
+              </p>
 
               <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
                 <h3 style={h3Style}>Textos</h3>
                 <Field label="Eyebrow"><input value={config.eyebrow} onChange={(e) => set('eyebrow', e.target.value)} placeholder="Nuestra maquinaria" style={inputStyle} /></Field>
                 <Field label="Título (última palabra en acento)"><input value={config.title} onChange={(e) => set('title', e.target.value)} placeholder="Equipo destacado y disponible" style={inputStyle} /></Field>
-                <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={2} placeholder="Maquinaria certificada…" style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+                <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={2} placeholder="Maquinaria certificada…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                   <Field label="Texto de «Todos»"><input value={config.allLabel} onChange={(e) => set('allLabel', e.target.value)} placeholder="Todos" style={inputStyle} /></Field>
                   <Field label="Enlace «Ver todo»"><input value={config.viewAll} onChange={(e) => set('viewAll', e.target.value)} placeholder="Ver todo el catálogo" style={inputStyle} /></Field>
@@ -134,17 +133,24 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
               <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>
                 <h3 style={h3Style}>Estilo</h3>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div><strong style={{ fontSize: 13.5 }}>Pestañas por categoría</strong><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>Filtra los productos por giro.</p></div>
+                  <div><div className="adm-cell-title" style={{ fontSize: 13.5 }}>Pestañas por categoría</div><div className="adm-cell-sub">Filtra los productos por giro.</div></div>
                   <Toggle on={f.showTabs} onClick={() => setF('showTabs', !f.showTabs)} />
                 </div>
                 <div style={{ display: 'grid', gap: 8 }}>
                   <span style={smallLabel}>Alineación del encabezado</span>
-                  <div style={{ display: 'inline-flex', gap: 4, padding: 4, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 11, width: 'fit-content' }}>
-                    <button type="button" onClick={() => setF('align', 'left')} style={seg(f.align === 'left')}>Izquierda</button>
-                    <button type="button" onClick={() => setF('align', 'center')} style={seg(f.align === 'center')}>Centrado</button>
+                  <div>
+                    <Segmented<Featured['align']>
+                      ariaLabel="Alineación del encabezado"
+                      value={f.align}
+                      onChange={(k) => setF('align', k)}
+                      items={[
+                        { key: 'left', label: 'Izquierda' },
+                        { key: 'center', label: 'Centrado' },
+                      ]}
+                    />
                   </div>
                 </div>
-                <Field label={`Productos a mostrar: ${f.limit}`}><input type="range" min={4} max={16} value={f.limit} onChange={(e) => setF('limit', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: D.amber }} /></Field>
+                <Field label={`Productos a mostrar: ${f.limit}`}><input type="range" min={4} max={16} value={f.limit} onChange={(e) => setF('limit', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: 'var(--adm-accent)' }} /></Field>
                 <ColorField label="Color del eyebrow" value={f.eyebrowColor} onChange={(v) => setF('eyebrowColor', v)} />
                 <ColorField label="Color del título" value={f.titleColor} onChange={(v) => setF('titleColor', v)} />
               </div>
@@ -154,13 +160,9 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
           {/* CATÁLOGO */}
           {tab === 'catalogo' ? (
             <div style={{ animation: 'fadeIn .25s ease' }}>
-              <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 42, height: 42, borderRadius: 12, background: 'rgba(91,157,255,0.14)', color: '#5b9dff', display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-layout" style={{ fontSize: 20 }} /></div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong style={{ fontSize: 14 }}>Página /productos</strong>
-                  <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Tres bandas: un <b>banner</b> arriba, un <b>anuncio</b> en medio y una <b>promo</b> al final. Cada una se prende/apaga.</p>
-                </div>
-              </div>
+              <p style={intro}>
+                <span style={introTitle}>Página /productos.</span> Tres bandas: un <b>banner</b> arriba, un <b>anuncio</b> en medio y una <b>promo</b> al final. Cada una se prende/apaga.
+              </p>
               <BlockEditor label="Banner (arriba)" help="Banda grande al inicio del catálogo." icon="ph-flag-banner" block={config.catalog.banner} onChange={(p) => setBlock('banner', p)} />
               <BlockEditor label="Anuncio intermedio" help="Se muestra entre dos grupos de productos." icon="ph-megaphone-simple" block={config.catalog.mid} onChange={(p) => setBlock('mid', p)} />
               <BlockEditor label="Promo (abajo)" help="Banda al final de la página." icon="ph-tag" block={config.catalog.promo} onChange={(p) => setBlock('promo', p)} />
@@ -178,11 +180,7 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
         </div>
       </div>
 
-      {toast ? (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: toast.ok ? '#16281c' : '#2a1416', border: `1px solid ${toast.ok ? 'rgba(63,191,143,0.4)' : 'rgba(245,80,80,0.4)'}`, color: toast.ok ? '#dff5e8' : '#f8d7d7', padding: '13px 20px', borderRadius: 13, fontSize: 14, fontWeight: 600, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.7)', zIndex: 100 }}>
-          <i className={`ph-bold ${toast.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} style={{ fontSize: 19, color: toast.ok ? '#3fbf8f' : '#f55' }} /> {toast.text}
-        </div>
-      ) : null}
+      {toast ? <Toast kind={toast.ok ? 'ok' : 'bad'}>{toast.text}</Toast> : null}
     </div>
   );
 }

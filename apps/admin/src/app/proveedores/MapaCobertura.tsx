@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { EmptyState } from '@/components/ui';
 
 /**
  * MAPA DE COBERTURA (documento institucional, sección 17).
@@ -167,15 +168,12 @@ export function MapaCobertura({
 
   if (puntos.length === 0 && !onMover) {
     return (
-      <div
-        style={{
-          height: alto, display: 'grid', placeItems: 'center', textAlign: 'center',
-          border: '1px solid rgba(255,255,255,0.12)', borderRadius: 12,
-          color: '#6b7280', fontSize: 13, padding: 20, lineHeight: 1.6,
-        }}
-      >
-        Nadie está ubicado todavía.<br />
-        Usa &quot;Ponerlo en el mapa&quot; en el expediente de cada aliado.
+      <div style={{ height: alto, display: 'grid', placeItems: 'center', border: '1px solid var(--adm-border)', borderRadius: 12, overflow: 'hidden' }}>
+        <EmptyState
+          icon="ph-map-trifold"
+          title="Nadie está ubicado todavía."
+          sub="Usa «Ponerlo en el mapa» en el expediente de cada aliado."
+        />
       </div>
     );
   }
@@ -185,10 +183,33 @@ export function MapaCobertura({
       {/* La hoja de estilos de Leaflet: sin ella las teselas se apilan sin
           posición y el mapa sale como una columna de imágenes. */}
       <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      {/* Controles de Leaflet con la paleta del panel. Vienen blancos de
+          fábrica (zoom, atribución, globos) y sobre el cromo oscuro parecían
+          de otra aplicación. Solo color y bordes: la lógica del mapa no cambia.
+          Los selectores llevan `.mapa-cob` para ganarle a los de leaflet.css. */}
+      <style>{`
+        .mapa-cob.leaflet-container { background: var(--adm-raised); font-family: inherit; }
+        .mapa-cob .leaflet-bar { border: 1px solid var(--adm-border-strong); border-radius: 8px; box-shadow: none; overflow: hidden; }
+        .mapa-cob.leaflet-touch .leaflet-bar { border: 1px solid var(--adm-border-strong); }
+        .mapa-cob .leaflet-bar a,
+        .mapa-cob .leaflet-bar a:first-child,
+        .mapa-cob .leaflet-bar a:last-child { background: var(--adm-raised); color: var(--adm-text); border-bottom-color: var(--adm-border-strong); border-radius: 0; }
+        .mapa-cob .leaflet-bar a:last-child { border-bottom: 0; }
+        .mapa-cob .leaflet-bar a:hover, .mapa-cob .leaflet-bar a:focus { background: color-mix(in srgb, var(--adm-raised) 86%, #fff); color: var(--adm-text); }
+        .mapa-cob .leaflet-bar a.leaflet-disabled { background: var(--adm-raised); color: var(--adm-faint); }
+        .mapa-cob.leaflet-container .leaflet-control-attribution { background: color-mix(in srgb, var(--adm-page) 78%, transparent); color: var(--adm-muted); font-size: 11px; }
+        .mapa-cob.leaflet-container .leaflet-control-attribution a { color: var(--adm-text-2); }
+        .mapa-cob .leaflet-popup-content-wrapper, .mapa-cob .leaflet-popup-tip { background: var(--adm-raised); color: var(--adm-text); }
+        .mapa-cob .leaflet-popup-content-wrapper { border: 1px solid var(--adm-border-strong); border-radius: 10px; }
+        .mapa-cob .leaflet-popup-content { margin: 11px 14px; font-size: 13px; line-height: 1.5; }
+        .mapa-cob.leaflet-container a.leaflet-popup-close-button { color: var(--adm-muted); }
+        .mapa-cob.leaflet-container a.leaflet-popup-close-button:hover { color: var(--adm-text); }
+      `}</style>
       <div
         ref={caja}
+        className="mapa-cob"
         // isolation: Leaflet pinta sus capas con z-index 400–1000; sin aislarlas quedaban encima de los modales del panel.
-        style={{ height: alto, borderRadius: 12, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.12)', position: 'relative', zIndex: 0, isolation: 'isolate' }}
+        style={{ height: alto, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--adm-border)', position: 'relative', zIndex: 0, isolation: 'isolate' }}
       />
     </>
   );

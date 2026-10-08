@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Sectors, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
-import { D, FONT, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField } from '@/components/editor-kit';
+import { D, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
+import { Btn, EmptyState, IconBtn, Note, PageHeader, Panel, Segmented, StatusText, Thumb, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
 interface SectorRow { id: number; title: string; status: number; image: string | null }
@@ -18,10 +19,9 @@ interface SectorFull {
 const SEC_DEFAULTS: Sectors = { show: true, limit: 4, cardHeight: 340, eyebrowColor: null, titleColor: null, ctaColor: null };
 const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
 
-const textareaStyle: CSSProperties = { ...inputStyle, height: 'auto', minHeight: 72, padding: '11px 14px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' };
-const btnGhost: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${D.inputBorder}`, background: 'transparent', color: D.text, borderRadius: 10, padding: '8px 13px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
-const btnDanger: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid rgba(245,80,80,0.3)', background: 'rgba(245,80,80,0.08)', color: '#f87171', borderRadius: 10, padding: '8px 11px', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' };
-const btnPrimary = (on: boolean): CSSProperties => ({ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '10px 16px', fontWeight: 800, fontSize: 13.5, cursor: on ? 'pointer' : 'default', opacity: on ? 1 : 0.5, fontFamily: 'inherit' });
+const textareaStyle: CSSProperties = { ...inputStyle, height: 'auto', minHeight: 72, padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' };
+/** Un interruptor suelto va en texto plano con una línea fina debajo: una tarjeta para un solo switch sobraba. */
+const showRow: CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 0 16px', marginBottom: 16, borderBottom: '1px solid var(--adm-border)' };
 
 interface Config { eyebrow: string; title: string; cta: string; sec: Sectors }
 
@@ -76,41 +76,40 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
 
 
   return (
-    <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-
-      {/* Barra de acciones */}
-      <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: D.muted2, fontSize: '12.5px', fontWeight: 600, marginBottom: 5 }}><i className="ph ph-paint-brush-broad" style={{ fontSize: 14 }} /> Diseño del sitio <span style={{ opacity: 0.5 }}>·</span> Sectores</div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Sección 5 · Sectores estratégicos</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}><span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</span>
-          <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
-          <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}><i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}</button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow={['Sitio web', 'Secciones del home']}
+        title="Sección 5 · Sectores estratégicos"
+        subtitle={<>La banda «Sectores estratégicos» del home: tarjetas overlay con imagen. Aquí defines los textos y el estilo (arriba), y gestionas los <b>sectores</b> (pestaña Sectores).</>}
+        actions={
+          <>
+            <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
+            <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
+            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
+          </>
+        }
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 468px', gap: 26, alignItems: 'start' }} className="hero-ed-grid">
         <div style={{ minWidth: 0 }}>
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 42, height: 42, borderRadius: 12, background: 'color-mix(in srgb, var(--color-primary) 14%, transparent)', color: D.amber, display: 'grid', placeItems: 'center', flexShrink: 0 }}><i className="ph ph-buildings" style={{ fontSize: 20 }} /></div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ fontSize: 14 }}>La banda «Sectores estratégicos» del home</strong>
-              <p style={{ margin: '3px 0 0', fontSize: 12.5, color: D.muted2 }}>Tarjetas overlay con imagen. Aquí defines los textos y el estilo (arriba), y gestionas los <b>sectores</b> (pestaña Sectores).</p>
+          <div style={showRow}>
+            <div style={{ minWidth: 0 }}>
+              <div className="adm-cell-title">Mostrar la sección en el home</div>
+              <div className="adm-cell-sub">Apágala para ocultarla temporalmente.</div>
             </div>
-          </div>
-
-          <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div><strong style={{ fontSize: 13.5 }}>Mostrar la sección en el home</strong><p style={{ margin: '3px 0 0', fontSize: 12, color: D.muted }}>Apágala para ocultarla temporalmente.</p></div>
             <Toggle on={s.show} onClick={() => setS('show', !s.show)} />
           </div>
 
-          <div style={{ display: 'flex', gap: 4, padding: 5, background: D.tabsBg, border: `1px solid ${D.cardBorder}`, borderRadius: 14, marginBottom: 22, flexWrap: 'wrap' }}>
-            {([['contenido', 'Contenido y estilo', 'ph-text-aa'], ['sectores', 'Sectores', 'ph-buildings']] as const).map(([id, label, icon]) => (
-              <button key={id} type="button" onClick={() => setTab(id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 'none', cursor: 'pointer', borderRadius: 10, padding: '9px 15px', fontWeight: 700, fontSize: '13.5px', fontFamily: 'inherit', background: tab === id ? D.amber : 'transparent', color: tab === id ? '#0a0a0b' : D.muted2 }}><i className={`ph ${icon}`} style={{ fontSize: 16 }} /> {label}</button>
-            ))}
+          <div style={{ marginBottom: 18 }}>
+            <Segmented<'contenido' | 'sectores'>
+              ariaLabel="Qué editar"
+              value={tab}
+              onChange={setTab}
+              items={[
+                { key: 'contenido', label: 'Contenido y estilo' },
+                { key: 'sectores', label: 'Sectores' },
+              ]}
+            />
           </div>
 
           {tab === 'contenido' ? (
@@ -123,8 +122,8 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
               </div>
               <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>
                 <h3 style={h3Style}>Estilo</h3>
-                <Field label={`Tarjetas a mostrar: ${s.limit}`}><input type="range" min={2} max={8} value={s.limit} onChange={(e) => setS('limit', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: D.amber }} /></Field>
-                <Field label={`Alto de la tarjeta: ${s.cardHeight}px`}><input type="range" min={220} max={460} step={10} value={s.cardHeight} onChange={(e) => setS('cardHeight', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: D.amber }} /></Field>
+                <Field label={`Tarjetas a mostrar: ${s.limit}`}><input type="range" min={2} max={8} value={s.limit} onChange={(e) => setS('limit', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: 'var(--adm-accent)' }} /></Field>
+                <Field label={`Alto de la tarjeta: ${s.cardHeight}px`}><input type="range" min={220} max={460} step={10} value={s.cardHeight} onChange={(e) => setS('cardHeight', parseInt(e.target.value, 10))} style={{ width: '100%', accentColor: 'var(--adm-accent)' }} /></Field>
                 <ColorField label="Color del eyebrow" value={s.eyebrowColor} onChange={(v) => setS('eyebrowColor', v)} />
                 <ColorField label="Color del título" value={s.titleColor} onChange={(v) => setS('titleColor', v)} />
                 <ColorField label="Color del enlace de la tarjeta" value={s.ctaColor} onChange={(v) => setS('ctaColor', v)} />
@@ -145,11 +144,7 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
         </div>
       </div>
 
-      {toast ? (
-        <div style={{ position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 10, background: toast.ok ? '#16281c' : '#2a1416', border: `1px solid ${toast.ok ? 'rgba(63,191,143,0.4)' : 'rgba(245,80,80,0.4)'}`, color: toast.ok ? '#dff5e8' : '#f8d7d7', padding: '13px 20px', borderRadius: 13, fontSize: 14, fontWeight: 600, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.7)', zIndex: 100 }}>
-          <i className={`ph-bold ${toast.ok ? 'ph-check-circle' : 'ph-warning-circle'}`} style={{ fontSize: 19, color: toast.ok ? '#3fbf8f' : '#f55' }} /> {toast.text}
-        </div>
-      ) : null}
+      {toast ? <Toast kind={toast.ok ? 'ok' : 'bad'}>{toast.text}</Toast> : null}
     </div>
   );
 }
@@ -199,48 +194,58 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
     } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
   }
 
+  const listo = nTitle.trim().length >= 2;
+
   return (
     <>
       {/* Nuevo sector: en modal (2026-09-25). */}
-      <div style={{ marginBottom: 14 }}>
-        <button type="button" onClick={() => setNuevoAbierto(true)} style={btnPrimary(true)}><i className="ph-bold ph-plus" /> Nuevo sector</button>
-      </div>
-      <Modal abierto={nuevoAbierto} titulo="Nuevo sector" subtitulo="Crea el sector y luego edita sus datos e imagen. Se aplica al instante." onCerrar={() => setNuevoAbierto(false)} ancho={560}>
-      <div style={{ display: 'grid', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} placeholder="Nombre del sector (ej. Minería)" style={{ ...inputStyle, flex: 1, minWidth: 200 }} />
-          <button type="button" onClick={create} disabled={busy === 'new' || nTitle.trim().length < 2} style={btnPrimary(busy !== 'new' && nTitle.trim().length >= 2)}><i className="ph-bold ph-plus" /> {busy === 'new' ? 'Creando…' : 'Crear y editar'}</button>
-        </div>
-      </div>
+      <Modal
+        abierto={nuevoAbierto}
+        titulo="Nuevo sector"
+        subtitulo="Crea el sector y luego edita sus datos e imagen. Se aplica al instante."
+        onCerrar={() => setNuevoAbierto(false)}
+        ancho={560}
+        pie={
+          <>
+            <Btn variant="ghost" onClick={() => setNuevoAbierto(false)} disabled={busy === 'new'}>Cancelar</Btn>
+            <Btn variant="primary" icon="ph-plus" onClick={create} disabled={busy === 'new' || !listo}>{busy === 'new' ? 'Creando…' : 'Crear y editar'}</Btn>
+          </>
+        }
+      >
+        <input value={nTitle} onChange={(e) => setNTitle(e.target.value)} placeholder="Nombre del sector (ej. Minería)" className="adm-input" />
       </Modal>
 
-      {err ? <div style={{ marginBottom: 12, fontSize: 12.5, color: '#f87171', display: 'flex', alignItems: 'center', gap: 7 }}><i className="ph ph-warning-circle" /> {err}</div> : null}
+      {err ? <Note tone="bad" style={{ marginBottom: 12 }}>{err}</Note> : null}
 
-      {sectors.length === 0 ? (
-        <div style={{ ...cardStyle, textAlign: 'center', color: D.muted2, fontSize: 13 }}>Aún no hay sectores. Crea el primero con «Nuevo sector».</div>
-      ) : sectors.map((sec) => (
-        editing === sec.id ? (
-          <SectorEditRow key={sec.id} id={sec.id} busy={busy === sec.id} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); router.refresh(); }} />
-        ) : (
-          <div key={sec.id} style={{ ...cardStyle, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 14, opacity: sec.status === 1 ? 1 : 0.6 }}>
-            <div style={{ width: 60, height: 44, borderRadius: 9, flexShrink: 0, overflow: 'hidden', background: D.inputBg, display: 'grid', placeItems: 'center' }}>
-              {sec.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={sec.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : <i className="ph ph-image" style={{ color: D.muted2, fontSize: 18 }} />}
+      {/* Una lista de sectores: filas en un solo panel, no una tarjeta por sector. */}
+      <Panel
+        title="Sectores"
+        desc="Se aplican al instante (no pasan por «Guardar y publicar»)."
+        action={<Btn size="sm" icon="ph-plus" onClick={() => setNuevoAbierto(true)}>Nuevo sector</Btn>}
+        flush
+        clip
+      >
+        {sectors.length === 0 ? (
+          <EmptyState icon="ph-buildings" title="Aún no hay sectores" sub="Crea el primero con «Nuevo sector»." />
+        ) : sectors.map((sec) => (
+          editing === sec.id ? (
+            <SectorEditRow key={sec.id} id={sec.id} busy={busy === sec.id} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); router.refresh(); }} />
+          ) : (
+            <div key={sec.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 14, opacity: sec.status === 1 ? 1 : 0.6 }}>
+              <Thumb src={sec.image} size={44} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="adm-cell-title adm-ellipsis">{sec.title}</div>
+                <div style={{ marginTop: 2 }}><StatusText tone={sec.status === 1 ? 'ok' : 'muted'}>{sec.status === 1 ? 'Visible' : 'Oculto'}</StatusText></div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <IconBtn icon="ph-pencil-simple" label="Editar" onClick={() => setEditing(sec.id)} />
+                <IconBtn icon={sec.status === 1 ? 'ph-eye-slash' : 'ph-eye'} label={sec.status === 1 ? 'Ocultar' : 'Mostrar'} onClick={() => toggle(sec)} disabled={busy === sec.id} />
+                <IconBtn icon="ph-trash" label="Eliminar" danger onClick={() => remove(sec.id)} disabled={busy === sec.id} />
+              </div>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <strong style={{ fontSize: 14, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sec.title}</strong>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: sec.status === 1 ? '#3fbf8f' : D.muted2 }}>{sec.status === 1 ? 'Visible' : 'Oculto'}</span>
-            </div>
-            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button type="button" onClick={() => setEditing(sec.id)} style={btnGhost}><i className="ph ph-pencil-simple" /> Editar</button>
-              <button type="button" onClick={() => toggle(sec)} disabled={busy === sec.id} style={btnGhost} title={sec.status === 1 ? 'Ocultar' : 'Mostrar'}><i className={`ph ${sec.status === 1 ? 'ph-eye-slash' : 'ph-eye'}`} /></button>
-              <button type="button" onClick={() => remove(sec.id)} disabled={busy === sec.id} title="Eliminar" style={btnDanger}><i className="ph ph-trash" /></button>
-            </div>
-          </div>
-        )
-      ))}
+          )
+        ))}
+      </Panel>
     </>
   );
 }
@@ -296,28 +301,29 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
     <Field label={label}><textarea value={value} onChange={(e) => on(e.target.value)} rows={rows} placeholder={ph} style={textareaStyle} /></Field>
   );
 
+  // El sector en edición se abre dentro de su fila, con un fondo apenas más claro.
   return (
-    <div style={{ ...cardStyle, marginBottom: 12, display: 'grid', gap: 14, border: `1px solid ${D.amber}44` }}>
+    <div className="adm-trow" style={{ display: 'grid', gap: 14, padding: 20, background: 'rgba(255,255,255,0.02)' }}>
       {loadErr ? (
-        <div style={{ fontSize: 13, color: '#f87171' }}>No se pudo cargar el sector. <button type="button" onClick={onClose} style={btnGhost}>Cerrar</button></div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: 'var(--adm-bad)' }}>No se pudo cargar el sector. <Btn size="sm" variant="ghost" onClick={onClose}>Cerrar</Btn></div>
       ) : !data ? (
-        <div style={{ fontSize: 13, color: D.muted2, padding: '8px 2px' }}><i className="ph ph-circle-notch" /> Cargando…</div>
+        <div style={{ fontSize: 13, color: 'var(--adm-muted)', padding: '8px 2px' }}><i className="ph ph-circle-notch" /> Cargando…</div>
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <h3 style={h3Style}>Editar sector</h3>
-            <button type="button" onClick={onClose} style={btnGhost}>Cerrar</button>
+            <Btn size="sm" variant="ghost" onClick={onClose}>Cerrar</Btn>
           </div>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <label
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) pick(f); }}
-              style={{ position: 'relative', width: 150, height: 100, flexShrink: 0, border: `1.5px dashed ${D.inputBorder}`, borderRadius: 12, background: preview ? '#0d0d10' : D.inputBg, cursor: 'pointer', overflow: 'hidden', display: 'grid', placeItems: 'center' }}
+              style={{ position: 'relative', width: 150, height: 100, flexShrink: 0, border: '1.5px dashed var(--adm-border-strong)', borderRadius: 12, background: preview ? 'var(--adm-page)' : D.inputBg, cursor: 'pointer', overflow: 'hidden', display: 'grid', placeItems: 'center' }}
             >
               {preview ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : <span style={{ textAlign: 'center', color: D.muted2, fontSize: 12 }}><i className="ph ph-image" style={{ fontSize: 20, display: 'block', marginBottom: 4 }} />Imagen</span>}
+              ) : <span style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 12.5 }}><i className="ph ph-image" style={{ fontSize: 20, display: 'block', marginBottom: 4 }} />Imagen</span>}
               <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); e.target.value = ''; }} style={{ display: 'none' }} />
             </label>
             <div style={{ flex: 1, minWidth: 220, display: 'grid', gap: 12 }}>
@@ -327,7 +333,7 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
           </div>
 
           <details>
-            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: D.muted2, padding: '4px 0' }}>Bloques de la página del sector (opcional, se permite HTML)</summary>
+            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--adm-text-2)', padding: '4px 0' }}>Bloques de la página del sector (opcional, se permite HTML)</summary>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
               {areaField('Trayectoria', trayectoria, setTrayectoria)}
               {areaField('Esencia', esencia, setEsencia)}
@@ -337,10 +343,10 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
             </div>
           </details>
 
-          {err ? <span style={{ fontSize: 12, color: '#f87171' }}>{err}</span> : null}
+          {err ? <span style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>{err}</span> : null}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={save} disabled={saving || busy} style={btnPrimary(!saving && !busy)}><i className="ph-bold ph-check" /> {saving ? 'Guardando…' : 'Guardar sector'}</button>
-            <button type="button" onClick={onClose} disabled={saving} style={btnGhost}>Cancelar</button>
+            <Btn icon="ph-check" onClick={save} disabled={saving || busy}>{saving ? 'Guardando…' : 'Guardar sector'}</Btn>
+            <Btn variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Btn>
           </div>
         </>
       )}

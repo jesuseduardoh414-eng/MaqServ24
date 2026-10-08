@@ -1,9 +1,9 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { Table, Td } from '@/components/Table';
 import { ActionButton } from '@/components/actions';
+import { Btn, Chip, PageHeader, StatusText } from '@/components/ui';
 import { ThemeDuplicate } from './ThemeDuplicate';
 
 interface ThemeRow {
@@ -23,45 +23,36 @@ export default async function AdminThemes() {
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: '1.2rem' }}>Temas</h1>
-      <div style={{ display: 'grid', gap: '1.2rem' }}>
-        <ThemeDuplicate themes={themes.map((t) => ({ id: t.id, name: t.name }))} />
-        <Table headers={['Tema', 'Slug', 'Estado', 'Publicado', 'Acciones']}>
-          {themes.map((t) => (
-            <tr key={t.id}>
-              <Td>
-                <strong>{t.name}</strong>
-                {t.hasDraft ? <span style={{ color: 'var(--color-warning)', fontSize: 'var(--text-sm)' }}> · borrador sin publicar</span> : null}
-              </Td>
-              <Td muted>{t.slug}</Td>
-              <Td>
-                {t.active ? (
-                  <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>Activo</span>
-                ) : (
-                  <ActionButton path={`themes/${t.id}/activate`} method="POST" label="Activar" variant="ghost" />
-                )}
-              </Td>
-              <Td muted>{t.publishedAt ? new Date(t.publishedAt).toLocaleString('es-MX') : '—'}</Td>
-              <Td>
-                <Link
-                  href={`/temas/${t.id}`}
-                  style={{
-                    textDecoration: 'none',
-                    color: 'var(--color-primary-fg)',
-                    background: 'var(--color-primary)',
-                    fontWeight: 600,
-                    fontSize: 'var(--text-sm)',
-                    padding: '.4em .9em',
-                    borderRadius: 'var(--radius-button)',
-                  }}
-                >
-                  Editar
-                </Link>
-              </Td>
-            </tr>
-          ))}
-        </Table>
-      </div>
+      <PageHeader eyebrow={['Ajustes', 'Sitio web']} title="Temas" count={themes.length} />
+      <ThemeDuplicate themes={themes.map((t) => ({ id: t.id, name: t.name }))} />
+      <Table headers={['Tema', 'Slug', 'Estado', 'Publicado', 'Acciones']}>
+        {themes.map((t) => (
+          <tr key={t.id}>
+            <Td>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span className="adm-cell-title">{t.name}</span>
+                {t.hasDraft ? <Chip tone="warn">Borrador sin publicar</Chip> : null}
+              </div>
+            </Td>
+            <Td muted>
+              <span className="adm-mono">{t.slug}</span>
+            </Td>
+            <Td>
+              {t.active ? (
+                <StatusText tone="ok">Activo</StatusText>
+              ) : (
+                <ActionButton path={`themes/${t.id}/activate`} method="POST" label="Activar" variant="outline" />
+              )}
+            </Td>
+            <Td muted>
+              <span className="adm-num">{t.publishedAt ? new Date(t.publishedAt).toLocaleString('es-MX') : '—'}</span>
+            </Td>
+            <Td>
+              <Btn size="sm" icon="ph-pencil-simple" href={`/temas/${t.id}`}>Editar</Btn>
+            </Td>
+          </tr>
+        ))}
+      </Table>
     </AdminShell>
   );
 }

@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { VENDOR_STATES, WITHDRAW_STATES, toWithdrawState } from '@maqserv/types';
 import { SITE_URL, adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { D, FONT } from '@/components/design-tokens';
+import { EmptyState, Note, PageHeader, Panel, PanelLink, Stat, Stats, StatusText, Thumb, type Tone } from '@/components/ui';
 import { vendorStatus } from '../vendor-status';
 import { VendorActions } from '../VendorActions';
 
@@ -31,11 +31,7 @@ interface VendorDetail {
   withdraws: Array<{ id: number; amount: number; method: string | null; reference: string | null; status: string; createdAt: string | null }>;
 }
 
-const MONO = "'JetBrains Mono', ui-monospace, monospace";
-const GREEN = '#3fbf8f';
 const money = (n: number) => `$${n.toLocaleString('es-MX')}`;
-const card: React.CSSProperties = { background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 16, padding: 22 };
-const th: React.CSSProperties = { fontSize: 10.5, letterSpacing: '1px', fontWeight: 700, color: '#7A7A7F', textTransform: 'uppercase' };
 const day = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(iso)) : '—';
 
@@ -44,13 +40,11 @@ const day = (iso: string | null) =>
  * sitio del vendedor. Aquí se toma `adminLabel` ("Por pagar" = trabajo pendiente);
  * al vendedor se le dice "En revisión". Mismo estado, dos lecturas.
  */
-const WITHDRAW_TONE: Record<'warn' | 'ok' | 'bad', string> = { warn: D.amber, ok: GREEN, bad: '#f55' };
-
-function withdrawLabel(raw: string): { label: string; color: string } {
+function withdrawLabel(raw: string): { label: string; tone: Tone } {
   const s = toWithdrawState(raw);
-  if (!s) return { label: raw, color: '#7A7A7F' };
+  if (!s) return { label: raw, tone: 'muted' };
   const info = WITHDRAW_STATES[s];
-  return { label: info.adminLabel, color: WITHDRAW_TONE[info.tone] };
+  return { label: info.adminLabel, tone: info.tone };
 }
 
 /** Detalle del vendedor: la solicitud + lo que realmente hace en el marketplace. */
@@ -64,165 +58,138 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
   if (!v) notFound();
 
   const st = vendorStatus(v.status);
+  const stTone = VENDOR_STATES[st.state].tone;
   const a = v.application;
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <div style={{ fontFamily: FONT, color: D.text }}>
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" />
+      <div>
         <style>{`
-          .vd-back:hover{ color:var(--color-primary); }
-          .vd-link:hover{ color:var(--color-primary); text-decoration: underline; }
-          @media (max-width: 1000px){ .vd-grid{ grid-template-columns: 1fr !important; } }
+          .vd-grid { display: grid; grid-template-columns: minmax(0,1fr) 340px; gap: 20px; align-items: start; }
+          .vd-grid .adm-panel + .adm-panel { margin-top: 0; }
+          @media (max-width: 1000px) { .vd-grid { grid-template-columns: minmax(0,1fr); } }
+          .vd-sale { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 16px; align-items: center; }
         `}</style>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#8A8A8F', fontWeight: 500 }}>
-          <span>Marketplace</span><span style={{ color: '#4C4C51' }}>/</span>
-          <Link href="/vendedores" className="vd-back" style={{ color: '#8A8A8F', textDecoration: 'none' }}>Vendedores</Link>
-          <span style={{ color: '#4C4C51' }}>/</span>
-          <span style={{ color: '#B4B4B9' }}>{a.shopName ?? v.name}</span>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap', marginTop: 8 }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, letterSpacing: '-0.8px', color: '#FBFBFA' }}>{a.shopName ?? '—'}</h1>
-            <p style={{ margin: '6px 0 0', fontSize: 13.5, color: '#8A8A8F' }}>
-              Solicitó el {day(v.createdAt)} · {v.name}
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: st.color, background: `color-mix(in srgb, ${st.color} 10%, transparent)`, border: `1px solid color-mix(in srgb, ${st.color} 26%, transparent)`, borderRadius: 20, padding: '6px 12px' }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.color }} />
-              {st.label}
-            </span>
-            <VendorActions vendorId={v.id} status={v.status} size="md" />
-          </div>
-        </div>
+        <PageHeader
+          eyebrow={['Marketplace', ['Vendedores', '/vendedores'], a.shopName ?? v.name]}
+          title={a.shopName ?? '—'}
+          subtitle={`Solicitó el ${day(v.createdAt)} · ${v.name}`}
+          actions={
+            <>
+              <StatusText tone={stTone}>{st.label}</StatusText>
+              <VendorActions vendorId={v.id} status={v.status} size="md" />
+            </>
+          }
+        />
 
         {/* Qué implica el estado actual, en una línea. */}
-        <div style={{ ...card, marginTop: 20, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 11, borderColor: `color-mix(in srgb, ${st.color} 26%, transparent)`, background: `color-mix(in srgb, ${st.color} 6%, ${D.card})` }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
-          <span style={{ fontSize: 13.5, color: '#D4D4D8' }}>{VENDOR_STATES[st.state].hint}</span>
-        </div>
+        <Note tone={stTone} style={{ marginBottom: 20 }}>{VENDOR_STATES[st.state].hint}</Note>
 
-        <div className="vd-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 18, marginTop: 18, alignItems: 'start' }}>
-          <div style={{ display: 'grid', gap: 18 }}>
+        <div className="vd-grid">
+          <div style={{ display: 'grid', gap: 20 }}>
             {/* --- La solicitud: esto es lo que hace falta para decidir --- */}
-            <div style={card}>
-              <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>La solicitud</h2>
-              <p style={{ margin: '0 0 18px', fontSize: 12.5, color: '#7A7A7F' }}>Lo que el cliente capturó al pedir vender en el sitio.</p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+            <Panel title="La solicitud" desc="Lo que el cliente capturó al pedir vender en el sitio.">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px 20px' }}>
                 <Field label="Nombre de la tienda" value={a.shopName} />
                 <Field label="Titular" value={a.ownerName ?? v.name} />
                 <Field label="Teléfono de la tienda" value={a.shopNumber ?? v.phone} mono />
                 <Field label="Registro / RFC" value={a.regNumber} mono />
                 <Field label="Dirección" value={a.shopAddress} />
-                <Field label="Correo" value={v.email} mono />
+                <Field label="Correo" value={v.email} />
               </div>
               {a.shopMessage ? (
-                <div style={{ borderTop: `1px solid ${D.cardBorder}`, marginTop: 18, paddingTop: 15 }}>
-                  <span style={{ ...th, display: 'block', marginBottom: 7 }}>Mensaje del solicitante</span>
-                  <p style={{ margin: 0, fontSize: 13.5, color: '#D4D4D8', lineHeight: 1.6 }}>{a.shopMessage}</p>
+                <div style={{ borderTop: '1px solid var(--adm-border)', marginTop: 18, paddingTop: 16 }}>
+                  <span className="adm-label" style={{ display: 'block', marginBottom: 6 }}>Mensaje del solicitante</span>
+                  <p style={{ margin: 0, fontSize: 14, color: 'var(--adm-text-2)', lineHeight: 1.6 }}>{a.shopMessage}</p>
                 </div>
               ) : null}
               {a.shopDetails ? (
-                <div style={{ borderTop: `1px solid ${D.cardBorder}`, marginTop: 15, paddingTop: 15 }}>
-                  <span style={{ ...th, display: 'block', marginBottom: 7 }}>Descripción de la tienda</span>
-                  <p style={{ margin: 0, fontSize: 13.5, color: '#D4D4D8', lineHeight: 1.6 }}>{a.shopDetails}</p>
+                <div style={{ borderTop: '1px solid var(--adm-border)', marginTop: 16, paddingTop: 16 }}>
+                  <span className="adm-label" style={{ display: 'block', marginBottom: 6 }}>Descripción de la tienda</span>
+                  <p style={{ margin: 0, fontSize: 14, color: 'var(--adm-text-2)', lineHeight: 1.6 }}>{a.shopDetails}</p>
                 </div>
               ) : null}
-            </div>
+            </Panel>
 
             {/* --- Productos --- */}
-            <div style={card}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Productos publicados</h2>
-                <span style={{ fontFamily: MONO, fontSize: 12, color: '#7A7A7F' }}>{v.activeTotal} activos de {v.productTotal}</span>
-              </div>
+            <Panel
+              flush
+              clip
+              title="Productos publicados"
+              action={<span className="adm-num" style={{ fontSize: 13, color: 'var(--adm-muted)', whiteSpace: 'nowrap' }}>{v.activeTotal} activos de {v.productTotal}</span>}
+            >
               {v.products.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 13, color: '#7A7A7F' }}>Este vendedor no ha publicado ningún equipo.</p>
+                <EmptyState icon="ph-package" title="Este vendedor no ha publicado ningún equipo." />
               ) : (
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {v.products.map((p, i) => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 13, paddingBottom: 12, borderBottom: i < v.products.length - 1 ? `1px solid ${D.cardBorder}` : undefined }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.image ?? ''} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover', background: '#1A1A1D', flexShrink: 0 }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <Link href={`/productos/editar/${p.id}`} className="vd-link" style={{ fontSize: 13.5, fontWeight: 600, color: '#EDEDEC', textDecoration: 'none' }}>{p.name}</Link>
-                        <div style={{ fontFamily: MONO, fontSize: 11.5, color: '#7A7A7F', marginTop: 3 }}>
-                          {money(p.price)}{p.isRental ? ' / mes' : ''} · stock {p.stock ?? '—'}
-                        </div>
+                v.products.map((p) => (
+                  <div key={p.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <Thumb src={p.image} icon="ph-package" />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <Link href={`/productos/editar/${p.id}`} className="adm-link adm-cell-title" style={{ display: 'block' }}>
+                        <span className="adm-ellipsis" style={{ display: 'block' }}>{p.name}</span>
+                      </Link>
+                      <div className="adm-cell-sub adm-num">
+                        {money(p.price)}{p.isRental ? ' / mes' : ''} · stock {p.stock ?? '—'}
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: p.status === 1 ? GREEN : '#5C5C61', flexShrink: 0 }}>
-                        {p.status === 1 ? 'Activo' : 'Inactivo'}
-                      </span>
                     </div>
-                  ))}
-                </div>
+                    <StatusText tone={p.status === 1 ? 'ok' : 'muted'}>{p.status === 1 ? 'Activo' : 'Inactivo'}</StatusText>
+                  </div>
+                ))
               )}
-            </div>
+            </Panel>
 
             {/* --- Ventas --- */}
-            <div style={card}>
-              <h2 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Ventas</h2>
-              <p style={{ margin: '0 0 16px', fontSize: 12.5, color: '#7A7A7F' }}>Se generan solas cuando un cliente compra su equipo en el checkout.</p>
+            <Panel flush clip title="Ventas" desc="Se generan solas cuando un cliente compra su equipo en el checkout.">
               {v.orders.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 13, color: '#7A7A7F' }}>Todavía no le han comprado.</p>
+                <EmptyState icon="ph-receipt" title="Todavía no le han comprado." />
               ) : (
-                <div style={{ display: 'grid', gap: 10 }}>
-                  {v.orders.map((o, i) => (
-                    <div key={o.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingBottom: 10, borderBottom: i < v.orders.length - 1 ? `1px solid ${D.cardBorder}` : undefined }}>
-                      <span style={{ fontFamily: MONO, fontSize: 12.5, color: '#EDEDEC' }}>{o.orderNumber}</span>
-                      <span style={{ fontSize: 12, color: '#7A7A7F' }}>{o.qty} {o.qty === 1 ? 'pieza' : 'piezas'}</span>
-                      <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, color: '#FBFBFA' }}>{money(o.price)}</span>
-                    </div>
-                  ))}
-                </div>
+                v.orders.map((o) => (
+                  <div key={o.id} className="adm-trow vd-sale">
+                    <span className="adm-mono adm-ellipsis" style={{ fontSize: 13, color: 'var(--adm-text)' }}>{o.orderNumber}</span>
+                    <span className="adm-num" style={{ fontSize: 13, color: 'var(--adm-muted)' }}>{o.qty} {o.qty === 1 ? 'pieza' : 'piezas'}</span>
+                    <span className="adm-num" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)', textAlign: 'right' }}>{money(o.price)}</span>
+                  </div>
+                ))
               )}
-            </div>
+            </Panel>
           </div>
 
           {/* --- Columna derecha --- */}
-          <div style={{ display: 'grid', gap: 18 }}>
-            <div style={card}>
-              <h2 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Saldo</h2>
-              <div style={{ fontFamily: MONO, fontSize: 32, fontWeight: 700, color: v.balance > 0 ? D.amber : '#5C5C61', letterSpacing: '-1px' }}>
-                {money(v.balance)}
-              </div>
-              <p style={{ margin: '10px 0 0', fontSize: 12, color: '#7A7A7F', lineHeight: 1.55 }}>
+          <div style={{ display: 'grid', gap: 20 }}>
+            {/* El saldo es una sola cifra: va en texto plano, no en una caja. */}
+            <div>
+              <Stats style={{ marginBottom: 8 }}>
+                <Stat label="Saldo" icon="ph-wallet" tone="accent" value={money(v.balance)} valueTone={v.balance > 0 ? undefined : 'muted'} />
+              </Stats>
+              <p className="adm-help" style={{ margin: 0, fontSize: 12.5 }}>
                 Lo que se le debe al vendedor. Al pedir un retiro se le descuenta de inmediato; si rechazas el retiro, se le regresa.
               </p>
             </div>
 
-            <div style={card}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-                <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#FBFBFA' }}>Retiros</h2>
-                <Link href="/retiros" className="vd-link" style={{ fontSize: 11.5, fontWeight: 700, color: '#7A7A7F', textDecoration: 'none' }}>Gestionar →</Link>
-              </div>
+            <Panel flush clip title="Retiros" action={<PanelLink href="/retiros">Gestionar</PanelLink>}>
               {v.withdraws.length === 0 ? (
-                <p style={{ margin: 0, fontSize: 13, color: '#7A7A7F' }}>No ha pedido ningún retiro.</p>
+                <EmptyState icon="ph-hand-coins" title="No ha pedido ningún retiro." />
               ) : (
-                <div style={{ display: 'grid', gap: 12 }}>
-                  {v.withdraws.map((w, i) => {
-                    const ws = withdrawLabel(w.status);
-                    return (
-                      <div key={w.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingBottom: 12, borderBottom: i < v.withdraws.length - 1 ? `1px solid ${D.cardBorder}` : undefined }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontFamily: MONO, fontSize: 13.5, fontWeight: 600, color: '#EDEDEC' }}>{money(w.amount)}</div>
-                          <div style={{ fontSize: 11, color: '#5C5C61', marginTop: 3 }}>{w.method ?? '—'} · {day(w.createdAt)}</div>
-                        </div>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: ws.color, flexShrink: 0 }}>{ws.label}</span>
+                v.withdraws.map((w) => {
+                  const ws = withdrawLabel(w.status);
+                  return (
+                    <div key={w.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>{money(w.amount)}</div>
+                        <div className="adm-cell-sub">{w.method ?? '—'} · {day(w.createdAt)}</div>
                       </div>
-                    );
-                  })}
-                </div>
+                      <StatusText tone={ws.tone}>{ws.label}</StatusText>
+                    </div>
+                  );
+                })
               )}
-            </div>
+            </Panel>
 
             {v.status === 2 ? (
-              <Link href={`${SITE_URL}/tienda/${v.id}`} target="_blank" rel="noreferrer" className="vd-link" style={{ fontSize: 12.5, fontWeight: 700, color: '#7A7A7F', textDecoration: 'none' }}>
-                Ver su tienda en el sitio →
-              </Link>
+              <a href={`${SITE_URL}/tienda/${v.id}`} target="_blank" rel="noreferrer" className="adm-panel-link">
+                Ver su tienda en el sitio <i className="ph ph-arrow-up-right" aria-hidden />
+              </a>
             ) : null}
           </div>
         </div>
@@ -233,9 +200,12 @@ export default async function VendorDetailPage({ params }: { params: Promise<{ i
 
 function Field({ label, value, mono }: { label: string; value: string | null; mono?: boolean }) {
   return (
-    <div>
-      <span style={{ ...th, display: 'block', marginBottom: 5 }}>{label}</span>
-      <span style={{ color: value ? '#EDEDEC' : '#5C5C61', fontFamily: mono ? MONO : 'inherit', fontSize: mono ? 12.5 : 13.5, wordBreak: 'break-word' }}>
+    <div style={{ minWidth: 0 }}>
+      <span className="adm-label" style={{ display: 'block', marginBottom: 4 }}>{label}</span>
+      <span
+        className={mono && value ? 'adm-mono' : undefined}
+        style={{ fontSize: 14, color: value ? 'var(--adm-text)' : 'var(--adm-faint)', wordBreak: 'break-word' }}
+      >
         {value ?? 'No lo capturó'}
       </span>
     </div>

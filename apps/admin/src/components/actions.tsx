@@ -2,7 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@maqserv/ui';
+import { Btn } from '@/components/ui';
+
+/*
+ * Las variantes se quedan con sus nombres de siempre (solid/outline/ghost) para
+ * no tocar a quien ya lo usa, pero se pintan con el botón del kit del panel:
+ * el `Button` de @maqserv/ui sigue la tipografía y los radios del SITIO, no los
+ * del panel.
+ */
+const VARIANTE = { solid: 'primary', outline: 'secondary', ghost: 'ghost' } as const;
 
 /** Botón que hace PATCH/DELETE al proxy admin y refresca la página. */
 export function ActionButton({
@@ -36,9 +44,9 @@ export function ActionButton({
   }
 
   return (
-    <Button size="sm" variant={variant} onClick={run} disabled={loading}>
+    <Btn size="sm" variant={VARIANTE[variant]} onClick={run} disabled={loading}>
       {label}
-    </Button>
+    </Btn>
   );
 }
 

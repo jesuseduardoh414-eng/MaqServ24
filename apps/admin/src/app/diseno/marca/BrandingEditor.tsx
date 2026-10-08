@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button, Card } from '@maqserv/ui';
+import { Btn, Note, PageHeader, Panel, btnClass } from '@/components/ui';
 
 type Branding = Record<string, string | null>;
 
@@ -13,6 +13,8 @@ const SLOTS: Array<{ slot: string; label: string; hint: string; dark?: boolean }
   { slot: 'icon', label: 'Isotipo / ícono de app', hint: 'Símbolo cuadrado sin texto (apple-touch-icon).', dark: true },
   { slot: 'logoAlt', label: 'Logo alterno', hint: 'Otra variación (horizontal, monocromo, etc.).' },
 ];
+
+const GRID = '132px minmax(0,1fr) auto';
 
 /** Módulo de identidad de marca: sube/gestiona logos y favicon del tema activo. */
 export function BrandingEditor({ initial }: { initial: Branding }) {
@@ -56,64 +58,75 @@ export function BrandingEditor({ initial }: { initial: Branding }) {
   }
 
   return (
-    <div style={{ display: 'grid', gap: '1rem' }}>
-      <div>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: 0 }}>Diseño del sitio</p>
-        <h1 style={{ fontSize: 'var(--text-2xl)', margin: '.1rem 0 0' }}>Identidad de marca</h1>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', margin: '.3rem 0 0', maxWidth: 640 }}>
-          Logos y favicon del sitio. Se aplican al instante (refresca el sitio con F5). Formatos: PNG, JPG, WebP, SVG o ICO.
-        </p>
-        {msg ? (
-          <p role={msg.ok ? 'status' : 'alert'} style={{ margin: '.5rem 0 0', color: msg.ok ? 'var(--color-success)' : 'var(--color-error)', fontWeight: 600, fontSize: 'var(--text-sm)' }}>{msg.text}</p>
-        ) : null}
-      </div>
+    <div>
+      <style>{`
+        .brand-row { display: grid; grid-template-columns: ${GRID}; gap: 18px; align-items: center; }
+        /* En móvil la muestra va arriba a todo lo ancho y las acciones abajo. */
+        @media (max-width: 640px) {
+          .brand-row { grid-template-columns: 1fr; gap: 12px; }
+          .brand-row > .brand-c-actions { justify-content: flex-start; }
+        }
+      `}</style>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+      <PageHeader
+        eyebrow={['Ajustes', 'Sitio web']}
+        title="Identidad de marca"
+        subtitle="Logos y favicon del sitio. Se aplican al instante (refresca el sitio con F5). Formatos: PNG, JPG, WebP, SVG o ICO."
+      />
+
+      {msg ? (
+        <div role={msg.ok ? 'status' : 'alert'} style={{ marginBottom: 16 }}>
+          <Note tone={msg.ok ? 'ok' : 'bad'}>{msg.text}</Note>
+        </div>
+      ) : null}
+
+      {/* Una fila por variante del logo: muestra, qué es y sus acciones. */}
+      <Panel flush clip>
         {SLOTS.map(({ slot, label, hint, dark }) => {
           const url = branding[slot] ?? null;
           return (
-            <Card key={slot} style={{ display: 'grid', gap: '.7rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '.5rem' }}>
-                <strong>{label}</strong>
-                {url ? <Button size="sm" variant="ghost" onClick={() => onClear(slot, label)} disabled={busy === slot}>Quitar</Button> : null}
-              </div>
-
-              {/* Vista previa (fondo oscuro para logos de modo oscuro/favicon) */}
+            <div key={slot} className="adm-trow brand-row">
+              {/* Muestra sobre el fondo donde se usa (oscuro para logos de modo oscuro/ícono). */}
               <div
                 style={{
                   display: 'grid',
                   placeItems: 'center',
-                  minHeight: 120,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
+                  height: 72,
+                  borderRadius: 8,
+                  border: '1px solid var(--adm-border)',
                   background: dark ? '#1A1A1B' : 'var(--color-bg)',
-                  padding: '1rem',
+                  padding: 10,
                 }}
               >
                 {url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={url} alt={label} style={{ maxWidth: '100%', maxHeight: 90, objectFit: 'contain' }} />
+                  <img src={url} alt={label} style={{ maxWidth: '100%', maxHeight: 52, objectFit: 'contain' }} />
                 ) : (
-                  <span style={{ color: dark ? 'rgba(255,255,255,.5)' : 'var(--color-text-muted)', fontSize: 'var(--text-sm)' }}>Sin imagen</span>
+                  <span style={{ color: dark ? 'rgba(255,255,255,.5)' : 'var(--color-text-muted)', fontSize: 12.5 }}>Sin imagen</span>
                 )}
               </div>
 
-              <span style={{ color: 'var(--color-text-muted)', fontSize: 'var(--text-sm)', lineHeight: 1.4 }}>{hint}</span>
+              <div style={{ minWidth: 0 }}>
+                <div className="adm-cell-title">{label}</div>
+                <div className="adm-cell-sub" style={{ lineHeight: 1.45 }}>{hint}</div>
+              </div>
 
-              <label
-                style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '.4rem', cursor: busy === slot ? 'default' : 'pointer',
-                  background: 'var(--color-primary)', color: 'var(--color-primary-fg)', fontWeight: 700, fontSize: 'var(--text-sm)',
-                  padding: '.5em 1em', borderRadius: 'var(--radius-button)', opacity: busy === slot ? 0.6 : 1,
-                }}
-              >
-                {busy === slot ? 'Subiendo…' : url ? 'Reemplazar' : 'Subir imagen'}
-                <input type="file" accept="image/*,.ico,.svg" onChange={(e) => onUpload(slot, e)} disabled={busy === slot} style={{ display: 'none' }} />
-              </label>
-            </Card>
+              <div className="brand-c-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                {url ? <Btn size="sm" variant="ghost" onClick={() => onClear(slot, label)} disabled={busy === slot}>Quitar</Btn> : null}
+                <label
+                  className={btnClass('secondary', 'sm')}
+                  aria-disabled={busy === slot}
+                  style={{ cursor: busy === slot ? 'default' : 'pointer' }}
+                >
+                  <i className="ph ph-upload-simple" aria-hidden />
+                  {busy === slot ? 'Subiendo…' : url ? 'Reemplazar' : 'Subir imagen'}
+                  <input type="file" accept="image/*,.ico,.svg" onChange={(e) => onUpload(slot, e)} disabled={busy === slot} style={{ display: 'none' }} />
+                </label>
+              </div>
+            </div>
           );
         })}
-      </div>
+      </Panel>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { D } from '@/components/design-tokens';
+import { Btn, Chip, StatusText } from '@/components/ui';
 
 export interface ModuloFila {
   clave: string;
@@ -29,10 +29,19 @@ export interface RolFila {
  *
  * Se guarda por rol y sólo cuando hay cambios: el botón está apagado mientras
  * la lista sea la misma con la que se abrió la pantalla.
+ *
+ * Estilo del kit (2026-10-08): las tarjetas se quedan —cada una es un
+ * formulario con su propio Guardar—, pero planas (`adm-card`), y las casillas
+ * marcadas con un velo del acento en lugar de un bloque de color.
  */
 export function PermisosMatrix({ modulos, roles }: { modulos: ModuloFila[]; roles: RolFila[] }) {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
+      <style>{`
+        .pm-mod { border: 1px solid var(--adm-border-strong); background: transparent; transition: border-color .15s ease, background .15s ease; }
+        .pm-mod.is-on { border-color: color-mix(in srgb, var(--adm-accent) 40%, transparent); background: color-mix(in srgb, var(--adm-accent) 8%, transparent); }
+        .pm-mod:not(.is-on):hover { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.02); }
+      `}</style>
       {roles.map((rol) => (
         <TarjetaRol key={rol.clave} rol={rol} modulos={modulos} />
       ))}
@@ -87,28 +96,23 @@ function TarjetaRol({ rol, modulos }: { rol: RolFila; modulos: ModuloFila[] }) {
   }
 
   return (
-    <section
-      style={{
-        background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 16,
-        padding: 18, opacity: rol.fijo ? 0.72 : 1,
-      }}
-    >
+    <section className="adm-card" style={{ opacity: rol.fijo ? 0.72 : 1 }}>
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, color: D.text }}>{rol.nombre}</h2>
-            {rol.fijo ? <Etiqueta texto="Ve todo el panel" /> : null}
-            {rol.personalizado ? <Etiqueta texto="Personalizado" acento /> : null}
+            <h2 className="adm-h2">{rol.nombre}</h2>
+            {rol.fijo ? <Chip tone="muted">Ve todo el panel</Chip> : null}
+            {rol.personalizado ? <Chip tone="accent">Personalizado</Chip> : null}
           </div>
-          <p style={{ margin: '5px 0 0', fontSize: 13, color: '#8A8A8F', lineHeight: 1.5 }}>{rol.descripcion}</p>
+          <p style={{ margin: '5px 0 0', fontSize: 13.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>{rol.descripcion}</p>
         </div>
-        <span style={{ fontSize: 12, color: '#7A7A7F', whiteSpace: 'nowrap' }}>
+        <span className="adm-num" style={{ fontSize: 13, color: 'var(--adm-muted)', whiteSpace: 'nowrap' }}>
           {rol.fijo ? `${modulos.length} de ${modulos.length}` : `${sel.length} de ${modulos.length}`} módulos
         </span>
       </header>
 
       {rol.fijo ? (
-        <p style={{ margin: '14px 0 0', fontSize: 12.5, color: '#7A7A7F', lineHeight: 1.6 }}>
+        <p style={{ margin: '14px 0 0', fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.6 }}>
           Dirección no se restringe a propósito: si se le pudiera quitar el módulo de cuentas,
           un clic dejaría el panel sin nadie capaz de volver a repartir permisos.
         </p>
@@ -116,8 +120,8 @@ function TarjetaRol({ rol, modulos }: { rol: RolFila; modulos: ModuloFila[] }) {
         <>
           <div
             style={{
-              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(232px, 1fr))',
-              gap: 8, marginTop: 14,
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(232px, 100%), 1fr))',
+              gap: 8, marginTop: 16,
             }}
           >
             {modulos.map((m) => {
@@ -126,11 +130,10 @@ function TarjetaRol({ rol, modulos }: { rol: RolFila; modulos: ModuloFila[] }) {
                 <label
                   key={m.clave}
                   title={m.detalle}
+                  className={`pm-mod${marcado ? ' is-on' : ''}`}
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
-                    borderRadius: 11, cursor: m.obligatorio ? 'default' : 'pointer',
-                    border: `1px solid ${marcado ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)' : D.inputBorder}`,
-                    background: marcado ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : 'transparent',
+                    borderRadius: 8, cursor: m.obligatorio ? 'default' : 'pointer',
                     opacity: m.obligatorio ? 0.6 : 1,
                   }}
                 >
@@ -139,71 +142,37 @@ function TarjetaRol({ rol, modulos }: { rol: RolFila; modulos: ModuloFila[] }) {
                     checked={marcado}
                     disabled={m.obligatorio || busy}
                     onChange={() => alternar(m.clave, m.obligatorio)}
-                    style={{ marginTop: 2, accentColor: 'var(--color-primary)', width: 15, height: 15 }}
+                    style={{ marginTop: 2, accentColor: 'var(--adm-accent)', width: 15, height: 15, flexShrink: 0 }}
                   />
                   <span style={{ minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: D.text }}>{m.nombre}</span>
-                    <span style={{ display: 'block', fontSize: 11.5, color: '#7A7A7F', lineHeight: 1.45 }}>{m.detalle}</span>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>{m.nombre}</span>
+                    <span style={{ display: 'block', marginTop: 1, fontSize: 12, color: 'var(--adm-muted)', lineHeight: 1.45 }}>{m.detalle}</span>
                   </span>
                 </label>
               );
             })}
           </div>
 
-          <footer style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              onClick={guardar}
-              disabled={!sucio || busy}
-              style={{
-                fontFamily: 'inherit', fontSize: 13, fontWeight: 700, borderRadius: 10, padding: '9px 16px',
-                border: 'none', cursor: sucio && !busy ? 'pointer' : 'default',
-                background: sucio ? D.accent : 'rgba(255,255,255,0.06)',
-                color: sucio ? D.accentInk : '#7A7A7F',
-              }}
-            >
+          <footer style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
+            {/* Solo se ve como acción principal cuando hay algo que guardar. */}
+            <Btn size="sm" variant={sucio ? 'primary' : 'secondary'} onClick={guardar} disabled={!sucio || busy}>
               {busy ? 'Guardando…' : 'Guardar cambios'}
-            </button>
+            </Btn>
             {sucio ? (
-              <button
-                type="button"
-                onClick={() => { setSel(original); setOk(false); }}
-                disabled={busy}
-                style={ghost}
-              >
+              <Btn size="sm" variant="ghost" onClick={() => { setSel(original); setOk(false); }} disabled={busy}>
                 Descartar
-              </button>
+              </Btn>
             ) : null}
             {rol.personalizado ? (
-              <button type="button" onClick={restablecer} disabled={busy} style={ghost}>
+              <Btn size="sm" variant="ghost" icon="ph-arrow-counter-clockwise" onClick={restablecer} disabled={busy}>
                 Volver a los de fábrica
-              </button>
+              </Btn>
             ) : null}
-            {error ? <span style={{ fontSize: 12.5, color: '#f55' }}>{error}</span> : null}
-            {ok && !sucio ? <span style={{ fontSize: 12.5, color: '#3fbf8f' }}>Guardado</span> : null}
+            {error ? <span role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>{error}</span> : null}
+            {ok && !sucio ? <span role="status"><StatusText tone="ok">Guardado</StatusText></span> : null}
           </footer>
         </>
       )}
     </section>
-  );
-}
-
-const ghost: React.CSSProperties = {
-  fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', background: 'transparent',
-  color: '#8A8A8F', border: `1px solid ${D.inputBorder}`, borderRadius: 10, padding: '8px 14px', cursor: 'pointer',
-};
-
-function Etiqueta({ texto, acento = false }: { texto: string; acento?: boolean }) {
-  return (
-    <span
-      style={{
-        fontSize: 10.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
-        padding: '3px 8px', borderRadius: 999,
-        color: acento ? 'var(--color-primary)' : '#8A8A8F',
-        border: `1px solid ${acento ? 'color-mix(in srgb, var(--color-primary) 45%, transparent)' : D.inputBorder}`,
-      }}
-    >
-      {texto}
-    </span>
   );
 }

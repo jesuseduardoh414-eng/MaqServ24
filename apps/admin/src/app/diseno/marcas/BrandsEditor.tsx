@@ -4,7 +4,8 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Brands, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
-import { D, FONT, cardStyle, inputStyle, h3Style, Field } from '@/components/editor-kit';
+import { cardStyle, inputStyle, h3Style, Field } from '@/components/editor-kit';
+import { Btn, Note, PageHeader, StatusText, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
 
@@ -51,34 +52,23 @@ export function BrandsEditor({ themeId, copys, tokens, brands }: {
   }
 
   return (
-    <div style={{ fontFamily: FONT, color: D.text }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-
-      <div style={{ background: '#0c0c0e', border: `1px solid ${D.cardBorder}`, borderRadius: 16, padding: '16px 22px', display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap', marginBottom: 24 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: D.muted2, fontSize: '12.5px', fontWeight: 600, marginBottom: 5 }}>
-            <i className="ph ph-paint-brush-broad" style={{ fontSize: 14 }} /> Diseño del sitio <span style={{ opacity: 0.5 }}>·</span> Marcas
-          </div>
-          <h1 style={{ margin: 0, fontSize: 23, fontWeight: 800, letterSpacing: '-0.02em' }}>Marcas con las que trabajas</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, fontWeight: 600, padding: '8px 13px', borderRadius: 999, border: `1px solid ${dirty ? 'color-mix(in srgb, var(--color-primary) 40%, transparent)' : 'rgba(255,255,255,0.08)'}`, background: dirty ? 'color-mix(in srgb, var(--color-primary) 12%, transparent)' : 'rgba(255,255,255,0.03)', color: dirty ? D.amber : D.muted2 }}>
-            <span style={{ width: 7, height: 7, borderRadius: 999, background: dirty ? D.amber : '#3fbf8f' }} />{dirty ? 'Cambios sin publicar' : 'Todo publicado'}
-          </span>
-          <button type="button" onClick={discard} disabled={!dirty || busy} style={{ border: `1px solid ${D.inputBorder}`, background: 'transparent', color: dirty ? D.text : D.muted2, borderRadius: 11, padding: '10px 16px', fontWeight: 600, fontSize: 14, cursor: dirty && !busy ? 'pointer' : 'default', opacity: dirty && !busy ? 1 : 0.5, fontFamily: 'inherit' }}>Descartar</button>
-          <button type="button" onClick={publish} disabled={busy} style={{ border: 'none', background: D.amber, color: '#0a0a0b', borderRadius: 11, padding: '11px 18px', fontWeight: 800, fontSize: 14, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'inherit' }}>
-            <i className="ph-bold ph-cloud-arrow-up" style={{ fontSize: 17 }} /> {busy ? 'Publicando…' : 'Guardar y publicar'}
-          </button>
-        </div>
-      </div>
+    <div>
+      <PageHeader
+        eyebrow={['Ajustes', 'Sitio web']}
+        title="Marcas con las que trabajas"
+        actions={
+          <>
+            <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
+            <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
+            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
+          </>
+        }
+      />
 
       {/* Que quede claro que se edita UNA vez y sale en dos lados. */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 11, background: 'rgba(91,157,255,0.07)', border: '1px solid rgba(91,157,255,0.28)', borderRadius: 12, padding: '13px 17px', marginBottom: 18 }}>
-        <i className="ph ph-info" style={{ color: '#5b9dff', fontSize: 16, marginTop: 1 }} />
-        <div style={{ fontSize: 13, color: '#D4D4D8', lineHeight: 1.55 }}>
-          Esta lista sale en <strong style={{ color: '#FBFBFA' }}>dos lugares</strong>: la banda del inicio y la página Quiénes somos. Se edita aquí una vez y cambia en los dos.
-        </div>
-      </div>
+      <Note tone="info" style={{ marginBottom: 18 }}>
+        Esta lista sale en <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>dos lugares</strong>: la banda del inicio y la página Quiénes somos. Se edita aquí una vez y cambia en los dos.
+      </Note>
 
       {/* La vista previa fija de 380px no cabe junto al editor en pantalla
           angosta: bajo 1000px se apilan (mismo patrón que /ordenes/[id]). */}
@@ -93,11 +83,11 @@ export function BrandsEditor({ themeId, copys, tokens, brands }: {
                 onChange={(e) => set('list', e.target.value.split('\n').map((s) => s.trim()).filter(Boolean))}
                 rows={8}
                 placeholder={'CAT\nKomatsu\nVolvo CE'}
-                style={{ ...inputStyle, height: 'auto', padding: '12px 14px', lineHeight: 1.6, resize: 'vertical' }}
+                style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.6, resize: 'vertical' }}
               />
             </Field>
-            <p style={{ margin: 0, fontSize: 12, color: D.muted2 }}>
-              {config.list.length} marca{config.list.length === 1 ? '' : 's'}. Se escriben tal cual salen en el sitio.
+            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>
+              <span className="adm-num">{config.list.length}</span> marca{config.list.length === 1 ? '' : 's'}. Se escriben tal cual salen en el sitio.
             </p>
           </div>
 
@@ -124,9 +114,7 @@ export function BrandsEditor({ themeId, copys, tokens, brands }: {
         </div>
       </div>
 
-      {toast ? (
-        <p role="status" style={{ marginTop: 18, fontSize: 13.5, fontWeight: 600, color: toast.ok ? '#3fbf8f' : '#f55' }}>{toast.text}</p>
-      ) : null}
+      {toast ? <Toast kind={toast.ok ? 'ok' : 'bad'}>{toast.text}</Toast> : null}
     </div>
   );
 }

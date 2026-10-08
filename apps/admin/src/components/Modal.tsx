@@ -33,7 +33,10 @@ export function Modal({
 }) {
   useEffect(() => {
     if (!abierto) return;
-    const alTeclear = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar(); };
+    // Un desplegable de Radix abierto (AdminSelect) atiende su propio Esc y lo
+    // marca con preventDefault: ese Esc cierra el desplegable, no el modal.
+    // Sin esto se cerraban los dos y se perdía lo escrito en el formulario.
+    const alTeclear = (e: KeyboardEvent) => { if (e.key === 'Escape' && !e.defaultPrevented) onCerrar(); };
     window.addEventListener('keydown', alTeclear);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -47,25 +50,28 @@ export function Modal({
       aria-modal="true"
       aria-label={titulo}
       onClick={onCerrar}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.62)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 1000 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'grid', placeItems: 'center', padding: 20, zIndex: 1000 }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: D.card, border: `1px solid ${D.cardBorder}`, borderRadius: 18, width: `min(${ancho}px, 100%)`,
+          background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 14, width: `min(${ancho}px, 100%)`,
           maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)',
+          animation: 'fadeIn .18s ease',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '20px 22px 14px', borderBottom: `1px solid ${D.cardBorder}` }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '18px 22px 14px', borderBottom: `1px solid ${D.cardBorder}` }}>
           <div>
-            <h2 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: D.text, letterSpacing: '-0.01em' }}>{titulo}</h2>
-            {subtitulo ? <div style={{ marginTop: 4, fontSize: 13, color: D.muted2, lineHeight: 1.5 }}>{subtitulo}</div> : null}
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: D.text, letterSpacing: '-0.01em', fontFamily: 'inherit' }}>{titulo}</h2>
+            {subtitulo ? <div style={{ marginTop: 4, fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.5 }}>{subtitulo}</div> : null}
           </div>
-          <button type="button" onClick={onCerrar} aria-label="Cerrar" style={{ background: 'none', border: 'none', color: D.muted2, fontSize: 24, lineHeight: 1, cursor: 'pointer', padding: 2 }}>×</button>
+          <button type="button" onClick={onCerrar} aria-label="Cerrar" className="adm-ibtn is-plain" style={{ marginTop: -4, marginRight: -6 }}>
+            <i className="ph ph-x" aria-hidden />
+          </button>
         </div>
         <div style={{ padding: 22, overflowY: 'auto' }}>{children}</div>
         {pie ? (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '14px 22px', borderTop: `1px solid ${D.cardBorder}` }}>{pie}</div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 22px', borderTop: `1px solid ${D.cardBorder}` }}>{pie}</div>
         ) : null}
       </div>
     </div>

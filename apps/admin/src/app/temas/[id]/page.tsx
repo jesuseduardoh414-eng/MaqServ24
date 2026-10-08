@@ -22,17 +22,14 @@ export default async function ThemeEditPage({ params }: { params: Promise<{ id: 
   const theme = await adminFetch<ThemeFull>(`/admin/themes/${id}`);
   if (!theme) notFound();
 
+  // El encabezado lo pinta el editor: los botones de Publicar/Guardar viven en
+  // su estado y van a la derecha del título, como en el resto del panel.
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <h1 style={{ fontSize: 'var(--text-2xl)', marginBottom: '.3rem' }}>
-        Tema: {theme.name}
-        {theme.active ? <span style={{ color: 'var(--color-success)', fontSize: 'var(--text-base)' }}> · activo</span> : null}
-      </h1>
-      <p style={{ color: 'var(--color-text-muted)', margin: '0 0 1.2rem', fontSize: 'var(--text-sm)' }}>
-        Los cambios se guardan como borrador; el sitio no cambia hasta Publicar.
-      </p>
       <ThemeEditor
         themeId={theme.id}
+        themeName={theme.name}
+        active={theme.active}
         initialTokens={theme.tokens}
         initialCopys={theme.copys}
         hasDraft={theme.hasDraft}

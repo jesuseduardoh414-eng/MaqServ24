@@ -17,10 +17,11 @@
  * no romper a quien ya la importaba de ahí.
  */
 export const D = {
-  card: '#141416',
-  cardBorder: 'rgba(255,255,255,0.06)',
-  inputBg: 'rgba(255,255,255,0.03)',
-  inputBorder: 'rgba(255,255,255,0.08)',
+  /* Mismos valores que --adm-card / --adm-border / --adm-border-strong (globals.css). */
+  card: '#111113',
+  cardBorder: 'rgba(255,255,255,0.07)',
+  inputBg: 'rgba(255,255,255,0.025)',
+  inputBorder: 'rgba(255,255,255,0.12)',
   /** Acento del panel. El nombre se queda por compatibilidad: lo usan 41 archivos. */
   amber: 'var(--color-primary)',
   /** Texto sobre el acento. */
@@ -40,9 +41,10 @@ export const D = {
   warn: 'var(--color-warning)',
   ok: 'var(--color-success)',
   bad: 'var(--color-error)',
-  text: '#f5f5f4',
-  muted: '#6b6b72',
-  muted2: '#71717a',
+  text: '#f4f4f5',
+  /* #6b6b72 / #71717a quedaban por debajo de AA en textos de 12px. */
+  muted: '#8a8a93',
+  muted2: '#8a8a93',
   previewBg: '#0e0e12',
   tabsBg: '#101012',
 };

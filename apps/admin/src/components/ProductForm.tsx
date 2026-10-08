@@ -1,11 +1,10 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, horarioDe, margenDe, precioConMargen, rutaPanelDeCatalogo, tipoDeCatalogo, unidadesDeTarifa, type Horario, type TipoCatalogo } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
-import { D } from '@/components/design-tokens';
+import { Btn, Chip, IconBtn, Note, PageHeader, Panel, btnClass } from '@/components/ui';
 
 export interface ProductFormData {
   id?: number;
@@ -252,35 +251,40 @@ export function ProductForm({
     ? { href: '/proveedores', texto: 'Proveedores' }
     : { href: rutaPanelDeCatalogo(tipoActual), texto: tipoActual === 'servicio' ? 'Servicios' : 'Productos' };
 
+  const estado = enRevision
+    ? <Chip tone="warn">Por revisar</Chip>
+    : isEdit && initial.status === 0
+      ? <Chip tone="muted">Inactivo</Chip>
+      : isEdit
+        ? <Chip tone="ok">Publicado</Chip>
+        : null;
+
   return (
     <form ref={form} onSubmit={(e) => { e.preventDefault(); void onGuardar(); }} encType="multipart/form-data" className="pf">
       <style>{CSS}</style>
 
       {/* ── Encabezado ── */}
-      <header style={{ marginBottom: 18 }}>
-        <Link href={volver.href} style={{ fontSize: 12.5, color: D.muted2, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <i className="ph ph-arrow-left" /> {volver.texto}
-        </Link>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-          <h1 style={{ margin: 0, fontSize: 26, letterSpacing: '-0.02em', color: D.text }}>{titulo}</h1>
-          {enRevision ? <Chip color={D.warn}>Por revisar</Chip> : isEdit && initial.status === 0 ? <Chip color={D.muted2}>Inactivo</Chip> : isEdit ? <Chip color={D.ok}>Publicado</Chip> : null}
-        </div>
-        {proveedor ? (
-          <p style={{ margin: '6px 0 0', fontSize: 13.5, color: D.muted2 }}>
-            Equipo de <strong style={{ color: D.text }}>{proveedor.name}</strong>
+      <PageHeader
+        eyebrow={[[volver.texto, volver.href]]}
+        title={
+          <>
+            {titulo}
+            {estado ? <span style={{ display: 'inline-flex', marginLeft: 12, verticalAlign: 'middle', position: 'relative', top: -2 }}>{estado}</span> : null}
+          </>
+        }
+        subtitle={proveedor ? (
+          <>
+            Equipo de <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{proveedor.name}</strong>
             {enRevision ? ' · lo ofreció desde su portal' : ''}
-          </p>
-        ) : null}
-      </header>
+          </>
+        ) : undefined}
+      />
 
       {enRevision ? (
-        <div style={{ background: `color-mix(in srgb, ${D.warn} 9%, transparent)`, border: `1px solid color-mix(in srgb, ${D.warn} 40%, transparent)`, borderRadius: 14, padding: '14px 16px', marginBottom: 18, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-          <i className="ph ph-clipboard-text" style={{ fontSize: 22, color: D.warn, marginTop: 1 }} />
-          <div style={{ fontSize: 13.5, lineHeight: 1.55, color: D.text }}>
-            <strong>Revisa lo que mandó el aliado.</strong> Corrige lo que haga falta (nombre, ficha, fotos), elige a qué
-            renglón del cotizador cuenta y publícalo. Si no sirve, recházalo con el motivo: le llega por correo.
-          </div>
-        </div>
+        <Note tone="warn" icon="ph-clipboard-text" style={{ marginBottom: 18 }}>
+          <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>Revisa lo que mandó el aliado.</strong> Corrige lo que haga falta (nombre, ficha, fotos), elige a qué
+          renglón del cotizador cuenta y publícalo. Si no sirve, recházalo con el motivo: le llega por correo.
+        </Note>
       ) : null}
 
       <div className="pf-cols">
@@ -288,7 +292,7 @@ export function ProductForm({
         <div style={{ display: 'grid', gap: 16, minWidth: 0 }}>
           <Tarjeta titulo="Qué es" icono="ph-package">
             <Campo etiqueta="Nombre" nota='Como lo buscaría un cliente: tipo y tamaño. Ej. "Excavadora 20 t".'>
-              <input name="name" required minLength={2} defaultValue={initial.name ?? ''} style={input} />
+              <input name="name" required minLength={2} defaultValue={initial.name ?? ''} className="adm-input" />
             </Campo>
             <div className="pf-2">
               <Campo etiqueta={tipoActual === 'servicio' ? 'Línea de servicio' : 'Categoría'}>
@@ -303,14 +307,14 @@ export function ProductForm({
                 />
               </Campo>
               <Campo etiqueta="Marca y modelo">
-                <input name="brand" defaultValue={initial.brand ?? ''} placeholder="CAT 320, John Deere 310L…" style={input} />
+                <input name="brand" defaultValue={initial.brand ?? ''} placeholder="CAT 320, John Deere 310L…" className="adm-input" />
               </Campo>
             </div>
             <Campo etiqueta="Resumen" nota="Una línea que sale arriba de la ficha en el sitio.">
-              <input name="short" defaultValue={initial.short ?? ''} placeholder="Excavadora de 20 t con cucharón, lista para obra." style={input} />
+              <input name="short" defaultValue={initial.short ?? ''} placeholder="Excavadora de 20 t con cucharón, lista para obra." className="adm-input" />
             </Campo>
             <Campo etiqueta="Descripción">
-              <textarea name="description" required minLength={4} rows={5} defaultValue={initial.description ?? ''} style={{ ...input, resize: 'vertical', lineHeight: 1.55 }} />
+              <textarea name="description" required minLength={4} rows={5} defaultValue={initial.description ?? ''} className="adm-textarea" style={{ lineHeight: 1.55 }} />
             </Campo>
           </Tarjeta>
 
@@ -332,29 +336,30 @@ export function ProductForm({
                           value={attrs[c.clave] ?? ''}
                           onChange={(e) => setAttrs({ ...attrs, [c.clave]: e.target.value })}
                           inputMode={c.tipo === 'numero' ? 'decimal' : undefined}
-                          style={{ ...input, paddingRight: c.unidad ? 48 : undefined }}
+                          className="adm-input"
+                          style={c.unidad ? { paddingRight: 48 } : undefined}
                         />
-                        {c.unidad ? <span style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: D.muted2 }}>{c.unidad}</span> : null}
+                        {c.unidad ? <span style={{ position: 'absolute', right: 13, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--adm-muted)' }}>{c.unidad}</span> : null}
                       </div>
                     )}
                   </Campo>
                 ))}
               </div>
             ) : (
-              <p style={{ margin: 0, fontSize: 13.5, color: D.muted2 }}>
+              <p style={{ margin: 0, fontSize: 13.5, color: 'var(--adm-muted)' }}>
                 {slug ? 'Esta línea no tiene preguntas fijas: usa los datos extra.' : 'Elige la línea de servicio para ver sus preguntas.'}
               </p>
             )}
-            <div style={{ borderTop: `1px solid ${D.cardBorder}`, paddingTop: 14, display: 'grid', gap: 8 }}>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: D.muted2 }}>Datos extra (opcional)</span>
+            <div style={{ borderTop: '1px solid var(--adm-border)', paddingTop: 14, display: 'grid', gap: 8 }}>
+              <span className="adm-label">Datos extra (opcional)</span>
               {specs.map((s, i) => (
                 <div key={i} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) auto', gap: 8, alignItems: 'center' }}>
-                  <input value={s.label} onChange={(e) => setSpecs(specs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Peso operativo" style={input} />
-                  <input value={s.value} onChange={(e) => setSpecs(specs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} placeholder="20,500 kg" style={input} />
-                  <button type="button" aria-label="Quitar dato" onClick={() => setSpecs(specs.filter((_, j) => j !== i))} style={botonIcono}>×</button>
+                  <input value={s.label} onChange={(e) => setSpecs(specs.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} placeholder="Peso operativo" className="adm-input" aria-label="Dato" />
+                  <input value={s.value} onChange={(e) => setSpecs(specs.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} placeholder="20,500 kg" className="adm-input" aria-label="Valor" />
+                  <IconBtn icon="ph-x" label="Quitar dato" onClick={() => setSpecs(specs.filter((_, j) => j !== i))} />
                 </div>
               ))}
-              <div><button type="button" onClick={() => setSpecs([...specs, { label: '', value: '' }])} style={botonSec}>+ Agregar dato</button></div>
+              <div><Btn size="sm" icon="ph-plus" onClick={() => setSpecs([...specs, { label: '', value: '' }])}>Agregar dato</Btn></div>
             </div>
           </Tarjeta>
 
@@ -373,44 +378,44 @@ export function ProductForm({
             <input type="hidden" name="minimo" value={Math.max(0, Number(minimo) || 0)} />
             <input type="hidden" name="horario" value={horario ? JSON.stringify(horario) : ''} />
             {tipoActual === 'servicio' ? (
-              <div style={{ fontSize: 13, color: D.muted2, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 13.5, color: 'var(--adm-muted)', lineHeight: 1.6 }}>
                 Este equipo no lleva precio propio. Las tarifas por día, semana, mes, viaje o tonelada se editan en{' '}
-                <a href="/cotizador/tarifas" style={{ color: D.accent, fontWeight: 700 }}>Cotizador → Tarifas y condiciones</a>.
+                <a href="/cotizador/tarifas" style={{ color: 'var(--adm-accent)', fontWeight: 600, textDecoration: 'none' }}>Cotizador → Tarifas y condiciones</a>.
               </div>
             ) : (
             <>
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5 }}>
+              <table className="adm-tbl pf-tarifas">
                 <thead>
-                  <tr style={{ color: D.muted2, fontSize: 12, textAlign: 'left' }}>
-                    <th style={{ padding: '4px 6px 8px 0', fontWeight: 700 }}>Por</th>
-                    {proveedor ? <th style={{ padding: '4px 6px 8px', fontWeight: 700 }}>Cobra el aliado</th> : null}
-                    <th style={{ padding: '4px 6px 8px', fontWeight: 700 }}>Precio al cliente</th>
-                    {proveedor ? <th style={{ padding: '4px 0 8px 6px', fontWeight: 700 }}>Margen</th> : null}
-                    <th style={{ padding: '4px 0 8px 6px', fontWeight: 700, whiteSpace: 'nowrap' }}>Principal</th>
+                  <tr>
+                    <th>Por</th>
+                    {proveedor ? <th>Cobra el aliado</th> : null}
+                    <th>Precio al cliente</th>
+                    {proveedor ? <th>Margen</th> : null}
+                    <th style={{ textAlign: 'center' }}>Principal</th>
                   </tr>
                 </thead>
                 <tbody>
                   {unidadesPrecio.map((u) => {
                     const m = margenDe(tarifasNum[u.clave], costoNum[u.clave]);
                     return (
-                      <tr key={u.clave} style={{ borderTop: `1px solid ${D.cardBorder}` }}>
-                        <td style={{ padding: '8px 6px 8px 0', color: D.text, whiteSpace: 'nowrap' }}>{u.singular}</td>
+                      <tr key={u.clave}>
+                        <td style={{ whiteSpace: 'nowrap' }}>{u.singular}</td>
                         {proveedor ? (
-                          <td style={{ padding: '6px' }}>
-                            <input type="number" min={0} step="1" value={costo[u.clave] ?? ''} onChange={(e) => setCosto({ ...costo, [u.clave]: e.target.value })} placeholder="—" style={{ ...input, padding: '8px 10px', width: 120 }} />
+                          <td>
+                            <input type="number" min={0} step="1" value={costo[u.clave] ?? ''} onChange={(e) => setCosto({ ...costo, [u.clave]: e.target.value })} placeholder="—" aria-label={`Cobra el aliado por ${u.singular}`} className="adm-input adm-num" style={{ width: 120, height: 34 }} />
                           </td>
                         ) : null}
-                        <td style={{ padding: '6px' }}>
-                          <input type="number" min={0} step="1" value={publico[u.clave] ?? ''} onChange={(e) => setPublico({ ...publico, [u.clave]: e.target.value })} placeholder="—" style={{ ...input, padding: '8px 10px', width: 130 }} />
+                        <td>
+                          <input type="number" min={0} step="1" value={publico[u.clave] ?? ''} onChange={(e) => setPublico({ ...publico, [u.clave]: e.target.value })} placeholder="—" aria-label={`Precio al cliente por ${u.singular}`} className="adm-input adm-num" style={{ width: 130, height: 34 }} />
                         </td>
                         {proveedor ? (
-                          <td style={{ padding: '6px 0 6px 6px', color: m === null ? D.muted2 : m < 0 ? D.bad : m < 10 ? D.warn : D.ok, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          <td className="adm-num" style={{ color: m === null ? 'var(--adm-muted)' : m < 0 ? 'var(--adm-bad)' : m < 10 ? 'var(--adm-warn)' : 'var(--adm-ok)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                             {m === null ? '—' : `${m} %`}
                           </td>
                         ) : null}
-                        <td style={{ padding: '6px 0 6px 6px', textAlign: 'center' }}>
-                          <input type="radio" name="_principal" checked={unidad === u.clave} disabled={!tarifasNum[u.clave]} onChange={() => setUnidad(u.clave)} style={{ accentColor: 'var(--color-primary)' }} />
+                        <td style={{ textAlign: 'center' }}>
+                          <input type="radio" name="_principal" checked={unidad === u.clave} disabled={!tarifasNum[u.clave]} onChange={() => setUnidad(u.clave)} aria-label={`${u.singular} como unidad principal`} style={{ accentColor: 'var(--adm-accent)' }} />
                         </td>
                       </tr>
                     );
@@ -419,11 +424,11 @@ export function ProductForm({
               </table>
             </div>
             {proveedor ? (
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => proponer(true)} disabled={margenPct === null || Object.keys(costoNum).length === 0} style={{ ...botonSec, padding: '8px 12px', fontSize: 13 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Btn size="sm" onClick={() => proponer(true)} disabled={margenPct === null || Object.keys(costoNum).length === 0}>
                   Proponer con margen{margenPct !== null ? ` de ${margenPct} %` : ''}
-                </button>
-                <span style={{ fontSize: 12, color: D.muted2 }}>
+                </Btn>
+                <span className="adm-help">
                   El cliente ve solo el precio al cliente. El margen se cambia en Cotizador → Tarifas.
                 </span>
               </div>
@@ -433,56 +438,60 @@ export function ProductForm({
             <div className="pf-2">
               {tipoActual === 'servicio' ? null : (
                 <Campo etiqueta="Mínimo" nota={unidad ? `En ${unidadesPrecio.find((u) => u.clave === unidad)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}>
-                  <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} style={input} />
+                  <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="adm-input" />
                 </Campo>
               )}
-              <Campo etiqueta="Horario en que atiende" nota="Solo se recomienda para trabajos dentro de este horario.">
+              {/* `grupo`: lleva varios botones; dentro de un <label>, tocar el texto pulsaba el primero. */}
+              <Campo grupo etiqueta="Horario en que atiende" nota="Solo se recomienda para trabajos dentro de este horario.">
                 {horario ? (
-                  <div style={{ display: 'grid', gap: 6 }}>
+                  <div style={{ display: 'grid', gap: 8 }}>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {DIAS_SEMANA.map((d, i) => {
                         const on = horario.dias.includes(i);
                         return (
                           <button key={d} type="button" aria-pressed={on} onClick={() => setHorario({ ...horario, dias: on ? horario.dias.filter((x) => x !== i) : [...horario.dias, i].sort() })}
-                            style={{ ...botonSec, padding: '5px 8px', fontSize: 12, borderColor: on ? D.accent : D.inputBorder, background: on ? D.accentSoft : 'transparent' }}>
+                            className={btnClass('secondary', 'sm', on ? 'pf-dia is-on' : 'pf-dia')}>
                             {d}
                           </button>
                         );
                       })}
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input type="time" value={horario.desde} onChange={(e) => setHorario({ ...horario, desde: e.target.value })} style={{ ...input, padding: '7px 9px', width: 110 }} />
-                      <span style={{ color: D.muted2 }}>a</span>
-                      <input type="time" value={horario.hasta} onChange={(e) => setHorario({ ...horario, hasta: e.target.value })} style={{ ...input, padding: '7px 9px', width: 110 }} />
-                      <button type="button" onClick={() => setHorario(null)} style={{ ...botonSec, padding: '6px 9px', fontSize: 12 }}>Quitar</button>
+                      <input type="time" value={horario.desde} onChange={(e) => setHorario({ ...horario, desde: e.target.value })} aria-label="Desde" className="adm-input" style={{ width: 110, padding: '0 9px' }} />
+                      <span style={{ color: 'var(--adm-muted)', fontSize: 13 }}>a</span>
+                      <input type="time" value={horario.hasta} onChange={(e) => setHorario({ ...horario, hasta: e.target.value })} aria-label="Hasta" className="adm-input" style={{ width: 110, padding: '0 9px' }} />
+                      <Btn size="sm" variant="ghost" onClick={() => setHorario(null)}>Quitar</Btn>
                     </div>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setHorario(HORARIO_DEFAULT)} style={{ ...botonSec, padding: '9px 12px', fontSize: 13, textAlign: 'left' }}>
+                  <Btn
+                    onClick={() => setHorario(HORARIO_DEFAULT)}
+                    style={{ justifyContent: 'flex-start', textAlign: 'left', whiteSpace: 'normal', height: 'auto', minHeight: 38, paddingTop: 8, paddingBottom: 8, lineHeight: 1.4, fontWeight: 500 }}
+                  >
                     Sin horario: atiende siempre. Definir uno…
-                  </button>
+                  </Btn>
                 )}
               </Campo>
             </div>
             <div className="pf-2">
               {tipoActual === 'servicio' ? null : isRental ? (
                 <Campo etiqueta="Flete por km" nota="Opcional. Vacío = tarifa general del traslado.">
-                  <input name="rentalFreight" type="number" step="0.01" min={0} defaultValue={initial.rentalFreight ?? ''} style={input} />
+                  <input name="rentalFreight" type="number" step="0.01" min={0} defaultValue={initial.rentalFreight ?? ''} className="adm-input" />
                 </Campo>
               ) : (
                 <Campo etiqueta="Precio anterior" nota="Opcional, se muestra tachado como oferta.">
-                  <input name="oldPrice" type="number" step="0.01" min={0} defaultValue={initial.oldPrice ?? ''} style={input} />
+                  <input name="oldPrice" type="number" step="0.01" min={0} defaultValue={initial.oldPrice ?? ''} className="adm-input" />
                 </Campo>
               )}
               <Campo etiqueta={isRental ? 'Unidades iguales' : 'Existencias'} nota={isRental ? 'Cuántas máquinas iguales tiene para rentar.' : 'Cuántas tiene para vender. Vacío = sin control.'}>
-                <input name="stock" type="number" min={0} defaultValue={initial.stock ?? ''} style={input} />
+                <input name="stock" type="number" min={0} defaultValue={initial.stock ?? ''} className="adm-input" />
               </Campo>
             </div>
             <Campo etiqueta="Dónde está" nota="Patio o ciudad; sirve para calcular el traslado.">
-              <input name="location" defaultValue={initial.location ?? ''} placeholder="Patio en García, N.L." style={input} />
+              <input name="location" defaultValue={initial.location ?? ''} placeholder="Patio en García, N.L." className="adm-input" />
             </Campo>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5, color: D.text, cursor: 'pointer' }}>
-              <input type="checkbox" name="featured" defaultChecked={initial.featured} style={{ width: 16, height: 16, accentColor: 'var(--color-primary)' }} />
+            <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5, color: 'var(--adm-text)', cursor: 'pointer' }}>
+              <input type="checkbox" name="featured" defaultChecked={initial.featured} style={{ width: 16, height: 16, accentColor: 'var(--adm-accent)' }} />
               Destacado (aparece en el inicio del sitio)
             </label>
           </Tarjeta>
@@ -492,7 +501,7 @@ export function ProductForm({
         <aside className="pf-side">
           {enRevision ? (
             <Tarjeta titulo="Revisión" icono="ph-seal-check" acento>
-              {error ? <p role="alert" style={{ color: D.bad, margin: 0, fontSize: 13 }}>{error}</p> : null}
+              {error ? <div role="alert"><Note tone="bad">{error}</Note></div> : null}
               {renglonesLinea.length > 0 ? (
                 <Campo etiqueta="Cuenta como en el cotizador" nota="Cuando un cliente cotice ese renglón, este aliado aparece como sugerido para asignarle el servicio.">
                   <AdminSelect
@@ -509,27 +518,27 @@ export function ProductForm({
                   />
                 </Campo>
               ) : (
-                <p style={{ margin: 0, fontSize: 13, color: D.muted2, lineHeight: 1.5 }}>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
                   Esta línea no tiene renglones en el cotizador: se publica solo en el catálogo.
                 </p>
               )}
               {rechazando ? (
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} placeholder="Qué le falta o por qué no se publica (le llega por correo)" style={{ ...input, resize: 'vertical' }} />
-                  <button type="button" disabled={busy !== null || motivo.trim().length < 4} onClick={() => void onRechazar()} style={{ ...botonPri, background: D.bad, color: '#fff', opacity: motivo.trim().length < 4 ? 0.5 : 1 }}>
+                  <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} placeholder="Qué le falta o por qué no se publica (le llega por correo)" aria-label="Motivo del rechazo" className="adm-textarea" />
+                  <Btn variant="danger" disabled={busy !== null || motivo.trim().length < 4} onClick={() => void onRechazar()}>
                     {busy === 'rechazar' ? 'Rechazando…' : 'Rechazar y avisarle'}
-                  </button>
-                  <button type="button" onClick={() => { setRechazando(false); setMotivo(''); }} style={botonSec}>Cancelar</button>
+                  </Btn>
+                  <Btn variant="ghost" onClick={() => { setRechazando(false); setMotivo(''); }}>Cancelar</Btn>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <button type="button" disabled={busy !== null} onClick={() => void onPublicar()} style={{ ...botonPri, opacity: busy ? 0.6 : 1 }}>
+                  <Btn variant="primary" disabled={busy !== null} onClick={() => void onPublicar()}>
                     {busy === 'publicar' ? 'Publicando…' : 'Guardar y publicar'}
-                  </button>
-                  <button type="submit" disabled={busy !== null} style={botonSec}>
+                  </Btn>
+                  <Btn type="submit" disabled={busy !== null}>
                     {busy === 'guardar' ? 'Guardando…' : 'Guardar sin publicar'}
-                  </button>
-                  <button type="button" onClick={() => setRechazando(true)} style={{ ...botonSec, color: D.bad }}>Rechazar</button>
+                  </Btn>
+                  <Btn variant="danger" onClick={() => setRechazando(true)}>Rechazar</Btn>
                 </div>
               )}
             </Tarjeta>
@@ -537,42 +546,46 @@ export function ProductForm({
 
           <Tarjeta titulo="Fotos" icono="ph-images">
             <div style={{ display: 'grid', gap: 8 }}>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: D.muted2 }}>Principal</span>
+              <span className="adm-label">Principal</span>
               {initial.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={initial.image} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 12, background: D.previewBg }} />
+                <img src={initial.image} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 8, background: 'var(--adm-raised)', border: '1px solid var(--adm-border)' }} />
               ) : (
-                <div style={{ aspectRatio: '4 / 3', borderRadius: 12, border: `1px dashed ${D.inputBorder}`, display: 'grid', placeItems: 'center', color: D.muted2, fontSize: 13 }}>Sin foto</div>
+                <div style={{ aspectRatio: '4 / 3', borderRadius: 8, border: '1px dashed var(--adm-border-strong)', display: 'grid', placeItems: 'center', color: 'var(--adm-muted)', fontSize: 13 }}>Sin foto</div>
               )}
-              <label style={{ ...botonSec, textAlign: 'center', cursor: 'pointer' }}>
+              <label className={btnClass('secondary')}>
+                <i className="ph ph-upload-simple" aria-hidden />
                 {initial.image ? 'Cambiar foto principal' : 'Subir foto principal'}
                 <input type="file" name="photo" accept="image/png,image/jpeg,image/webp,image/avif" style={{ display: 'none' }} />
               </label>
             </div>
             {initial.id ? (
               <div style={{ display: 'grid', gap: 8 }}>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: D.muted2 }}>Galería ({fotos.length}/6)</span>
+                <span className="adm-label">Galería <span className="adm-num" style={{ color: 'var(--adm-faint)' }}>({fotos.length}/6)</span></span>
                 {fotos.length ? (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                     {fotos.map((f) => (
                       <div key={f.id} style={{ position: 'relative' }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={f.url ?? ''} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, background: D.previewBg }} />
-                        <button type="button" aria-label="Quitar foto" onClick={() => void quitarFoto(f.id)} style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 999, border: 'none', background: 'rgba(0,0,0,.7)', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>×</button>
+                        <img src={f.url ?? ''} alt="" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, background: 'var(--adm-raised)', display: 'block' }} />
+                        <button type="button" aria-label="Quitar foto" title="Quitar foto" onClick={() => void quitarFoto(f.id)} style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,.7)', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', fontSize: 11 }}>
+                          <i className="ph ph-x" aria-hidden />
+                        </button>
                       </div>
                     ))}
                   </div>
                 ) : null}
                 {fotos.length < 6 ? (
-                  <label style={{ ...botonSec, textAlign: 'center', cursor: 'pointer', opacity: subiendo ? 0.6 : 1 }}>
-                    {subiendo ? 'Subiendo…' : '+ Agregar a la galería'}
+                  <label className={btnClass('secondary')} aria-disabled={subiendo}>
+                    {subiendo ? null : <i className="ph ph-plus" aria-hidden />}
+                    {subiendo ? 'Subiendo…' : 'Agregar a la galería'}
                     <input type="file" accept="image/png,image/jpeg,image/webp,image/avif" style={{ display: 'none' }} disabled={subiendo}
                       onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirFoto(f); e.target.value = ''; }} />
                   </label>
                 ) : null}
               </div>
             ) : (
-              <p style={{ margin: 0, fontSize: 12.5, color: D.muted2 }}>La galería se llena después de crear el equipo.</p>
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>La galería se llena después de crear el equipo.</p>
             )}
           </Tarjeta>
 
@@ -586,7 +599,7 @@ export function ProductForm({
                 ...providers.map((p) => ({ value: String(p.id), label: `${p.name}${p.level ? ` · ${p.level}` : ''}` })),
               ]}
             />
-            <p style={{ margin: 0, fontSize: 12.5, color: D.muted2, lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
               Con proveedor, el aliado lo ve en su portal y el emparejamiento sabe que tiene esta máquina.
             </p>
           </Tarjeta>
@@ -596,12 +609,16 @@ export function ProductForm({
       {/* ── Barra de acciones (en revisión las acciones viven en la tarjeta Revisión) ── */}
       {enRevision ? null : (
       <div className="pf-bar">
-        {error ? <p role="alert" style={{ color: D.bad, margin: 0, fontSize: 13.5, flex: 1 }}>{error}</p> : <span style={{ flex: 1 }} />}
-        <button type="button" onClick={() => router.push(volver.href)} style={botonSec}>Cancelar</button>
+        {error ? (
+          <p role="alert" style={{ color: 'var(--adm-bad)', margin: 0, fontSize: 13.5, flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <i className="ph ph-warning-circle" aria-hidden style={{ fontSize: 16 }} />{error}
+          </p>
+        ) : <span style={{ flex: 1 }} />}
+        <Btn variant="ghost" onClick={() => router.push(volver.href)}>Cancelar</Btn>
         {enRevision ? null : (
-          <button type="submit" disabled={busy !== null} style={{ ...botonPri, opacity: busy ? 0.6 : 1 }}>
+          <Btn variant="primary" type="submit" disabled={busy !== null}>
             {busy === 'guardar' ? 'Guardando…' : isEdit ? 'Guardar cambios' : `Crear ${singular}`}
-          </button>
+          </Btn>
         )}
       </div>
       )}
@@ -611,17 +628,19 @@ export function ProductForm({
 
 // ---- piezas ----
 
+/** Sección del formulario: un panel del kit con título, icono y ayuda opcional. */
 function Tarjeta({ titulo, icono, ayuda, acento, children }: { titulo: string; icono: string; ayuda?: string; acento?: boolean; children: ReactNode }) {
   return (
-    <section style={{ background: D.card, border: `1px solid ${acento ? `color-mix(in srgb, ${D.warn} 45%, transparent)` : D.cardBorder}`, borderRadius: 16, padding: 20, display: 'grid', gap: 14 }}>
-      <div>
-        <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: D.text, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <i className={`ph ${icono}`} style={{ color: acento ? D.warn : D.accent, fontSize: 18 }} /> {titulo}
-        </h2>
-        {ayuda ? <p style={{ margin: '5px 0 0', fontSize: 12.5, color: D.muted2, lineHeight: 1.5 }}>{ayuda}</p> : null}
-      </div>
-      {children}
-    </section>
+    <Panel
+      title={titulo}
+      icon={icono}
+      desc={ayuda}
+      // margin 0: las secciones ya van separadas por el gap de su columna
+      // (sin esto `.adm-panel + .adm-panel` sumaba 20px más).
+      style={{ margin: 0, ...(acento ? { borderColor: 'color-mix(in srgb, var(--adm-warn) 45%, transparent)' } : null) }}
+    >
+      <div style={{ display: 'grid', gap: 14 }}>{children}</div>
+    </Panel>
   );
 }
 
@@ -629,10 +648,10 @@ function Campo({ etiqueta, nota, grupo, children }: { etiqueta: string; nota?: s
   // `grupo`: varios botones adentro; un <label> haría que tocar el texto pulse el primero.
   const Tag = grupo ? 'div' : 'label';
   return (
-    <Tag style={{ display: 'grid', gap: 6, minWidth: 0 }}>
-      <span style={{ fontSize: 12.5, fontWeight: 700, color: '#c4c4c8' }}>{etiqueta}</span>
+    <Tag className="adm-field">
+      <span className="adm-label">{etiqueta}</span>
       {children}
-      {nota ? <span style={{ fontSize: 11.5, color: D.muted2, lineHeight: 1.45 }}>{nota}</span> : null}
+      {nota ? <span className="adm-help">{nota}</span> : null}
     </Tag>
   );
 }
@@ -643,48 +662,32 @@ function Opcion({ activo, onClick, children }: { activo: boolean; onClick: () =>
       type="button"
       onClick={onClick}
       aria-pressed={activo}
-      style={{
-        padding: '11px 14px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer',
-        background: activo ? D.accentSoft : D.inputBg,
-        border: `1px solid ${activo ? D.accent : D.inputBorder}`,
-        color: D.text,
-      }}
+      className={btnClass('secondary', 'lg', activo ? 'pf-dia is-on' : undefined)}
     >
       {children}
     </button>
   );
 }
 
-function Chip({ color, children }: { color: string; children: ReactNode }) {
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color, border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`, background: `color-mix(in srgb, ${color} 10%, transparent)`, borderRadius: 999, padding: '4px 10px' }}>
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: color }} /> {children}
-    </span>
-  );
-}
-
-const input: CSSProperties = {
-  width: '100%', boxSizing: 'border-box', background: D.inputBg, border: `1px solid ${D.inputBorder}`, borderRadius: 10,
-  padding: '10px 13px', fontSize: 14, color: D.text, fontFamily: 'inherit', outline: 'none',
-};
-const botonPri: CSSProperties = {
-  background: D.accent, color: D.accentInk, border: 'none', borderRadius: 10, padding: '11px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-};
-const botonSec: CSSProperties = {
-  background: 'transparent', color: D.text, border: `1px solid ${D.inputBorder}`, borderRadius: 10, padding: '10px 14px', fontSize: 13.5, fontWeight: 600, cursor: 'pointer',
-};
-const botonIcono: CSSProperties = {
-  width: 38, height: 38, borderRadius: 10, border: `1px solid ${D.inputBorder}`, background: 'transparent', color: D.muted2, cursor: 'pointer', fontSize: 18,
-};
-
 const CSS = `
 .pf { max-width: 1120px; margin: 0 auto; padding: 4px 0 24px; }
 .pf-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 .pf-side { display: grid; gap: 16px; position: sticky; top: 16px; }
-.pf-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.pf-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.pf input:focus, .pf textarea:focus { border-color: var(--color-primary); }
-.pf-bar { position: sticky; bottom: 0; margin-top: 18px; display: flex; gap: 10px; align-items: center; padding: 14px 0; background: linear-gradient(to top, #0b0b0d 70%, transparent); }
+.pf-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
+.pf-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; }
+/* Tabla de precios dentro del panel: sin la sangría de las tablas a todo lo ancho. */
+.pf-tarifas th, .pf-tarifas td { padding: 8px 10px; }
+.pf-tarifas th:first-child, .pf-tarifas td:first-child { padding-left: 0; }
+.pf-tarifas th:last-child, .pf-tarifas td:last-child { padding-right: 0; }
+.pf-tarifas tbody tr:hover td { background: none; }
+/* Días del horario: varios se eligen a la vez, así que son botones que se
+   prenden (acento), no un filtro segmentado. */
+.adm-btn.pf-dia { min-width: 40px; padding: 0 8px; color: var(--adm-muted); font-weight: 500; }
+.adm-btn.pf-dia.is-on { color: var(--adm-text); font-weight: 600; border-color: color-mix(in srgb, var(--adm-accent) 60%, transparent); background: color-mix(in srgb, var(--adm-accent) 13%, transparent); }
+.pf-bar {
+  position: sticky; bottom: 0; margin-top: 18px; display: flex; gap: 8px; align-items: center;
+  padding: 14px 0; background: var(--adm-page); border-top: 1px solid var(--adm-border);
+}
 @media (max-width: 980px) {
   .pf-cols { grid-template-columns: minmax(0, 1fr); }
   .pf-side { position: static; }
