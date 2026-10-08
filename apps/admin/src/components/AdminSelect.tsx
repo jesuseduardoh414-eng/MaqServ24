@@ -104,7 +104,12 @@ export function AdminSelect({
         <ShSelectTrigger id={id} aria-label={ariaLabel} className={[kit, medida, className].filter(Boolean).join(' ')} style={style}>
           <ShSelectValue placeholder={placeholder ?? 'Selecciona…'} />
         </ShSelectTrigger>
-        <ShSelectContent>
+        {/* La lista va en un portal colgado de <body> con z-index 120 (el del
+            sitio). En el panel hay ventanas más altas —Modal 1000, el detalle
+            de Solicitudes e Incidencias 200— y la lista se abría DETRÁS: el
+            selector parecía no hacer nada (Nivel y Estado en "Nuevo aliado").
+            1050 queda sobre todas ellas y bajo los avisos flotantes (1100). */}
+        <ShSelectContent className="z-[1050]">
           {options.map((o) => (
             <ShSelectItem key={o.value} value={aRadix(o.value)} disabled={o.disabled}>
               {o.label}
