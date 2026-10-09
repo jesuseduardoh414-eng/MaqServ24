@@ -20,7 +20,10 @@ const PASOS: Array<{ icono: IconName; titulo: string; texto: string }> = [
   { icono: 'article', titulo: 'Envías tu registro', texto: 'Tu empresa o tus datos, qué equipos o servicios ofreces, dónde está tu base y a qué municipios llegas.' },
   { icono: 'search', titulo: 'Revisamos la información', texto: 'El equipo de MAQSER24 revisa tu registro y lo que ofreces.' },
   // Desde 2026-10-09 el enlace sale solo al aceptarlo (ver `aceptarSolicitud` en la API).
-  { icono: 'link', titulo: 'Te damos acceso', texto: 'Si te aceptamos, te llega por correo el enlace a tu portal: ahí subes tus papeles, ofreces tus equipos y contestas solicitudes.' },
+  // Los papeles NO se piden en el registro: se suben en el portal ya aceptado
+  // (un archivo de alguien que aún no conocemos es spam o riesgo, y alarga el
+  // formulario). Aquí solo se avisa cuáles para que los tenga a la mano.
+  { icono: 'link', titulo: 'Te damos acceso', texto: 'Si te aceptamos, te llega por correo el enlace a tu portal: ahí ofreces tus equipos, contestas solicitudes y subes tus papeles (póliza de seguro, constancia de situación fiscal y DC-3 de tus operadores).' },
 ];
 
 const CSS = `

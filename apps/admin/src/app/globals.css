@@ -254,11 +254,18 @@ h1, h2, h3 {
 
 /* ---- Main + topbar ---- */
 .adm-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+/* `position` + `z-index`: el desenfoque (backdrop-filter) vuelve a la barra su
+   propia capa, y sin prioridad lo que va dentro —el panel de avisos— quedaba
+   DEBAJO del contenido: el mapa de Proveedores lo tapaba (2026-10-09). */
 .adm-topbar {
+  position: relative; z-index: 40;
   height: 60px; flex-shrink: 0; border-bottom: 1px solid var(--adm-border);
   display: flex; align-items: center; gap: 14px; padding: 0 28px;
   background: var(--adm-topbar); backdrop-filter: blur(8px);
 }
+/* Leaflet reparte sus capas hasta z-index 1000 (los botones de zoom). Así se
+   quedan dentro del mapa y no pasan encima de avisos, modales ni selectores. */
+.leaflet-container { isolation: isolate; }
 .adm-iconbtn {
   width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; position: relative;
   border: 1px solid var(--adm-border-strong); background: transparent; color: #d4d4d8;
