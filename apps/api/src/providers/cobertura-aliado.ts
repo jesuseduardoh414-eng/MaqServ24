@@ -1,4 +1,4 @@
-import { centroDeMunicipio, normalizarNombre, radioDeCobertura, type Punto } from '@maqserv/config';
+import { centroDeMunicipio, kmCarretera, normalizarNombre, radioDeCobertura, type Punto } from '@maqserv/config';
 import { prisma } from '@maqserv/db';
 import { lista } from '../common/json-list';
 
@@ -25,6 +25,13 @@ export type Geocodificar = (consulta: string) => Promise<{ lat: number; lon: num
  * de dedo.
  */
 const MAX_EN_LINEA = 3;
+
+/**
+ * Más lejos que esto (por carretera) de la cabecera de su municipio, el punto
+ * que devolvió el mapa es de OTRO lugar con una calle del mismo nombre. Holgado
+ * a propósito: hay municipios grandes y bases en carretera.
+ */
+const LEJOS_DEL_MUNICIPIO_KM = 60;
 
 export interface UbicacionAliado {
   /** Quedó con un punto en el mapa. */
@@ -71,7 +78,14 @@ export async function ubicarAliado(
       .map((x) => x?.trim())
       .filter(Boolean)
       .join(', ');
-    const hallado = consulta && opciones.geocodificar ? await opciones.geocodificar(consulta).catch(() => null) : null;
+    let hallado = consulta && opciones.geocodificar ? await opciones.geocodificar(consulta).catch(() => null) : null;
+    // Nominatim no sabe de municipios: "Av. Tecnológico 3500, …, Chihuahua"
+    // salía en Ciudad Juárez, a 350 km, porque allá hay otra Av. Tecnológico.
+    // Si el punto cae lejos del municipio que se escribió, no es su base.
+    const suMunicipio = p.city ? centroDeMunicipio(p.city, estado) : null;
+    if (hallado && suMunicipio && kmCarretera({ lat: hallado.lat, lng: hallado.lon }, suMunicipio) > LEJOS_DEL_MUNICIPIO_KM) {
+      hallado = null;
+    }
     if (hallado) {
       base = { lat: hallado.lat, lng: hallado.lon };
       comoQuedo =
