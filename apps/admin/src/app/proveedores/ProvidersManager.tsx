@@ -1,7 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, coordenadasDe, esLineaServicio } from '@maqserv/config';
+import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, centroDeMunicipio, coordenadasDe, esLineaServicio, radioDeCobertura } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
 import {
@@ -146,6 +146,34 @@ const ETIQUETA_DOCS: Record<ProviderRow['docsStatus'], { texto: string; tono: To
 /** Convierte "Apodaca, Escobedo , García" en tres municipios limpios. */
 const aLista = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
+/**
+ * HASTA DÓNDE LLEGA, MIENTRAS SE ESCRIBE (2026-10-09). Los km ya no se
+ * capturan: salen de su municipio y de los que cubre, con la misma cuenta que
+ * hace la API al guardar (`radioDeCobertura`). Aquí se mide desde el centro
+ * de su municipio; al guardar, desde su dirección exacta, así que la cifra
+ * final puede moverse unos km.
+ */
+function KmCalculados({ municipio, estado, cobertura }: { municipio: string; estado: string; cobertura: string }) {
+  const lista = aLista(cobertura);
+  const base = municipio.trim() ? centroDeMunicipio(municipio, estado) : null;
+  const r = base && lista.length ? radioDeCobertura(base, lista, estado) : null;
+  let texto: ReactNode;
+  if (!municipio.trim()) texto = 'Escribe su municipio y los que cubre: con eso se calcula hasta cuántos km llega.';
+  else if (!base) texto = `No reconozco «${municipio.trim()}» como municipio. Al guardar se buscará con su dirección.`;
+  else if (!lista.length) texto = 'Agrega los municipios que cubre para calcular hasta cuántos km llega.';
+  else if (r?.km) texto = <>Llega hasta <b className="adm-num" style={{ color: 'var(--adm-text)' }}>~{r.km} km</b> de su base · el más lejano es {r.masLejano}.</>;
+  else texto = 'Ninguno de esos municipios está en la lista conocida: se buscarán al guardar.';
+  return (
+    <div className="adm-help" style={{ display: 'flex', gap: 7, alignItems: 'flex-start', fontSize: 12.5 }}>
+      <i className="ph ph-ruler" aria-hidden style={{ fontSize: 15, marginTop: 1 }} />
+      <span>
+        {texto}
+        {r?.sinUbicar.length ? <> No reconozco: {r.sinUbicar.join(', ')} (se buscarán al guardar).</> : null}
+      </span>
+    </div>
+  );
+}
+
 /** Une datos sueltos con " · " (los vacíos no dejan separadores colgando). */
 function conPuntos(xs: Array<ReactNode | null | false | undefined>) {
   return xs.filter(Boolean).map((x, i) => (
@@ -171,7 +199,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 
   const [form, setForm] = useState({
     name: '', level: 'registrado', contactName: '', phone: '', email: '',
-    city: '', state: 'Nuevo León', coverage: '', categories: [] as string[], responseMinutes: '',
+    address: '', city: '', state: 'Nuevo León', coverage: '', categories: [] as string[], responseMinutes: '',
   });
 
   const filtrados = useMemo(() => {
@@ -210,6 +238,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         contactName: form.contactName || null,
         phone: form.phone || null,
         email: form.email || null,
+        // Con dirección y municipio la API lo ubica y le calcula sus km.
+        address: form.address.trim() || null,
         city: form.city || null,
         state: form.state || null,
         coverage: aLista(form.coverage),
@@ -224,16 +254,15 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
     if (!r.ok) { setErrorAlta(typeof d?.message === 'string' ? d.message : 'No se pudo guardar'); return; }
     const conCorreo = Boolean(form.email);
     setCreando(false);
-    setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', city: '', state: 'Nuevo León', coverage: '', categories: [], responseMinutes: '' });
+    setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', address: '', city: '', state: 'Nuevo León', coverage: '', categories: [], responseMinutes: '' });
     setInvitar(true);
     setTipoOferta('servicios');
-    setMsg(
-      d?.acceso
-        ? `Aliado dado de alta. ${d.acceso.mensaje}`
-        : conCorreo
-          ? 'Aliado dado de alta, sin invitación. Mándale su enlace desde su expediente cuando quieras.'
-          : 'Aliado dado de alta. No tiene correo: agrégaselo para mandarle su enlace.',
-    );
+    const invitacion = d?.acceso
+      ? d.acceso.mensaje
+      : conCorreo
+        ? 'Sin invitación: mándale su enlace desde su expediente cuando quieras.'
+        : 'No tiene correo: agrégaselo para mandarle su enlace.';
+    setMsg(['Aliado dado de alta.', invitacion, d?.ubicacion?.mensaje].filter(Boolean).join(' '));
     recargar();
   }
 
@@ -341,8 +370,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
               }))}
           />
           <p className="adm-help" style={{ margin: '8px 0 0' }}>
-            El círculo es hasta donde llega cada aliado. Los que no aparecen todavía no están
-            ubicados: abre su expediente y usa «Ponerlo en el mapa».
+            El círculo es hasta donde llega cada aliado, calculado con los municipios que cubre.
+            Los que no aparecen no tienen dirección ni municipio: complétalos en su expediente.
           </p>
         </div>
       ) : null}
@@ -390,15 +419,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           <FormField label="Correo">
             <input className="adm-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </FormField>
-          <FormField label="Ciudad base">
-            <input className="adm-input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
-          </FormField>
           {/* Los AdminSelect no van dentro de <label>: es un botón de Radix y el
               clic en la etiqueta lo abriría dos veces. */}
-          <div className="adm-field">
-            <span className="adm-label">Estado</span>
-            <AdminSelect ariaLabel="Estado" value={form.state} onChange={(v) => setForm({ ...form, state: v })} options={ESTADOS_OPERACION.map((e) => ({ value: e, label: e }))} />
-          </div>
           <div className="adm-field">
             <span className="adm-label">Nivel</span>
             <AdminSelect ariaLabel="Nivel" value={form.level} onChange={(v) => setForm({ ...form, level: v })} options={NIVELES.map((n) => ({ value: n, label: n }))} />
@@ -406,9 +428,28 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           <FormField label="Respuesta promedio (minutos)">
             <input className="adm-input adm-num" type="number" value={form.responseMinutes} onChange={(e) => setForm({ ...form, responseMinutes: e.target.value })} />
           </FormField>
+        </div>
+
+        {/* Dónde está y hasta dónde llega (2026-10-09): una sola vez, aquí. Los km
+            ya no se escriben: se calculan de su base y los municipios que cubre. */}
+        <hr className="adm-divider" />
+        <div className="adm-form-grid">
+          <FormField label="Dirección de su base" help="Calle, número y colonia. Con ella queda en el mapa." style={{ gridColumn: '1 / -1' }}>
+            <input className="adm-input" placeholder="Av. Miguel Alemán 1500, Col. Industrial" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+          </FormField>
+          <FormField label="Municipio">
+            <input className="adm-input" placeholder="Apodaca" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+          </FormField>
+          <div className="adm-field">
+            <span className="adm-label">Estado</span>
+            <AdminSelect ariaLabel="Estado" value={form.state} onChange={(v) => setForm({ ...form, state: v })} options={ESTADOS_OPERACION.map((e) => ({ value: e, label: e }))} />
+          </div>
           <FormField label="Municipios que cubre" help="Sepáralos con comas." style={{ gridColumn: '1 / -1' }}>
             <input className="adm-input" placeholder="Apodaca, Escobedo, García" value={form.coverage} onChange={(e) => setForm({ ...form, coverage: e.target.value })} />
           </FormField>
+          <div style={{ gridColumn: '1 / -1', marginTop: -4 }}>
+            <KmCalculados municipio={form.city} estado={form.state} cobertura={form.coverage} />
+          </div>
         </div>
 
         <hr className="adm-divider" />
@@ -806,7 +847,7 @@ function ExpedienteModal({
         "escribio este municipio?" a "esta a menos de N kilometros?", que es
         la pregunta real y la unica que funciona fuera del area metropolitana.
       */}
-      <UbicacionAliado p={p} />
+      <UbicacionAliado p={p} onCambio={onRevisado} />
 
       <AccesoAliado p={p} />
 
@@ -967,50 +1008,66 @@ function waDe(tel: string | null): string | null {
 }
 
 
-/** Ubicacion del aliado y su radio de cobertura. */
-function UbicacionAliado({ p }: { p: ProviderRow }) {
+/**
+ * Dónde está y hasta dónde llega. Desde 2026-10-09 los km no se escriben: la
+ * API los calcula de su base y su lista de municipios cada vez que cambia una
+ * de las dos (y cuando se mueve el punto en el mapa).
+ */
+function UbicacionAliado({ p, onCambio }: { p: ProviderRow; onCambio: (texto: string) => void }) {
   const [dir, setDir] = useState(p.address ?? '');
-  const [radio, setRadio] = useState(p.coverageRadiusKm ? String(p.coverageRadiusKm) : '');
+  const [municipio, setMunicipio] = useState(p.city ?? '');
+  const [estado, setEstado] = useState(p.state ?? 'Nuevo León');
+  const [cobertura, setCobertura] = useState(p.coverage.join(', '));
+  const [radio, setRadio] = useState<number | null>(p.coverageRadiusKm);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
     p.lat != null && p.lng != null ? { lat: p.lat, lng: p.lng } : null,
   );
   const [msg, setMsg] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
-  async function guardar() {
-    setOcupado(true); setMsg(null);
-    await fetch(`/api/admin/providers/${p.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        address: dir,
-        coverageRadiusKm: radio.trim() ? Number(radio) : null,
-      }),
-    });
-    setOcupado(false);
-    setMsg('Guardado.');
+  /** Lo que devuelve la API al ubicar: punto y km nuevos. */
+  function aplicar(u: { lat?: number | null; lng?: number | null; radioKm?: number | null } | null | undefined) {
+    if (!u) return;
+    if (u.lat != null && u.lng != null) setCoords({ lat: u.lat, lng: u.lng });
+    if (u.radioKm !== undefined) setRadio(u.radioKm ?? null);
   }
 
+  async function guardar() {
+    setOcupado(true); setMsg(null);
+    const r = await fetch(`/api/admin/providers/${p.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: dir, city: municipio, state: estado, coverage: aLista(cobertura) }),
+    });
+    const d = await r.json().catch(() => null);
+    setOcupado(false);
+    if (!r.ok) { setMsg('No se pudo guardar. Inténtalo de nuevo.'); return; }
+    aplicar(d?.ubicacion);
+    const texto = d?.ubicacion?.mensaje || 'Guardado.';
+    setMsg(texto);
+    onCambio(`${p.name}: ${texto}`);
+  }
+
+  /** Volver a buscar su base con la dirección guardada (p. ej. si quedó en el centro del municipio). */
   async function ubicar() {
     setOcupado(true); setMsg(null);
-    // Se guarda ANTES de geocodificar: la direccion que el usuario acaba de
-    // escribir es la que hay que buscar, no la que estaba en la base.
-    await guardar();
     const r = await fetch(`/api/admin/providers/${p.id}/geocodificar`, { method: 'POST' });
     const d = await r.json().catch(() => null);
     setOcupado(false);
     setMsg(d?.mensaje ?? 'No se pudo ubicar.');
-    if (d?.ok) setCoords({ lat: d.lat, lng: d.lng });
+    if (d?.ok) aplicar(d);
   }
 
-  // A mano (2026-09-25): clic/arrastre en el mapa o coordenadas pegadas.
+  // A mano (2026-09-25): clic/arrastre en el mapa o coordenadas pegadas. La API
+  // recalcula los km desde el punto nuevo.
   const fijar = useCallback(async (lat: number, lng: number) => {
     setCoords({ lat, lng });
     const r = await fetch(`/api/admin/providers/${p.id}/geocodificar`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng }),
     });
     const d = await r.json().catch(() => null);
-    setMsg(d?.ok ? `Punto guardado: ${lat.toFixed(5)}, ${lng.toFixed(5)}.` : 'No se pudo guardar el punto.');
+    if (d?.ok) setRadio(d.radioKm ?? null);
+    setMsg(d?.ok ? d.mensaje : 'No se pudo guardar el punto.');
   }, [p.id]);
   const [pegado, setPegado] = useState('');
   function usarPegado() {
@@ -1019,42 +1076,57 @@ function UbicacionAliado({ p }: { p: ProviderRow }) {
     setPegado('');
     void fijar(c.lat, c.lng);
   }
-  const radioNum = p.coverageRadiusKm ?? (radio ? Number(radio) : null);
   const puntosMapa = useMemo<PuntoMapa[]>(
-    () => (coords ? [{ id: p.id, nombre: p.name, lat: coords.lat, lng: coords.lng, radioKm: radioNum, tipo: 'aliado' }] : []),
-    [coords, p.id, p.name, radioNum],
+    () => (coords ? [{ id: p.id, nombre: p.name, lat: coords.lat, lng: coords.lng, radioKm: radio, tipo: 'aliado' }] : []),
+    [coords, p.id, p.name, radio],
   );
+  const cambios =
+    dir.trim() !== (p.address ?? '').trim() ||
+    municipio.trim() !== (p.city ?? '').trim() ||
+    estado !== (p.state ?? 'Nuevo León') ||
+    aLista(cobertura).join(',') !== p.coverage.join(',');
 
   return (
     <section style={SECCION}>
       <h3 style={H3}>Dónde está y hasta dónde llega</h3>
       <p style={DESC}>
-        Con esto dejamos de decidir la cobertura por el nombre del municipio. Los que ya tienen
-        radio se comparan por distancia real a la obra.
+        Con su dirección queda en el mapa, y los km que cubre se calculan solos: de su base al más
+        lejano de sus municipios. Una obra en uno de sus municipios siempre cuenta como cubierta.
       </p>
 
       <div className="adm-form-grid">
-        <FormField label="Dirección de su base" style={{ gridColumn: '1 / -1' }}>
-          <input className="adm-input" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="Av. Industrias 200, Apodaca, N.L." />
+        <FormField label="Dirección de su base" help="Calle, número y colonia." style={{ gridColumn: '1 / -1' }}>
+          <input className="adm-input" value={dir} onChange={(e) => setDir(e.target.value)} placeholder="Av. Miguel Alemán 1500, Col. Industrial" />
         </FormField>
-        <FormField label="Llega hasta (km)">
-          <input className="adm-input adm-num" type="number" min={1} value={radio} onChange={(e) => setRadio(e.target.value)} placeholder="40" />
+        <FormField label="Municipio">
+          <input className="adm-input" value={municipio} onChange={(e) => setMunicipio(e.target.value)} placeholder="Apodaca" />
         </FormField>
+        <div className="adm-field">
+          <span className="adm-label">Estado</span>
+          <AdminSelect ariaLabel="Estado" value={estado} onChange={setEstado} options={ESTADOS_OPERACION.map((e) => ({ value: e, label: e }))} />
+        </div>
+        <FormField label="Municipios que cubre" help="Sepáralos con comas." style={{ gridColumn: '1 / -1' }}>
+          <input className="adm-input" value={cobertura} onChange={(e) => setCobertura(e.target.value)} placeholder="Apodaca, Escobedo, García" />
+        </FormField>
+        {cambios ? (
+          <div style={{ gridColumn: '1 / -1', marginTop: -4 }}>
+            <KmCalculados municipio={municipio} estado={estado} cobertura={cobertura} />
+          </div>
+        ) : null}
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Btn icon="ph-map-pin" onClick={ubicar} disabled={ocupado}>
-          Ponerlo en el mapa
+        <Btn variant={cambios ? 'primary' : 'secondary'} icon="ph-floppy-disk" onClick={guardar} disabled={ocupado || !cambios}>
+          {ocupado ? 'Guardando…' : 'Guardar'}
         </Btn>
-        <Btn variant="ghost" onClick={guardar} disabled={ocupado}>Sólo guardar</Btn>
-        <span style={{ marginLeft: 4 }}>
-          {coords ? (
-            <StatusText tone="ok">
-              <span>Ubicado en <span className="adm-num">{coords.lat.toFixed(4)}, {coords.lng.toFixed(4)}</span></span>
-            </StatusText>
-          ) : (
-            <StatusText tone="muted">Sin ubicar</StatusText>
-          )}
+        <Btn variant="ghost" icon="ph-map-pin" onClick={ubicar} disabled={ocupado || cambios} title={cambios ? 'Guarda primero los cambios' : undefined}>
+          Volver a ubicar con la dirección
+        </Btn>
+        <span style={{ marginLeft: 4, display: 'inline-flex', gap: 14, flexWrap: 'wrap' }}>
+          {coords ? <StatusText tone="ok">Ubicado</StatusText> : <StatusText tone="muted">Sin ubicar</StatusText>}
+          <span style={{ fontSize: 13, color: 'var(--adm-text-2)' }}>
+            {radio ? <>Llega hasta <b className="adm-num">~{radio} km</b></> : 'Sin km calculados'}
+          </span>
         </span>
       </div>
 
@@ -1063,7 +1135,7 @@ function UbicacionAliado({ p }: { p: ProviderRow }) {
       <div style={{ marginTop: 14 }}>
         <MapaCobertura alto={240} puntos={puntosMapa} onMover={fijar} />
         <p className="adm-help" style={{ margin: '6px 0 0' }}>
-          {coords ? 'Arrastra el punto o da clic en el mapa para corregir su lugar exacto.' : 'Da clic en el mapa para marcar su base.'}
+          {coords ? 'Arrastra el punto o da clic en el mapa para corregir su lugar exacto; los km se recalculan solos.' : 'Da clic en el mapa para marcar su base.'}
         </p>
       </div>
 

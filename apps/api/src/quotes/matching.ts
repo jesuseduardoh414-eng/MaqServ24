@@ -24,6 +24,11 @@
  *    para eso necesita ver el razonamiento.
  */
 
+// Linea recta -> carretera. Viene de @maqserv/config (2026-10-09): el radio de
+// cada aliado se calcula con el mismo factor; si divergieran, un aliado quedaria
+// "fuera" de un municipio que el mismo declaro.
+import { FACTOR_CARRETERA } from '@maqserv/config';
+
 export interface ProveedorCandidato {
   id: number;
   name: string;
@@ -91,9 +96,6 @@ export function distanciaKm(
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-/** Linea recta -> carretera. El mismo factor que usa el cotizador de traslado. */
-const FACTOR_CARRETERA = 1.32;
-
 export interface Cobertura {
   cubre: boolean;
   /** Kilometros por carretera, cuando se pudo calcular. */
@@ -125,7 +127,12 @@ export function coberturaDe(
       Math.round(
         distanciaKm({ lat: p.lat, lon: p.lng }, solicitud.punto) * FACTOR_CARRETERA * 10,
       ) / 10;
-    return { cubre: km <= p.coverageRadiusKm, km, como: 'distancia' };
+    if (km <= p.coverageRadiusKm) return { cubre: true, km, como: 'distancia' };
+    // Fuera del circulo, pero en un municipio que el escribio: su lista manda.
+    // El radio sale de la cabecera del municipio mas lejano, y una obra en la
+    // orilla de ese municipio puede quedar unos km mas alla (2026-10-09).
+    if (solicitud.zona && cubreZona(p.coverage, solicitud.zona)) return { cubre: true, km, como: 'municipio' };
+    return { cubre: false, km, como: 'distancia' };
   }
   if (solicitud.zona) {
     return { cubre: cubreZona(p.coverage, solicitud.zona), km: null, como: 'municipio' };

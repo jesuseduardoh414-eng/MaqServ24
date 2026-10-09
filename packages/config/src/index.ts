@@ -152,6 +152,17 @@ export {
 } from './quoter-defaults';
 export { coordenadasDe } from './coordenadas';
 export {
+  FACTOR_CARRETERA,
+  MARGEN_MUNICIPIO_KM,
+  RADIO_MINIMO_KM,
+  centroDeMunicipio,
+  kmCarretera,
+  normalizarNombre,
+  radioDeCobertura,
+  type Punto,
+  type RadioCalculado,
+} from './cobertura';
+export {
   REGLAS_CONTRASENA,
   CONTRASENA_MIN,
   CONTRASENA_MAX,

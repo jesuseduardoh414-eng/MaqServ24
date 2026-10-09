@@ -67,6 +67,7 @@ import { PASOS, avance, esEstado } from '../quotes/service-flow';
 import { lista } from '../common/json-list';
 import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
+import { ubicarAliado } from './cobertura-aliado';
 
 /**
  * EL PORTAL DEL ALIADO (documento institucional, sección 20).
@@ -547,6 +548,9 @@ export class ProviderPortalController {
         updated_at: new Date(),
       },
     });
+    // Sus km salen de su lista (2026-10-09): si cambió sus zonas, se recalculan
+    // desde la MISMA base. Su punto en el mapa no se mueve desde aquí.
+    if (d.coverage !== undefined) await ubicarAliado(req.providerId, { buscarBase: false }).catch(() => null);
     return { ok: true };
   }
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import {
-  atiendeEn, desajustes, fichaDe, horarioDe, importeMaquina, productSlug, renglonesDe, tarifasDe, textoHorario,
+  FACTOR_CARRETERA, atiendeEn, desajustes, fichaDe, horarioDe, importeMaquina, productSlug, renglonesDe, tarifasDe, textoHorario,
   esUnidadDeTiempo, UNIDADES, catalogoCotizadorSchema, checkoutSchema,
 } from '@maqserv/config';
 import { lista } from '../common/json-list';
@@ -108,7 +108,6 @@ export interface ResultadoRecomendacion {
   tipoNoEncontrado: boolean;
 }
 
-const FACTOR_CARRETERA = 1.32;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Días de calendario que ocupa lo pedido: 3 días = 3; 2 semanas = 14; 1 mes = 30; 4 viajes = 1. */

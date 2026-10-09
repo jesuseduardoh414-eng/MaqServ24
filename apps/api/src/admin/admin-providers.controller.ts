@@ -32,6 +32,7 @@ import { MailerService } from '../notifications/mailer.service';
 import { correoAccesoAliado, correoEquipoPublicado, correoEquipoRechazado } from '../notifications/email-templates';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { FreightService } from '../freight/freight.service';
+import { ubicarAliado } from '../providers/cobertura-aliado';
 import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incidents';
 import { imageUrl } from '../catalog/images';
 
@@ -63,7 +64,11 @@ const providerSchema = z.object({
   status: z.coerce.number().int().min(0).max(1).optional(),
   /** Dirección de su base, para poder geocodificarla. */
   address: z.string().max(500).optional().nullable(),
-  /** Hasta dónde llega desde ahí. Null = sólo vale su lista de municipios. */
+  /**
+   * Ya no se toma de aquí (2026-10-09): el radio se calcula de su base y su
+   * lista de municipios (`ubicarAliado`). Se sigue aceptando para no
+   * rechazar a un cliente viejo que lo mande, pero se ignora.
+   */
   coverageRadiusKm: z.coerce.number().int().min(1).max(1500).optional().nullable(),
 });
 
@@ -135,8 +140,9 @@ export class AdminProvidersController {
     const pegado = !manual.success && p.address ? coordenadasDe(p.address) : null;
     const fijo = manual.success ? manual.data : pegado;
     if (fijo) {
-      await prisma.providers.update({ where: { id }, data: { lat: fijo.lat, lng: fijo.lng, updated_at: new Date() } });
-      return { ok: true, lat: fijo.lat, lng: fijo.lng, precision: 'exacta', mensaje: `${p.name} quedó ubicado en el punto que marcaste.` };
+      // Mover su base cambia hasta dónde llega: el radio se recalcula aquí mismo.
+      const u = await ubicarAliado(id, { buscarBase: false, punto: fijo, geocodificar: (q) => this.freight.geocode(q) });
+      return { ok: true, lat: fijo.lat, lng: fijo.lng, precision: 'exacta', radioKm: u.radioKm, mensaje: `${p.name}: ${u.mensaje}` };
     }
 
     // La ciudad de la ficha solo se agrega si la dirección no trae municipio
@@ -148,36 +154,15 @@ export class AdminProvidersController {
     if (!dir && !p.city?.trim()) {
       throw new BadRequestException('Sin dirección ni ciudad no hay a dónde ubicarlo. Escribe la dirección o marca el punto en el mapa.');
     }
-    const consulta = dir.includes(',')
-      ? dir
-      : [dir, p.city, p.state].map((x) => x?.trim()).filter(Boolean).join(', ');
-    if (!consulta) {
-      throw new BadRequestException('Sin dirección ni ciudad no hay a dónde ubicarlo.');
-    }
-
-    const punto = await this.freight.geocode(consulta);
-    if (!punto) {
+    // Busca su base y, con ella, calcula hasta dónde llega (ver `ubicarAliado`).
+    const u = await ubicarAliado(id, { buscarBase: true, geocodificar: (q) => this.freight.geocode(q) });
+    if (!u.ubicado) {
       return {
         ok: false,
-        mensaje: `No encontramos "${consulta}". Marca el punto con un clic en el mapa, o pega las coordenadas de Google Maps (clic derecho sobre el lugar → copiar coordenadas).`,
+        mensaje: u.mensaje || 'No encontramos su dirección. Marca el punto con un clic en el mapa, o pega las coordenadas de Google Maps (clic derecho sobre el lugar → copiar coordenadas).',
       };
     }
-
-    await prisma.providers.update({
-      where: { id },
-      data: { lat: punto.lat, lng: punto.lon, updated_at: new Date() },
-    });
-    const aviso =
-      punto.precision === 'municipio' ? ' No encontramos la calle: quedó en el centro del municipio. Arrastra el punto o da clic en su lugar exacto.'
-        : punto.precision === 'colonia' ? ' Quedó en la colonia, no en el número exacto. Si hace falta, da clic en su lugar exacto.'
-          : ' Quedó sobre la calle, no en el número exacto (el mapa gratuito no tiene números en muchas calles). Revisa el punto y arrástralo a su lugar.';
-    return {
-      ok: true,
-      lat: punto.lat,
-      lng: punto.lon,
-      precision: punto.precision ?? 'calle',
-      mensaje: `${p.name} quedó ubicado.${aviso}`,
-    };
+    return { ok: true, lat: u.lat, lng: u.lng, radioKm: u.radioKm, mensaje: `${p.name}: ${u.mensaje}` };
   }
 
   @Get('alerts')
@@ -563,7 +548,6 @@ export class AdminProvidersController {
         categories: d.categories ?? [],
         response_minutes: d.responseMinutes ?? null,
         address: d.address?.trim() || null,
-        coverage_radius_km: d.coverageRadiusKm ?? null,
         notes: d.notes ?? null,
         status: d.status ?? 1,
       },
@@ -591,7 +575,15 @@ export class AdminProvidersController {
         acceso = { estado: 'fallido', url: '', mensaje: `No se pudo mandar su enlace: ${(e as Error).message}` };
       }
     }
-    return { ...creado, acceso };
+    /**
+     * Se ubica en el alta (2026-10-09): con su dirección y su municipio queda
+     * en el mapa y con sus km calculados, sin otro paso en el expediente.
+     * Como la invitación, nunca tumba el alta.
+     */
+    const ubicacion = d.address?.trim() || d.city?.trim()
+      ? await ubicarAliado(creado.id, { buscarBase: true, geocodificar: (q) => this.freight.geocode(q) }).catch(() => null)
+      : null;
+    return { ...creado, acceso, ubicacion };
   }
 
   @Patch(':id')
@@ -601,6 +593,15 @@ export class AdminProvidersController {
     const d = parsed.data;
     const existe = await prisma.providers.findUnique({ where: { id } });
     if (!existe) throw new NotFoundException('Aliado no encontrado');
+
+    // Qué cambió de lo que decide dónde está y hasta dónde llega.
+    const igual = (a: string | null | undefined, b: string | null | undefined) => (a?.trim() || null) === (b?.trim() || null);
+    const baseCambio =
+      (d.address !== undefined && !igual(d.address, existe.address)) ||
+      (d.city !== undefined && !igual(d.city, existe.city)) ||
+      (d.state !== undefined && !igual(d.state, existe.state));
+    const coberturaCambio =
+      d.coverage !== undefined && JSON.stringify(d.coverage.map((m) => m.trim())) !== JSON.stringify(lista(existe.coverage));
 
     await prisma.providers.update({
       where: { id },
@@ -618,13 +619,18 @@ export class AdminProvidersController {
         // Condicionales, como el resto del update: sin esto, editar el telefono
         // le borraria la direccion y las coordenadas dejarian de tener sentido.
         ...(d.address !== undefined ? { address: d.address?.trim() || null } : {}),
-        ...(d.coverageRadiusKm !== undefined ? { coverage_radius_km: d.coverageRadiusKm } : {}),
         ...(d.notes !== undefined ? { notes: d.notes } : {}),
         ...(d.status !== undefined ? { status: d.status } : {}),
         updated_at: new Date(),
       },
     });
-    return { ok: true };
+
+    // Nueva dirección → se busca otra vez su base; solo nuevos municipios →
+    // misma base, otro radio. Cambiar el nivel o el teléfono no toca nada de esto.
+    const ubicacion = baseCambio || coberturaCambio
+      ? await ubicarAliado(id, { buscarBase: baseCambio, geocodificar: (q) => this.freight.geocode(q) }).catch(() => null)
+      : null;
+    return { ok: true, ubicacion };
   }
 
   @Post(':id/documents')
