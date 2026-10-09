@@ -11,6 +11,10 @@ export interface SolicitudRow {
   email: string | null;
   city: string | null;
   state: string | null;
+  /** Desde 2026-10-09 el formulario del sitio pide lo mismo que el alta del panel. */
+  address?: string | null;
+  coverage?: string[];
+  coverageRadiusKm?: number | null;
   notes: string | null;
   categoryLabels?: string[];
 }
@@ -20,8 +24,9 @@ export interface SolicitudRow {
  *
  * Lo que llega por "Regístrate como proveedor" en el sitio: aliados con
  * `status = 2`. No reciben ofertas ni entran al cotizador hasta aceptarlos.
- * Aceptar los pasa a la red (status 1) con los datos que mandaron; después se
- * revisa qué ofrecen en su expediente y se les manda su enlace. Descartar borra
+ * Aceptar los pasa a la red (status 1) con los datos que mandaron, los ubica
+ * con su dirección y les manda su enlace al portal en el mismo paso (antes el
+ * enlace había que mandarlo aparte y se olvidaba). Descartar borra
  * la ficha (no tiene historial).
  */
 export function SolicitudesProveedor({ solicitudes, onCambio }: { solicitudes: SolicitudRow[]; onCambio: (msg: string) => void }) {
@@ -29,11 +34,17 @@ export function SolicitudesProveedor({ solicitudes, onCambio }: { solicitudes: S
   if (solicitudes.length === 0) return null;
 
   async function aceptar(s: SolicitudRow) {
-    if (!window.confirm(`¿Aceptar a «${s.name}» en la red de aliados?`)) return;
+    const aviso = s.email
+      ? `¿Aceptar a «${s.name}» en la red de aliados? Le llega a ${s.email} el enlace a su portal.`
+      : `¿Aceptar a «${s.name}» en la red de aliados? No dejó correo: su enlace lo mandas desde su expediente (WhatsApp).`;
+    if (!window.confirm(aviso)) return;
     setOcupado(s.id);
-    const r = await fetch(`/api/admin/providers/${s.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }) });
+    const r = await fetch(`/api/admin/providers/${s.id}/aceptar`, { method: 'POST' });
+    const d = await r.json().catch(() => null);
     setOcupado(null);
-    onCambio(r.ok ? `«${s.name}» ya está en la red. Abre su expediente para revisar qué ofrece y mandarle su enlace de acceso.` : 'No se pudo aceptar. Inténtalo de nuevo.');
+    if (!r.ok) { onCambio(typeof d?.message === 'string' ? d.message : 'No se pudo aceptar. Inténtalo de nuevo.'); return; }
+    const enlace = d?.acceso?.mensaje ?? 'No dejó correo: mándale su enlace por WhatsApp desde su expediente.';
+    onCambio([`«${s.name}» ya está en la red.`, enlace, d?.ubicacion?.mensaje].filter(Boolean).join(' '));
   }
 
   async function descartar(s: SolicitudRow) {
@@ -87,8 +98,16 @@ export function SolicitudesProveedor({ solicitudes, onCambio }: { solicitudes: S
                       <i className="ph ph-envelope-simple" aria-hidden />{s.email}
                     </a>
                   ) : null}
-                  {ubicacion ? <span title="Ubicación"><i className="ph ph-map-pin" aria-hidden />{ubicacion}</span> : null}
+                  {ubicacion ? <span title="Ubicación"><i className="ph ph-map-pin" aria-hidden />{s.address ? `${s.address}, ${ubicacion}` : ubicacion}</span> : null}
                 </div>
+                {s.coverage?.length ? (
+                  <div className="adm-meta pv-sol-meta" style={{ marginTop: 4 }}>
+                    <span title="Municipios a los que llega">
+                      <i className="ph ph-path" aria-hidden />Llega a {s.coverage.join(', ')}
+                      {s.coverageRadiusKm ? <> · <b className="adm-num" style={{ color: 'var(--adm-text-2)' }}>~{s.coverageRadiusKm} km</b></> : null}
+                    </span>
+                  </div>
+                ) : null}
                 {s.notes ? (
                   <p style={{ margin: '10px 0 0', paddingLeft: 12, borderLeft: '2px solid var(--adm-border-strong)', fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', color: 'var(--adm-text-2)' }}>
                     {s.notes}

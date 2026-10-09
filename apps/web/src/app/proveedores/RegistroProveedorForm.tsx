@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR, type OfertaProveedor, type TipoProveedor } from '@maqserv/config';
+import { useState, type ReactNode } from 'react';
+import { OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR, centroDeMunicipio, radioDeCobertura, type OfertaProveedor, type TipoProveedor } from '@maqserv/config';
 import { evento } from '@/lib/analitica';
 import { Icon } from '@/components/Icon';
 
@@ -13,12 +13,48 @@ const ESTADOS_MX = [
   'Sonora', 'Tabasco', 'Tamaulipas', 'Tlaxcala', 'Veracruz', 'Yucatán', 'Zacatecas',
 ];
 
+/** En cuánto contesta: el panel lo guarda en minutos ("Responde en ~30 min"). */
+const RESPUESTAS: Array<[string, string]> = [
+  ['', 'Prefiero no decir'],
+  ['15', 'En 15 minutos'],
+  ['30', 'En media hora'],
+  ['60', 'En una hora'],
+  ['120', 'En dos horas'],
+  ['480', 'El mismo día'],
+];
+
 const correoOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const digitos = (v: string) => v.replace(/\D/g, '').length;
+const aLista = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
+
+/**
+ * Hasta dónde llega, mientras escribe: la misma cuenta que hace el panel
+ * (`radioDeCobertura`). Fuera de los tres estados de la tabla no hay cifra
+ * aquí; se calcula al revisar el registro.
+ */
+function KmCalculados({ municipio, estado, cobertura }: { municipio: string; estado: string; cobertura: string }) {
+  const lista = aLista(cobertura);
+  if (!municipio.trim() || !lista.length) return null;
+  const base = centroDeMunicipio(municipio, estado);
+  const r = base ? radioDeCobertura(base, lista, estado) : null;
+  let texto: ReactNode;
+  if (r?.km) texto = <>Llegas hasta <b>~{r.km} km</b> de tu base · el más lejano es {r.masLejano}.</>;
+  else texto = 'Calcularemos hasta cuántos kilómetros llegas al revisar tu registro.';
+  return (
+    <p className="ms-hint" style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+      <span style={{ display: 'flex', paddingTop: 1 }}><Icon name="mapPin" size={14} /></span>
+      <span>{texto}</span>
+    </p>
+  );
+}
 
 /**
  * "Regístrate como proveedor" (2026-10-06). Mismas piezas que el formulario de
  * Contacto (`ms-field`, `ms-tab`…). Llega al panel como solicitud por revisar.
+ *
+ * Pide lo mismo que el alta del panel (2026-10-09): su dirección, su
+ * municipio y los municipios a los que llega. Antes solo ciudad y estado, y al
+ * aceptarlo había que volver a pedirle dónde estaba y hasta dónde llegaba.
  */
 export function RegistroProveedorForm() {
   const [tipo, setTipo] = useState<TipoProveedor>('empresa');
@@ -26,8 +62,11 @@ export function RegistroProveedorForm() {
   const [contacto, setContacto] = useState('');
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
+  const [direccion, setDireccion] = useState('');
   const [ciudad, setCiudad] = useState('');
   const [estado, setEstado] = useState('Nuevo León');
+  const [municipios, setMunicipios] = useState('');
+  const [respuesta, setRespuesta] = useState('');
   const [ofrece, setOfrece] = useState<OfertaProveedor[]>([]);
   const [mensaje, setMensaje] = useState('');
   const [sitio, setSitio] = useState(''); // trampa para bots
@@ -42,6 +81,7 @@ export function RegistroProveedorForm() {
     telefono: tocado && digitos(telefono) < 10,
     correo: tocado && correo.trim() !== '' && !correoOk(correo.trim()),
     ciudad: tocado && !ciudad.trim(),
+    municipios: tocado && aLista(municipios).length === 0,
     ofrece: tocado && ofrece.length === 0,
     mensaje: tocado && mensaje.trim().length < 10,
   };
@@ -53,13 +93,20 @@ export function RegistroProveedorForm() {
   async function enviar() {
     setTocado(true);
     setErrorServidor(null);
-    if (nombre.trim().length < 2 || digitos(telefono) < 10 || (correo.trim() && !correoOk(correo.trim())) || !ciudad.trim() || ofrece.length === 0 || mensaje.trim().length < 10) return;
+    if (
+      nombre.trim().length < 2 || digitos(telefono) < 10 || (correo.trim() && !correoOk(correo.trim())) ||
+      !ciudad.trim() || aLista(municipios).length === 0 || ofrece.length === 0 || mensaje.trim().length < 10
+    ) return;
     setEnviando(true);
     try {
       const res = await fetch('/api/proveedores', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo, nombre, contacto: empresa ? contacto : '', telefono, correo, ciudad, estado, ofrece, mensaje, sitio }),
+        body: JSON.stringify({
+          tipo, nombre, contacto: empresa ? contacto : '', telefono, correo,
+          direccion, ciudad, estado, municipios: aLista(municipios), respuesta: respuesta ? Number(respuesta) : null,
+          ofrece, mensaje, sitio,
+        }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => null);
@@ -82,7 +129,12 @@ export function RegistroProveedorForm() {
           <Icon name="check" size={22} />
         </span>
         <h3 className="ms-empty-t">Registro enviado</h3>
-        <p className="ms-empty-p">Gracias por tu interés en la red MAQSER24. Nuestro equipo revisará la información y se pondrá en contacto contigo para continuar el proceso.</p>
+        <p className="ms-empty-p">
+          Gracias por tu interés en la red MAQSER24. Nuestro equipo revisará la información.
+          {correo.trim()
+            ? ' Si te aceptamos, te llega por correo el enlace a tu portal de aliado.'
+            : ' Si te aceptamos, te contactamos por teléfono para darte acceso a tu portal de aliado.'}
+        </p>
         <div className="ms-empty-acts">
           <Link href="/" className="ms-btn ms-btn-sec">Volver al inicio</Link>
         </div>
@@ -123,18 +175,42 @@ export function RegistroProveedorForm() {
         <div className="ms-field">
           <label htmlFor="rp-correo" className="ms-label">Correo</label>
           <input id="rp-correo" type="email" className="ms-input" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="tu@correo.com" aria-invalid={err.correo} autoComplete="email" />
-          {err.correo ? <p className="ms-error">Correo no válido.</p> : null}
+          {err.correo ? <p className="ms-error">Correo no válido.</p> : <p className="ms-hint">Aquí te llega el enlace a tu portal si te aceptamos.</p>}
         </div>
         <div className="ms-field">
-          <label htmlFor="rp-ciudad" className="ms-label">Ciudad<span className="ms-req">*</span></label>
-          <input id="rp-ciudad" className="ms-input" value={ciudad} onChange={(e) => setCiudad(e.target.value)} placeholder="Monterrey" aria-invalid={err.ciudad} autoComplete="address-level2" />
-          {err.ciudad ? <p className="ms-error">Escribe tu ciudad.</p> : null}
-        </div>
-        <div className="ms-field">
-          <label htmlFor="rp-estado" className="ms-label">Estado<span className="ms-req">*</span></label>
-          <select id="rp-estado" className="ms-select" value={estado} onChange={(e) => setEstado(e.target.value)}>
-            {ESTADOS_MX.map((e) => <option key={e} value={e}>{e}</option>)}
+          <label htmlFor="rp-respuesta" className="ms-label">¿En cuánto contestas una solicitud?</label>
+          <select id="rp-respuesta" className="ms-select" value={respuesta} onChange={(e) => setRespuesta(e.target.value)}>
+            {RESPUESTAS.map(([v, t]) => <option key={v || 'nd'} value={v}>{t}</option>)}
           </select>
+        </div>
+      </div>
+
+      {/* Dónde está y hasta dónde llega: lo mismo que pide el alta del panel. */}
+      <div style={{ display: 'grid', gap: 14 }}>
+        <h3 className="ms-h3">Dónde estás y hasta dónde llegas</h3>
+        <div className="ms-field">
+          <label htmlFor="rp-direccion" className="ms-label">Dirección de tu base</label>
+          <input id="rp-direccion" className="ms-input" value={direccion} onChange={(e) => setDireccion(e.target.value)} placeholder="Calle, número y colonia" autoComplete="street-address" />
+          <p className="ms-hint">Donde guardas tus equipos o sale tu personal. Con ella te ubicamos en el mapa.</p>
+        </div>
+        <div className="ms-grid2">
+          <div className="ms-field">
+            <label htmlFor="rp-ciudad" className="ms-label">Municipio<span className="ms-req">*</span></label>
+            <input id="rp-ciudad" className="ms-input" value={ciudad} onChange={(e) => setCiudad(e.target.value)} placeholder="Monterrey" aria-invalid={err.ciudad} autoComplete="address-level2" />
+            {err.ciudad ? <p className="ms-error">Escribe tu municipio.</p> : null}
+          </div>
+          <div className="ms-field">
+            <label htmlFor="rp-estado" className="ms-label">Estado<span className="ms-req">*</span></label>
+            <select id="rp-estado" className="ms-select" value={estado} onChange={(e) => setEstado(e.target.value)}>
+              {ESTADOS_MX.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="ms-field">
+          <label htmlFor="rp-municipios" className="ms-label">Municipios a los que llegas<span className="ms-req">*</span></label>
+          <input id="rp-municipios" className="ms-input" value={municipios} onChange={(e) => setMunicipios(e.target.value)} placeholder="Apodaca, Escobedo, García" aria-invalid={err.municipios} />
+          {err.municipios ? <p className="ms-error">Escribe al menos un municipio.</p> : <p className="ms-hint">Sepáralos con comas.</p>}
+          <KmCalculados municipio={ciudad} estado={estado} cobertura={municipios} />
         </div>
       </div>
 
@@ -156,7 +232,7 @@ export function RegistroProveedorForm() {
       <div className="ms-field">
         <label htmlFor="rp-mensaje" className="ms-label">Cuéntanos de tu maquinaria o servicios<span className="ms-req">*</span></label>
         <textarea id="rp-mensaje" className="ms-textarea" value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={5} aria-invalid={err.mensaje}
-          placeholder="Equipos (tipo, marca, modelo, cantidad), si rentas con operador, zonas donde trabajas…" />
+          placeholder="Equipos (tipo, marca, modelo, cantidad), si rentas con operador…" />
         {err.mensaje ? <p className="ms-error">Cuéntanos brevemente qué ofreces.</p> : null}
       </div>
 

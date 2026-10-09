@@ -14,7 +14,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { COTIZADOR_TIPOS, esLineaServicio, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
+import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, esLineaServicio, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
 import { margenAliadoPct } from '../common/platform-settings';
 import { coordenadasDe } from '../freight/direccion';
 import { borrarSubidas } from '../common/media';
@@ -332,6 +332,37 @@ export class AdminProvidersController {
    * acceso a un aliado que sólo usa WhatsApp —que es la mayoría—. Ahora el
    * enlace se genera igual y el panel ofrece mandarlo por WhatsApp.
    */
+  /**
+   * ACEPTAR UNA SOLICITUD DEL SITIO (2026-10-09).
+   *
+   * Antes "Aceptar en la red" solo cambiaba su estado, y había que acordarse de
+   * abrir su expediente y mandarle el enlace: si no, nunca se enteraba de que
+   * lo aceptaron ni podía completar nada. Ahora es el mismo final que el alta
+   * del panel: queda en la red, ubicado con su dirección exacta y con sus km,
+   * y le sale su invitación al portal. El enlace NO sale antes: mientras es
+   * solicitud no tiene portal.
+   */
+  @Post(':id/aceptar')
+  async aceptarSolicitud(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
+    const p = await prisma.providers.findUnique({ where: { id }, select: { name: true, email: true, status: true } });
+    if (!p) throw new NotFoundException('Solicitud no encontrada');
+    if (p.status !== ESTADO_SOLICITUD_PROVEEDOR) throw new BadRequestException('Esta solicitud ya se atendió.');
+
+    await prisma.providers.update({ where: { id }, data: { status: 1, updated_at: new Date() } });
+    await registrarAccion(req, 'proveedores', 'aceptar solicitud de proveedor', p.name);
+
+    const ubicacion = await ubicarAliado(id, { buscarBase: true, geocodificar: (q) => this.freight.geocode(q) }).catch(() => null);
+    let acceso: { estado: string; url: string; mensaje: string } | null = null;
+    if (p.email?.trim()) {
+      try {
+        acceso = await this.enviarAcceso(id);
+      } catch (e) {
+        acceso = { estado: 'fallido', url: '', mensaje: `No se pudo mandar su enlace: ${(e as Error).message}` };
+      }
+    }
+    return { ok: true, acceso, ubicacion };
+  }
+
   @Post(':id/acceso')
   async enviarAcceso(@Param('id', ParseIntPipe) id: number) {
     const p = await prisma.providers.findUnique({

@@ -17,9 +17,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /** Qué pasa después de enviar. Sin promesas de plazos: lo decide la revisión. */
 const PASOS: Array<{ icono: IconName; titulo: string; texto: string }> = [
-  { icono: 'article', titulo: 'Envías tu registro', texto: 'Tu empresa o tus datos, qué equipos o servicios ofreces y dónde trabajas.' },
+  { icono: 'article', titulo: 'Envías tu registro', texto: 'Tu empresa o tus datos, qué equipos o servicios ofreces, dónde está tu base y a qué municipios llegas.' },
   { icono: 'search', titulo: 'Revisamos la información', texto: 'El equipo de MAQSER24 revisa tu registro y lo que ofreces.' },
-  { icono: 'phone', titulo: 'Te contactamos', texto: 'Te llamamos o escribimos para continuar el proceso de incorporación a la red.' },
+  // Desde 2026-10-09 el enlace sale solo al aceptarlo (ver `aceptarSolicitud` en la API).
+  { icono: 'link', titulo: 'Te damos acceso', texto: 'Si te aceptamos, te llega por correo el enlace a tu portal: ahí subes tus papeles, ofreces tus equipos y contestas solicitudes.' },
 ];
 
 const CSS = `

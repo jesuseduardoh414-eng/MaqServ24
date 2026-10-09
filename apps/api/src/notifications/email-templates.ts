@@ -479,7 +479,8 @@ export function correoAcuseProveedor(d: { nombre: string }): { subject: string; 
     subject: 'Recibimos tu registro como proveedor · MAQSER24',
     html: marco(
       `${titulo(`Hola, ${esc(d.nombre)}`)}
-      <p style="margin:0 0 12px;">Recibimos tu registro para formar parte de la red MAQSER24. Nuestro equipo revisará la información y se pondrá en contacto contigo para continuar el proceso.</p>
+      <p style="margin:0 0 12px;">Recibimos tu registro para formar parte de la red MAQSER24. Nuestro equipo revisará la información.</p>
+      <p style="margin:0 0 12px;">Si te aceptamos en la red, te llega a este correo el enlace a tu portal de aliado: ahí subes tus papeles, ofreces tus equipos y contestas las solicitudes de obra.</p>
       <p style="margin:0;">Si quieres agregar algo, responde a este correo.</p>`,
       'Si no te registraste en maqserv24.com, ignora este correo.',
     ),

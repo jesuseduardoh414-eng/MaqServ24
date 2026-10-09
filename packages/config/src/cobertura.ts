@@ -234,25 +234,57 @@ function separarEstado(texto: string): { nombre: string; estado: string | null }
   return hit ? { nombre: texto.slice(0, i), estado: hit[1] } : { nombre: texto, estado: null };
 }
 
+/** "Nuevo Leon", "N.L.", "nuevo león" → 'Nuevo León'. Null si no es uno de los tres de la tabla. */
+function estadoDeTabla(e: string | null | undefined): string | null {
+  const n = normalizarNombre(e ?? '');
+  return SUFIJOS.find(([re]) => re.test(n))?.[1] ?? null;
+}
+
+/**
+ * Un homónimo en otro estado solo vale si queda cerca de su base: "Guadalupe"
+ * existe en Nuevo León y en Chihuahua, y a un aliado de Apodaca no le sirve
+ * el de Chihuahua. Más lejos que esto, mejor buscarlo en línea con su estado.
+ */
+const HOMONIMO_MAX_KM = 250;
+
 const contiene = (a: string, b: string) => ` ${a} `.includes(` ${b} `);
 
 /**
  * El punto de un municipio escrito a mano. Primero en su estado (el que trae
- * después de la coma, o el del aliado), con nombre exacto y luego por palabras
- * completas ("Escobedo" → General Escobedo, "Ciudad Juárez" → Juárez). Si ahí
- * no está, en los otros estados pero solo con nombre exacto: "Saltillo" sin
- * más es el de Coahuila; "San Pedro" sin más no se adivina fuera de su estado.
+ * después de la coma, o el del aliado, sin importar acentos ni abreviaturas),
+ * con nombre exacto y luego por palabras completas ("Escobedo" → General
+ * Escobedo, "Ciudad Juárez" → Juárez). Si ahí no está, en los otros estados
+ * pero solo con nombre exacto: "Saltillo" sin más es el de Coahuila. Con
+ * `cerca` (la base del aliado) se toma el homónimo más cercano, y solo si
+ * queda a menos de `HOMONIMO_MAX_KM`.
  */
-export function centroDeMunicipio(texto: string, estadoDelAliado?: string | null): (Punto & { nombre: string; estado: string }) | null {
+export function centroDeMunicipio(
+  texto: string,
+  estadoDelAliado?: string | null,
+  cerca?: Punto | null,
+): (Punto & { nombre: string; estado: string }) | null {
   const { nombre, estado } = separarEstado(texto);
   const q = normalizarNombre(nombre);
   if (q.length < 3) return null;
-  const propio = estado ?? estadoDelAliado ?? 'Nuevo León';
-  const enEstado = CENTROS.filter((c) => c[0] === propio);
-  const hit =
+  // Sin estado escrito se asume Nuevo León; con uno que no está en la tabla
+  // (Jalisco, o mal escrito) no se asume ninguno.
+  const propio = estado ?? (estadoDelAliado?.trim() ? estadoDeTabla(estadoDelAliado) : 'Nuevo León');
+  const enEstado = propio ? CENTROS.filter((c) => c[0] === propio) : [];
+  let hit =
     enEstado.find((c) => normalizarNombre(c[1]) === q) ??
-    enEstado.find((c) => contiene(normalizarNombre(c[1]), q) || contiene(q, normalizarNombre(c[1]))) ??
-    (estado ? undefined : CENTROS.find((c) => c[0] !== propio && normalizarNombre(c[1]) === q));
+    enEstado.find((c) => contiene(normalizarNombre(c[1]), q) || contiene(q, normalizarNombre(c[1])));
+  if (!hit && !estado) {
+    const homonimos = CENTROS.filter((c) => c[0] !== propio && normalizarNombre(c[1]) === q);
+    if (cerca) {
+      const conDistancia = homonimos
+        .map((c) => ({ c, km: kmCarretera(cerca, { lat: c[2], lng: c[3] }) }))
+        .filter((x) => x.km <= HOMONIMO_MAX_KM)
+        .sort((a, b) => a.km - b.km);
+      hit = conDistancia[0]?.c;
+    } else {
+      hit = homonimos[0];
+    }
+  }
   return hit ? { estado: hit[0], nombre: hit[1], lat: hit[2], lng: hit[3] } : null;
 }
 
@@ -291,7 +323,7 @@ export function radioDeCobertura(
   for (const m of municipios) {
     const limpio = m.trim();
     if (!limpio) continue;
-    const c = centroDeMunicipio(limpio, estadoDelAliado);
+    const c = centroDeMunicipio(limpio, estadoDelAliado, base);
     if (c) puntos.push(c);
     else sinUbicar.push(limpio);
   }

@@ -16,6 +16,7 @@ import { imageUrl, normLegacyText } from '../catalog/images';
 import { PerfexService } from '../integrations/integrations.module';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseContacto, correoAcuseProveedor, correoContactoInterno, correoSolicitudProveedorInterno } from '../notifications/email-templates';
+import { ubicarAliado } from '../providers/cobertura-aliado';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -305,6 +306,16 @@ export class ContentService {
     const correo = txt(data.correo, 190).toLowerCase() || null;
     const ciudad = txt(data.ciudad, 120);
     const estado = txt(data.estado, 120);
+    // Lo mismo que pide el alta del panel (2026-10-09): dirección de su base,
+    // municipios que cubre y en cuánto contesta. Con eso, al aceptarlo, queda
+    // ubicado y con sus km sin volver a pedirle nada.
+    const direccion = txt(data.direccion, 500) || null;
+    const municipios = (Array.isArray(data.municipios) ? data.municipios.map(String) : String(data.municipios ?? '').split(','))
+      .map((m) => m.trim().slice(0, 120))
+      .filter(Boolean)
+      .slice(0, 60);
+    const respuesta = Number(data.respuesta);
+    const minutos = Number.isInteger(respuesta) && respuesta > 0 && respuesta <= 10080 ? respuesta : null;
     const mensaje = txt(data.mensaje, 2000);
     const claves = Array.isArray(data.ofrece) ? data.ofrece.map(String) : [];
     const ofertas = OFERTAS_PROVEEDOR.filter((o) => claves.includes(o.clave));
@@ -313,7 +324,8 @@ export class ContentService {
     if (nombre.length < 2) throw new BadRequestException('Escribe el nombre de tu empresa o tu nombre');
     if (telefono.replace(/\D/g, '').length < 10) throw new BadRequestException('Escribe un teléfono de 10 dígitos');
     if (correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) throw new BadRequestException('Correo no válido');
-    if (!ciudad || !estado) throw new BadRequestException('Escribe tu ciudad y estado');
+    if (!ciudad || !estado) throw new BadRequestException('Escribe tu municipio y estado');
+    if (municipios.length === 0) throw new BadRequestException('Escribe al menos un municipio al que llegas');
     if (ofertas.length === 0) throw new BadRequestException('Elige al menos una cosa que ofreces');
     if (mensaje.length < 10) throw new BadRequestException('Cuéntanos brevemente tu maquinaria o servicios');
 
@@ -329,21 +341,29 @@ export class ContentService {
     });
     const previa = pendientes.find((p) => (correo && p.email?.trim().toLowerCase() === correo) || (p.phone ?? '').replace(/\D/g, '').slice(-10) === tel10);
 
+    let id: number;
     if (previa) {
       const antes = Array.isArray(previa.categories) ? (previa.categories as string[]) : [];
+      // Se registró otra vez: vale su ubicación más reciente.
       await prisma.providers.update({
         where: { id: previa.id },
         data: {
           notes: `${previa.notes ?? ''}\n\n---\n${nota}`.slice(-4000),
           categories: [...new Set([...antes, ...categorias])],
+          city: ciudad,
+          state: estado,
+          ...(direccion ? { address: direccion } : {}),
+          coverage: municipios,
+          ...(minutos ? { response_minutes: minutos } : {}),
           updated_at: new Date(),
         },
       });
+      id = previa.id;
     } else {
       const base = slugify(nombre) || 'proveedor';
       let slug = base;
       for (let i = 2; await prisma.providers.findUnique({ where: { slug } }); i++) slug = `${base}-${i}`;
-      await prisma.providers.create({
+      const creado = await prisma.providers.create({
         data: {
           name: nombre,
           slug,
@@ -353,13 +373,22 @@ export class ContentService {
           email: correo,
           city: ciudad,
           state: estado,
-          coverage: [],
+          address: direccion,
+          coverage: municipios,
+          response_minutes: minutos,
           categories: categorias,
           notes: nota,
           status: ESTADO_SOLICITUD_PROVEEDOR,
         },
+        select: { id: true },
       });
+      id = creado.id;
     }
+
+    // Ubicación aproximada con la tabla de cabeceras (sin consultar el mapa:
+    // quien se registra no espera). La exacta, con su dirección, se busca al
+    // aceptarlo en la red.
+    void ubicarAliado(id, { buscarBase: true }).catch(() => null);
 
     void avisarPanel({
       modulo: 'proveedores',

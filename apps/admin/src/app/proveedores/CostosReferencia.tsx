@@ -106,8 +106,11 @@ export function CostosReferencia({ providerId }: { providerId: number }) {
         ) : null}
       </div>
       <p style={{ margin: '4px 0 14px', fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.6 }}>
-        Lo que este aliado te cobra por hora, por máquina (antes el CRM). Solo de referencia para negociar: no cambia ningún
-        precio del cotizador.
+        Lo que este aliado te cobra por hora, por máquina (antes el CRM). <b style={{ color: 'var(--adm-text-2)', fontWeight: 600 }}>Solo
+        de referencia para negociar</b>: no sale en el sitio ni en el cotizador, y no cambia ningún precio. Para que el cliente
+        vea una máquina, dala de alta como ficha en{' '}
+        <a href={`/productos/nuevo?proveedor=${providerId}`} className="adm-link" style={{ textDecoration: 'underline' }}>Agregar servicio o producto</a>;
+        su precio lo pone <a href="/cotizador/tarifas" className="adm-link" style={{ textDecoration: 'underline' }}>Tarifas y condiciones</a>.
       </p>
 
       {maquinas === null ? (
