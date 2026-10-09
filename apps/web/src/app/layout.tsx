@@ -12,6 +12,7 @@ import { IMAGEN_OG, SITE_URL } from '@/lib/seo';
 import './globals.css';
 import { RecortarEspacios } from '@maqserv/ui';
 import { EstilosSistema } from '@/components/EstilosSistema';
+import { DialogosHost } from '@/components/Dialogos';
 
 /**
  * CADUCIDAD DE LAS PÁGINAS (red de seguridad del panel).
@@ -104,6 +105,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* Un espacio pegado sin querer no debe costar un "datos incorrectos". */}
         <RecortarEspacios />
         <CartProvider>{children}</CartProvider>
+        {/* confirmar / pedirTexto: en lugar de los diálogos del navegador. */}
+        <DialogosHost />
         <Pwa
           labels={{
             brand: t(theme, 'site.name'),

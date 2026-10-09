@@ -17,6 +17,7 @@ import {
   type CotizadorTipo,
 } from '@maqserv/config';
 import { Btn, Chip, FormField, Note, Panel, Segmented, Switch, Toolbar } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /**
  * TABULADOR DE LOS COTIZADORES.
@@ -99,7 +100,7 @@ export function TarifasEditor({
   }
 
   async function restaurar() {
-    if (!confirm('¿Volver al tabulador de fábrica? Se pierde lo que hayas cambiado en este cotizador.')) return;
+    if (!(await confirmar({ titulo: '¿Volver al tabulador de fábrica?', mensaje: 'Se pierde lo que hayas cambiado en este cotizador.', confirmar: 'Restaurar', peligro: true }))) return;
     setGuardando(true);
     setMensaje(null);
     try {

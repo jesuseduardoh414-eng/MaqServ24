@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { ThemeTokens } from '@maqserv/config';
 import { inputStyle, Field } from '@/components/editor-kit';
 import { Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, SearchBox, StatusText, Thumb, Toast } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 type Copys = Record<string, Record<string, string>>;
 
@@ -102,7 +103,7 @@ export function BlogManager({ blogs, themeId, copys, tokens, sectionEnabled }: {
 
   async function remove(b: BlogRow) {
     if (pending) return;
-    if (!confirm(`¿Eliminar la entrada "${b.title}"? Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmar({ titulo: '¿Eliminar esta entrada?', mensaje: `«${b.title}» se borra del blog y no se puede deshacer.`, confirmar: 'Eliminar', peligro: true }))) return;
     setPending(b.id);
     const prev = rows;
     setRows((rs) => rs.filter((r) => r.id !== b.id));

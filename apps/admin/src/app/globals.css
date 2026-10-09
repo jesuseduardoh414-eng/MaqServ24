@@ -450,6 +450,9 @@ a.adm-stat:hover .adm-stat-label { color: var(--adm-text); }
 .adm-btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.05); color: var(--adm-text); }
 .adm-btn-danger { background: transparent; border-color: color-mix(in srgb, var(--adm-bad) 45%, transparent); color: var(--adm-bad); }
 .adm-btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--adm-bad) 10%, transparent); }
+/* Confirmar algo que borra (diálogos del sistema): rojo lleno, no solo el borde. */
+.adm-btn-danger-solid { background: var(--adm-bad); color: #fff; }
+.adm-btn-danger-solid:hover:not(:disabled) { filter: brightness(1.1); color: #fff; }
 .adm-btn-sm { height: 30px; padding: 0 10px; border-radius: 7px; font-size: 12.5px; gap: 6px; }
 .adm-btn-sm i { font-size: 14px; }
 .adm-btn-lg { height: 40px; padding: 0 18px; font-size: 14px; }

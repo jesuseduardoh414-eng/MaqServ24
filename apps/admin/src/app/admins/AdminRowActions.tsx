@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { ROLES_ADMIN, contrasenaSegura, type RolAdmin } from '@maqserv/config';
 import { Btn, StatusText } from '@/components/ui';
 import { ReglasContrasena } from '@/components/ReglasContrasena';
+import { confirmar } from '@/components/Dialogos';
 
 const ROLES = Object.values(ROLES_ADMIN);
 
@@ -72,9 +73,14 @@ export function AdminRowActions({
     }
   }
 
-  function toggle() {
+  async function toggle() {
     const off = status === 1;
-    if (off && !window.confirm(`¿Desactivar a ${name}? Pierde el acceso al panel de inmediato, aunque tenga la sesión abierta.`)) return;
+    if (off && !(await confirmar({
+      titulo: `¿Desactivar a ${name}?`,
+      mensaje: 'Pierde el acceso al panel de inmediato, aunque tenga la sesión abierta.',
+      confirmar: 'Desactivar',
+      peligro: true,
+    }))) return;
     void send({ status: off ? 0 : 1 });
   }
 
@@ -84,7 +90,12 @@ export function AdminRowActions({
    * primero evita quitarle la cuenta a alguien que sí la usaba.
    */
   async function remove() {
-    if (!window.confirm(`¿Eliminar la cuenta de ${name}? Desaparece de esta lista y no se puede deshacer. Queda anotado en la bitácora.`)) return;
+    if (!(await confirmar({
+      titulo: `¿Eliminar la cuenta de ${name}?`,
+      mensaje: 'Desaparece de esta lista y no se puede deshacer. Queda anotado en la bitácora.',
+      confirmar: 'Eliminar cuenta',
+      peligro: true,
+    }))) return;
     setBusy(true);
     setError(null);
     try {
@@ -99,7 +110,11 @@ export function AdminRowActions({
   }
 
   async function hacerPrincipal() {
-    if (!window.confirm(`¿Hacer a ${name} la cuenta principal? Dejarás de serlo tú: ya no podrás dar o quitar Dirección General ni modificar sus cuentas.`)) return;
+    if (!(await confirmar({
+      titulo: `¿Hacer a ${name} la cuenta principal?`,
+      mensaje: 'Dejarás de serlo tú: ya no podrás dar o quitar Dirección General ni modificar sus cuentas.',
+      confirmar: 'Hacerla principal',
+    }))) return;
     setBusy(true);
     setError(null);
     try {

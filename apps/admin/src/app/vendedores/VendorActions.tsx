@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /**
  * Cambia el estado de un vendedor (is_vendor 0|1|2).
@@ -29,7 +30,7 @@ export function VendorActions({
   const [error, setError] = useState<string | null>(null);
 
   async function set(next: 0 | 1 | 2, confirmMsg?: string) {
-    if (confirmMsg && !window.confirm(confirmMsg)) return;
+    if (confirmMsg && !(await confirmar({ titulo: confirmMsg, confirmar: 'Sí, continuar', peligro: next !== 1 }))) return;
     setBusy(true);
     setError(null);
     try {

@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { Btn, btnClass, Chip, EmptyState, FormField, IconBtn, Panel, type Tone } from '@/components/ui';
+import { avisar, pedirTexto } from '@/components/Dialogos';
 
 /**
  * INCIDENCIAS DE CAMPO (documento institucional, sección 30).
@@ -189,11 +190,32 @@ export function Incidencias({
   }
 
   async function cerrar(id: number) {
-    const resolution = window.prompt('¿Cómo se resolvió?');
-    if (!resolution || resolution.trim().length < 4) return;
+    const resolution = await pedirTexto({
+      titulo: '¿Cómo se resolvió?',
+      mensaje: 'Queda en el historial del servicio.',
+      multilinea: true,
+      requerido: true,
+      confirmar: 'Siguiente',
+    });
+    if (resolution === null) return;
+    if (resolution.trim().length < 4) {
+      await avisar({ titulo: 'Falta cómo se resolvió', mensaje: 'Escribe al menos unas palabras para poder cerrarla.' });
+      return;
+    }
     // Al cerrar se puede corregir de quién fue: al abrir no siempre se sabe, y
     // obligar a decidirlo en caliente produce culpables inventados.
-    const quien = window.prompt('¿De quién fue? cliente / aliado / plataforma / nadie', 'nadie');
+    const quien = await pedirTexto({
+      titulo: '¿De quién fue?',
+      valor: 'nadie',
+      opciones: [
+        { valor: 'cliente', texto: 'Del cliente' },
+        { valor: 'aliado', texto: 'Del aliado' },
+        { valor: 'plataforma', texto: 'Nuestra (MAQSER24)' },
+        { valor: 'nadie', texto: 'De nadie' },
+      ],
+      confirmar: 'Cerrar incidencia',
+    });
+    if (quien === null) return;
     setOcupado(true);
     await fetch(`/api/admin/incidencias/${id}/cerrar`, {
       method: 'PATCH',

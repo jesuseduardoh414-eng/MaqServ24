@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /*
  * Las variantes se quedan con sus nombres de siempre (solid/outline/ghost) para
@@ -32,7 +33,7 @@ export function ActionButton({
   const [loading, setLoading] = useState(false);
 
   async function run() {
-    if (confirmText && !window.confirm(confirmText)) return;
+    if (confirmText && !(await confirmar({ titulo: confirmText, peligro: method === 'DELETE' }))) return;
     setLoading(true);
     await fetch(`/api/admin/${path}`, {
       method,

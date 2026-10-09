@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ESTADO_SOLICITUD_PROVEEDOR } from '@maqserv/config';
 import { Btn, FormField, IconBtn, Note, Panel } from '@/components/ui';
+import { avisar, confirmar } from '@/components/Dialogos';
 
 /**
  * EL CRM, DENTRO DEL EXPEDIENTE (2026-10-08).
@@ -84,7 +85,7 @@ export function CostosReferencia({ providerId }: { providerId: number }) {
   }
 
   async function borrar(m: Maquina) {
-    if (!window.confirm(`¿Borrar «${[m.tipo, m.marca, m.modelo].filter(Boolean).join(' ')}»?`)) return;
+    if (!(await confirmar({ titulo: `¿Borrar «${[m.tipo, m.marca, m.modelo].filter(Boolean).join(' ')}»?`, mensaje: 'Se quita de sus costos de referencia.', confirmar: 'Borrar', peligro: true }))) return;
     await fetch(`/api/admin/proveedores-crm/maquinas/${m.id}`, { method: 'DELETE' });
     void cargar();
   }
@@ -193,7 +194,7 @@ export function DescargarExcelProveedores() {
     setOcupado(true);
     const provs = await leerCrm();
     setOcupado(false);
-    if (!provs) { window.alert('No se pudo leer la lista de proveedores.'); return; }
+    if (!provs) { await avisar({ titulo: 'No se pudo descargar el Excel', mensaje: 'No se pudo leer la lista de proveedores. Inténtalo de nuevo.', peligro: true }); return; }
     const enc = ['Proveedor', 'Situación', 'Contacto', 'Correo', 'WhatsApp / celular', 'Ubicación del taller', 'Ciudad', 'Estado',
       'Tipo de maquinaria', 'Marca', 'Modelo', 'Características', 'Costo por hora sin operador y sin diésel',
       'Costo por hora con operador y sin diésel', 'Costo por hora con operador y con diésel', 'Notas de la máquina', 'Registrado'];

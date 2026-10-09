@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import type { Category, VendorProductRow } from '@maqserv/types';
 import { formatPrice } from '@/lib/format';
 import { Icon } from '@/components/Icon';
+import { confirmar } from '@/components/Dialogos';
 
 const MONO = 'var(--font-sans)';
 const DISPLAY = 'var(--font-display)';
@@ -84,7 +85,7 @@ export function ProductsManager({
   }
 
   async function deactivate(id: number, name: string) {
-    if (!window.confirm(`¿Quitar “${name}” del catálogo? Dejará de aparecer en el sitio.`)) return;
+    if (!(await confirmar({ titulo: `¿Quitar «${name}» del catálogo?`, mensaje: 'Dejará de aparecer en el sitio.', confirmar: 'Quitar', peligro: true }))) return;
     setBusyId(id);
     setError(null);
     try {

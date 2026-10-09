@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Modal } from '@/components/Modal';
 import { Btn, Chip, Panel } from '@/components/ui';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
+import { confirmar } from '@/components/Dialogos';
 
 export interface SolicitudRow {
   id: number;
@@ -44,10 +45,14 @@ export function SolicitudesProveedor({ solicitudes, onCambio }: { solicitudes: S
   if (solicitudes.length === 0) return null;
 
   async function aceptar(s: SolicitudRow) {
-    const aviso = s.email
-      ? `¿Aceptar a «${s.name}» en la red de aliados? Le llega a ${s.email} el enlace a su portal.`
-      : `¿Aceptar a «${s.name}» en la red de aliados? No dejó correo: su enlace lo mandas desde su expediente (WhatsApp).`;
-    if (!window.confirm(aviso)) return;
+    const ok = await confirmar({
+      titulo: `¿Aceptar a «${s.name}» en la red?`,
+      mensaje: s.email
+        ? `Queda ubicado con su dirección y le llega a ${s.email} el enlace a su portal.`
+        : 'Queda ubicado con su dirección. No dejó correo: su enlace se lo mandas por WhatsApp desde su expediente.',
+      confirmar: 'Aceptar en la red',
+    });
+    if (!ok) return;
     setOcupado(s.id);
     const r = await fetch(`/api/admin/providers/${s.id}/aceptar`, { method: 'POST' });
     const d = await r.json().catch(() => null);
@@ -59,7 +64,7 @@ export function SolicitudesProveedor({ solicitudes, onCambio }: { solicitudes: S
   }
 
   async function descartar(s: SolicitudRow) {
-    if (!window.confirm(`¿Descartar la solicitud de «${s.name}»? Se borra y no se le avisa.`)) return;
+    if (!(await confirmar({ titulo: `¿Descartar la solicitud de «${s.name}»?`, mensaje: 'Se borra y no se le avisa.', confirmar: 'Descartar', peligro: true }))) return;
     setOcupado(s.id);
     const r = await fetch(`/api/admin/providers/${s.id}`, { method: 'DELETE' });
     setOcupado(null);

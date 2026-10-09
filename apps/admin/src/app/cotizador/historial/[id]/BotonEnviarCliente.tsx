@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Btn } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /**
  * MANDARLE LA COTIZACIÓN AL CLIENTE.
@@ -37,7 +38,7 @@ export function BotonEnviarCliente({
   async function enviar() {
     // Reenviar es legítimo —el cliente pide que se la manden otra vez—, pero
     // hacerlo sin querer no: el segundo envío se confirma.
-    if (estado === 'enviada' && !window.confirm(`Esta cotización ya se envió. ¿Volver a mandarla a ${correo}?`)) {
+    if (estado === 'enviada' && !(await confirmar({ titulo: '¿Volver a mandar la cotización?', mensaje: `Ya se envió antes. Le llegará otra vez a ${correo}.`, confirmar: 'Volver a mandar' }))) {
       return;
     }
     setEnviando(true);

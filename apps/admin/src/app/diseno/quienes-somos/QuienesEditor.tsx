@@ -7,6 +7,7 @@ import type { ThemeTokens, WhyChooseUs, QuienesSomos, QsStat, QsValue, QsMilesto
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle, ColorField } from '@/components/editor-kit';
 import { Btn, Chip, EmptyState, IconBtn, Note, PageHeader, Panel, SectionHead, Segmented, StatusText, Toast } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 type Copys = Record<string, Record<string, string>>;
 type Placement = 'both' | 'home' | 'about';
@@ -391,7 +392,7 @@ function ReasonsManager({ reasons }: { reasons: Reason[] }) {
     } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
   }
   async function remove(id: number) {
-    if (!window.confirm('¿Eliminar esta razón? No se puede deshacer.')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar esta razón?', mensaje: 'No se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
     setBusy(id); setErr(null);
     try {
       const r = await fetch(`/api/admin/cms/why-choose-us/${id}`, { method: 'DELETE' });

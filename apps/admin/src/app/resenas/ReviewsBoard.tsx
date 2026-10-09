@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   Bar, Btn, EmptyState, IconBtn, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toast, Toolbar, type Tone,
 } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 interface Review { id: number; author: string; product: string; rating: number; review: string; status: number; verified?: boolean; createdAt: string | null }
 
@@ -74,7 +75,7 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
     if (!r.ok) { setReviews(prev); setToast({ ok: false, text: 'No se pudo actualizar la reseña' }); }
   }
   async function remove(id: number) {
-    if (!window.confirm('¿Eliminar esta reseña? No se puede deshacer.')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar esta reseña?', mensaje: 'No se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
     const prev = reviews;
     setReviews((rs) => rs.filter((r) => r.id !== id));
     setSel((s) => { const n = { ...s }; delete n[id]; return n; });
@@ -84,7 +85,7 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
   async function bulk(action: 'approve' | 'hide' | 'delete') {
     const ids = Object.keys(sel).filter((k) => sel[Number(k)]).map(Number);
     if (!ids.length) return;
-    if (action === 'delete' && !window.confirm(`¿Eliminar ${ids.length} reseña(s)? No se puede deshacer.`)) return;
+    if (action === 'delete' && !(await confirmar({ titulo: `¿Eliminar ${ids.length} ${ids.length === 1 ? 'reseña' : 'reseñas'}?`, mensaje: 'No se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
     const prev = reviews;
     if (action === 'delete') setReviews((rs) => rs.filter((r) => !ids.includes(r.id)));
     else setReviews((rs) => rs.map((r) => (ids.includes(r.id) ? { ...r, status: action === 'approve' ? 1 : 0 } : r)));

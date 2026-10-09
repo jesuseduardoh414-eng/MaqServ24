@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SidebarNav } from './SidebarNav';
 import { AvisosBell } from './AvisosBell';
+import { DialogosHost } from './Dialogos';
 import { useBranding } from './branding';
 import type { ModuloAdmin, RolAdmin } from '@maqserv/config';
 
@@ -168,6 +169,9 @@ export function AdminShell({
           <div className="adm-content-inner">{children}</div>
         </div>
       </main>
+
+      {/* confirmar / pedirTexto / avisar: en lugar de los diálogos del navegador. */}
+      <DialogosHost />
     </div>
   );
 }

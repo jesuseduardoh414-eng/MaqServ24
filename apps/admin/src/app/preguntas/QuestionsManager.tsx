@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, Segmented, StatusText, Toast, Toolbar } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 export interface AdminQuestion {
   id: number;
@@ -62,7 +63,7 @@ export function QuestionsManager({ initial }: { initial: AdminQuestion[] }) {
     else { setToast({ ok: true, text: next ? 'Destacada en el home.' : 'Quitada del home.' }); }
   }
   async function remove(id: number) {
-    if (!window.confirm('¿Eliminar esta pregunta?')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar esta pregunta?', mensaje: 'Se borra junto con su respuesta y no se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
     setBusy(id);
     const prev = list;
     setList((l) => l.filter((q) => q.id !== id));

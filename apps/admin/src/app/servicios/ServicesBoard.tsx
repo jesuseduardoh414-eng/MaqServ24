@@ -9,6 +9,7 @@ import {
 import { Incidencias, VentanaFormulario } from './Incidencias';
 import { useRouter } from 'next/navigation';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
+import { pedirTexto } from '@/components/Dialogos';
 
 /**
  * TABLERO DE OPERACIONES.
@@ -319,10 +320,15 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
                               size="sm"
                               variant="danger"
                               icon="ph-x"
-                              onClick={() => {
+                              onClick={async () => {
                                 // Por qué rechazó es el dato que dice si la red
                                 // alcanza para esa zona; sin él solo queda un "no".
-                                const r = window.prompt('¿Por qué no puede? (para saber qué le falta a la red)');
+                                const r = await pedirTexto({
+                                  titulo: '¿Por qué no puede?',
+                                  mensaje: 'Sirve para saber qué le falta a la red en esa zona. Puedes dejarlo en blanco.',
+                                  multilinea: true,
+                                  confirmar: 'Marcar que no puede',
+                                });
                                 if (r !== null) responderAliado(a.id, 'rechazado', r || undefined);
                               }}
                             >
@@ -401,8 +407,16 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
                   <Btn
                     size="sm"
                     variant="ghost"
-                    onClick={() => {
-                      const nota = window.prompt('¿Por qué se cancela?');
+                    onClick={async () => {
+                      const nota = await pedirTexto({
+                        titulo: `¿Cancelar el servicio ${s.quoteNumber}?`,
+                        mensaje: 'Escribe por qué se cancela; queda en su historial.',
+                        etiqueta: 'Motivo',
+                        multilinea: true,
+                        confirmar: 'Cancelar servicio',
+                        cancelar: 'Volver',
+                        peligro: true,
+                      });
                       if (nota !== null) mover(s, 'cancelado', { note: nota || undefined });
                     }}
                     disabled={ocupado === s.id}

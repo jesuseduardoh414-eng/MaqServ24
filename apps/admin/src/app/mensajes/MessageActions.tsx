@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn, IconBtn } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /**
  * Mover un mensaje entre nuevo / atendido / archivado.
@@ -29,7 +30,7 @@ export function MessageState({ id, state, name }: { id: number; state: string; n
   }
 
   async function borrar() {
-    if (!window.confirm(`¿Borrar el mensaje de ${name}? No se puede deshacer.`)) return;
+    if (!(await confirmar({ titulo: `¿Borrar el mensaje de ${name}?`, mensaje: 'No se puede deshacer.', confirmar: 'Borrar', peligro: true }))) return;
     setBusy(true);
     try {
       await fetch(`/api/admin/contact-messages/${id}`, { method: 'DELETE' });
@@ -72,7 +73,7 @@ export function ContactTools({ perfexEnabled, pendientes }: { perfexEnabled: boo
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function sync() {
-    if (!window.confirm(`¿Enviar ${pendientes} mensaje(s) a Perfex como leads?`)) return;
+    if (!(await confirmar({ titulo: `¿Enviar ${pendientes} ${pendientes === 1 ? 'mensaje' : 'mensajes'} a Perfex?`, mensaje: 'Entran al CRM como leads.', confirmar: 'Enviar a Perfex' }))) return;
     setBusy(true);
     setMsg(null);
     try {

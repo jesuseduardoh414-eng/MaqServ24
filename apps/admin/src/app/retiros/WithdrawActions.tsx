@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /**
  * Pagar o rechazar un retiro. Ambas acciones mueven dinero, así que ninguna es de
@@ -60,8 +61,12 @@ export function WithdrawActions({
         size="sm"
         icon="ph-check"
         disabled={busy}
-        onClick={() => {
-          if (window.confirm(`¿Confirmas que ya le transferiste ${amount} a ${vendor}?\n\nSu saldo ya está descontado; esto solo cierra el retiro.`)) {
+        onClick={async () => {
+          if (await confirmar({
+            titulo: `¿Ya le transferiste ${amount} a ${vendor}?`,
+            mensaje: 'Su saldo ya está descontado; esto solo cierra el retiro.',
+            confirmar: 'Sí, ya se pagó',
+          })) {
             void send('completed');
           }
         }}

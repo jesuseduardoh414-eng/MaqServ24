@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn, Note, PageHeader, Panel, btnClass } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 type Branding = Record<string, string | null>;
 
@@ -50,8 +51,8 @@ export function BrandingEditor({ initial }: { initial: Branding }) {
     e.target.value = '';
   }
 
-  function onClear(slot: string, label: string) {
-    if (!window.confirm(`¿Quitar "${label}"?`)) return;
+  async function onClear(slot: string, label: string) {
+    if (!(await confirmar({ titulo: `¿Quitar «${label}»?`, mensaje: 'El sitio vuelve a usar la versión anterior o la de respaldo.', confirmar: 'Quitar', peligro: true }))) return;
     const fd = new FormData();
     fd.set('clear', 'true');
     void send(slot, fd);

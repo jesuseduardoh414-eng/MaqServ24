@@ -14,6 +14,7 @@ import { ProviderHistory } from './ProviderHistory';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
 import { QueOfrece, categoriasDelTipo, faltaEnOferta, tipoDeCategorias, type TipoOferta } from './QueOfrece';
 import { CostosReferencia, DescargarExcelProveedores } from './CostosReferencia';
+import { avisar, confirmar } from '@/components/Dialogos';
 
 export interface ProviderRow {
   id: number;
@@ -563,7 +564,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           onEliminar={async () => {
             const r = await fetch(`/api/admin/providers/${expediente.id}`, { method: 'DELETE' });
             const d = await r.json().catch(() => null);
-            if (!r.ok) { window.alert('No se pudo eliminar.'); return; }
+            if (!r.ok) { await avisar({ titulo: 'No se pudo eliminar', mensaje: 'Inténtalo de nuevo. Si sigue igual, la API no está respondiendo.', peligro: true }); return; }
             setMsg(d?.eliminado ? `«${expediente.name}» se eliminó.` : `«${expediente.name}» tiene historial: se dio de baja en vez de borrarlo.`);
             setExpediente(null);
             await recargar();
@@ -618,7 +619,7 @@ function ExpedienteModal({
     });
     setOcupado(null);
     const d = await r.json().catch(() => null);
-    if (!r.ok) { window.alert(d?.message ?? 'No se pudo completar.'); return; }
+    if (!r.ok) { await avisar({ titulo: 'No se pudo completar', mensaje: d?.message ?? 'Inténtalo de nuevo.', peligro: true }); return; }
     setRechazando(null); setMotivo('');
     onRevisado(accion === 'publicar'
       ? `"${e.name}" quedó publicado y ya aparece en el sitio. Le avisamos al aliado.`
@@ -869,7 +870,14 @@ function ExpedienteModal({
             size="sm"
             variant="danger"
             icon="ph-trash"
-            onClick={() => { if (window.confirm(`¿Eliminar a «${p.name}»? Si no tiene historial se borra por completo.`)) onEliminar(); }}
+            onClick={async () => {
+              if (await confirmar({
+                titulo: `¿Eliminar a «${p.name}»?`,
+                mensaje: 'Si no tiene historial se borra por completo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.',
+                confirmar: 'Eliminar aliado',
+                peligro: true,
+              })) onEliminar();
+            }}
           >
             Eliminar aliado
           </Btn>
@@ -881,7 +889,7 @@ function ExpedienteModal({
             icon="ph-arrow-counter-clockwise"
             disabled={ocupado === -1}
             onClick={async () => {
-              if (!window.confirm(`¿Reactivar a «${p.name}»? Volverá a recibir ofertas. Después mándale su enlace de acceso.`)) return;
+              if (!(await confirmar({ titulo: `¿Reactivar a «${p.name}»?`, mensaje: 'Volverá a recibir ofertas. Después mándale su enlace de acceso.', confirmar: 'Reactivar' }))) return;
               setOcupado(-1);
               const r = await fetch(`/api/admin/providers/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }) });
               setOcupado(null);
@@ -921,7 +929,7 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
   }
 
   async function revocar() {
-    if (!window.confirm('Los enlaces que ya le hayas mandado dejarán de servir. ¿Seguimos?')) return;
+    if (!(await confirmar({ titulo: '¿Revocar su acceso?', mensaje: 'Los enlaces que ya le hayas mandado dejarán de servir. Para que vuelva a entrar hay que mandarle uno nuevo.', confirmar: 'Revocar', peligro: true }))) return;
     setOcupado(true); setMsg(null);
     const r = await fetch(`/api/admin/providers/${p.id}/revocar-acceso`, { method: 'POST' });
     const d = await r.json().catch(() => null);

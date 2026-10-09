@@ -7,6 +7,7 @@ import { useState, useTransition, type ReactNode } from 'react';
 import { COTIZADORES_META, COTIZADOR_TIPOS, type CotizadorTipo } from '@maqserv/config';
 import { money, fechaCorta } from '@maqserv/ui';
 import { Btn, EmptyState, IconBtn, Note, Panel, SearchBox, Toolbar } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 export interface FilaCotizacion {
   id: number;
@@ -79,7 +80,7 @@ export function HistorialTabla({
   }
 
   async function eliminar(fila: FilaCotizacion) {
-    if (!confirm(`¿Borrar la cotización ${fila.folio}? No se puede deshacer.`)) return;
+    if (!(await confirmar({ titulo: `¿Borrar la cotización ${fila.folio}?`, mensaje: 'No se puede deshacer.', confirmar: 'Borrar', peligro: true }))) return;
     setError(null);
     const res = await fetch(`/api/admin/quoter/quotes/${fila.id}`, { method: 'DELETE' });
     if (!res.ok) {

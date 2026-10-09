@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn, IconBtn, StatusText } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /**
  * Sacar la lista y empujarla al CRM: sin esto, juntar correos que no se pueden usar
@@ -38,7 +39,7 @@ export function SubscriberTools({ perfexEnabled, total }: { perfexEnabled: boole
   }
 
   async function sync() {
-    if (!window.confirm(`¿Enviar los ${total} suscriptores a Perfex como leads?`)) return;
+    if (!(await confirmar({ titulo: `¿Enviar los ${total} suscriptores a Perfex?`, mensaje: 'Entran al CRM como leads.', confirmar: 'Enviar a Perfex' }))) return;
     setBusy('sync');
     setMsg(null);
     try {
@@ -84,7 +85,7 @@ export function DeleteSubscriber({ id, email }: { id: number; email: string }) {
   const [busy, setBusy] = useState(false);
 
   async function remove() {
-    if (!window.confirm(`¿Dar de baja a ${email}? Se borra de la lista.`)) return;
+    if (!(await confirmar({ titulo: `¿Dar de baja a ${email}?`, mensaje: 'Se borra de la lista.', confirmar: 'Dar de baja', peligro: true }))) return;
     setBusy(true);
     try {
       await fetch(`/api/admin/subscribers/${id}`, { method: 'DELETE' });

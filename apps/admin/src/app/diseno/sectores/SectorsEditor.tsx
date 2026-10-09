@@ -7,6 +7,7 @@ import type { Sectors, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
 import { Btn, EmptyState, IconBtn, Note, PageHeader, Panel, Segmented, StatusText, Thumb, Toast } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 type Copys = Record<string, Record<string, string>>;
 interface SectorRow { id: number; title: string; status: number; image: string | null }
@@ -184,7 +185,7 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
     } catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
   }
   async function remove(id: number) {
-    if (!window.confirm('¿Eliminar este sector? No se puede deshacer.')) return;
+    if (!(await confirmar({ titulo: '¿Eliminar este sector?', mensaje: 'No se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
     setBusy(id); setErr(null);
     try {
       const r = await fetch(`/api/admin/cms/sectors/${id}`, { method: 'DELETE' });

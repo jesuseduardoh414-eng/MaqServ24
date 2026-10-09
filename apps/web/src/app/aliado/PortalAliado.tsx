@@ -7,6 +7,8 @@ import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue
 import { Icon, type IconName } from '@/components/Icon';
 import { OfrecerEquipo } from './OfrecerEquipo';
 import { telHref } from '@/lib/telefono';
+// `confirmar` ya es la función de "Sigue libre" de este portal: el diálogo va con otro nombre.
+import { confirmar as confirmarDialogo, pedirTexto } from '@/components/Dialogos';
 
 /**
  * EL PANEL DEL ALIADO (rediseño 2026-09-24).
@@ -468,7 +470,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   /** "Ya salió", "Llegué"…: le avisa al cliente (campana y correo) y al panel. */
   async function reportarAvance(quoteNumber: string, estado: string) {
     const paso = Object.values(SIGUIENTE).find((x) => x?.estado === estado);
-    if (paso && !window.confirm(`${paso.texto}\n\n${paso.ayuda}\n\n¿Confirmas?`)) return;
+    if (paso && !(await confirmarDialogo({ titulo: `¿${paso.texto}?`, mensaje: paso.ayuda, confirmar: `Sí, ${paso.texto.charAt(0).toLowerCase()}${paso.texto.slice(1)}` }))) return;
     setOcupado(quoteNumber); setMsg(null);
     const ok = await llamar(`${API}/aliado/servicios/${encodeURIComponent(quoteNumber)}/avance`, { estado });
     setOcupado(null);
@@ -476,7 +478,13 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   }
 
   async function moverEquipo(productId: number, actual: string | null) {
-    const donde = window.prompt('¿Dónde está ahora?', actual ?? '');
+    const donde = await pedirTexto({
+      titulo: '¿Dónde está ahora este equipo?',
+      mensaje: 'Municipio, obra o patio. Así MAQSER24 sabe a qué obras le queda cerca.',
+      valor: actual ?? '',
+      placeholder: 'Ej. Patio en Apodaca',
+      confirmar: 'Guardar ubicación',
+    });
     if (donde === null) return;
     setOcupado(productId); setMsg(null);
     const ok = await llamar(`${API}/aliado/equipos/${productId}/ubicacion`, { location: donde });
