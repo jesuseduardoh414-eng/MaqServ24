@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type FocusEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
+import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type FocusEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Icon } from '@/components/Icon';
 
@@ -16,6 +16,7 @@ const LENTO = 0.2;
  * `.cs-vp` lleva `container-type`: en el giro la pista mide más que la
  * ventana, así que el ancho de tarjeta se saca de la ventana (`cqw`) y no de
  * la pista; con `%` cada tarjeta se calcularía contra la pista entera.
+ * Con `data-ancho` (promociones) la tarjeta mide lo mismo en todos los modos.
  */
 const CSS = `
 .cs-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:24px; }
@@ -29,14 +30,17 @@ const CSS = `
   -webkit-mask-image:linear-gradient(90deg, transparent, #000 var(--cs-fade), #000 calc(100% - var(--cs-fade)), transparent);
   mask-image:linear-gradient(90deg, transparent, #000 var(--cs-fade), #000 calc(100% - var(--cs-fade)), transparent); }
 .cs-set{ display:grid; grid-auto-flow:column; gap:${GAP}px; grid-auto-columns:minmax(min(74%, 240px), calc((100% - (var(--cs-per) - 1) * ${GAP}px) / var(--cs-per))); }
+.cs-vp[data-ancho] .cs-set{ grid-auto-columns:var(--cs-ancho); }
+.cs-vp[data-ancho][data-modo="quieto"] .cs-set{ justify-content:center; }
 .cs-vp[data-modo="giro"] .cs-track{ display:flex; width:max-content; will-change:transform; }
 .cs-vp[data-modo="giro"] .cs-set{ grid-auto-columns:min(74cqw, 240px); padding-right:${GAP}px; }
+.cs-vp[data-modo="giro"][data-ancho] .cs-set{ grid-auto-columns:var(--cs-ancho); }
 `;
 
 /**
  * 'inicio': lo que manda el servidor, antes de saber el ancho real.
- * 'giro':   las tarjetas no caben → carrusel infinito en movimiento.
- * 'quieto': caben todas → no hay nada que girar; queda la rejilla de siempre.
+ * 'giro':   carrusel infinito en movimiento.
+ * 'quieto': no hay nada que girar (caben todas, o es una sola); queda la rejilla.
  */
 type Modo = 'inicio' | 'giro' | 'quieto';
 
@@ -45,6 +49,7 @@ type Motor = {
   vel: number; // px/s actuales; se acercan suave a la velocidad que toca
   encima: boolean;
   foco: boolean;
+  sonando: boolean; // algún video de la banda suena: se para para que no se vaya mientras lo oyen
   arrastre: boolean;
   tween: { de: number; a: number; t0: number; dur: number } | null; // avance de las flechas
   toque: { id: number; x0: number; pos0: number; ultX: number; ultT: number; vel: number; movido: boolean } | null;
@@ -53,13 +58,20 @@ type Motor = {
 
 const sinMovimiento = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** La tarjeta (hija directa de la tanda) que contiene a `el`. */
+function tarjetaDe(el: HTMLElement | null, set: HTMLElement): HTMLElement | null {
+  let t = el;
+  while (t && t.parentElement !== set) t = t.parentElement;
+  return t;
+}
+
 /**
- * Carrusel de categorías del inicio.
+ * Carrusel giratorio del inicio: lo usan Categorías y Promociones del mes.
  *
  * GIRA SOLO Y NO REGRESA (2026-10-19, pedido del cliente). Las tarjetas van
- * dos veces seguidas en la pista: cuando la primera tanda termina de pasar ya
- * viene entrando la segunda, idéntica, y la pista vuelve a cero sin que se
- * note. Así nunca se ve el "rebobinado" al principio de los carruseles
+ * varias veces seguidas en la pista: cuando la primera tanda termina de pasar
+ * ya viene entrando la siguiente, idéntica, y la pista vuelve a cero sin que
+ * se note. Así nunca se ve el "rebobinado" al principio de los carruseles
  * comunes: es una vuelta continua.
  *
  *  - Se mueve con `transform` en cada cuadro (no con `scrollLeft`, que en
@@ -67,47 +79,66 @@ const sinMovimiento = () => window.matchMedia('(prefers-reduced-motion: reduce)'
  *  - Las flechas avanzan una tarjeta hacia cualquier lado, también sin fin;
  *    en teléfono se arrastra con el dedo y al soltar sigue con inercia.
  *  - Con el cursor encima frena, sin pararse; con el teclado (Tab) se para y
- *    trae a la vista la tarjeta enfocada.
+ *    trae a la vista la tarjeta enfocada. Si alguien activa el sonido de un
+ *    video, se para mientras suena.
  *  - Fuera de pantalla no gasta: se detiene hasta que vuelve a verse.
  *  - Con "reducir movimiento" no avanza solo; las flechas y el arrastre siguen.
  *
- * La segunda tanda es `inert`: el lector de pantalla y el Tab la ignoran, así
- * que cada categoría se anuncia una vez.
+ * Las tandas repetidas son `inert`: el lector de pantalla y el Tab las
+ * ignoran, así que cada tarjeta se anuncia una vez.
  *
- * `perView` sigue llegando del servidor: decide el ANCHO de cada tarjeta
- * cuando todas caben y el carrusel se queda quieto.
+ * Categorías gira solo si no caben todas; `perView` decide el ancho de cada
+ * tarjeta cuando caben y se queda quieto. Promociones pasa `siempre` (pocas
+ * tarjetas también giran: se repiten las tandas que hagan falta para llenar el
+ * ancho; con una sola se queda quieta y centrada) y `ancho`, el de su tarjeta.
  */
 export function CategoryStrip({
-  eyebrow, title, subtitle, viewAllLabel, viewAllHref,
-  eyebrowColor, titleColor, accentColor, perView, children,
+  eyebrow, title, subtitle = '', viewAllLabel = '', viewAllHref = '/',
+  eyebrowColor, titleColor, accentColor, perView = 4, ancho, siempre = false,
+  etiquetaAnterior = 'Categorías anteriores', etiquetaSiguiente = 'Categorías siguientes', children,
 }: {
-  eyebrow: string; title: string; subtitle: string; viewAllLabel: string; viewAllHref: string;
-  eyebrowColor: string; titleColor: string; accentColor: string;
-  perView: number; children: ReactNode;
+  eyebrow: string; title: string; subtitle?: string; viewAllLabel?: string; viewAllHref?: string;
+  eyebrowColor: string; titleColor: string; accentColor?: string;
+  perView?: number;
+  /** Ancho CSS fijo de cada tarjeta (p. ej. `min(300px, 76cqw)`). Sin él, el de categorías. */
+  ancho?: string;
+  /** Girar aunque quepan todas (si hay al menos dos). */
+  siempre?: boolean;
+  etiquetaAnterior?: string; etiquetaSiguiente?: string;
+  children: ReactNode;
 }) {
   const vp = useRef<HTMLDivElement>(null);
   const pista = useRef<HTMLDivElement>(null);
   const tanda = useRef<HTMLDivElement>(null);
-  const motor = useRef<Motor>({ pos: 0, vel: 0, encima: false, foco: false, arrastre: false, tween: null, toque: null, soltado: 0 });
-  const [modo, setModo] = useState<Modo>('inicio');
+  const motor = useRef<Motor>({ pos: 0, vel: 0, encima: false, foco: false, sonando: false, arrastre: false, tween: null, toque: null, soltado: 0 });
+  const total = Children.count(children);
+  // Una sola tarjeta con `siempre` ya se sabe en el servidor: quieta desde el primer pintado, sin brinco.
+  const [modo, setModo] = useState<Modo>(siempre && total < 2 ? 'quieto' : 'inicio');
+  /** Cuántas tandas lleva la pista: las que hagan falta para que nunca se le vea el final. */
+  const [tandas, setTandas] = useState(2);
 
-  /** ¿Sobran tarjetas? Se decide con el ancho real, y otra vez al girar el teléfono. */
+  /** ¿Gira o se queda quieto? Se decide con el ancho real, y otra vez al girar el teléfono. */
   useEffect(() => {
     const el = vp.current;
     const set = tanda.current;
     if (!el || !set) return;
     const decidir = () => {
+      let gira: boolean;
+      if (siempre) gira = total >= 2;
       // 2px de margen por los anchos fraccionarios; 8px son el relleno lateral.
-      const sobra = modo === 'giro'
-        ? set.offsetWidth - GAP > el.clientWidth - 8 + 2
-        : el.scrollWidth > el.clientWidth + 2;
-      setModo(sobra ? 'giro' : 'quieto');
+      else if (modo === 'giro') gira = set.offsetWidth - GAP > el.clientWidth - 8 + 2;
+      else gira = el.scrollWidth > el.clientWidth + 2;
+      setModo(gira ? 'giro' : 'quieto');
+      // En giro la tanda mide lo que sus tarjetas (en los otros modos, lo que la ventana).
+      if (gira && modo === 'giro' && set.offsetWidth > 0) {
+        setTandas(Math.max(2, Math.ceil(el.clientWidth / set.offsetWidth) + 1));
+      }
     };
     const ro = new ResizeObserver(decidir);
     ro.observe(el);
     ro.observe(set);
     return () => ro.disconnect();
-  }, [modo]);
+  }, [modo, siempre, total]);
 
   /** El motor del giro: un cuadro por fotograma mientras la banda está en pantalla. */
   useEffect(() => {
@@ -138,7 +169,7 @@ export function CategoryStrip({
           m.vel = 0; // y de ahí retoma el giro, acelerando suave
         }
       } else if (!m.arrastre) {
-        const meta = quieto || m.foco ? 0 : m.encima ? VELOCIDAD * LENTO : VELOCIDAD;
+        const meta = quieto || m.foco || m.sonando ? 0 : m.encima ? VELOCIDAD * LENTO : VELOCIDAD;
         m.vel += (meta - m.vel) * (1 - Math.exp(-dt / 0.45));
         m.pos += m.vel * dt;
         if (m.pos < 0 || m.pos >= vuelta) m.pos = ((m.pos % vuelta) + vuelta) % vuelta;
@@ -169,23 +200,30 @@ export function CategoryStrip({
       if (el.scrollLeft) el.scrollLeft = 0;
     };
     el.addEventListener('scroll', alDesplazar, { passive: true });
+    // Los eventos de <video> no burbujean: se escuchan en captura.
+    const alSonido = () => {
+      m.sonando = Array.from(el.querySelectorAll('video')).some((v) => !v.muted && !v.paused);
+    };
+    for (const ev of ['volumechange', 'play', 'pause'] as const) el.addEventListener(ev, alSonido, true);
 
     return () => {
       parar();
       io.disconnect();
       ro.disconnect();
       el.removeEventListener('scroll', alDesplazar);
+      for (const ev of ['volumechange', 'play', 'pause'] as const) el.removeEventListener(ev, alSonido, true);
       pistaEl.style.transform = '';
       m.pos = 0;
       m.vel = 0;
       m.tween = null;
+      m.sonando = false;
     };
   }, [modo]);
 
   /** Flechas: una tarjeta hacia el lado pedido, alineada al borde. Clics seguidos se encadenan. */
   function mover(dir: -1 | 1) {
     const m = motor.current;
-    const card = tanda.current?.querySelector<HTMLElement>('[data-cat-card]');
+    const card = tanda.current?.firstElementChild as HTMLElement | null | undefined;
     if (modo !== 'giro' || !card) return;
     const paso = card.offsetWidth + GAP;
     const base = m.tween ? m.tween.a : m.pos;
@@ -261,21 +299,25 @@ export function CategoryStrip({
               {viewAllLabel} <Icon name="arrowRight" size={14} />
             </Link>
           ) : null}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" aria-label="Categorías anteriores" disabled={modo === 'quieto'} className="cs-arrow" onClick={() => mover(-1)}>
-              <Icon name="chevronLeft" size={18} />
-            </button>
-            <button type="button" aria-label="Categorías siguientes" disabled={modo === 'quieto'} className="cs-arrow" onClick={() => mover(1)}>
-              <Icon name="chevronRight" size={18} />
-            </button>
-          </div>
+          {/* Quieto no hay a dónde moverse: sin flechas (apagadas parecían un error). */}
+          {modo !== 'quieto' ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" aria-label={etiquetaAnterior} className="cs-arrow" onClick={() => mover(-1)}>
+                <Icon name="chevronLeft" size={18} />
+              </button>
+              <button type="button" aria-label={etiquetaSiguiente} className="cs-arrow" onClick={() => mover(1)}>
+                <Icon name="chevronRight" size={18} />
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
       <div
         ref={vp}
         className="cs-vp no-sb"
         data-modo={modo}
-        style={{ '--cs-per': perView } as CSSProperties}
+        data-ancho={ancho ? '' : undefined}
+        style={{ '--cs-per': perView, ...(ancho ? { '--cs-ancho': ancho } : {}) } as CSSProperties}
         {...(giro
           ? {
               onPointerDown: alBajar,
@@ -290,7 +332,7 @@ export function CategoryStrip({
               },
               // Sin esto, arrastrar con el mouse "agarra" el enlace o la foto (arrastre nativo).
               onDragStart: (e: DragEvent) => e.preventDefault(),
-              // El clic que llega justo al soltar un arrastre no debe abrir la categoría.
+              // El clic que llega justo al soltar un arrastre no debe abrir la tarjeta.
               onClickCapture: (e: MouseEvent) => {
                 if (performance.now() - motor.current.soltado < 350) {
                   e.preventDefault();
@@ -300,10 +342,10 @@ export function CategoryStrip({
               onFocus: (e: FocusEvent) => {
                 const t = e.target as HTMLElement;
                 if (!t.matches(':focus-visible')) return; // el foco del clic con mouse no mueve nada
-                const card = t.closest<HTMLElement>('[data-cat-card]');
                 const set = tanda.current;
                 const m = motor.current;
                 m.foco = true;
+                const card = set ? tarjetaDe(t, set) : null;
                 if (!card || !set) return;
                 // Trae la tarjeta al borde izquierdo por el camino corto (sin dar media vuelta).
                 const x = card.getBoundingClientRect().left - set.getBoundingClientRect().left;
@@ -319,11 +361,13 @@ export function CategoryStrip({
       >
         <div ref={pista} className="cs-track">
           <div ref={tanda} className="cs-set">{children}</div>
-          {giro ? (
-            <div className="cs-set" inert aria-hidden>
-              {children}
-            </div>
-          ) : null}
+          {giro
+            ? Array.from({ length: tandas - 1 }, (_, k) => (
+                <div key={k} className="cs-set" inert aria-hidden>
+                  {children}
+                </div>
+              ))
+            : null}
         </div>
       </div>
     </>

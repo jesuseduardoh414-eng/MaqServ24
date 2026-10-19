@@ -315,11 +315,18 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
   const vertical = cfg.format !== 'horizontal';
   return (
     <section style={{ ...CONTAINER, paddingTop: 40, paddingBottom: 40 }}>
-      <Carousel
+      {/* El mismo carrusel giratorio de Categorías (pedido del cliente,
+          2026-10-19): gira aunque sean pocas, repitiendo la tanda; con una sola
+          promoción se queda quieta y centrada. */}
+      <CategoryStrip
         eyebrow={cval('home.promotions.eyebrow', 'Promociones')}
         title={cval('home.promotions.title', 'Promociones del mes')}
-        eyebrowColor={cfg.eyebrowColor ?? undefined}
-        titleColor={cfg.titleColor ?? undefined}
+        eyebrowColor={cfg.eyebrowColor ?? ''}
+        titleColor={cfg.titleColor ?? ''}
+        ancho={vertical ? 'min(300px, 76cqw)' : 'min(560px, 86cqw)'}
+        siempre
+        etiquetaAnterior="Promociones anteriores"
+        etiquetaSiguiente="Promociones siguientes"
       >
         {promos.map((p, i) => (
           // Vertical: el texto va encima del video, abajo, con velo (como las
@@ -329,14 +336,6 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
             key={p.id || i}
             style={{
               position: 'relative',
-              flex: vertical ? '0 0 min(300px, 76vw)' : '0 0 min(560px, 86vw)',
-              // Pocas tarjetas (caben todas): el espacio que sobra se reparte
-              // parejo a los lados y entre ellas, sin cambiarles el tamaño. Los
-              // márgenes `auto` solo toman espacio LIBRE: si no caben (4 o más,
-              // o en el teléfono) valen 0 y queda el carrusel de siempre, sin
-              // la primera tarjeta cortada que daría `justify-content: center`.
-              marginLeft: 'auto',
-              marginRight: i === promos.length - 1 ? 'auto' : undefined,
               ...(vertical ? { aspectRatio: '9 / 16' } : { display: 'flex', flexDirection: 'column' }),
               scrollSnapAlign: 'start',
               borderRadius: CARD_RADIUS,
@@ -389,7 +388,7 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
             </div>
           </article>
         ))}
-      </Carousel>
+      </CategoryStrip>
     </section>
   );
 }
