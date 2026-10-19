@@ -330,6 +330,13 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
             style={{
               position: 'relative',
               flex: vertical ? '0 0 min(300px, 76vw)' : '0 0 min(560px, 86vw)',
+              // Pocas tarjetas (caben todas): el espacio que sobra se reparte
+              // parejo a los lados y entre ellas, sin cambiarles el tamaño. Los
+              // márgenes `auto` solo toman espacio LIBRE: si no caben (4 o más,
+              // o en el teléfono) valen 0 y queda el carrusel de siempre, sin
+              // la primera tarjeta cortada que daría `justify-content: center`.
+              marginLeft: 'auto',
+              marginRight: i === promos.length - 1 ? 'auto' : undefined,
               ...(vertical ? { aspectRatio: '9 / 16' } : { display: 'flex', flexDirection: 'column' }),
               scrollSnapAlign: 'start',
               borderRadius: CARD_RADIUS,
