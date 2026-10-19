@@ -8,7 +8,7 @@ interface ThemeRow { id: number; active: boolean }
 interface ThemeDetail { id: number; copys: Record<string, Record<string, string>>; tokens: unknown }
 interface SiteReview { id: number; author: string; rating: number; review: string; status: number }
 
-/** Sección 7 · Reseñas: presentación de la banda "Lo que dicen nuestros clientes". */
+/** Sección 8 · Reseñas: presentación de la banda "Lo que dicen nuestros clientes". */
 export default async function ReviewsDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');

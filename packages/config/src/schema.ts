@@ -60,6 +60,28 @@ export const sectionSchema = z.object({
 });
 
 /**
+ * Secciones que el código estrenó cuando el tema ya estaba guardado en la BD.
+ * La lista guardada no las trae, así que sin esto no saldrían en el home ni en
+ * Temas y colores hasta correr un SQL. Se insertan detrás de `after`.
+ */
+const SECCIONES_NUEVAS: Array<{ key: string; after: string }> = [
+  { key: 'home.promotions', after: 'home.categories' }, // 2026-10-19
+];
+
+/** La lista de secciones con las nuevas en su lugar. Si no falta ninguna, la devuelve tal cual. */
+export function conSeccionesNuevas<T extends { key: string; enabled: boolean; order: number }>(lista: T[]): T[] {
+  const faltan = SECCIONES_NUEVAS.filter((n) => !lista.some((s) => s.key === n.key));
+  if (faltan.length === 0) return lista;
+  const orden = [...lista].sort((a, b) => a.order - b.order);
+  for (const n of faltan) {
+    const i = orden.findIndex((s) => s.key === n.after);
+    // Encendida: la sección no pinta nada mientras no tenga contenido.
+    orden.splice(i < 0 ? orden.length : i + 1, 0, { key: n.key, enabled: true, order: 0 } as T);
+  }
+  return orden.map((s, order) => ({ ...s, order }));
+}
+
+/**
  * Identidad de marca (por tema/sector): URLs de logos y favicon subidos desde
  * el admin. Todos opcionales — el sitio cae a texto/valores por defecto si
  * faltan. Se sirven como URLs absolutas (las resuelve la API al subir).
@@ -303,6 +325,37 @@ export const offerSchema = z
   .default({});
 
 /**
+ * Una tarjeta de «Promociones del mes» (2026-10-19). El video es lo principal;
+ * `image` es su portada mientras carga, o la tarjeta entera si no hay video.
+ */
+export const promoItemSchema = z.object({
+  id: z.string().default(''), // estable: llave de React y para reordenar en el panel
+  enabled: z.boolean().default(true),
+  video: z.string().nullable().default(null),
+  image: z.string().nullable().default(null),
+  badge: z.string().default(''), // "-15 %", "2×1"… (vacío = sin etiqueta)
+  title: z.string().default(''),
+  text: z.string().default(''),
+  cta: z.string().default(''), // texto del botón (vacío = sin botón)
+  ctaLink: z.string().default('/cotizar'),
+  /** Último día vigente (AAAA-MM-DD, hora de Monterrey). Pasada la fecha se oculta sola. */
+  until: z.string().nullable().default(null),
+});
+
+/** Sección «Promociones del mes» (home): tarjetas con video. Colores null ⇒ tema. */
+export const promotionsSchema = z
+  .object({
+    show: z.boolean().default(true),
+    /** Todas las tarjetas van con la misma forma; el panel la propone al subir el primer video. */
+    format: z.enum(['vertical', 'horizontal']).default('vertical'),
+    items: z.array(promoItemSchema).default([]),
+    eyebrowColor: z.string().nullable().default(null),
+    titleColor: z.string().nullable().default(null),
+    accentColor: z.string().nullable().default(null), // etiqueta y botón; null ⇒ var(--color-primary)
+  })
+  .default({});
+
+/**
  * Sección 7 · Reseñas (home): presentación del carrusel "Lo que dicen nuestros
  * clientes". El CONTENIDO son reseñas de clientes (tabla site_reviews) que se
  * MODERAN en Clientes → Reseñas; esto solo controla textos/estilo/visibilidad.
@@ -514,7 +567,7 @@ export const themeTokensSchema = z.object({
   }),
   typography: typographySchema,
   shape: shapeSchema,
-  sections: z.array(sectionSchema),
+  sections: z.array(sectionSchema).transform(conSeccionesNuevas),
   /** Identidad de marca: logos y favicon (opcional; default {}). */
   branding: brandingSchema.default({}),
   /** Ajustes de la Sección 1 · Hero (colores, links, opacidad, toggles). */
@@ -539,6 +592,8 @@ export const themeTokensSchema = z.object({
   blog: blogSchema,
   /** Ajustes de la Sección 6 · Oferta / Promoción (home). */
   offer: offerSchema,
+  /** Sección «Promociones del mes» (home): tarjetas con video. */
+  promotions: promotionsSchema,
   /** Ajustes de la Sección 7 · Reseñas (home). */
   reviews: reviewsSchema,
   /** Ajustes de la Sección 8 · Preguntas frecuentes (home). */
@@ -587,6 +642,8 @@ export type WhyChooseUs = z.infer<typeof whyChooseUsSchema>;
 export type QuienesSomos = z.infer<typeof quienesSomosSchema>;
 export type Sectors = z.infer<typeof sectorsSchema>;
 export type Offer = z.infer<typeof offerSchema>;
+export type Promotions = z.infer<typeof promotionsSchema>;
+export type PromoItem = z.infer<typeof promoItemSchema>;
 export type Brands = z.infer<typeof brandsSchema>;
 export type BlogSectionConfig = z.infer<typeof blogSchema>;
 export type Reviews = z.infer<typeof reviewsSchema>;

@@ -92,13 +92,15 @@ export const defaultTheme: Theme = {
     sections: [
       { key: 'home.hero', enabled: true, order: 0 },
       { key: 'home.categories', enabled: true, order: 1 },
-      { key: 'home.featured-products', enabled: true, order: 2 },
-      { key: 'home.why-choose-us', enabled: true, order: 3 },
-      { key: 'home.strategic-sectors', enabled: true, order: 4 },
-      { key: 'home.offer', enabled: true, order: 5 },
-      { key: 'home.reviews', enabled: true, order: 6 },
-      { key: 'home.brands', enabled: true, order: 7 },
-      { key: 'home.faq', enabled: true, order: 8 },
+      // Promociones del mes (2026-10-19): sin promociones cargadas no pinta nada.
+      { key: 'home.promotions', enabled: true, order: 2 },
+      { key: 'home.featured-products', enabled: true, order: 3 },
+      { key: 'home.why-choose-us', enabled: true, order: 4 },
+      { key: 'home.strategic-sectors', enabled: true, order: 5 },
+      { key: 'home.offer', enabled: true, order: 6 },
+      { key: 'home.reviews', enabled: true, order: 7 },
+      { key: 'home.brands', enabled: true, order: 8 },
+      { key: 'home.faq', enabled: true, order: 9 },
       { key: 'home.blog', enabled: false, order: 11 },
     ],
     // Identidad de marca. Estos archivos se generan desde el activo oficial que
@@ -320,6 +322,16 @@ export const defaultTheme: Theme = {
       accentColor: null,
       titleColor: null,
     },
+    // Promociones del mes (home): tarjetas con video, se cargan en
+    // Sitio web → Secciones del home → Promociones del mes.
+    promotions: {
+      show: true,
+      format: 'vertical',
+      items: [],
+      eyebrowColor: null,
+      titleColor: null,
+      accentColor: null,
+    },
     // Sección 7 · Reseñas (home). Colores null ⇒ heredan del tema.
     reviews: {
       show: true,
@@ -491,6 +503,8 @@ export const defaultTheme: Theme = {
       'home.categories.title': 'Seis categorías. Una sola marca.',
       // Segundo botón del hero desde el 2026-10-19 (antes "Ver disponibilidad").
       'home.hero.ctaWhatsapp': 'Cotiza por WhatsApp',
+      'home.promotions.eyebrow': 'Promociones',
+      'home.promotions.title': 'Promociones del mes',
       'home.categories.unit': 'equipos',
       // Singular aparte: "1 equipos" se leia en la tarjeta de Volteos.
       'home.categories.unit.one': 'equipo',

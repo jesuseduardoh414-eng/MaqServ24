@@ -99,6 +99,8 @@ const PATHS = {
   article: <><rect x="3.5" y="4" width="17" height="16" rx="2" /><path d="M7 9h10M7 13h10M7 17h6" /></>,
   logout: <><path d="M15 3.5h3.5a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H15" /><path d="m9.5 16 4-4-4-4M13.5 12H3.5" /></>,
   chat: <path d="M20.5 5.5A2.5 2.5 0 0 0 18 3H6a2.5 2.5 0 0 0-2.5 2.5v8A2.5 2.5 0 0 0 6 16h2.5v4l5-4H18a2.5 2.5 0 0 0 2.5-2.5z" />,
+  volume: <><path d="M11 5 6 9H2.5v6H6l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9.5 9.5 0 0 1 0 13" /></>,
+  volumeOff: <><path d="M11 5 6 9H2.5v6H6l5 4z" /><path d="m21.5 9.5-5 5" /><path d="m16.5 9.5 5 5" /></>,
 } as const;
 
 export type IconName = keyof typeof PATHS;

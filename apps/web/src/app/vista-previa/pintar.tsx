@@ -11,6 +11,7 @@ import {
   FeaturedSection,
   Hero,
   OfferSection,
+  PromotionsSection,
   ReviewsSection,
   SectorsSection,
   WhyChooseUsSection,
@@ -61,6 +62,9 @@ export async function pintarVistaPrevia(b: BorradorVistaPrevia): Promise<Resulta
     }
     case 'home.categories':
       contenido = <CategoriesSection theme={theme} />;
+      break;
+    case 'home.promotions':
+      contenido = <PromotionsSection theme={theme} />;
       break;
     case 'home.featured-products':
       contenido = <FeaturedSection theme={theme} />;

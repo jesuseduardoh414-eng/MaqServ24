@@ -8,7 +8,7 @@ interface ThemeRow { id: number; active: boolean }
 interface ThemeDetail { id: number; copys: Record<string, Record<string, string>>; tokens: unknown }
 interface SectorRow { id: number; title: string; status: number; image: string | null }
 
-/** Sección 5 · Sectores estratégicos: presentación de la banda del home + gestión de sectores. */
+/** Sección 6 · Sectores estratégicos: presentación de la banda del home + gestión de sectores. */
 export default async function SectorsDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');

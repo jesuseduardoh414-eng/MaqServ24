@@ -152,7 +152,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
       {/* Nota: todo lo de esta sección se edita aquí */}
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
-        title="Sección 4 · Quiénes somos"
+        title="Sección 5 · Quiénes somos"
         subtitle={<>La banda «¿Por qué elegirnos?» del home. Todo en un solo lugar: las <b>razones</b> (◆ cada punto), los <b>textos</b>, las <b>estadísticas</b>, la <b>imagen</b> y el <b>estilo</b>.</>}
         actions={
           <>

@@ -7,7 +7,7 @@ import { ProductsEditor } from './ProductsEditor';
 interface ThemeRow { id: number; active: boolean }
 interface ThemeDetail { id: number; copys: Record<string, Record<string, string>>; tokens: unknown }
 
-/** Sección 3 · Productos: destacados del home + configuración del catálogo. */
+/** Sección 4 · Productos: destacados del home + configuración del catálogo. */
 export default async function ProductsDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');

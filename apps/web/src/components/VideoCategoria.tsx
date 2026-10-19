@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Icon } from '@/components/Icon';
 
 /**
  * Video en bucle de una tarjeta de categoría (2026-10-19, pedido del cliente:
@@ -12,12 +13,17 @@ import { useEffect, useRef, type CSSProperties } from 'react';
  *    (la banda del inicio es un carrusel: la mayoría están fuera);
  *  - con "reducir movimiento" o "ahorro de datos" se queda quieto en la foto
  *    de la categoría, que va de portada (`poster`).
- * Sin sonido siempre: es lo único que deja a los navegadores reproducir solo.
+ * Arranca sin sonido siempre: es lo único que deja a los navegadores reproducir solo.
  *
- * También lo usa el video del hero (`style` cambia el encuadre).
+ * También lo usan el video del hero (`style` cambia el encuadre) y las
+ * Promociones del mes, que piden `sonido`: un botón en la esquina para oír el
+ * video (las promociones suelen venir narradas). Ese clic cuenta como gesto del
+ * visitante, así que el navegador sí deja reproducir con sonido, aun con
+ * "reducir movimiento".
  */
-export function VideoCategoria({ src, poster, className, style }: { src: string; poster: string | null; className?: string; style?: CSSProperties }) {
+export function VideoCategoria({ src, poster, className, style, sonido = false }: { src: string; poster: string | null; className?: string; style?: CSSProperties; sonido?: boolean }) {
   const ref = useRef<HTMLVideoElement>(null);
+  const [oyendo, setOyendo] = useState(false);
 
   useEffect(() => {
     const v = ref.current;
@@ -38,7 +44,15 @@ export function VideoCategoria({ src, poster, className, style }: { src: string;
     return () => io.disconnect();
   }, []);
 
-  return (
+  function alternarSonido() {
+    const v = ref.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setOyendo(!v.muted);
+    if (!v.muted && v.paused) v.play().catch(() => undefined);
+  }
+
+  const video = (
     <video
       ref={ref}
       src={src}
@@ -52,5 +66,20 @@ export function VideoCategoria({ src, poster, className, style }: { src: string;
       className={className}
       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', ...style }}
     />
+  );
+  if (!sonido) return video;
+  return (
+    <>
+      {video}
+      <button
+        type="button"
+        onClick={alternarSonido}
+        aria-label={oyendo ? 'Silenciar video' : 'Activar sonido del video'}
+        aria-pressed={oyendo}
+        style={{ position: 'absolute', zIndex: 3, top: 12, right: 12, width: 38, height: 38, borderRadius: '50%', border: '1px solid rgba(255,255,255,.28)', background: 'rgba(6,6,8,.55)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)' }}
+      >
+        <Icon name={oyendo ? 'volume' : 'volumeOff'} size={18} />
+      </button>
+    </>
   );
 }

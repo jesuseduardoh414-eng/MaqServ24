@@ -83,7 +83,7 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
     <div>
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
-        title="Sección 6 · Oferta / Promoción"
+        title="Sección 7 · Oferta / Promoción"
         subtitle="La banda de oferta del home: banda destacada para promociones o anuncios. Aquí defines los textos, la imagen, el enlace y los colores."
         actions={
           <>

@@ -90,7 +90,7 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
     <div>
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
-        title="Sección 3 · Productos"
+        title="Sección 4 · Productos"
         actions={
           <>
             <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>

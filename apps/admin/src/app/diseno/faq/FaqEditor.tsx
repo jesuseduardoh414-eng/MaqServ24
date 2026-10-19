@@ -66,7 +66,7 @@ export function FaqEditor({ themeId, copys, tokens, faqCfg, count }: {
     <div>
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
-        title="Sección 8 · Preguntas frecuentes"
+        title="Sección 9 · Preguntas frecuentes"
         subtitle={
           <>
             La banda de preguntas frecuentes del home. Aquí defines los textos y el estilo. Las preguntas llegan de los <b>clientes</b> a <b>Mensajes</b>; ahí se contestan y se publican las que quieras que salgan aquí. Hay <b className="adm-num">{count}</b> destacada(s).{' '}

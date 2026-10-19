@@ -9,7 +9,7 @@ interface ThemeDetail { id: number; copys: Record<string, Record<string, string>
 interface Reason { id: number; title: string; text: string; image: string | null; placement: 'both' | 'home' | 'about' }
 interface InfSitio { frase: string | null; titulo: string | null; descripcion: string | null; mision: string | null; vision: string | null; objetivos: string | null; imagenes: string[] }
 
-/** Sección 4 · Quiénes somos: la banda "¿Por qué elegirnos?" del home + la página /quienes-somos. */
+/** Sección 5 · Quiénes somos: la banda "¿Por qué elegirnos?" del home + la página /quienes-somos. */
 export default async function QuienesDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');

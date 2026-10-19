@@ -16,6 +16,7 @@ import {
   FeaturedSection,
   Hero,
   OfferSection,
+  PromotionsSection,
   ReviewsSection,
   SectorsSection,
   WhyChooseUsSection,
@@ -33,6 +34,7 @@ import {
 const SECTIONS: Record<string, (props: { theme: Theme }) => Promise<ReactNode> | ReactNode> = {
   'home.hero': Hero,
   'home.categories': CategoriesSection,
+  'home.promotions': PromotionsSection,
   'home.featured-products': FeaturedSection,
   'home.strategic-sectors': SectorsSection,
   'home.why-choose-us': WhyChooseUsSection,

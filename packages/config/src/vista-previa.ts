@@ -17,6 +17,7 @@ import type { ThemeTokens } from './schema';
 export const VISTAS_PREVIA = [
   'home.hero',
   'home.categories',
+  'home.promotions',
   'home.featured-products',
   'home.why-choose-us',
   'home.strategic-sectors',

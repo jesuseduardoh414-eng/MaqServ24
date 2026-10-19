@@ -71,7 +71,7 @@ export function ReviewsEditor({ themeId, copys, tokens, reviewsCfg, approvedCoun
       {/* Nota: el contenido son reseñas de clientes; se moderan aparte */}
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
-        title="Sección 7 · Reseñas"
+        title="Sección 8 · Reseñas"
         subtitle={
           <>
             La banda «Lo que dicen nuestros clientes». Las <b>reseñas</b> las escriben los clientes; tú las <b>apruebas/ocultas</b> en Clientes → Reseñas. Aquí defines los textos y el estilo de la banda. <b className="adm-num">{approvedCount}</b> aprobadas de <b className="adm-num">{totalCount}</b>.{' '}

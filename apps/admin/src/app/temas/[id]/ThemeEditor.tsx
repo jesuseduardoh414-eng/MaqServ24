@@ -48,6 +48,7 @@ type SectionMeta = { name: string; recommendation: string };
 const SECTION_META: Record<string, SectionMeta> = {
   'home.hero': { name: 'Hero / Portada', recommendation: 'La primera impresión: título grande, subtítulo, botones y distintivos de confianza. Recomendada para todos los giros.' },
   'home.categories': { name: 'Categorías', recommendation: 'Carrusel de categorías o departamentos. Recomendada si manejas un catálogo variado.' },
+  'home.promotions': { name: 'Promociones del mes', recommendation: 'Tarjetas con video de las promociones vigentes; cada una se oculta sola al vencer. Para campañas del mes.' },
   'home.featured-products': { name: 'Productos destacados', recommendation: 'Rejilla de productos con filtros por categoría. Ideal para tiendas o renta con catálogo.' },
   'home.why-choose-us': { name: 'Por qué elegirnos', recommendation: 'Tus ventajas y valores. Genera confianza en cualquier giro.' },
   'home.strategic-sectors': { name: 'Sectores / Industrias', recommendation: 'Industrias o casos de uso que atiendes. Útil para negocios B2B o de servicios.' },
@@ -61,7 +62,7 @@ const SECTION_META: Record<string, SectionMeta> = {
 };
 
 /** Secciones con página de edición dedicada (se irán sumando: 2, 3, …). */
-const SECTION_EDITOR_HREF: Record<string, string> = { 'home.hero': '/diseno/hero', 'home.categories': '/diseno/categorias' };
+const SECTION_EDITOR_HREF: Record<string, string> = { 'home.hero': '/diseno/hero', 'home.categories': '/diseno/categorias', 'home.promotions': '/diseno/promociones' };
 
 function PaletteEditor({
   title,

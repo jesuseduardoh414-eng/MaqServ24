@@ -223,6 +223,23 @@ h1, h2, h3 {
 .adm-pronto-chip { font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
 .adm-navlink.active .adm-badge { background: rgba(255, 255, 255, 0.1); color: var(--adm-text); }
 
+/* Marcas de las pruebas generales: solo en local (ver components/estado-pruebas.ts). */
+[data-prueba="probado"] { --prueba-c: #4ade80; }
+[data-prueba="probando"] { --prueba-c: #fbbf24; }
+[data-prueba="falta"] { --prueba-c: #f87171; }
+.adm-navlink[data-prueba] .adm-navico,
+.adm-navlink[data-prueba] .adm-navlabel { color: var(--prueba-c, inherit); }
+.adm-navlink[data-prueba="probando"] { background: rgba(251, 191, 36, 0.1); box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.3); }
+.adm-navlink[data-prueba="diseno"] { opacity: 0.45; }
+.adm-prueba-leyenda {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px;
+  margin: 0 2px 14px; padding: 8px 10px; border: 1px solid var(--adm-border); border-radius: 8px;
+  font-size: 11.5px;
+}
+.adm-prueba-leyenda-t { width: 100%; font-weight: 600; color: var(--adm-text-2); }
+.adm-prueba-leyenda [data-prueba] { display: inline-flex; align-items: center; gap: 5px; color: var(--prueba-c); }
+.adm-prueba-leyenda [data-prueba]::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--prueba-c); }
+
 /* collapsed variants */
 .adm-shell.is-collapsed .adm-navlink { justify-content: center; padding: 11px 0; }
 .adm-shell.is-collapsed .adm-navlabel,

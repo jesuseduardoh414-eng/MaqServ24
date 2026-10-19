@@ -101,8 +101,11 @@ export function Carousel({
         </div>
         {/* `marginLeft: auto`: al bajar de renglón en pantallas estrechas, las
             flechas se van al borde derecho en vez de quedar descolgadas bajo el
-            título, que es donde parecían un error. */}
-        <div style={{ display: 'flex', gap: 10, marginLeft: 'auto' }}>
+            título, que es donde parecían un error.
+            Si todas las tarjetas caben (p. ej. una sola promoción), no hay a
+            dónde moverse: las flechas se quitan. Con `visibility` guardaban su
+            renglón en el teléfono y dejaban un hueco bajo el título. */}
+        <div style={{ display: alInicio && alFinal ? 'none' : 'flex', gap: 10, marginLeft: 'auto' }}>
           <button type="button" aria-label="Anterior" disabled={alInicio} style={arrow(alInicio)} onClick={() => by(-1)}>
             <Icon name="arrowLeft" size={18} />
           </button>

@@ -80,7 +80,7 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
     <div>
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
-        title="Sección 5 · Sectores estratégicos"
+        title="Sección 6 · Sectores estratégicos"
         subtitle={<>La banda «Sectores estratégicos» del home: tarjetas overlay con imagen. Aquí defines los textos y el estilo (arriba), y gestionas los <b>sectores</b> (pestaña Sectores).</>}
         actions={
           <>

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MODULOS_CON_CORREO, modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
+import { MARCAR_PRUEBAS, RONDA_ACTUAL, atributosPrueba, marcaDeVarias, marcaPrueba } from './estado-pruebas';
 
 /**
  * `useLayoutEffect` en cliente y `useEffect` en el servidor.
@@ -219,19 +220,20 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
         icon: 'ph-globe',
         hijos: [
           { href: '/diseno/marca', label: 'Identidad de marca' },
-          // Las ocho secciones del home, plegadas a su vez. El número es el
+          // Las nueve secciones del home, plegadas a su vez. El número es el
           // orden en que salen en la página.
           {
             label: 'Secciones del home',
             hijos: [
               { href: '/diseno/hero', label: '1 · Hero' },
               { href: '/diseno/categorias', label: '2 · Categorías' },
-              { href: '/diseno/productos', label: '3 · Productos' },
-              { href: '/diseno/quienes-somos', label: '4 · Quiénes somos' },
-              { href: '/diseno/sectores', label: '5 · Sectores' },
-              { href: '/diseno/oferta', label: '6 · Oferta' },
-              { href: '/diseno/resenas', label: '7 · Reseñas' },
-              { href: '/diseno/faq', label: '8 · Preguntas frecuentes' },
+              { href: '/diseno/promociones', label: '3 · Promociones del mes' },
+              { href: '/diseno/productos', label: '4 · Productos' },
+              { href: '/diseno/quienes-somos', label: '5 · Quiénes somos' },
+              { href: '/diseno/sectores', label: '6 · Sectores' },
+              { href: '/diseno/oferta', label: '7 · Oferta' },
+              { href: '/diseno/resenas', label: '8 · Reseñas' },
+              { href: '/diseno/faq', label: '9 · Preguntas frecuentes' },
             ],
           },
           { href: '/diseno/marcas', label: 'Marcas' },
@@ -410,7 +412,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
       // a la primera sección, que es por donde se entra igualmente.
       if (!showLabels) {
         return (
-          <Link key={it.label} href={enlaces[0].href} className={`adm-navlink${dentro ? ' active' : ''}`} title={it.label}>
+          <Link key={it.label} href={enlaces[0].href} className={`adm-navlink${dentro ? ' active' : ''}`} title={it.label} {...atributosPrueba(marcaDeVarias(enlaces.map((e) => e.href)), it.label)}>
             {dentro ? <span className="adm-active-bar" /> : null}
             <i className={`ph ${it.icon} adm-navico`} aria-hidden />
           </Link>
@@ -426,6 +428,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
             className="adm-navlink adm-navbtn"
             onClick={() => alternarSubmenu(claveSub)}
             aria-expanded={abiertoSub}
+            {...atributosPrueba(marcaDeVarias(enlaces.map((e) => e.href)), it.label)}
           >
             {dentro ? <span className="adm-active-bar" /> : null}
             <i className={`ph ${it.icon} adm-navico`} aria-hidden />
@@ -447,6 +450,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
                         className={`adm-navlink adm-navsub adm-navbtn${dentroH ? ' active' : ''}`}
                         onClick={() => alternarSubmenu(claveH)}
                         aria-expanded={abiertoH}
+                        {...atributosPrueba(marcaDeVarias(h.hijos.map((x) => x.href)), h.label)}
                       >
                         <span className="adm-navlabel">{h.label}</span>
                         <i className={`ph ph-caret-down adm-sub-caret${abiertoH ? '' : ' cerrado'}`} aria-hidden />
@@ -456,7 +460,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
                           {h.hijos.map((x) => {
                             const actX = isActive(pathname, x.href);
                             return (
-                              <Link key={x.href} href={x.href} className={`adm-navlink adm-navsub${actX ? ' active' : ''}`} title={x.label}>
+                              <Link key={x.href} href={x.href} className={`adm-navlink adm-navsub${actX ? ' active' : ''}`} title={x.label} {...atributosPrueba(marcaPrueba(x.href), x.label)}>
                                 <span className="adm-navlabel">{x.label}</span>
                               </Link>
                             );
@@ -468,7 +472,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
                 }
                 const act = isActive(pathname, h.href);
                 return (
-                  <Link key={h.href} href={h.href} className={`adm-navlink adm-navsub${act ? ' active' : ''}`} title={h.label}>
+                  <Link key={h.href} href={h.href} className={`adm-navlink adm-navsub${act ? ' active' : ''}`} title={h.label} {...atributosPrueba(marcaPrueba(h.href), h.label)}>
                     <span className="adm-navlabel">{h.label}</span>
                   </Link>
                 );
@@ -499,6 +503,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
         href={href}
         className={`adm-navlink${active ? ' active' : ''}`}
         title={it.label}
+        {...atributosPrueba(marcaPrueba(href), it.label)}
       >
         {active ? <span className="adm-active-bar" /> : null}
         <i className={`ph ${it.icon} adm-navico`} aria-hidden />
@@ -532,6 +537,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
           className="adm-navlink adm-navbtn"
           onClick={() => alternarSubmenu(clave)}
           aria-expanded={abierto}
+          {...atributosPrueba(marcaDeVarias(enlaces.map((e) => e.href)), g.title)}
         >
           <i className={`ph ${g.icon} adm-navico`} aria-hidden />
           <span className="adm-navlabel">{g.title}</span>
@@ -545,6 +551,15 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
 
   return (
     <nav className="adm-nav" ref={nav}>
+      {/* Solo en local: qué se probó ya (ver estado-pruebas.ts). */}
+      {MARCAR_PRUEBAS && showLabels ? (
+        <div className="adm-prueba-leyenda" aria-label="Estado de las pruebas">
+          <span className="adm-prueba-leyenda-t">Pruebas · Ronda {RONDA_ACTUAL}</span>
+          <span data-prueba="probado">Probado</span>
+          <span data-prueba="probando">Probando</span>
+          <span data-prueba="falta">Falta</span>
+        </div>
+      ) : null}
       {SECCIONES.map((s) => {
         const deSeccion = s.grupos.flatMap((t) => groups.filter((g) => g.title === t));
         if (deSeccion.length === 0) return null;

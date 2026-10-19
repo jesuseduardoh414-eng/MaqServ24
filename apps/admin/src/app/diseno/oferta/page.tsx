@@ -7,7 +7,7 @@ import { OfferEditor } from './OfferEditor';
 interface ThemeRow { id: number; active: boolean }
 interface ThemeDetail { id: number; copys: Record<string, Record<string, string>>; tokens: unknown }
 
-/** Sección 6 · Oferta / Promoción: la banda destacada de oferta del home. */
+/** Sección 7 · Oferta / Promoción: la banda destacada de oferta del home. */
 export default async function OfferDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');

@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { defaultTheme, type Copys, type ThemeTokens } from '@maqserv/config';
+import { conSeccionesNuevas, defaultTheme, type Copys, type ThemeTokens } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ThemeEditor } from './ThemeEditor';
@@ -38,7 +38,9 @@ export default async function ThemeEditPage({ params }: { params: Promise<{ id: 
         themeId={theme.id}
         themeName={theme.name}
         active={theme.active}
-        initialTokens={theme.tokens}
+        // Igual que los textos: las secciones que el código estrenó después
+        // (Promociones del mes, 2026-10-19) salen en la lista en su lugar.
+        initialTokens={{ ...theme.tokens, sections: conSeccionesNuevas(theme.tokens.sections ?? []) }}
         initialCopys={copys}
         hasDraft={theme.hasDraft}
       />

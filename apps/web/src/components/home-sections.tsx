@@ -280,6 +280,113 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
   );
 }
 
+/* ======================= PROMOCIONES DEL MES ======================= */
+
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+/** Hoy en Monterrey (AAAA-MM-DD). La vigencia se cuenta en hora local: en UTC, una promoción «hasta el 31» se apagaba el 31 a las 6 p. m. */
+const hoyEnMonterrey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date());
+/** "2026-10-31" → "31 de octubre". Al mediodía, para que ningún huso lo corra de día. */
+const fechaLarga = (d: string) => new Date(`${d}T12:00:00Z`).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', timeZone: 'America/Monterrey' });
+
+/**
+ * Promociones del mes (2026-10-19): tarjetas con video que se cargan en el
+ * panel (Sitio web → Secciones del home → Promociones del mes).
+ *
+ * Una promoción con fecha «vigente hasta» se oculta sola al día siguiente: no
+ * hay que acordarse de quitarla a fin de mes. Sin ninguna vigente, la sección
+ * no pinta nada (ni el título).
+ *
+ * El texto va encima del video, abajo, con el mismo velo de las categorías; el
+ * video se reproduce solo al verse y trae su botón de sonido.
+ */
+export async function PromotionsSection({ theme }: { theme: Theme }) {
+  const cfg = theme.tokens.promotions;
+  if (!cfg || cfg.show === false) return null;
+  const hoy = hoyEnMonterrey();
+  const promos = cfg.items.filter(
+    (p) => p.enabled && (p.video || p.image || p.title.trim()) && !(p.until && FECHA.test(p.until) && p.until < hoy),
+  );
+  if (promos.length === 0) return null;
+  const cval = (key: string, def: string) => {
+    const v = t(theme, key);
+    return v === key ? def : v;
+  };
+  const accent = cfg.accentColor ?? 'var(--color-primary)';
+  const vertical = cfg.format !== 'horizontal';
+  return (
+    <section style={{ ...CONTAINER, paddingTop: 40, paddingBottom: 40 }}>
+      <Carousel
+        eyebrow={cval('home.promotions.eyebrow', 'Promociones')}
+        title={cval('home.promotions.title', 'Promociones del mes')}
+        eyebrowColor={cfg.eyebrowColor ?? undefined}
+        titleColor={cfg.titleColor ?? undefined}
+      >
+        {promos.map((p, i) => (
+          // Vertical: el texto va encima del video, abajo, con velo (como las
+          // categorías). Horizontal: debajo del video; encima tapaba la mitad,
+          // y en un teléfono la tarjeta mide 190 px y el texto chocaba con la etiqueta.
+          <article
+            key={p.id || i}
+            style={{
+              position: 'relative',
+              flex: vertical ? '0 0 min(300px, 76vw)' : '0 0 min(560px, 86vw)',
+              ...(vertical ? { aspectRatio: '9 / 16' } : { display: 'flex', flexDirection: 'column' }),
+              scrollSnapAlign: 'start',
+              borderRadius: CARD_RADIUS,
+              overflow: 'hidden',
+              isolation: 'isolate',
+              background: vertical ? 'var(--surface-2)' : 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+            }}
+          >
+            <div style={vertical ? { position: 'absolute', inset: 0 } : { position: 'relative', aspectRatio: '16 / 9', background: 'var(--surface-2)' }}>
+              {p.video ? (
+                <VideoCategoria src={p.video} poster={p.image} sonido />
+              ) : p.image ? (
+                <Image src={p.image} alt={p.title} fill sizes={vertical ? '300px' : '(max-width: 640px) 86vw, 560px'} style={{ objectFit: 'cover' }} />
+              ) : (
+                <span className="ph" style={{ position: 'absolute', inset: 0 }} />
+              )}
+              {/* Velo para leer el texto sobre cualquier video */}
+              {vertical ? <span aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'linear-gradient(to top, rgba(6,6,8,.92) 4%, rgba(6,6,8,.45) 38%, rgba(6,6,8,0) 66%)' }} /> : null}
+              {p.badge.trim() ? (
+                <span style={{ position: 'absolute', zIndex: 2, top: 12, left: 12, background: accent, color: 'var(--color-primary-fg)', fontWeight: 700, fontSize: '13px', lineHeight: 1, padding: '7px 10px', borderRadius: 6 }}>
+                  {p.badge}
+                </span>
+              ) : null}
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                padding: 18,
+                ...(vertical ? { position: 'absolute', zIndex: 2, left: 0, right: 0, bottom: 0 } : { flex: 1 }),
+              }}
+            >
+              {p.title.trim() ? <h3 style={{ color: vertical ? '#fff' : 'var(--color-text)', fontWeight: 700, fontSize: '1.15rem', letterSpacing: '-.01em', lineHeight: 1.2, margin: 0, textWrap: 'balance' }}>{p.title}</h3> : null}
+              {p.text.trim() ? (
+                <p style={{ color: vertical ? 'rgba(255,255,255,.8)' : 'var(--color-text-muted)', fontSize: '13.5px', lineHeight: 1.45, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.text}</p>
+              ) : null}
+              {p.until && FECHA.test(p.until) ? (
+                <span style={{ color: vertical ? 'rgba(255,255,255,.66)' : 'var(--color-text-muted)', fontSize: '12.5px' }}>Vigente hasta el {fechaLarga(p.until)}</span>
+              ) : null}
+              {p.cta.trim() ? (
+                // `marginTop: auto`: en horizontal las tarjetas de una fila miden lo mismo y los botones quedan alineados abajo.
+                <div style={{ marginTop: 'auto', paddingTop: 8 }}>
+                  <Link href={p.ctaLink || '/cotizar'} className="ms-btn" style={{ background: accent }}>
+                    {p.cta} <Icon name="arrowRight" size={15} />
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          </article>
+        ))}
+      </Carousel>
+    </section>
+  );
+}
+
 /* ======================= PRODUCTOS DESTACADOS ======================= */
 
 export async function FeaturedSection({ theme }: { theme: Theme }) {

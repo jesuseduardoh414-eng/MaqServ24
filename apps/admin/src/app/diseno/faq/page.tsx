@@ -8,7 +8,7 @@ interface ThemeRow { id: number; active: boolean }
 interface ThemeDetail { id: number; copys: Record<string, Record<string, string>>; tokens: unknown }
 interface AdminQuestion { question: string; answered: boolean; featured: boolean; status: number }
 
-/** Sección 8 · Preguntas frecuentes: presentación de la banda de FAQ del home. */
+/** Sección 9 · Preguntas frecuentes: presentación de la banda de FAQ del home. */
 export default async function FaqDesignPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');

@@ -263,6 +263,18 @@ export class AdminCmsController {
     return tokens.hero.video;
   }
 
+  /**
+   * Video de una tarjeta de «Promociones del mes» (2026-10-19). Solo guarda el
+   * archivo y devuelve su URL, como `upload` con las imágenes: la tarjeta entera
+   * (con el video) se guarda al publicar desde el editor de la sección.
+   */
+  @Post('video')
+  @UseInterceptors(FileInterceptor('video', { storage: videoStorage(), limits: { fileSize: 30 * 1024 * 1024 } }))
+  async uploadVideo(@UploadedFile() video?: Express.Multer.File) {
+    if (!video) throw new BadRequestException('Falta el video');
+    return { video: imageUrl(`uploads/${video.filename}`) };
+  }
+
   // ---- Subida genérica de imágenes (bloques del constructor: hero/promo, etc.) ----
 
   @Post('upload')
