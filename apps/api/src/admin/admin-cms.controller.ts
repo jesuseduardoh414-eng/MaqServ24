@@ -3,7 +3,9 @@ import {
   ParseIntPipe, Patch, Post, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ICON_TYPES, mediaStorage } from '../common/media-multer';
+import { ICON_TYPES, mediaStorage, videoStorage } from '../common/media-multer';
+import { borrarSubidas } from '../common/media';
+import { revalidarSitio } from '../common/revalidar-sitio';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
@@ -14,6 +16,11 @@ import { AdminGuard, Modulo } from './admin-auth';
 import { imageUrl, normLegacyText } from '../catalog/images';
 
 const photoStorage = mediaStorage();
+/** "https://media…/uploads/x.mp4" → "uploads/x.mp4" (lo que entiende borrarSubidas). */
+const subidaDeUrl = (url: string | null): string | null => {
+  const nombre = url?.split('/uploads/')[1];
+  return nombre ? `uploads/${nombre}` : null;
+};
 /** Marca (favicon/isotipo): es el único sitio donde SVG e ICO tienen sentido. */
 const iconStorage = mediaStorage(ICON_TYPES);
 const IMAGE_TYPES = /^image\/(png|jpe?g|webp|avif)$/;
@@ -216,6 +223,44 @@ export class AdminCmsController {
       await prisma.hero_sections.create({ data: { ...data, created_at: new Date() } });
     }
     return { ok: true };
+  }
+
+  /**
+   * Video del hero (2026-10-19): va en lugar de la imagen de portada. Se guarda
+   * en el tema (`tokens.hero.video`), publicado y borrador a la vez, igual que la
+   * marca: así no hace falta columna nueva y publicar después no lo borra.
+   */
+  @Post('hero/video')
+  @UseInterceptors(FileInterceptor('video', { storage: videoStorage(), limits: { fileSize: 30 * 1024 * 1024 } }))
+  async uploadHeroVideo(@UploadedFile() video?: Express.Multer.File) {
+    if (!video) throw new BadRequestException('Falta el video');
+    const url = imageUrl(`uploads/${video.filename}`);
+    const anterior = await this.guardarVideoHero(url);
+    if (anterior && anterior !== url) void borrarSubidas([subidaDeUrl(anterior)]);
+    return { ok: true, video: url };
+  }
+
+  @Delete('hero/video')
+  async deleteHeroVideo() {
+    const anterior = await this.guardarVideoHero(null);
+    void borrarSubidas([subidaDeUrl(anterior)]);
+    return { ok: true };
+  }
+
+  /** Escribe `tokens.hero.video` en el tema activo; devuelve el que había. */
+  private async guardarVideoHero(url: string | null): Promise<string | null> {
+    const theme = await prisma.theme.findFirst({ where: { active: true } });
+    if (!theme) throw new NotFoundException('No hay tema activo');
+    const tokens = themeTokensSchema.parse(theme.tokens);
+    const data: { tokens: object; draftTokens?: object } = { tokens: { ...tokens, hero: { ...tokens.hero, video: url } } };
+    if (theme.draftTokens !== null) {
+      const draft = themeTokensSchema.parse(theme.draftTokens);
+      data.draftTokens = { ...draft, hero: { ...draft.hero, video: url } };
+    }
+    await prisma.theme.update({ where: { id: theme.id }, data });
+    // Que el sitio lo enseñe ya y no al minuto (caché del tema en la web).
+    await revalidarSitio();
+    return tokens.hero.video;
   }
 
   // ---- Subida genérica de imágenes (bloques del constructor: hero/promo, etc.) ----

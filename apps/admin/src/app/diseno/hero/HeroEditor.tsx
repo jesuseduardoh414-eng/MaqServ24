@@ -6,7 +6,7 @@ import type { HeroSettings, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { imagenParaVistaPrevia } from '@/lib/imagen-previa';
 import { D, cardStyle, inputStyle, h3Style, smallLabel, Field, Toggle } from '@/components/editor-kit';
-import { Btn, PageHeader, Segmented, StatusText, Toast } from '@/components/ui';
+import { Btn, btnClass, PageHeader, Segmented, StatusText, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
 interface HeroDto { id?: number; badge: string | null; title: string | null; subtitle: string | null; image: string | null }
@@ -17,7 +17,32 @@ interface Config {
   accentColor: string; titleColor: string; subtitleColor: string;
   primaryBg: string; primaryText: string; secondaryBorder: string;
   overlay: number; showTrust: boolean; showStats: boolean;
+  /** Video en lugar de la imagen de portada. Se sube y se guarda al elegirlo. */
+  video: string | null;
   badges: Array<{ t: string; d: string }>; stats: Array<{ n: string; l: string }>;
+}
+
+/** Igual que el tope de `POST admin/cms/hero/video` en la API. */
+const VIDEO_MAX_MB = 30;
+
+/** XHR y no fetch: fetch no informa el avance de la subida. */
+function subirVideoHero(archivo: File, onAvance: (pct: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/admin/cms/hero/video');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onAvance(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let d: { message?: string; video?: string } | null = null;
+      try { d = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300 && d?.video) resolve(d.video);
+      else if (xhr.status === 413) reject(new Error(`El video pesa más de ${VIDEO_MAX_MB} MB`));
+      else reject(new Error(d?.message ?? 'No se pudo subir el video'));
+    };
+    xhr.onerror = () => reject(new Error('Se cortó la conexión al subir el video'));
+    const fd = new FormData();
+    fd.append('video', archivo);
+    xhr.send(fd);
+  });
 }
 
 /* Cromo con el kit del panel (editor-kit): antes este editor traía su propia
@@ -72,6 +97,8 @@ function ajustesHero(c: Config): HeroSettings {
     primaryLink: c.primaryLink, secondaryLink: c.secondaryLink,
     accentColor: c.accentColor, titleColor: c.titleColor, subtitleColor: c.subtitleColor,
     primaryBg: c.primaryBg, primaryText: c.primaryText, secondaryBorder: c.secondaryBorder,
+    // Va siempre: publicar reescribe tokens.hero completo y sin esto borraba el video.
+    video: c.video,
   };
 }
 
@@ -101,6 +128,7 @@ export function HeroEditor({
       accentColor: heroSettings.accentColor, titleColor: heroSettings.titleColor, subtitleColor: heroSettings.subtitleColor,
       primaryBg: heroSettings.primaryBg, primaryText: heroSettings.primaryText, secondaryBorder: heroSettings.secondaryBorder,
       overlay: heroSettings.overlay, showTrust: heroSettings.showTrust, showStats: heroSettings.showStats,
+      video: heroSettings.video,
       badges: [1, 2, 3, 4].map((n) => ({ t: es[`home.hero.trust${n}.title`] ?? '', d: es[`home.hero.trust${n}.text`] ?? '' })),
       stats: [1, 2, 3].map((n) => ({ n: es[`home.hero.stat${n}.num`] ?? '', l: es[`home.hero.stat${n}.label`] ?? '' })),
     };
@@ -127,6 +155,35 @@ export function HeroEditor({
     set('image', URL.createObjectURL(f));
   }
   function onImage(e: React.ChangeEvent<HTMLInputElement>) { takeFile(e.target.files?.[0]); e.target.value = ''; }
+
+  /** Avance de la subida del video (0-100), o null si no se está subiendo. */
+  const [subiendo, setSubiendo] = useState<number | null>(null);
+  /**
+   * El video se guarda y se publica al elegirlo (es la parte lenta): se marca
+   * también en `saved` para que no cuente como cambio pendiente.
+   */
+  async function onVideo(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (f.size > VIDEO_MAX_MB * 1024 * 1024) { setToast({ ok: false, text: `El video pesa más de ${VIDEO_MAX_MB} MB` }); return; }
+    setSubiendo(0); setToast(null);
+    try {
+      const url = await subirVideoHero(f, setSubiendo);
+      setConfig((c) => ({ ...c, video: url }));
+      setSaved((s) => ({ ...s, video: url }));
+      setToast({ ok: true, text: 'Video publicado: ya se ve en el inicio.' });
+    } catch (err) {
+      setToast({ ok: false, text: (err as Error).message });
+    } finally { setSubiendo(null); }
+  }
+  async function quitarVideo() {
+    const r = await fetch('/api/admin/cms/hero/video', { method: 'DELETE' });
+    if (!r.ok) { setToast({ ok: false, text: 'No se pudo quitar el video' }); return; }
+    setConfig((c) => ({ ...c, video: null }));
+    setSaved((s) => ({ ...s, video: null }));
+    setToast({ ok: true, text: 'Video quitado: vuelve la imagen de portada.' });
+  }
   function onDrop(e: React.DragEvent) { e.preventDefault(); setDragOver(false); takeFile(e.dataTransfer.files?.[0]); }
   function removeImage() { setFile(null); setImgError(false); set('image', null); }
   const showImage = Boolean(config.image) && !imgError;
@@ -247,6 +304,24 @@ export function HeroEditor({
                       <input type="file" accept="image/*" onChange={onImage} style={{ display: 'none' }} />
                     </label>
                   )}
+                </div>
+                <div style={cardStyle}>
+                  <h3 style={h3Style}>Video de portada (opcional)</h3>
+                  <p style={{ ...hint, margin: '3px 0 14px' }}>
+                    Si hay video, se ve en lugar de la imagen: en bucle y sin sonido. MP4 o WebM, hasta {VIDEO_MAX_MB} MB. Se publica al subirlo.
+                  </p>
+                  {config.video ? (
+                    <video src={config.video} muted loop autoPlay playsInline style={{ width: '100%', maxHeight: 260, objectFit: 'contain', borderRadius: 12, border: '1px solid var(--adm-border-strong)', background: '#000', display: 'block', marginBottom: 12 }} />
+                  ) : null}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <label className={btnClass('secondary', 'sm')} style={{ cursor: subiendo !== null ? 'default' : 'pointer', opacity: subiendo !== null ? 0.6 : 1 }}>
+                      <i className="ph ph-video-camera" /> {subiendo !== null ? `Subiendo… ${subiendo}%` : config.video ? 'Cambiar video' : 'Subir video'}
+                      <input type="file" accept="video/mp4,video/webm" onChange={onVideo} disabled={subiendo !== null} style={{ display: 'none' }} />
+                    </label>
+                    {config.video && subiendo === null ? (
+                      <Btn size="sm" variant="ghost" icon="ph-trash" onClick={quitarVideo}>Quitar video</Btn>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             ) : null}

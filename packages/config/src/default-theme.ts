@@ -129,6 +129,8 @@ export const defaultTheme: Theme = {
       showTrust: true,
       showStats: true,
       overlay: 100,
+      // Sin video: la imagen de portada sobre el círculo (se sube en Diseño → Hero).
+      video: null,
       // Cotizar es ahora el camino principal; el catálogo queda de secundario.
       primaryLink: '/cotizar',
       secondaryLink: '/productos',

@@ -145,11 +145,22 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
         </div>
 
         {/* visual */}
-        <div style={{ position: 'relative', minHeight: 380 }} className="hero-visual">
-          {/* círculo de acento: SOLO adorno, detrás y más pequeño que la imagen */}
-          <div aria-hidden style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(340px, 72%)', aspectRatio: '1', borderRadius: '50%', background: h.accentColor, opacity: h.overlay / 100 }} />
+        <div style={{ position: 'relative', minHeight: 380, ...(h.video ? { display: 'grid', alignItems: 'center' } : {}) }} className="hero-visual">
+          {h.video ? (
+            // Video en movimiento en lugar de la imagen (Diseño → Hero). Trae su
+            // propio fondo, así que no lleva el círculo: va entero, en su
+            // proporción, como tarjeta del sistema.
+            <VideoCategoria
+              src={h.video}
+              poster={null}
+              style={{ position: 'relative', inset: 'auto', height: 'auto', maxHeight: 560, objectFit: 'contain', borderRadius: CARD_RADIUS, border: '1px solid var(--color-border)', boxShadow: 'var(--shadow)', background: '#000' }}
+            />
+          ) : (
+            /* círculo de acento: SOLO adorno, detrás y más pequeño que la imagen */
+            <div aria-hidden style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(340px, 72%)', aspectRatio: '1', borderRadius: '50%', background: h.accentColor, opacity: h.overlay / 100 }} />
+          )}
           {/* imagen del producto (PNG transparente): más grande que el círculo, puede salirse de él */}
-          {hero?.image ? (
+          {h.video ? null : hero?.image ? (
             <span style={{ position: 'absolute', top: '50%', left: '52%', transform: 'translate(-50%, -50%)', width: 'min(560px, 118%)', aspectRatio: '1', zIndex: 1, display: 'block' }}>
               {/* La caja (span) queda IGUAL; solo la imagen escala → no altera el resto. */}
               <Image src={hero.image} alt={`${title} ${accent}`.trim()} fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', transform: 'scale(1.45)', transformOrigin: 'center' }} />

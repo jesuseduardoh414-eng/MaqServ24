@@ -93,6 +93,10 @@ export const heroSettingsSchema = z
     primaryBg: z.string().default('#008CFF'),
     primaryText: z.string().default('#07090C'),
     secondaryBorder: z.string().default('#2B333D'),
+    // Video en bucle en lugar de la imagen de portada (2026-10-19, pedido del
+    // cliente). URL de MP4/WebM; null ⇒ la imagen sobre el círculo de siempre.
+    // Vive en el tema y no en hero_sections para no pedir otra columna en la BD.
+    video: z.string().nullable().default(null),
   })
   .default({});
 
