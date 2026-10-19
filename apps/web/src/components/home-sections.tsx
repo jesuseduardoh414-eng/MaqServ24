@@ -199,6 +199,10 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
   const eyebrowColor = cs.eyebrowColor ?? 'var(--color-accent)';
   const titleColor = cs.titleColor ?? 'var(--color-text)';
   const accent = cs.cardAccentColor ?? 'var(--color-primary)';
+  // Los videos de categoría son de celular, en vertical (9:16). Con uno solo,
+  // toda la banda pasa a tarjetas verticales: con la altura fija del tema el
+  // video perdía casi la mitad de arriba y de abajo.
+  const vertical = categories.some((c) => c.video);
   return (
     <section style={{ ...CONTAINER, paddingTop: 82, paddingBottom: 40 }}>
       <CategoryStrip
@@ -218,7 +222,7 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             href={categoryHref(c)}
             data-cat-card
             className="lift cat-card"
-            style={{ scrollSnapAlign: 'start', position: 'relative', display: 'block', height: cs.imageHeight, borderRadius: cs.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)', background: 'var(--surface-2)', border: '1px solid var(--color-border)' }}
+            style={{ scrollSnapAlign: 'start', position: 'relative', display: 'block', ...(vertical ? { aspectRatio: '9 / 16' } : { height: cs.imageHeight }), borderRadius: cs.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)', background: 'var(--surface-2)', border: '1px solid var(--color-border)' }}
           >
             {/* Video en bucle si la categoría tiene (la foto queda de portada); si no, imagen a sangre (cover) */}
             {c.video ? (

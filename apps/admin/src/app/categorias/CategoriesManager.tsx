@@ -383,11 +383,12 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
             </div>
             <FormField
               label="Video (opcional)"
-              help={`Va en lugar de la foto, en bucle y sin sonido; la foto queda de portada mientras carga. MP4 o WebM, hasta ${VIDEO_MAX_MB} MB. Mejor de 5 a 15 s y menos de 10 MB: el inicio carga seis. Se guarda al elegirlo.`}
+              help={`Va en lugar de la foto, en bucle y sin sonido; la foto queda de portada mientras carga. Vertical, como se graba con el celular: con un video, las tarjetas del sitio pasan a verticales. MP4 o WebM, hasta ${VIDEO_MAX_MB} MB; mejor de 5 a 15 s y menos de 10 MB. Se guarda al elegirlo.`}
             >
               <div style={{ display: 'grid', gap: 10 }}>
                 {editing.video ? (
-                  <video src={editing.video} poster={editing.image ?? undefined} muted loop autoPlay playsInline controls={false} style={{ width: '100%', maxHeight: 200, borderRadius: 10, background: '#000', objectFit: 'cover' }} />
+                  // Vertical (9:16), como sale en la tarjeta del sitio.
+                  <video src={editing.video} poster={editing.image ?? undefined} muted loop autoPlay playsInline controls={false} style={{ height: 240, aspectRatio: '9 / 16', maxWidth: '100%', borderRadius: 10, background: '#000', objectFit: 'cover' }} />
                 ) : null}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <Btn size="sm" icon="ph-video-camera" onClick={() => videoRef.current?.click()} disabled={subiendo !== null}>

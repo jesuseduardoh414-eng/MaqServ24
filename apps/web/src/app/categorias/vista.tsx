@@ -39,6 +39,17 @@ const CSS = `
   .cv-featured .cv-media{ min-height:200px; border-right:none; border-bottom:1px solid var(--color-border); }
 }
 @media (prefers-reduced-motion: reduce){ .cv-img, .cv-arrow{ transition:none; } }
+/* Con videos de categoría (de celular, 9:16) las tarjetas pasan a verticales:
+   rejilla más angosta para que no salgan de 600 px de alto. */
+.cv-vertical .cv-media{ aspect-ratio:9/16; overflow:hidden; }
+.ms-cards.cv-cards-v{ grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); }
+.cv-featured.cv-vertical{ grid-template-columns:minmax(0, 300px) minmax(0, 1fr); }
+.cv-featured.cv-vertical .cv-media{ min-height:0; }
+@media (max-width: 760px){
+  .cv-featured.cv-vertical{ grid-template-columns:minmax(0,1fr); }
+  .cv-featured.cv-vertical .cv-media{ aspect-ratio:4/5; }
+}
+@media (max-width: 480px){ .ms-cards.cv-cards-v{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px; } }
 `;
 
 /**
@@ -64,17 +75,19 @@ export function VistaCategorias({ theme, categories, marco = true }: { theme: Th
 
   const featured = cv.featuredSlug ? categories.find((c) => c.slug === cv.featuredSlug) : null;
   const rest = featured ? categories.filter((c) => c.slug !== featured.slug) : categories;
+  // Igual que la banda del inicio: con un video, todas las tarjetas en vertical.
+  const vertical = categories.some((c) => c.video);
 
   type CatItem = { id: number; name: string; slug: string; image: string | null; video: string | null; description: string | null; productCount: number };
 
   /** Tarjeta grande horizontal (la destacada). */
   const bigCard = (c: CatItem) => (
-    <Link key={`big-${c.id}`} href={categoryHref(c)} className="cv-card cv-featured">
+    <Link key={`big-${c.id}`} href={categoryHref(c)} className={`cv-card cv-featured${vertical ? ' cv-vertical' : ''}`}>
       <div className="cv-media">
         {c.video ? (
           <VideoCategoria src={c.video} poster={c.image} className="cv-img" />
         ) : c.image ? (
-          <Image src={c.image} alt={c.name} fill sizes="(max-width:760px) 100vw, 620px" className="cv-img" style={{ objectFit: 'contain', padding: 30 }} />
+          <Image src={c.image} alt={c.name} fill sizes="(max-width:760px) 100vw, 620px" className="cv-img" style={vertical ? { objectFit: 'cover' } : { objectFit: 'contain', padding: 30 }} />
         ) : (
           <span className="ph" style={{ position: 'absolute', inset: 0 }} />
         )}
@@ -92,12 +105,12 @@ export function VistaCategorias({ theme, categories, marco = true }: { theme: Th
 
   /** Tarjeta de catálogo (imagen arriba, texto abajo). */
   const catCard = (c: CatItem) => (
-    <Link key={c.id} href={categoryHref(c)} className="cv-card">
-      <div className="cv-media" style={{ height: Math.min(cv.imageHeight ?? 200, 220), overflow: 'hidden' }}>
+    <Link key={c.id} href={categoryHref(c)} className={`cv-card${vertical ? ' cv-vertical' : ''}`}>
+      <div className="cv-media" style={vertical ? undefined : { height: Math.min(cv.imageHeight ?? 200, 220) }}>
         {c.video ? (
           <VideoCategoria src={c.video} poster={c.image} className="cv-img" />
         ) : c.image ? (
-          <Image src={c.image} alt={c.name} fill sizes="(max-width:560px) 100vw, (max-width:980px) 50vw, 400px" className="cv-img" style={{ objectFit: 'contain', padding: 20 }} />
+          <Image src={c.image} alt={c.name} fill sizes="(max-width:560px) 100vw, (max-width:980px) 50vw, 400px" className="cv-img" style={vertical ? { objectFit: 'cover' } : { objectFit: 'contain', padding: 20 }} />
         ) : (
           <span className="ph" style={{ position: 'absolute', inset: 0 }} />
         )}
@@ -149,7 +162,7 @@ export function VistaCategorias({ theme, categories, marco = true }: { theme: Th
           {/* Destacada grande arriba */}
           {featured ? bigCard(featured) : null}
 
-          {rest.length ? <div className="ms-cards">{rest.map(catCard)}</div> : null}
+          {rest.length ? <div className={`ms-cards${vertical ? ' cv-cards-v' : ''}`}>{rest.map(catCard)}</div> : null}
         </section>
 
         {/* Promo/anuncio inferior (configurable) */}
