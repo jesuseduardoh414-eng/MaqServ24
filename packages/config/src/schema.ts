@@ -407,6 +407,7 @@ export const footerSchema = z
         { label: 'Categorías', href: '/categorias' },
       ] },
       { title: 'Ayuda', links: [
+        { label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
         { label: 'Rastrear pedido', href: '/rastreo' },
         { label: 'Contacto', href: '/contacto' },
       ] },

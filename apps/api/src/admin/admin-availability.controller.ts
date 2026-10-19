@@ -9,12 +9,15 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
-import { AdminGuard, Modulo } from './admin-auth';
-import { disponibilidadDe, DIAS_FRESCURA } from '../catalog/availability';
+import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
+import { disponibilidadDe, DIAS_FRESCURA, PREFIJO_RESERVA } from '../catalog/availability';
+import { liberarReservaAMano } from '../quotes/reservas';
+import { registrarAccion } from './audit';
 
 /**
  * DISPONIBILIDAD — confirmar, ubicar y bloquear equipos.
@@ -27,6 +30,11 @@ import { disponibilidadDe, DIAS_FRESCURA } from '../catalog/availability';
  * Confirmar NO cambia el inventario: solo dice "esto sigue siendo cierto hoy".
  * Son dos cosas distintas y mezclarlas haría que confirmar pareciera un ajuste
  * de existencias.
+ *
+ * Lo que aparta un servicio (nota `reserva:<folio>`) ya NO se pone aquí: lo
+ * pone y lo quita el propio servicio (quotes/reservas.ts). Esta pantalla lo
+ * enseña —también lo que viene, no solo lo de hoy— y queda para lo que ningún
+ * sistema sabe: mantenimiento, una máquina parada, una ubicación.
  */
 
 const ESTADOS_BLOQUEO = ['reservado', 'en-traslado', 'en-servicio', 'mantenimiento', 'inactivo'] as const;
@@ -60,9 +68,11 @@ export class AdminAvailabilityController {
 
     const hoy = new Date();
     const [bloques, cats, provs] = await Promise.all([
+      // De hoy en adelante: una reserva para la semana que entra no cambia el
+      // estado de hoy, pero quien asigna tiene que verla.
       prisma.availability_blocks.findMany({
-        where: { starts_on: { lte: hoy }, OR: [{ ends_on: null }, { ends_on: { gte: hoy } }] },
-        orderBy: { starts_on: 'desc' },
+        where: { OR: [{ ends_on: null }, { ends_on: { gte: hoy } }] },
+        orderBy: { starts_on: 'asc' },
       }),
       prisma.categories.findMany({ select: { id: true, cat_name: true } }),
       prisma.providers.findMany({ select: { id: true, name: true } }),
@@ -76,6 +86,7 @@ export class AdminAvailabilityController {
     }
     const nombreCat = new Map(cats.map((c) => [c.id, c.cat_name]));
     const nombreProv = new Map(provs.map((p) => [p.id, p.name]));
+    const hoyStr = hoy.toISOString().slice(0, 10);
 
     return productos.map((p) => {
       const misBloques = porProducto.get(p.id) ?? [];
@@ -84,7 +95,7 @@ export class AdminAvailabilityController {
           stock: p.stock,
           location: p.location,
           confirmedAt: p.availability_confirmed_at,
-          blocks: misBloques.map((b) => ({ state: b.state, starts_on: b.starts_on, ends_on: b.ends_on })),
+          blocks: misBloques.map((b) => ({ state: b.state, starts_on: b.starts_on, ends_on: b.ends_on, note: b.note })),
         },
         hoy,
       );
@@ -98,13 +109,20 @@ export class AdminAvailabilityController {
         location: disp.location,
         confirmedAt: disp.confirmedAt,
         until: disp.until,
-        blocks: misBloques.map((b) => ({
-          id: b.id,
-          state: b.state,
-          startsOn: b.starts_on.toISOString().slice(0, 10),
-          endsOn: b.ends_on ? b.ends_on.toISOString().slice(0, 10) : null,
-          note: b.note,
-        })),
+        blocks: misBloques.map((b) => {
+          const startsOn = b.starts_on.toISOString().slice(0, 10);
+          const auto = (b.note ?? '').startsWith(PREFIJO_RESERVA);
+          return {
+            id: b.id,
+            state: b.state,
+            startsOn,
+            endsOn: b.ends_on ? b.ends_on.toISOString().slice(0, 10) : null,
+            note: auto ? null : b.note,
+            /** Lo puso un servicio: se mueve y se quita solo. */
+            folio: auto ? (b.note as string).slice(PREFIJO_RESERVA.length) : null,
+            upcoming: startsOn > hoyStr,
+          };
+        }),
       };
     });
   }
@@ -166,8 +184,21 @@ export class AdminAvailabilityController {
     return b;
   }
 
+  /**
+   * Quitar un bloqueo. Si lo puso un servicio, se suelta TODO lo de ese folio
+   * y queda anotado en la cotización: si no, la corrida diaria lo volvería a
+   * poner. Es la salida para cuando el aliado manda otra máquina o el cliente
+   * avisó por teléfono que ya no la necesita.
+   */
   @Delete('blocks/:blockId')
-  async unblock(@Param('blockId', ParseIntPipe) blockId: number) {
+  async unblock(@Req() req: AdminRequest, @Param('blockId', ParseIntPipe) blockId: number) {
+    const b = await prisma.availability_blocks.findUnique({ where: { id: blockId }, select: { note: true } });
+    if (b?.note?.startsWith(PREFIJO_RESERVA)) {
+      const folio = b.note.slice(PREFIJO_RESERVA.length);
+      await liberarReservaAMano(folio);
+      await registrarAccion(req, 'disponibilidad', 'reserva.liberar', folio, 'Liberada a mano: el servicio ya no la vuelve a apartar');
+      return { ok: true, folio };
+    }
     await prisma.availability_blocks.deleteMany({ where: { id: blockId } });
     return { ok: true };
   }

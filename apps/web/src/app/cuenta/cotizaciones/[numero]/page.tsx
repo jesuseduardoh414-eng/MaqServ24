@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { AutoRefresco } from './AutoRefresco';
 import { NOINDEX } from '@/lib/seo';
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
@@ -11,6 +12,8 @@ import { SESSION_COOKIE } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 import { QuoteAccept } from './QuoteAccept';
+// Rediseño de 'Tu servicio' (2026-10-15): pasos, mapa y quién lo atiende.
+import { SeguimientoServicio } from './SeguimientoServicio';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
@@ -25,7 +28,10 @@ const ESTADO: Record<QuoteDetail['state'], { texto: string; nota: string; color:
   rechazada: { texto: 'Descartada', nota: '', color: 'var(--color-text-muted)' },
 };
 
-const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money = (n: number) => `${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Con zona fija: el servidor (UTC en producción) y el navegador dicen la misma hora.
+const FECHA = new Intl.DateTimeFormat('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'America/Monterrey' });
+const FECHA_HORA = new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/Monterrey' });
 
 /** Chip de estado: forma común (`ms-chip`) con el color del estado. */
 const chip = (color: string): React.CSSProperties => ({
@@ -50,6 +56,17 @@ a.qd-fila:hover > :first-child{ color:var(--color-primary); }
 .qd-txt{ margin:0; font-size:14.5px; line-height:1.65; white-space:pre-wrap; overflow-wrap:anywhere; }
 .qd-total{ display:flex; justify-content:space-between; align-items:baseline; gap:16px; border-top:1px solid var(--color-border); margin-top:8px; padding-top:14px; }
 .qd-svc-bar{ height:4px; background:var(--color-border); border-radius:4px; margin:14px 0 0; overflow:hidden; }
+/* Dos columnas en computadora (2026-10-15): a la izquierda lo que se lee (el
+   servicio, los equipos, lo que incluye); a la derecha lo que se decide (el
+   total, aceptar, el documento) y los datos. En el teléfono, una sola. */
+.qd-cols{ display:grid; gap:20px; grid-template-columns:minmax(0,1fr); align-items:start; }
+.qd-main, .qd-side{ display:grid; gap:16px; min-width:0; }
+@media (min-width:1024px){
+  .qd-cols{ grid-template-columns:minmax(0,1fr) 360px; gap:24px; }
+}
+/* Sin servicio todavía, en el teléfono va primero el precio y el botón de aceptar. */
+@media (max-width:1023px){ .qd-cols-precio .qd-side{ order:-1; } }
+.qd-side .qd-doc{ width:100%; justify-content:space-between; white-space:normal; text-align:left; }
 `;
 
 /**
@@ -86,7 +103,10 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
   } as const;
   const est = q.request
     ? { texto: q.request.label, nota: q.request.message, color: COLOR_SOLICITUD[q.request.state] }
-    : ESTADO[q.state];
+    // Con precio y en revisión: la pidió desde el cotizador viendo el costo (2026-10-15).
+    : q.state === 'pendiente' && q.total > 0
+      ? { ...ESTADO.pendiente, nota: 'La estamos revisando para asignarte el proveedor. Te avisamos en cuanto quede autorizada.' }
+      : ESTADO[q.state];
   /** Los cuatro pasos que ve el cliente: enviada → en revisión → aprobada → completada. */
   const PASOS_SOLICITUD = [
     { k: 'enviada', t: 'Enviada' },
@@ -101,12 +121,12 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
       <SiteHeader theme={theme} />
       <style>{CSS}</style>
       <div className="ms-page" style={{ minHeight: '60vh' }}>
-        <main className="ms-wrap-narrow">
+        <main className="ms-wrap" style={{ maxWidth: 1240 }}>
           <Link href="/cuenta/cotizaciones" className="ms-link ms-link-muted qd-back">
             <Icon name="arrowLeft" size={14} />Mis cotizaciones
           </Link>
 
-          <header className="ms-head" style={{ marginBottom: 24 }}>
+          <header className="ms-head" style={{ marginBottom: 20 }}>
             <div className="ms-head-txt">
               <div className="qd-title-row">
                 <h1 className="ms-title ms-num">{q.quoteNumber}</h1>
@@ -124,196 +144,170 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
             </div>
           </header>
 
-          <div className="qd-stack">
-            {/* Línea de estados de la solicitud: dónde va y qué sigue. */}
-            {q.request ? (
-              <div className="qd-pasos" aria-label="Avance de la solicitud">
-                {PASOS_SOLICITUD.map((p, i) => {
-                  const rechazo = q.request!.state === 'rechazada' || q.request!.state === 'cancelada';
-                  const hecho = !rechazo && i <= idxSolicitud;
-                  const actual = !rechazo && i === idxSolicitud;
-                  const color = rechazo && i === 1 ? 'var(--color-error)' : hecho ? 'var(--color-primary)' : 'var(--color-border)';
-                  return (
-                    <div key={p.k} className="qd-paso" style={{ borderTop: `3px solid ${color}` }} aria-current={actual ? 'step' : undefined}>
-                      <span style={{ fontWeight: actual ? 600 : 500, color: hecho || (rechazo && i === 1) ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
-                        {rechazo && i === 1 ? q.request!.label : p.t}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {/* El documento de siempre (folio, partidas, condiciones, firma) para imprimir o guardar en PDF. */}
-            {q.documentFolio ? (
-              <div>
-                <Link href={`/cuenta/cotizaciones/${q.quoteNumber}/documento`} className="ms-btn ms-btn-sec" style={{ whiteSpace: 'normal', textAlign: 'left' }}>
-                  <Icon name="article" size={16} />
-                  Ver documento {q.documentFolio} · imprimir o guardar PDF
-                  <Icon name="arrowRight" size={14} />
-                </Link>
-              </div>
-            ) : null}
-
-            {/* Los demás servicios de esta misma cotización: cada aliado aprueba o rechaza el suyo. */}
-            {q.siblings?.length ? (
-              <section className="ms-panel">
-                <h2 className="ms-h3 qd-card-t">Otros servicios de esta cotización</h2>
-                {q.siblings.map((s) => (
-                  <Link key={s.quoteNumber} href={`/cuenta/cotizaciones/${s.quoteNumber}`} className="qd-fila">
-                    <span style={{ color: 'var(--color-text)' }}>{s.name} <span className="ms-muted">· {s.quoteNumber}</span></span>
-                    <span style={{ fontWeight: 600, color: s.request ? COLOR_SOLICITUD[s.request.state] : 'var(--color-text-muted)' }}>{s.request?.label ?? '—'}</span>
-                  </Link>
-                ))}
-              </section>
-            ) : null}
-
-            {/*
-              EN QUÉ VA EL SERVICIO (documento institucional, sección 16).
-
-              Va arriba de todo a propósito: una vez aceptada, el precio ya se
-              decidió y la única pregunta que el cliente vuelve a hacer es "¿y
-              ahora?". Antes eso solo se contestaba por teléfono.
-            */}
-            {q.service ? <SeguimientoServicio servicio={q.service} /> : null}
-
-            {q.items.length > 0 ? (
-              <section className="ms-panel">
-                <h2 className="ms-h3 qd-card-t">Equipos</h2>
-                {q.items.map((i) => (
-                  <div key={i.productId} className="qd-fila">
-                    <span style={{ color: 'var(--color-text)' }}>
-                      {i.name} {i.qty > 1 ? `× ${i.qty}` : ''}{i.isRental && i.days > 1 ? ` · ${formatearCantidad(i.days, i.unit ?? 'dia')}` : ''}
+          {/* Línea de estados de la solicitud: dónde va y qué sigue. */}
+          {q.request ? (
+            <div className="qd-pasos" aria-label="Avance de la solicitud" style={{ marginBottom: 22 }}>
+              {PASOS_SOLICITUD.map((p, i) => {
+                const rechazo = q.request!.state === 'rechazada' || q.request!.state === 'cancelada';
+                const hecho = !rechazo && i <= idxSolicitud;
+                const actual = !rechazo && i === idxSolicitud;
+                const color = rechazo && i === 1 ? 'var(--color-error)' : hecho ? 'var(--color-primary)' : 'var(--color-border)';
+                return (
+                  <div key={p.k} className="qd-paso" style={{ borderTop: `3px solid ${color}` }} aria-current={actual ? 'step' : undefined}>
+                    <span style={{ fontWeight: actual ? 600 : 500, color: hecho || (rechazo && i === 1) ? 'var(--color-text)' : 'var(--color-text-muted)' }}>
+                      {rechazo && i === 1 ? q.request!.label : p.t}
                     </span>
-                    <span className="ms-num" style={{ color: 'var(--color-text)', fontWeight: 600 }}>{money(i.lineTotal)}</span>
                   </div>
-                ))}
-              </section>
-            ) : null}
+                );
+              })}
+            </div>
+          ) : null}
 
-            <section className="ms-panel" aria-label="Importes">
-              <div className="qd-fila"><span>Subtotal</span><span className="ms-num" style={{ color: 'var(--color-text)' }}>{money(q.subtotal)}</span></div>
-              {q.freightCost > 0 ? (
-                <div className="qd-fila">
-                  <span>Traslado{q.freightDistance ? ` · ${q.freightDistance} km` : ''}</span>
-                  <span className="ms-num" style={{ color: 'var(--color-text)' }}>{money(q.freightCost)}</span>
+          <div className={`qd-cols${q.service ? '' : ' qd-cols-precio'}`}>
+            {/* ── Izquierda: lo que se lee ── */}
+            <div className="qd-main">
+              {/*
+                EN QUÉ VA EL SERVICIO (documento institucional, sección 16).
+                Va arriba: una vez aceptada, la única pregunta que el cliente
+                vuelve a hacer es "¿y ahora?".
+              */}
+              {q.service ? <SeguimientoServicio servicio={q.service} rastreo={q.tracking ?? null} direccion={q.address} /> : null}
+              {q.tracking?.moving ? <AutoRefresco /> : null}
+
+              {q.items.length > 0 ? (
+                <section className="ms-panel">
+                  <h2 className="ms-h3 qd-card-t">Equipos</h2>
+                  {q.items.map((i) => (
+                    <div key={i.productId} className="qd-fila">
+                      <span style={{ color: 'var(--color-text)' }}>
+                        {i.name} {i.qty > 1 ? `× ${i.qty}` : ''}{i.isRental && i.days > 1 ? ` · ${formatearCantidad(i.days, i.unit ?? 'dia')}` : ''}
+                      </span>
+                      {/* Un equipo sin precio de catálogo se cotiza aparte (2026-10-15): "$0.00" ahí parecía regalado. */}
+                      {i.lineTotal > 0 ? (
+                        <span className="ms-num" style={{ color: 'var(--color-text)', fontWeight: 600 }}>{money(i.lineTotal)}</span>
+                      ) : q.documentFolio ? (
+                        <span className="ms-muted" style={{ fontSize: 13.5 }}>en el documento</span>
+                      ) : null}
+                    </div>
+                  ))}
+                </section>
+              ) : null}
+
+              {/* Qué incluye y qué no. Lo segundo es lo que evita la discusión
+                  cuando llega la factura, así que se muestra con el mismo peso. */}
+              {q.included || q.excluded ? (
+                <div className={q.included && q.excluded ? 'ms-grid2' : undefined} style={{ display: 'grid', gap: 16 }}>
+                  {q.included ? (
+                    <section className="ms-panel">
+                      <h2 className="ms-h3 qd-card-t" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: 'var(--color-success)', display: 'flex' }}><Icon name="check" size={16} /></span>Incluye
+                      </h2>
+                      <p className="qd-txt">{q.included}</p>
+                    </section>
+                  ) : null}
+                  {q.excluded ? (
+                    <section className="ms-panel">
+                      <h2 className="ms-h3 qd-card-t" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ color: 'var(--color-warning)', display: 'flex' }}><Icon name="x" size={16} /></span>No incluye
+                      </h2>
+                      <p className="qd-txt">{q.excluded}</p>
+                    </section>
+                  ) : null}
                 </div>
               ) : null}
-              {q.tax > 0 ? <div className="qd-fila"><span>Impuesto</span><span className="ms-num" style={{ color: 'var(--color-text)' }}>{money(q.tax)}</span></div> : null}
-              <div className="qd-total">
-                <span style={{ fontWeight: 600, fontSize: 16 }}>Total</span>
-                <span className="ms-stat-n" style={{ fontSize: 26 }}>{money(q.total)}</span>
-              </div>
-            </section>
 
-            {/* Qué incluye y qué no. Lo segundo es lo que evita la discusión
-                cuando llega la factura, así que se muestra con el mismo peso. */}
-            {q.included || q.excluded ? (
-              <div className={q.included && q.excluded ? 'ms-grid2' : undefined} style={{ display: 'grid', gap: 16 }}>
-                {q.included ? (
-                  <section className="ms-panel">
-                    <h2 className="ms-h3 qd-card-t" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: 'var(--color-success)', display: 'flex' }}><Icon name="check" size={16} /></span>Incluye
-                    </h2>
-                    <p className="qd-txt">{q.included}</p>
-                  </section>
-                ) : null}
-                {q.excluded ? (
-                  <section className="ms-panel">
-                    <h2 className="ms-h3 qd-card-t" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ color: 'var(--color-warning)', display: 'flex' }}><Icon name="x" size={16} /></span>No incluye
-                    </h2>
-                    <p className="qd-txt">{q.excluded}</p>
-                  </section>
-                ) : null}
-              </div>
-            ) : null}
+              {q.conditions ? (
+                <section className="ms-panel">
+                  <h2 className="ms-h3 qd-card-t">Condiciones</h2>
+                  <p className="qd-txt">{q.conditions}</p>
+                </section>
+              ) : null}
 
-            {q.conditions ? (
+              {q.comments ? (
+                <section className="ms-panel">
+                  <h2 className="ms-h3 qd-card-t">Lo que solicitaste</h2>
+                  <p className="qd-txt ms-muted" style={{ fontSize: 14, lineHeight: 1.7 }}>{q.comments}</p>
+                </section>
+              ) : null}
+            </div>
+
+            {/* ── Derecha: lo que se decide y los datos ── */}
+            <aside className="qd-side">
+              {q.total <= 0 ? (
+                <section className="ms-panel" aria-label="Importes">
+                  <div className="qd-fila"><span>Precio</span><span style={{ color: 'var(--color-text)' }}>En revisión</span></div>
+                  <p className="ms-hint" style={{ margin: '6px 0 0' }}>Te lo mandamos por correo y aquí mismo, con vigencia y lo que incluye.</p>
+                </section>
+              ) : (
+                <section className="ms-panel" aria-label="Importes">
+                  <div className="qd-fila"><span>Subtotal</span><span className="ms-num" style={{ color: 'var(--color-text)' }}>{money(q.subtotal)}</span></div>
+                  {q.freightCost > 0 ? (
+                    <div className="qd-fila">
+                      <span>Traslado{q.freightDistance ? ` · ${q.freightDistance} km` : ''}</span>
+                      <span className="ms-num" style={{ color: 'var(--color-text)' }}>{money(q.freightCost)}</span>
+                    </div>
+                  ) : null}
+                  {q.tax > 0 ? <div className="qd-fila"><span>Impuesto</span><span className="ms-num" style={{ color: 'var(--color-text)' }}>{money(q.tax)}</span></div> : null}
+                  <div className="qd-total">
+                    <span style={{ fontWeight: 600, fontSize: 16 }}>Total</span>
+                    <span className="ms-stat-n" style={{ fontSize: 26 }}>{money(q.total)}</span>
+                  </div>
+                </section>
+              )}
+
+              <QuoteAccept quoteNumber={q.quoteNumber} canAccept={q.canAccept} state={q.state} />
+
+              {/* El documento de siempre, o la SOLICITUD sin importes mientras no hay precio (2026-10-15). */}
+              {q.documentFolio || q.state === 'pendiente' ? (
+                <Link href={`/cuenta/cotizaciones/${q.quoteNumber}/documento`} className="ms-btn ms-btn-sec qd-doc">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <Icon name="article" size={16} />
+                    {q.documentFolio ? `Documento ${q.documentFolio}` : 'Tu solicitud'} · imprimir o PDF
+                  </span>
+                  <Icon name="arrowRight" size={14} />
+                </Link>
+              ) : null}
+
+              {/* Los datos de la solicitud, en un solo lugar (2026-10-15). */}
               <section className="ms-panel">
-                <h2 className="ms-h3 qd-card-t">Condiciones</h2>
-                <p className="qd-txt">{q.conditions}</p>
+                <h2 className="ms-h3 qd-card-t">Tu solicitud</h2>
+                {([
+                  ['Fecha', q.createdAt ? FECHA.format(new Date(q.createdAt)) : null],
+                  ['Empresa', q.customer.company],
+                  ['Contacto', q.customer.name],
+                  ['Teléfono', q.customer.phone],
+                  ['Correo', q.customer.email],
+                  ['Dirección de entrega', q.address],
+                  ['Región', q.customer.region],
+                ] as Array<[string, string | null]>).filter(([, v]) => v && String(v).trim()).map(([k, v]) => (
+                  <div key={k} className="qd-fila"><span>{k}</span><span style={{ color: 'var(--color-text)' }}>{v}</span></div>
+                ))}
               </section>
-            ) : null}
 
-            {q.comments ? (
-              <section className="ms-panel">
-                <h2 className="ms-h3 qd-card-t">Lo que solicitaste</h2>
-                <p className="qd-txt ms-muted" style={{ fontSize: 14, lineHeight: 1.7 }}>{q.comments}</p>
-              </section>
-            ) : null}
+              {/* Los demás servicios de esta misma cotización: cada aliado aprueba o rechaza el suyo. */}
+              {q.siblings?.length ? (
+                <section className="ms-panel">
+                  <h2 className="ms-h3 qd-card-t">Otros servicios de esta cotización</h2>
+                  {q.siblings.map((s) => (
+                    <Link key={s.quoteNumber} href={`/cuenta/cotizaciones/${s.quoteNumber}`} className="qd-fila">
+                      <span style={{ color: 'var(--color-text)' }}>{s.name} <span className="ms-muted">· {s.quoteNumber}</span></span>
+                      <span style={{ fontWeight: 600, color: s.request ? COLOR_SOLICITUD[s.request.state] : 'var(--color-text-muted)' }}>{s.request?.label ?? '—'}</span>
+                    </Link>
+                  ))}
+                </section>
+              ) : null}
 
-            <QuoteAccept quoteNumber={q.quoteNumber} canAccept={q.canAccept} state={q.state} />
-
-            {q.respondedBy || q.acceptedAt ? (
-              <p className="ms-hint" style={{ lineHeight: 1.6 }}>
-                {q.respondedBy ? `Precio autorizado por ${q.respondedBy}. ` : ''}
-                {q.acceptedAt ? `Aceptada el ${new Date(q.acceptedAt).toLocaleDateString('es-MX')}.` : ''}
-              </p>
-            ) : null}
+              {q.respondedBy || q.acceptedAt ? (
+                <p className="ms-hint" style={{ lineHeight: 1.6, margin: 0 }}>
+                  {q.respondedBy ? `Precio autorizado por ${q.respondedBy}. ` : ''}
+                  {q.acceptedAt ? `Aceptada el ${new Date(q.acceptedAt).toLocaleDateString('es-MX')}.` : ''}
+                </p>
+              ) : null}
+            </aside>
           </div>
         </main>
       </div>
       <SiteFooter theme={theme} />
     </>
-  );
-}
-
-/**
- * Seguimiento del servicio, contado para el cliente.
- *
- * Deliberadamente NO muestra a quién más se le ofreció ni quién dijo que no:
- * eso es información de operaciones. Al cliente le importa quién lo va a
- * atender y en qué va.
- */
-function SeguimientoServicio({ servicio }: { servicio: NonNullable<QuoteDetail['service']> }) {
-  const cancelado = servicio.state === 'cancelado';
-  const color = cancelado ? 'var(--color-error)' : 'var(--color-primary)';
-
-  return (
-    <section
-      aria-label="Seguimiento del servicio"
-      className={`ms-panel ${cancelado ? 'ms-alert-bad' : 'ms-alert-info'}`}
-    >
-      <p className="ms-small ms-muted" style={{ margin: '0 0 6px' }}>Tu servicio</p>
-      <div style={{ fontSize: 17, fontWeight: 600 }}>{servicio.label}</div>
-      <p style={{ margin: '7px 0 0', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.6 }}>
-        {servicio.message}
-      </p>
-
-      {/* La barra no reemplaza al texto: el color por sí solo no comunica. */}
-      {!cancelado ? (
-        <div className="qd-svc-bar">
-          <div style={{ height: '100%', width: `${Math.round(servicio.progress * 100)}%`, background: color, borderRadius: 4 }} />
-        </div>
-      ) : null}
-
-      {servicio.providers.length > 0 ? (
-        <p style={{ margin: '13px 0 0', fontSize: 13.5, color: 'var(--color-text-muted)' }}>
-          Te atiende <strong style={{ color: 'var(--color-text)' }}>{servicio.providers.join(' y ')}</strong>.
-        </p>
-      ) : null}
-
-      {servicio.closed ? (
-        <p style={{ margin: '9px 0 0', fontSize: 13.5, color: 'var(--color-text-muted)' }}>
-          Se registraron <strong style={{ color: 'var(--color-text)' }}>{servicio.closed}</strong>
-          {servicio.closedAt ? ` el ${new Date(servicio.closedAt).toLocaleDateString('es-MX')}` : ''}.
-        </p>
-      ) : null}
-
-      {servicio.history.length > 1 ? (
-        <ol style={{ margin: '15px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 5 }}>
-          {servicio.history.map((h, i) => (
-            <li key={`${h.label}-${i}`} style={{ fontSize: 13, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span aria-hidden style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0, transform: 'translateY(-1px)' }} />
-              <span>
-                {h.label}
-                {h.at ? <span style={{ opacity: 0.75 }}> — {new Date(h.at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short' })}</span> : null}
-              </span>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-    </section>
   );
 }

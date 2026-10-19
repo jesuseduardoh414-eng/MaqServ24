@@ -21,17 +21,25 @@ export interface Disponibilidad {
   color: string;
 }
 
+/*
+ * Las notas son para el CLIENTE ("Validando proveedor"); el color, el de
+ * ESTADOS_DISPONIBILIDAD (@maqserv/config), que el tema inyecta como
+ * `--estado-<clave>` en su tono claro u oscuro. Antes los cinco estados
+ * intermedios compartían el ámbar de --color-warning.
+ */
+const color = (e: AvailabilityState) => `var(--estado-${e})`;
+
 const ESTADOS: Record<AvailabilityState, Omit<Disponibilidad, 'estado'>> = {
-  disponible: { etiqueta: 'DISPONIBLE', nota: 'Lista para cotizar', color: 'var(--color-success)' },
-  limitada: { etiqueta: 'LIMITADA', nota: 'Ventana reducida', color: 'var(--color-warning)' },
-  'por-confirmar': { etiqueta: 'POR CONFIRMAR', nota: 'Validando proveedor', color: 'var(--color-warning)' },
-  reservado: { etiqueta: 'RESERVADO', nota: 'Apartado para otra obra', color: 'var(--color-warning)' },
-  'en-traslado': { etiqueta: 'EN TRASLADO', nota: 'En camino a una operación', color: 'var(--color-warning)' },
-  'en-servicio': { etiqueta: 'EN SERVICIO', nota: 'Trabajando en otra obra', color: 'var(--color-warning)' },
-  mantenimiento: { etiqueta: 'MANTENIMIENTO', nota: 'Fuera por condición mecánica', color: 'var(--color-error)' },
-  'fuera-de-cobertura': { etiqueta: 'FUERA DE COBERTURA', nota: 'No viable para esa ubicación', color: 'var(--color-error)' },
-  'no-disponible': { etiqueta: 'NO DISPONIBLE', nota: 'Buscar alternativa', color: 'var(--color-error)' },
-  inactivo: { etiqueta: 'INACTIVO', nota: 'No se considera por ahora', color: 'var(--color-text-muted)' },
+  disponible: { etiqueta: 'DISPONIBLE', nota: 'Lista para cotizar', color: color('disponible') },
+  limitada: { etiqueta: 'LIMITADA', nota: 'Ventana reducida', color: color('limitada') },
+  'por-confirmar': { etiqueta: 'POR CONFIRMAR', nota: 'Validando proveedor', color: color('por-confirmar') },
+  reservado: { etiqueta: 'RESERVADO', nota: 'Apartado para otra obra', color: color('reservado') },
+  'en-traslado': { etiqueta: 'EN TRASLADO', nota: 'En camino a una operación', color: color('en-traslado') },
+  'en-servicio': { etiqueta: 'EN SERVICIO', nota: 'Trabajando en otra obra', color: color('en-servicio') },
+  mantenimiento: { etiqueta: 'MANTENIMIENTO', nota: 'Fuera por condición mecánica', color: color('mantenimiento') },
+  'fuera-de-cobertura': { etiqueta: 'FUERA DE COBERTURA', nota: 'No viable para esa ubicación', color: color('fuera-de-cobertura') },
+  'no-disponible': { etiqueta: 'NO DISPONIBLE', nota: 'Buscar alternativa', color: color('no-disponible') },
+  inactivo: { etiqueta: 'INACTIVO', nota: 'No se considera por ahora', color: color('inactivo') },
 };
 
 export function disponibilidad(estado: AvailabilityState): Disponibilidad {

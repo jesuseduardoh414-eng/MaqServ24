@@ -69,8 +69,8 @@ export function FaqEditor({ themeId, copys, tokens, faqCfg, count }: {
         title="Sección 8 · Preguntas frecuentes"
         subtitle={
           <>
-            La banda de preguntas frecuentes del home. Aquí defines los textos y el estilo. Las preguntas las hacen los <b>clientes</b>; destaca las que quieras que salgan aquí en <b>Clientes → Preguntas</b>. Hay <b className="adm-num">{count}</b> destacada(s).{' '}
-            <PanelLink href="/preguntas">Destacar preguntas</PanelLink>
+            La banda de preguntas frecuentes del home. Aquí defines los textos y el estilo. Las preguntas llegan de los <b>clientes</b> a <b>Mensajes</b>; ahí se contestan y se publican las que quieras que salgan aquí. Hay <b className="adm-num">{count}</b> destacada(s).{' '}
+            <PanelLink href="/mensajes">Ir a Mensajes</PanelLink>
           </>
         }
         actions={

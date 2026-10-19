@@ -95,9 +95,9 @@ export function ContactEditor({ themeId, copys, tokens, contact }: {
         <div style={{ ...cardStyle, display: 'grid', gap: 16, marginBottom: 0 }}>
           <div><h3 style={h3Style}>Canales de contacto</h3><p style={desc}>Se muestran aquí, en la <b>barra superior</b> y sirven para los enlaces de llamada/WhatsApp.</p></div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Teléfono"><input value={config.phone} onChange={(e) => setC({ phone: e.target.value })} style={inputStyle} placeholder="833 224 56 78" /></Field>
-            <Field label="WhatsApp"><input value={config.whatsapp} onChange={(e) => setC({ whatsapp: e.target.value })} style={inputStyle} placeholder="833 224 56 78" /></Field>
-            <Field label="Correo"><input value={config.email} onChange={(e) => setC({ email: e.target.value })} style={inputStyle} placeholder="info@maqserv24.com" /></Field>
+            <Field label="Teléfono"><input type="tel" inputMode="tel" maxLength={20} value={config.phone} onChange={(e) => setC({ phone: e.target.value })} style={inputStyle} placeholder="833 224 56 78" /></Field>
+            <Field label="WhatsApp"><input type="tel" inputMode="tel" maxLength={20} value={config.whatsapp} onChange={(e) => setC({ whatsapp: e.target.value })} style={inputStyle} placeholder="833 224 56 78" /></Field>
+            <Field label="Correo"><input type="email" maxLength={190} value={config.email} onChange={(e) => setC({ email: e.target.value })} style={inputStyle} placeholder="info@maqserv24.com" /></Field>
             <Field label="Horario"><input value={config.hours} onChange={(e) => setC({ hours: e.target.value })} style={inputStyle} placeholder="Lun–Sáb · 8:00–18:00" /></Field>
           </div>
           <Field label="Dirección (origen del cálculo de fletes)"><input value={config.address} onChange={(e) => setC({ address: e.target.value })} style={inputStyle} placeholder="Calle, número, colonia, ciudad, estado" /></Field>
@@ -137,7 +137,7 @@ export function ContactEditor({ themeId, copys, tokens, contact }: {
             <div key={i} style={itemSep}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'center' }}>
                 <input value={b.city} onChange={(e) => setC({ branches: config.branches.map((x, j) => j === i ? { ...x, city: e.target.value } : x) })} style={inputStyle} placeholder="Ciudad" />
-                <input value={b.phone} onChange={(e) => setC({ branches: config.branches.map((x, j) => j === i ? { ...x, phone: e.target.value } : x) })} style={inputStyle} placeholder="Teléfono" />
+                <input type="tel" inputMode="tel" maxLength={20} value={b.phone} onChange={(e) => setC({ branches: config.branches.map((x, j) => j === i ? { ...x, phone: e.target.value } : x) })} style={inputStyle} placeholder="Teléfono" />
                 <IconBtn icon="ph-trash" label="Quitar sucursal" danger onClick={() => setC({ branches: config.branches.filter((_, j) => j !== i) })} />
               </div>
               <input value={b.address} onChange={(e) => setC({ branches: config.branches.map((x, j) => j === i ? { ...x, address: e.target.value } : x) })} style={inputStyle} placeholder="Dirección" />

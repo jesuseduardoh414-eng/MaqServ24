@@ -1,6 +1,6 @@
 import { Logger } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { puedeVerCon, type ModuloAdmin, type PermisosOverride, type RolAdmin } from '@maqserv/config';
+import { MODULOS_CON_CORREO, puedeVerCon, type ModuloAdmin, type PermisosOverride, type RolAdmin } from '@maqserv/config';
 
 /**
  * AVISOS DEL PANEL (2026-09-25).
@@ -21,7 +21,7 @@ const PREFIJO = 'panel:';
 const LIMITE = 30;
 const log = new Logger('AvisosPanel');
 
-export type EventoPanel = 'avance' | 'solicitud' | 'respuesta_aliado' | 'oferta_aliado' | 'mensaje' | 'cotizacion' | 'registro_proveedor';
+export type EventoPanel = 'avance' | 'solicitud' | 'respuesta_aliado' | 'oferta_aliado' | 'mensaje' | 'cotizacion' | 'registro_proveedor' | 'correo_fallido' | 'resena' | 'pregunta' | 'choque_reserva';
 
 export interface AvisoPanel {
   id: number;
@@ -41,13 +41,23 @@ export async function avisarPanel(input: {
   titulo: string;
   cuerpo?: string | null;
   link?: string | null;
+  /** Si ya hubo uno igual (mismo módulo y evento) en estos minutos, no se repite. */
+  unoCadaMinutos?: number;
 }): Promise<void> {
   try {
     const ahora = new Date();
+    const type = `${PREFIJO}${input.modulo}:${input.evento}`.slice(0, 40);
+    if (input.unoCadaMinutos) {
+      const reciente = await prisma.notifications.findFirst({
+        where: { user_id: null, type, created_at: { gte: new Date(ahora.getTime() - input.unoCadaMinutos * 60_000) } },
+        select: { id: true },
+      });
+      if (reciente) return;
+    }
     await prisma.notifications.create({
       data: {
         user_id: null,
-        type: `${PREFIJO}${input.modulo}:${input.evento}`.slice(0, 40),
+        type,
         title: input.titulo.slice(0, 160),
         body: input.cuerpo?.slice(0, 2000) ?? null,
         link: input.link?.slice(0, 200) ?? null,
@@ -63,7 +73,8 @@ export async function avisarPanel(input: {
 
 /** Filtro de los avisos que este rol puede ver (por módulo). */
 function dondePuede(rol: RolAdmin, permisos: PermisosOverride) {
-  const modulos = ['servicios', 'cotizaciones', 'proveedores', 'comunidad'] as ModuloAdmin[];
+  // Más los módulos con correo: un correo que falla avisa a quien atiende su módulo.
+  const modulos = [...new Set<ModuloAdmin>(['servicios', 'cotizaciones', 'proveedores', 'comunidad', ...MODULOS_CON_CORREO])];
   const suyos = modulos.filter((m) => puedeVerCon(rol, m, permisos));
   return {
     user_id: null,

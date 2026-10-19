@@ -21,6 +21,7 @@ export const CODIGO_NO_VERIFICADO = 'email_no_verificado';
 
 const sitio = () => (process.env.SITE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 import type { PerfilGoogle } from './google';
+import { clienteDeCuenta } from '../quotes/client-resolver';
 
 /**
  * Auth de CLIENTES con JWT propio (ver common/app-auth.ts). La contraseña se
@@ -106,6 +107,9 @@ export class AuthService {
     if (!u.email_verified_at) {
       await prisma.users.update({ where: { id: u.id }, data: { email_verified_at: new Date(), updated_at: new Date() } });
     }
+    // Ya es cliente aunque no haya pedido nada (2026-10-15): el panel lo ve en
+    // Clientes y obras. Nunca lanza.
+    await clienteDeCuenta(u.id);
     let hash = u.password;
     if (!hash) {
       hash = await hashPassword(randomUUID() + randomUUID());
@@ -227,6 +231,7 @@ export class AuthService {
         },
       });
       this.logger.log(`Google: cuenta ${porCorreo ? 'enlazada' : 'creada'} para ${perfil.email}`);
+      await clienteDeCuenta(usuario.id);
     }
 
     // Una cuenta del sistema viejo puede tener `password` en NULL. El hash es

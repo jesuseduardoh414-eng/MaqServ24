@@ -1,17 +1,19 @@
 # Disparador de las TAREAS PROGRAMADAS de la API.
 #
-# La API vive en Render con un plan que no trae programador de tareas, así que
+# La API (cPanel, api.maqserv24.com) no trae programador de tareas, así que
 # el disparo viene de fuera. `apps/api/src/notifications/tasks.controller.ts` ya
 # lo anticipaba: "un cron gratuito (cron-job.org, GitHub Actions, Vercel Cron)
 # que llama esta ruta una vez al día". Esto es ese cron.
 #
 # PARA QUE FUNCIONE HACEN FALTA DOS COSAS, y el secreto debe ser EL MISMO:
-#   1. En Render → servmaq-api → Environment: `TASKS_SECRET` (mínimo 16 chars).
+#   1. En el .env de la API en cPanel: `TASKS_SECRET` (mínimo 16 chars).
 #      Sin él la API responde 403 "Las tareas programadas no están habilitadas"
 #      y NINGUNA tarea corre — así estuvo hasta el 2026-09-11.
 #   2. En GitHub → Settings → Secrets and variables → Actions → New repository
 #      secret: `TASKS_SECRET`, el mismo valor.
 #   (Opcional: variable `API_URL` si la API cambia de dirección.)
+#   (2026-10-12) Apuntaba a Render, la API vieja: desde el 2026-09-14 fallaba
+#   todos los días y ningún recordatorio salía. Ahora va a la de cPanel.
 #
 # OJO: GitHub apaga los workflows programados de un repo sin actividad durante
 # 60 días. Si dejas de commitear, revisa que la pestaña Actions siga corriendo.
@@ -29,7 +31,7 @@ jobs:
   tareas:
     runs-on: ubuntu-latest
     env:
-      API_URL: ${{ vars.API_URL || 'https://servmaq-api.onrender.com' }}
+      API_URL: ${{ vars.API_URL || 'https://api.maqserv24.com' }}
       TASKS_SECRET: ${{ secrets.TASKS_SECRET }}
     steps:
       - name: Comprobar que el secreto está puesto

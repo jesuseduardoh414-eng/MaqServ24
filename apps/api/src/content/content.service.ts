@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
-import { productSlug, slugify, ESTADO_SOLICITUD_PROVEEDOR, OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR } from '@maqserv/config';
+import { productSlug, slugify, problemaEmail, problemaTelefono, ESTADO_SOLICITUD_PROVEEDOR, OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR } from '@maqserv/config';
 import type {
   BlogCard,
   BlogDetail,
@@ -192,19 +192,6 @@ export class ContentService {
     };
   }
 
-  /**
-   * Alta de newsletter (email único; repetido = ok idempotente).
-   * Observer del brief: cada alta nueva se empuja a Perfex CRM como lead.
-   */
-  async subscribe(email: string): Promise<{ ok: boolean }> {
-    const exists = await prisma.subscribers.findUnique({ where: { email } });
-    if (!exists) {
-      await prisma.subscribers.create({ data: { email, created_at: new Date() } });
-      // fire-and-forget: el alta no depende de que Perfex responda
-      void this.perfex.pushLead({ name: email, email, source: 'Newsletter' });
-    }
-    return { ok: true };
-  }
 
   /**
    * Mensaje del formulario de Contacto.
@@ -224,7 +211,10 @@ export class ContentService {
     const email = String(data.email ?? '').trim().toLowerCase();
     const message = String(data.message ?? '').trim();
     if (!name || name.length > 120) throw new BadRequestException('Ingresa tu nombre');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 190) throw new BadRequestException('Correo no válido');
+    if (!email || email.length > 190 || problemaEmail(email)) throw new BadRequestException(problemaEmail(email) ?? 'Escribe tu correo');
+    // Mismo criterio que el formulario (2026-10-15): antes se guardaba lo que viniera.
+    const telProblema = problemaTelefono(String(data.phone ?? ''));
+    if (telProblema) throw new BadRequestException(telProblema);
     if (message.length < 4) throw new BadRequestException('Cuéntanos brevemente qué necesitas');
     const need = String(data.need ?? '').trim();
 
@@ -232,7 +222,7 @@ export class ContentService {
       data: {
         name,
         email,
-        // Se recortan en vez de rechazarse: un teléfono largo no vale perder el mensaje.
+        // El formato ya se revisó arriba; el recorte queda como tope de la columna.
         phone: String(data.phone ?? '').trim().slice(0, 40) || null,
         company: String(data.company ?? '').trim().slice(0, 190) || null,
         need: need.slice(0, 120) || null,
@@ -322,8 +312,11 @@ export class ContentService {
 
     if (!tipo) throw new BadRequestException('Elige si eres empresa o propietario de equipo');
     if (nombre.length < 2) throw new BadRequestException('Escribe el nombre de tu empresa o tu nombre');
-    if (telefono.replace(/\D/g, '').length < 10) throw new BadRequestException('Escribe un teléfono de 10 dígitos');
-    if (correo && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(correo)) throw new BadRequestException('Correo no válido');
+    // Antes bastaba con 10 dígitos en cualquier parte ("Tel 81-1234-5678 o 81…" pasaba).
+    if (!telefono) throw new BadRequestException('Escribe un teléfono de 10 dígitos');
+    const telProblema = problemaTelefono(telefono);
+    if (telProblema) throw new BadRequestException(telProblema);
+    if (correo && problemaEmail(correo)) throw new BadRequestException(problemaEmail(correo) as string);
     if (!ciudad || !estado) throw new BadRequestException('Escribe tu municipio y estado');
     if (municipios.length === 0) throw new BadRequestException('Escribe al menos un municipio al que llegas');
     if (ofertas.length === 0) throw new BadRequestException('Elige al menos una cosa que ofreces');
@@ -418,30 +411,68 @@ export class ContentService {
     return { ok: true };
   }
 
+  /**
+   * PREGUNTA DESDE EL SITIO (2026-10-12).
+   *
+   * Antes solo se podía preguntar sobre un producto y con sesión: quien tenía
+   * una duda general ("¿llegan a Santiago?", "¿el precio incluye operador?")
+   * no tenía dónde. Ahora pregunta en Preguntas frecuentes con su nombre y su
+   * correo; se responde en el panel, se le avisa por correo y, si vale para
+   * todos, se publica.
+   */
+  async siteQuestion(data: Record<string, unknown>): Promise<{ ok: boolean }> {
+    const txt = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
+    // Campo trampa: invisible para personas; si viene lleno es un bot.
+    if (txt(data.sitio, 200)) return { ok: true };
+    const nombre = txt(data.nombre, 190);
+    const correo = txt(data.correo, 190).toLowerCase();
+    const pregunta = txt(data.pregunta, 500);
+    if (nombre.length < 2) throw new BadRequestException('Escribe tu nombre');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(correo)) throw new BadRequestException('Escribe un correo válido para avisarte cuando respondamos');
+    if (pregunta.length < 10) throw new BadRequestException('Escribe tu pregunta con un poco más de detalle');
+    const ahora = new Date();
+    await prisma.product_questions.create({
+      data: {
+        product_id: null, user_id: null, asker_name: nombre, asker_email: correo, source: 'sitio',
+        question: pregunta, answer: null, status: 1, featured: 0, created_at: ahora, updated_at: ahora,
+      },
+    });
+    void avisarPanel({ modulo: 'comunidad', evento: 'pregunta', titulo: `Pregunta nueva de ${nombre}`, cuerpo: pregunta.slice(0, 300), link: '/mensajes' });
+    return { ok: true };
+  }
+
   /** FAQ del home: preguntas de clientes DESTACADAS por el admin (respondidas + visibles). */
   async faqs(): Promise<FaqItem[]> {
     const rows = await prisma.product_questions.findMany({
       where: { featured: 1, status: 1, answer: { not: null } },
       orderBy: { id: 'desc' },
-      take: 20,
+      // Todas: el home enseña 6 y /preguntas-frecuentes el resto, con buscador.
+      take: 500,
     });
     return rows.map((q) => ({ id: q.id, question: q.question, answer: q.answer ?? '' }));
   }
 
-  /** Reseñas del home: opiniones de producto aprobadas (ligadas a compra). */
+  /**
+   * Reseñas del home: las de servicio publicadas (2026-10-12) y las de producto
+   * aprobadas que quedan de cuando había carrito, las más nuevas primero.
+   */
   async reviews(limit = 6): Promise<SiteReview[]> {
-    const rows = await prisma.comments.findMany({
-      where: { status: 1 },
-      orderBy: { id: 'desc' },
-      take: Math.min(limit, 20),
-    });
-    const [users, products] = await Promise.all([
+    const tope = Math.min(limit, 20);
+    const [rows, servicio] = await Promise.all([
+      prisma.comments.findMany({ where: { status: 1 }, orderBy: { id: 'desc' }, take: tope }),
+      // Sin la tabla (falta sql/resenas-servicio.sql) el home sigue con las de producto.
+      prisma.service_reviews.findMany({ where: { status: 1 }, orderBy: { id: 'desc' }, take: tope }).catch(() => []),
+    ]);
+    const [users, products, quotes] = await Promise.all([
       prisma.users.findMany({ where: { id: { in: rows.map((r) => r.user_id) } }, select: { id: true, name: true } }),
       prisma.products.findMany({ where: { id: { in: rows.map((r) => r.product_id) } }, select: { id: true, name: true } }),
+      prisma.quotes.findMany({ where: { id: { in: servicio.map((r) => r.quote_id) } }, select: { id: true, product_interested: true, service_category: true } }),
     ]);
     const names = new Map(users.map((u) => [u.id, u.name]));
     const prods = new Map(products.map((p) => [p.id, p.name]));
-    return rows.map((r) => ({
+    // Solo la línea: lo que sigue a " · " es interno ("cotizador de maquinaria · MQ-…").
+    const servs = new Map(quotes.map((x) => [x.id, x.product_interested?.split(' · ')[0] || x.service_category || null]));
+    const deProducto: SiteReview[] = rows.map((r) => ({
       id: r.id,
       rating: Math.max(1, Math.min(5, r.rating ?? 5)),
       review: r.text,
@@ -449,5 +480,26 @@ export class ContentService {
       product: prods.get(r.product_id) ?? null,
       date: r.created_at ? r.created_at.toISOString() : null,
     }));
+    const deServicio: SiteReview[] = servicio
+      .filter((r) => (r.comment ?? '').trim())
+      .map((r) => ({
+        // Negativo: el id no choca con el de una reseña de producto en la lista del sitio.
+        id: -r.id,
+        rating: Math.max(1, Math.min(5, r.rating)),
+        review: r.comment ?? '',
+        author: nombreCorto(r.author),
+        product: servs.get(r.quote_id) ?? null,
+        date: r.created_at.toISOString(),
+      }));
+    return [...deServicio, ...deProducto]
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+      .slice(0, tope);
   }
+}
+
+/** "Juan Pérez López" → "Juan P.": en el sitio público no va el nombre completo de un cliente. */
+function nombreCorto(nombre: string): string {
+  const [primero, segundo] = nombre.trim().split(/\s+/);
+  if (!primero) return 'Cliente';
+  return segundo ? `${primero} ${segundo[0].toUpperCase()}.` : primero;
 }

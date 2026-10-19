@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
+import { moduloDeCorreo } from '@maqserv/config';
 import { createTransport, type Transporter } from 'nodemailer';
+import { avisarPanel } from './panel';
 
 /**
  * CORREO SALIENTE (documento institucional, sección 17 · Comunicaciones).
@@ -40,6 +42,10 @@ export type TipoCorreo =
   | 'service_status'      // avanzó su servicio
   | 'provider_offer'      // al aliado: te ofrecemos esta solicitud
   | 'provider_assigned'   // al aliado: quedó tuya
+  | 'provider_departure'      // al aliado: ya casi es hora de salir a la obra
+  | 'provider_day_before'     // al aliado: mañana tienes servicio
+  | 'service_day_before'      // al cliente: mañana llega tu servicio
+  | 'provider_departure_late' // al aliado: debía salir y no ha marcado la salida
   | 'provider_access'     // al aliado: tu enlace para entrar
   | 'availability_reminder' // al aliado: confirma que sigue libre
   | 'password_reset'      // al cliente: enlace para restablecer su contraseña
@@ -60,6 +66,9 @@ export type TipoCorreo =
   // "Regístrate como proveedor" (2026-10-06).
   | 'provider_signup_internal' // a MAQSER24: alguien pidió entrar a la red
   | 'provider_signup_ack'      // a quien se registró: lo recibimos
+  | 'admin_password_reset'     // a un administrador: restablecer su contraseña del panel
+  | 'question_answered'        // a quien preguntó en el sitio: ya respondimos
+  | 'contact_reply'            // a quien escribió por Contacto: la respuesta desde Mensajes
   | 'prueba';
 
 export interface CorreoParaEnviar {
@@ -80,6 +89,20 @@ export interface CorreoParaEnviar {
 export type EstadoEnvio = 'enviado' | 'fallido' | 'omitido' | 'simulado';
 
 const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/**
+ * ENLACES PERSONALES, FUERA DEL REGISTRO (2026-10-12).
+ *
+ * El registro guarda el correo para poder abrirlo desde el panel, pero algunos
+ * llevan un enlace que ES la llave de alguien: restablecer una contraseña,
+ * confirmar una cuenta, entrar al portal del aliado (`?t=` / `?token=`).
+ * Guardarlos tal cual dejaría a cualquiera con acceso al panel —o a la base—
+ * entrar como esa persona. Se guardan con la llave tachada; esos correos se
+ * leen pero no se reenvían desde el registro.
+ */
+export const ENLACE_OCULTO = '[enlace-personal]';
+const ENLACE_PERSONAL = /([?&](?:amp;)?(?:t|token)=)[^&"'\s<>]+/gi;
+const sinEnlacesPersonales = (html: string): string => html.replace(ENLACE_PERSONAL, `$1${ENLACE_OCULTO}`);
 
 @Injectable()
 export class MailerService {
@@ -173,32 +196,51 @@ export class MailerService {
     } catch (e) {
       const detalle = e instanceof Error ? e.message : String(e);
       this.log.error(`No se pudo enviar "${c.subject}" a ${destino}: ${detalle}`);
-      await this.anotar(c, 'fallido', detalle.slice(0, 900));
+      const id = await this.anotar(c, 'fallido', detalle.slice(0, 900));
+      // La prueba se manda desde la misma pantalla del registro: ahí ya se ve.
+      if (c.kind !== 'prueba') {
+        void avisarPanel({
+          modulo: moduloDeCorreo(c.kind),
+          evento: 'correo_fallido',
+          titulo: `No salió un correo a ${c.toName?.trim() || destino}`,
+          cuerpo: `${c.subject} · ${detalle.slice(0, 300)}`,
+          link: id ? `/correo?ver=${id}` : '/correo',
+          // Con el servidor caído fallan todos: un aviso por módulo cada 15
+          // minutos basta, el resto está en el registro.
+          unoCadaMinutos: 15,
+        });
+      }
       return 'fallido';
     }
   }
 
   /**
-   * Anota el intento. Si ni esto se puede, se traga el error: el registro
-   * existe para explicar la operación, no para detenerla.
+   * Anota el intento y devuelve su id. Si ni esto se puede, se traga el error:
+   * el registro existe para explicar la operación, no para detenerla.
    */
-  private async anotar(c: CorreoParaEnviar, state: EstadoEnvio, detail: string | null) {
+  private async anotar(c: CorreoParaEnviar, state: EstadoEnvio, detail: string | null): Promise<number | null> {
+    const data = {
+      kind: c.kind,
+      to_email: (c.to ?? '').slice(0, 190),
+      to_name: c.toName?.slice(0, 190) ?? null,
+      subject: c.subject.slice(0, 500),
+      state,
+      detail,
+      quote_id: c.quoteId ?? null,
+      order_id: c.orderId ?? null,
+      provider_id: c.providerId ?? null,
+    };
     try {
-      await prisma.email_log.create({
-        data: {
-          kind: c.kind,
-          to_email: (c.to ?? '').slice(0, 190),
-          to_name: c.toName?.slice(0, 190) ?? null,
-          subject: c.subject.slice(0, 500),
-          state,
-          detail,
-          quote_id: c.quoteId ?? null,
-          order_id: c.orderId ?? null,
-          provider_id: c.providerId ?? null,
-        },
-      });
-    } catch (e) {
-      this.log.error(`No se pudo registrar el correo: ${e instanceof Error ? e.message : e}`);
+      return (await prisma.email_log.create({ data: { ...data, body_html: sinEnlacesPersonales(c.html) }, select: { id: true } })).id;
+    } catch {
+      // Sin la columna del contenido (falta correr sql/correo-contenido.sql)
+      // se registra igual, sin contenido: el registro no puede perderse por eso.
+      try {
+        return (await prisma.email_log.create({ data, select: { id: true } })).id;
+      } catch (e) {
+        this.log.error(`No se pudo registrar el correo: ${e instanceof Error ? e.message : e}`);
+        return null;
+      }
     }
   }
 

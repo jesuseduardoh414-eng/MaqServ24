@@ -11,3 +11,5 @@ export {
 } from './select';
 export { ShPopover, ShPopoverTrigger, ShPopoverAnchor, ShPopoverContent } from './popover';
 export { ShCombobox } from './combobox';
+export { ShDatePicker, ShTimePicker, ShDateTimePicker, type ShDatePickerProps, type ShTimePickerProps } from './date-picker';
+export { ShSelectCampo, type OpcionCampo } from './select-campo';

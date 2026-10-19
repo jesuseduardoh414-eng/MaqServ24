@@ -9,6 +9,7 @@ import { categoryHref, categoryCountLabel } from '@/lib/category-link';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 import { Band } from '@/components/Band';
+import { VideoCategoria } from '@/components/VideoCategoria';
 
 // Panel de la imagen de tarjeta. Era claro; pasa a grafito por lo mismo que el
 // del catálogo: el manual pone negro y grafito como fondos prioritarios.
@@ -64,13 +65,15 @@ export function VistaCategorias({ theme, categories, marco = true }: { theme: Th
   const featured = cv.featuredSlug ? categories.find((c) => c.slug === cv.featuredSlug) : null;
   const rest = featured ? categories.filter((c) => c.slug !== featured.slug) : categories;
 
-  type CatItem = { id: number; name: string; slug: string; image: string | null; description: string | null; productCount: number };
+  type CatItem = { id: number; name: string; slug: string; image: string | null; video: string | null; description: string | null; productCount: number };
 
   /** Tarjeta grande horizontal (la destacada). */
   const bigCard = (c: CatItem) => (
     <Link key={`big-${c.id}`} href={categoryHref(c)} className="cv-card cv-featured">
       <div className="cv-media">
-        {c.image ? (
+        {c.video ? (
+          <VideoCategoria src={c.video} poster={c.image} className="cv-img" />
+        ) : c.image ? (
           <Image src={c.image} alt={c.name} fill sizes="(max-width:760px) 100vw, 620px" className="cv-img" style={{ objectFit: 'contain', padding: 30 }} />
         ) : (
           <span className="ph" style={{ position: 'absolute', inset: 0 }} />
@@ -90,8 +93,10 @@ export function VistaCategorias({ theme, categories, marco = true }: { theme: Th
   /** Tarjeta de catálogo (imagen arriba, texto abajo). */
   const catCard = (c: CatItem) => (
     <Link key={c.id} href={categoryHref(c)} className="cv-card">
-      <div className="cv-media" style={{ height: Math.min(cv.imageHeight ?? 200, 220) }}>
-        {c.image ? (
+      <div className="cv-media" style={{ height: Math.min(cv.imageHeight ?? 200, 220), overflow: 'hidden' }}>
+        {c.video ? (
+          <VideoCategoria src={c.video} poster={c.image} className="cv-img" />
+        ) : c.image ? (
           <Image src={c.image} alt={c.name} fill sizes="(max-width:560px) 100vw, (max-width:980px) 50vw, 400px" className="cv-img" style={{ objectFit: 'contain', padding: 20 }} />
         ) : (
           <span className="ph" style={{ position: 'absolute', inset: 0 }} />

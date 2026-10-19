@@ -45,50 +45,89 @@ export interface EntradaDisponibilidad {
   stock: number | null;
   location: string | null;
   confirmedAt: Date | null;
-  /** Bloqueos del equipo; se filtran por fecha aquí mismo. */
-  blocks: Array<{ state: string; starts_on: Date; ends_on: Date | null }>;
+  /**
+   * Bloqueos del equipo; se filtran por fecha aquí mismo. `note` distingue los
+   * que pone un servicio (`reserva:<folio>`) de los que se ponen a mano.
+   */
+  blocks: Array<{ state: string; starts_on: Date; ends_on: Date | null; note?: string | null }>;
 }
+
+/** Nota de los bloqueos que pone y quita solo un servicio (ver quotes/reservas.ts). */
+export const PREFIJO_RESERVA = 'reserva:';
+
+/**
+ * ¿El bloqueo aparta UNA pieza o para el equipo entero? (2026-10-15)
+ *
+ * Un servicio aparta las unidades que se llevó: con tres en el patio y una en
+ * obra quedan dos para otro cliente. Antes una sola reserva pintaba "reservado"
+ * el equipo completo en el catálogo, mientras el recomendador sí contaba
+ * piezas: las dos pantallas decían cosas distintas del mismo patio.
+ * Mantenimiento o inactivo puestos a mano sí paran el equipo completo.
+ */
+export function ocupaUnaUnidad(b: { state: string; note?: string | null }): boolean {
+  return b.state === 'reservado' || (b.note ?? '').startsWith(PREFIJO_RESERVA);
+}
+
+/** Cuando todas las piezas están apartadas, se enseña la etapa más avanzada. */
+const PESO_ETAPA: Record<string, number> = { 'en-servicio': 3, 'en-traslado': 2, reservado: 1 };
 
 const soloFecha = (d: Date): string => d.toISOString().slice(0, 10);
 
 export function disponibilidadDe(p: EntradaDisponibilidad, hoy: Date = new Date()): Availability {
   const hoyStr = soloFecha(hoy);
+  const confirmedAt = p.confirmedAt ? p.confirmedAt.toISOString() : null;
 
-  // 1. Bloqueo vigente. Si hay varios, gana el que termina más tarde: es el que
-  //    de verdad define cuándo se libera el equipo.
-  const vigentes = p.blocks
-    .filter(
-      (b) =>
-        ESTADOS_BLOQUEO.includes(b.state as AvailabilityState) &&
-        soloFecha(b.starts_on) <= hoyStr &&
-        (b.ends_on === null || soloFecha(b.ends_on) >= hoyStr),
-    )
+  const vigentes = p.blocks.filter(
+    (b) =>
+      ESTADOS_BLOQUEO.includes(b.state as AvailabilityState) &&
+      soloFecha(b.starts_on) <= hoyStr &&
+      (b.ends_on === null || soloFecha(b.ends_on) >= hoyStr),
+  );
+
+  // 1. Bloqueo del equipo entero. Si hay varios, gana el que termina más tarde:
+  //    es el que de verdad define cuándo se libera el equipo.
+  const totales = vigentes
+    .filter((b) => !ocupaUnaUnidad(b))
     .sort((a, b) => {
       if (a.ends_on === null) return -1; // sin fecha de retorno pesa más
       if (b.ends_on === null) return 1;
       return soloFecha(b.ends_on).localeCompare(soloFecha(a.ends_on));
     });
 
-  if (vigentes.length > 0) {
-    const b = vigentes[0];
+  if (totales.length > 0) {
+    const b = totales[0];
     return {
       state: b.state as AvailabilityState,
       location: p.location,
-      confirmedAt: p.confirmedAt ? p.confirmedAt.toISOString() : null,
+      confirmedAt,
       until: b.ends_on ? soloFecha(b.ends_on) : null,
     };
   }
 
-  const base = { location: p.location, confirmedAt: p.confirmedAt ? p.confirmedAt.toISOString() : null, until: null };
+  // 2. Piezas apartadas. Sin control de stock se cuenta como una sola pieza.
+  //    Si ya no queda ninguna, el equipo vuelve cuando regrese la PRIMERA.
+  const apartadas = vigentes.filter(ocupaUnaUnidad);
+  const piezas = Math.max(1, p.stock ?? 1);
+  if (apartadas.length >= piezas) {
+    const etapa = [...apartadas].sort((a, b) => (PESO_ETAPA[b.state] ?? 0) - (PESO_ETAPA[a.state] ?? 0))[0];
+    const primera = apartadas
+      .filter((b) => b.ends_on !== null)
+      .map((b) => soloFecha(b.ends_on as Date))
+      .sort()[0] ?? null;
+    return { state: etapa.state as AvailabilityState, location: p.location, confirmedAt, until: primera };
+  }
 
-  // 2. Sin confirmar, o con una confirmación vieja: no se promete nada.
+  const base = { location: p.location, confirmedAt, until: null };
+
+  // 3. Sin confirmar, o con una confirmación vieja: no se promete nada.
   if (p.confirmedAt === null) return { state: 'por-confirmar', ...base };
   const dias = Math.floor((hoy.getTime() - p.confirmedAt.getTime()) / 86_400_000);
   if (dias > DIAS_FRESCURA) return { state: 'por-confirmar', ...base };
 
-  // 3. Recién ahora vale mirar el inventario.
+  // 4. Recién ahora vale mirar el inventario, ya sin las piezas apartadas.
   if (p.stock === null) return { state: 'por-confirmar', ...base };
-  if (p.stock <= 0) return { state: 'no-disponible', ...base };
-  if (p.stock <= UMBRAL_LIMITADA) return { state: 'limitada', ...base };
+  const libres = p.stock - apartadas.length;
+  if (libres <= 0) return { state: 'no-disponible', ...base };
+  if (libres <= UMBRAL_LIMITADA) return { state: 'limitada', ...base };
   return { state: 'disponible', ...base };
 }

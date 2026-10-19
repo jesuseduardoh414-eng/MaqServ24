@@ -58,7 +58,7 @@ export class ProductsService {
     p: ProductRow,
     catSlugs: Map<number, string>,
     provs: Map<number, ProviderBadge> = new Map(),
-    bloqueos: Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null }>> = new Map(),
+    bloqueos: Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null; note?: string | null }>> = new Map(),
   ): ProductCard {
     return {
       id: p.id,
@@ -137,7 +137,7 @@ export class ProductsService {
    */
   private async bloqueosVigentes(
     ids: number[],
-  ): Promise<Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null }>>> {
+  ): Promise<Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null; note: string | null }>>> {
     if (ids.length === 0) return new Map();
     const hoy = new Date();
     const filas = await prisma.availability_blocks.findMany({
@@ -146,12 +146,12 @@ export class ProductsService {
         starts_on: { lte: hoy },
         OR: [{ ends_on: null }, { ends_on: { gte: hoy } }],
       },
-      select: { product_id: true, state: true, starts_on: true, ends_on: true },
+      select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
     });
-    const mapa = new Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null }>>();
+    const mapa = new Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null; note: string | null }>>();
     for (const f of filas) {
       const lista = mapa.get(f.product_id) ?? [];
-      lista.push({ state: f.state, starts_on: f.starts_on, ends_on: f.ends_on });
+      lista.push({ state: f.state, starts_on: f.starts_on, ends_on: f.ends_on, note: f.note });
       mapa.set(f.product_id, lista);
     }
     return mapa;

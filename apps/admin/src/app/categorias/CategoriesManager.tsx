@@ -12,12 +12,40 @@ export interface CategoryRow {
   slug: string;
   status: number;
   image: string | null;
+  /** Video en bucle de la tarjeta del sitio; si hay, va en lugar de la foto. */
+  video: string | null;
   /** Una línea bajo el nombre en las tarjetas del sitio. */
   description: string | null;
   productCount: number;
 }
 
-const GRID = '40px minmax(0,1.6fr) minmax(0,1.1fr) 140px 130px 76px';
+/** Igual que VIDEO_MAX_MB en la API (admin-catalog.controller.ts). */
+const VIDEO_MAX_MB = 30;
+
+/**
+ * Sube el video con XHR y no con fetch: fetch no informa el avance de la
+ * subida, y 20 MB por el celular sin barra parecen colgados.
+ */
+function subirVideo(id: number, archivo: File, onAvance: (pct: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/admin/catalog/categories/${id}/video`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onAvance(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let d: { message?: string; video?: string } | null = null;
+      try { d = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300 && d?.video) resolve(d.video);
+      else if (xhr.status === 413) reject(new Error(`El video pesa más de ${VIDEO_MAX_MB} MB`));
+      else reject(new Error(d?.message ?? 'No se pudo subir el video'));
+    };
+    xhr.onerror = () => reject(new Error('Se cortó la conexión al subir el video'));
+    const fd = new FormData();
+    fd.append('video', archivo);
+    xhr.send(fd);
+  });
+}
+
+const GRID = '40px minmax(0,1.6fr) minmax(0,1.1fr) 140px 130px 140px';
 
 function slugify(s: string) {
   return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -37,6 +65,9 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
   const [editPreview, setEditPreview] = useState<string | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const editFileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
+  /** Avance de la subida del video (0-100), o null si no se está subiendo. */
+  const [subiendo, setSubiendo] = useState<number | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [toast, setToast] = useState<{ text: string; kind: 'ok' | 'warn' | 'trash' } | null>(null);
 
@@ -113,6 +144,49 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
     } catch (e) { flash((e as Error).message, 'warn'); } finally { setSavingEdit(false); }
   }
 
+  /**
+   * Sube o baja una categoría en el sitio (banda del inicio y /categorias).
+   * La lista llega en el orden del sitio; se guarda la lista completa.
+   */
+  async function mover(c: CategoryRow, paso: -1 | 1) {
+    const i = cats.findIndex((x) => x.id === c.id);
+    const j = i + paso;
+    if (i < 0 || j < 0 || j >= cats.length) return;
+    const antes = cats;
+    const next = [...cats];
+    [next[i], next[j]] = [next[j], next[i]];
+    setCats(next);
+    const r = await fetch('/api/admin/catalog/categories/orden', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: next.map((x) => x.id) }),
+    });
+    if (!r.ok) { setCats(antes); flash('No se pudo cambiar el orden', 'warn'); }
+  }
+
+  /** El video se guarda al elegirlo (no espera a «Guardar»): es la parte lenta. */
+  async function elegirVideo(archivo: File | null) {
+    if (videoRef.current) videoRef.current.value = '';
+    if (!editing || !archivo) return;
+    if (archivo.size > VIDEO_MAX_MB * 1024 * 1024) { flash(`El video pesa más de ${VIDEO_MAX_MB} MB`, 'warn'); return; }
+    setSubiendo(0);
+    try {
+      const url = await subirVideo(editing.id, archivo, setSubiendo);
+      setEditing((e) => (e ? { ...e, video: url } : e));
+      setCats((cs) => cs.map((x) => (x.id === editing.id ? { ...x, video: url } : x)));
+      flash('Video guardado');
+    } catch (e) { flash((e as Error).message, 'warn'); } finally { setSubiendo(null); }
+  }
+
+  async function quitarVideo() {
+    if (!editing) return;
+    const r = await fetch(`/api/admin/catalog/categories/${editing.id}/video`, { method: 'DELETE' });
+    if (!r.ok) { flash('No se pudo quitar el video', 'warn'); return; }
+    setEditing((e) => (e ? { ...e, video: null } : e));
+    setCats((cs) => cs.map((x) => (x.id === editing.id ? { ...x, video: null } : x)));
+    flash('Video quitado: se vuelve a ver la foto');
+  }
+
   async function del(c: CategoryRow) {
     setConfirmId(null);
     const r = await fetch(`/api/admin/catalog/categories/${c.id}`, { method: 'DELETE' });
@@ -163,7 +237,7 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
       <PageHeader
         eyebrow={['Red y oferta', 'Catálogo']}
         title="Categorías"
-        subtitle="Las líneas de servicio con las que se agrupa el inventario en el sitio y en las solicitudes."
+        subtitle="Las líneas de servicio con las que se agrupa el inventario en el sitio y en las solicitudes. El orden de esta lista es el de las tarjetas del sitio: muévelo con las flechas."
         actions={<Btn variant="primary" icon="ph-plus" onClick={focusNew}>Nueva categoría</Btn>}
       />
 
@@ -205,11 +279,15 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
         ) : rows.map((c) => {
           const pct = Math.max(4, Math.round((c.productCount / maxProd) * 100));
           const confirming = confirmId === c.id;
+          const pos = cats.findIndex((x) => x.id === c.id);
           return (
             <div key={c.id} className="adm-trow cat-row">
               <div className="cat-c-img"><Thumb src={c.image} /></div>
               <div className="cat-c-name" style={{ minWidth: 0 }}>
-                <div className="adm-cell-title adm-ellipsis">{c.name}</div>
+                <div className="adm-cell-title adm-ellipsis">
+                  {c.name}
+                  {c.video ? <i className="ph ph-video-camera" title="Lleva video en el sitio" aria-label="Lleva video en el sitio" style={{ marginLeft: 6, color: 'var(--adm-muted)' }} /> : null}
+                </div>
                 {c.description ? <div className="adm-cell-sub adm-ellipsis">{c.description}</div> : null}
               </div>
               <div className="cat-c-slug adm-mono adm-ellipsis" style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>{c.slug}</div>
@@ -229,6 +307,8 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
                   </span>
                 ) : (
                   <>
+                    <IconBtn icon="ph-arrow-up" label="Subir en el sitio" onClick={() => mover(c, -1)} disabled={pos <= 0} />
+                    <IconBtn icon="ph-arrow-down" label="Bajar en el sitio" onClick={() => mover(c, 1)} disabled={pos >= cats.length - 1} />
                     <IconBtn icon="ph-pencil-simple" label="Editar" onClick={() => openEdit(c)} />
                     <IconBtn icon="ph-trash" label="Eliminar" danger onClick={() => { setConfirmId(c.id); setEditing(null); }} />
                   </>
@@ -282,12 +362,12 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
       <Modal
         abierto={editing !== null}
         titulo="Editar categoría"
-        onCerrar={() => { if (!savingEdit) setEditing(null); }}
+        onCerrar={() => { if (!savingEdit && subiendo === null) setEditing(null); }}
         ancho={480}
         pie={
           <>
-            <Btn variant="ghost" onClick={() => setEditing(null)} disabled={savingEdit}>Cancelar</Btn>
-            <Btn variant="primary" onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Guardando…' : 'Guardar'}</Btn>
+            <Btn variant="ghost" onClick={() => setEditing(null)} disabled={savingEdit || subiendo !== null}>Cancelar</Btn>
+            <Btn variant="primary" onClick={saveEdit} disabled={savingEdit || subiendo !== null}>{savingEdit ? 'Guardando…' : 'Guardar'}</Btn>
           </>
         }
       >
@@ -301,6 +381,26 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
                 <input ref={editFileRef} type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0] ?? null; setEditFile(f); setEditPreview(f ? URL.createObjectURL(f) : null); }} style={{ display: 'none' }} />
               </div>
             </div>
+            <FormField
+              label="Video (opcional)"
+              help={`Va en lugar de la foto, en bucle y sin sonido; la foto queda de portada mientras carga. MP4 o WebM, hasta ${VIDEO_MAX_MB} MB. Mejor de 5 a 15 s y menos de 10 MB: el inicio carga seis. Se guarda al elegirlo.`}
+            >
+              <div style={{ display: 'grid', gap: 10 }}>
+                {editing.video ? (
+                  <video src={editing.video} poster={editing.image ?? undefined} muted loop autoPlay playsInline controls={false} style={{ width: '100%', maxHeight: 200, borderRadius: 10, background: '#000', objectFit: 'cover' }} />
+                ) : null}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Btn size="sm" icon="ph-video-camera" onClick={() => videoRef.current?.click()} disabled={subiendo !== null}>
+                    {subiendo !== null ? `Subiendo… ${subiendo}%` : editing.video ? 'Cambiar video' : 'Subir video'}
+                  </Btn>
+                  {editing.video && subiendo === null ? (
+                    <Btn size="sm" variant="ghost" icon="ph-trash" onClick={quitarVideo}>Quitar video</Btn>
+                  ) : null}
+                </div>
+                {subiendo !== null ? <Bar pct={subiendo} width={240} /> : null}
+                <input ref={videoRef} type="file" accept="video/mp4,video/webm" onChange={(e) => elegirVideo(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+              </div>
+            </FormField>
             <FormField label="Nombre">
               <input className="adm-input" value={editName} onChange={(e) => setEditName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); }} />
             </FormField>

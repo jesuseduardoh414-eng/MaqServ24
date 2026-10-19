@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
+import { zCorreo, zTelefono, zTelefonoRequerido } from '../common/campos';
 import {
   esCotizadorTipo,
   opcionesCotizadorSchema,
@@ -37,8 +38,8 @@ export const calcularSchema = z.object({
 });
 
 export const cotizacionPanelSchema = contactoSchema.extend({
-  correo: z.string().trim().max(190).optional().default(''),
-  telefono: z.string().trim().max(40).optional().default(''),
+  correo: zCorreo().optional().default(''),
+  telefono: zTelefono().optional().default(''),
   opciones: opcionesCotizadorSchema.partial().optional().default({}),
   partidas: z.array(z.unknown()).min(1, 'Agrega al menos una partida').max(60),
 });
@@ -51,7 +52,7 @@ export const cotizacionPanelSchema = contactoSchema.extend({
  */
 export const solicitudSitioSchema = contactoSchema.extend({
   correo: z.string().trim().email('Escribe un correo válido').max(190),
-  telefono: z.string().trim().min(7, 'Escribe un teléfono de contacto').max(40),
+  telefono: zTelefonoRequerido('Escribe un teléfono de contacto'),
   opciones: opcionesCotizadorSchema.partial().optional().default({}),
   partidas: z.array(z.unknown()).min(1, 'Agrega al menos una partida').max(60),
 });

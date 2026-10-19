@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { defaultTheme, googleFontsHrefs, themeSchema, themeToCss } from '@maqserv/config';
 import { BrandingProvider } from '@/components/branding';
 import './globals.css';
-import { RecortarEspacios } from '@maqserv/ui';
+import { FiltroDeCampos } from '@maqserv/ui';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
@@ -70,8 +70,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <style id="theme-tokens" dangerouslySetInnerHTML={{ __html: themeToCss(tokens) }} />
       </head>
       <body>
-        {/* Un espacio pegado sin querer no debe costar un "datos incorrectos". */}
-        <RecortarEspacios />
+        {/* Qué entra en cada campo: filtra por tipo (una letra no entra en un teléfono) y recorta espacios. */}
+        <FiltroDeCampos />
         <BrandingProvider value={branding}>{children}</BrandingProvider>
       </body>
     </html>

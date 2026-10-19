@@ -1,16 +1,18 @@
 'use client';
 
 import { evento } from '@/lib/analitica';
-import { useState } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Icon } from '@/components/Icon';
+import { Icon, type IconName } from '@/components/Icon';
 import { ReglasContrasena } from '@/components/ReglasContrasena';
-import { contrasenaSegura, problemaContrasena } from '@maqserv/config';
+import { contrasenaSegura, problemaContrasena, problemaEmail, problemaNombre } from '@maqserv/config';
 
 type View = 'login' | 'register' | 'forgot' | 'success' | 'verificar';
 
-const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+// Mismas reglas que la API (@maqserv/config).
+const emailOk = (v: string) => !!v && !problemaEmail(v);
+const nombreProblema = (v: string) => (v.trim() ? problemaNombre(v) : 'Escribe tu nombre.');
 
 /**
  * Motivos con los que vuelve el callback de Google.
@@ -35,7 +37,7 @@ const CODIGO_NO_VERIFICADO = 'email_no_verificado';
 /** Logotipo oficial de Google. Va en color a propósito: es marca de un tercero. */
 function LogoGoogle() {
   return (
-    <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden style={{ flexShrink: 0 }}>
+    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden style={{ flexShrink: 0 }}>
       <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-2.7-.4-3.9H24v7.1h12.1c-.2 1.8-1.6 4.6-4.5 6.4l6.9 5.3c4.1-3.8 6.6-9.4 6.6-15z" />
       <path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.3c-1.8 1.3-4.3 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8.1 41.1 15.4 46 24 46z" />
       <path fill="#FBBC05" d="M11.5 28.5c-.5-1.4-.8-2.9-.8-4.5s.3-3.1.7-4.5l-7.1-5.5C2.8 17 2 20.4 2 24s.8 7 2.3 10l7.2-5.5z" />
@@ -71,24 +73,48 @@ export function OjoIcono({ abierto }: { abierto: boolean }) {
  */
 export interface AuthLabels {
   tabLogin: string; tabRegister: string;
-  loginEyebrow: string; loginHeading: string; loginSubmit: string;
-  registerEyebrow: string; registerHeading: string; registerSubmit: string;
+  loginEyebrow: string; loginHeading: string; loginSub: string; loginSubmit: string;
+  registerEyebrow: string; registerHeading: string; registerSub: string; registerSubmit: string;
   fieldName: string; fieldEmail: string; fieldPassword: string;
   remember: string; forgotLink: string;
   forgotEyebrow: string; forgotTitle: string; forgotHint: string; forgotSubmit: string; forgotBack: string;
   doneTitle: string; doneBody: string;
+  orEmail: string; providerCta: string;
 }
 const DEFAULT_LABELS: AuthLabels = {
   tabLogin: 'Iniciar sesión', tabRegister: 'Crear cuenta',
-  loginEyebrow: 'Bienvenido de nuevo', loginHeading: 'Entra a tu cuenta', loginSubmit: 'Entrar',
-  registerEyebrow: 'Es gratis', registerHeading: 'Crea tu cuenta', registerSubmit: 'Registrarme',
+  loginEyebrow: 'Bienvenido de nuevo', loginHeading: 'Entra a tu cuenta', loginSub: 'Consulta tus cotizaciones y retoma lo que dejaste pendiente.', loginSubmit: 'Entrar',
+  registerEyebrow: 'Es gratis', registerHeading: 'Crea tu cuenta', registerSub: 'Con tu cuenta pides cotizaciones formales y guardas los equipos que te interesan.', registerSubmit: 'Registrarme',
   fieldName: 'Nombre completo', fieldEmail: 'Correo', fieldPassword: 'Contraseña',
   remember: 'Mantener sesión iniciada', forgotLink: '¿Olvidaste?',
   forgotEyebrow: 'Recuperar acceso', forgotTitle: '¿Olvidaste tu contraseña?',
   forgotHint: 'Escribe tu correo y te enviaremos un enlace para restablecerla.',
   forgotSubmit: 'Enviar enlace', forgotBack: 'Volver a iniciar sesión',
   doneTitle: 'Revisa tu correo', doneBody: 'Si el correo existe, recibirás un enlace para restablecer tu contraseña.',
+  orEmail: 'o con tu correo', providerCta: '¿Rentas maquinaria? Regístrate como proveedor',
 };
+
+/** Campo con icono a la izquierda y, opcional, algo a la derecha (el ojo, la palomita). */
+function Campo({ icono, children, derecha }: { icono: IconName; children: ReactNode; derecha?: ReactNode }) {
+  return (
+    <div className={`au-inp${derecha ? ' has-right' : ''}`}>
+      <span className="au-inp-ico" aria-hidden><Icon name={icono} size={17} /></span>
+      {children}
+      {derecha}
+    </div>
+  );
+}
+
+/** Botón principal: flecha en reposo, giro mientras trabaja. */
+function Enviar({ cargando, texto, textoCargando }: { cargando: boolean; texto: string; textoCargando: string }) {
+  return (
+    <button type="submit" disabled={cargando} className="ms-btn ms-btn-lg ms-btn-block au-submit">
+      {cargando ? <span className="au-spin" aria-hidden /> : null}
+      {cargando ? textoCargando : texto}
+      {cargando ? null : <Icon name="arrowRight" size={17} className="au-submit-arrow" />}
+    </button>
+  );
+}
 
 export function AuthCard({
   initialView,
@@ -129,11 +155,12 @@ export function AuthCard({
 
   const go = (v: View) => { setView(v); setTouched(false); setServerErr(null); };
 
-  const nameErr = touched && view === 'register' && !name.trim();
+  const nameErr = touched && view === 'register' && !!nombreProblema(name);
   const emailErr = touched && !emailOk(email.trim());
   const passErr = touched && (view === 'register' ? !contrasenaSegura(password, { nombre: name, correo: email }) : password.length < 1);
   const pass2Err = touched && view === 'register' && password2 !== password;
   const termsErr = touched && view === 'register' && !terms;
+  const coinciden = password2.length > 0 && password2 === password;
 
   /**
    * La cuenta existe pero no ha confirmado su correo: el login lo dice y aquí
@@ -168,7 +195,7 @@ export function AuthCard({
 
   async function submitRegister() {
     setTouched(true); setServerErr(null);
-    if (!name.trim() || !emailOk(email.trim()) || !contrasenaSegura(password, { nombre: name, correo: email }) || password2 !== password || !terms) return;
+    if (nombreProblema(name) || !emailOk(email.trim()) || !contrasenaSegura(password, { nombre: name, correo: email }) || password2 !== password || !terms) return;
     setLoading(true);
     try {
       // `next` viaja en el enlace del correo: al confirmar vuelve a donde iba.
@@ -197,8 +224,18 @@ export function AuthCard({
     } catch { setView('success'); } finally { setLoading(false); }
   }
 
+  /*
+   * Cada vista es un <form> de verdad (antes eran botones sueltos): Enter
+   * envía desde cualquier campo y los gestores de contraseñas reconocen el
+   * formulario. `noValidate`: la validación y sus mensajes son los nuestros.
+   */
+  const alEnviar = (accion: () => Promise<void>) => (e: FormEvent) => {
+    e.preventDefault();
+    if (!loading) void accion();
+  };
+
   const showTabs = view === 'login' || view === 'register';
-  const showSocial = (view === 'login' || view === 'register') && googleActivo;
+  const showSocial = showTabs && googleActivo;
 
   /** Aviso de error del servidor: caja legible (sistema `.ms-alert`). */
   const alerta = serverErr ? (
@@ -219,203 +256,293 @@ export function AuthCard({
     </div>
   ) : null;
 
-  /** Campo de contraseña con el ojo de mostrar/ocultar dentro. */
+  /** El ojo de mostrar/ocultar, dentro del campo. */
   const ojo = (
-    <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} className="au-eye">
+    <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? 'Ocultar contraseña' : 'Mostrar contraseña'} aria-pressed={showPw} className="au-eye">
       <OjoIcono abierto={showPw} />
     </button>
   );
 
+  /** Encabezado de cada vista: rótulo, título y una línea de contexto. */
+  const encabezado = (kicker: string, titulo: string, sub?: string) => (
+    <header className="au-head">
+      <p className="ms-kicker">{kicker}</p>
+      <h1 className="au-title">{titulo}</h1>
+      {sub ? <p className="au-sub">{sub}</p> : null}
+    </header>
+  );
+
+  /*
+   * Google va ARRIBA: es el camino de un clic, y ponerlo después del
+   * formulario obligaba a leer cuatro campos antes de descubrirlo.
+   * Es un enlace, NO un botón con fetch: el navegador tiene que NAVEGAR de
+   * verdad a accounts.google.com (Google no deja cargar su pantalla de
+   * consentimiento por XHR).
+   */
+  const social = showSocial ? (
+    <>
+      <a href={`/api/auth/google?next=${encodeURIComponent(redirectTo || '/')}`} className="ms-btn ms-btn-sec ms-btn-lg ms-btn-block au-google">
+        <LogoGoogle /> Continuar con Google
+      </a>
+      <div className="au-or"><span>{L.orEmail}</span></div>
+    </>
+  ) : null;
+
   return (
-    <div className="ms-panel ms-panel-lg au-card">
+    <div className="au-card">
       <style>{CSS}</style>
 
       {showTabs ? (
-        <div className="ms-tabs au-tabs" role="tablist" aria-label="Acceso">
-          <button type="button" role="tab" className="ms-tab" onClick={() => go('login')} aria-selected={view === 'login'}>{L.tabLogin}</button>
-          <button type="button" role="tab" className="ms-tab" onClick={() => go('register')} aria-selected={view === 'register'}>{L.tabRegister}</button>
+        <div className="au-seg" role="tablist" aria-label="Acceso" data-activo={view}>
+          <button type="button" role="tab" onClick={() => go('login')} aria-selected={view === 'login'}>{L.tabLogin}</button>
+          <button type="button" role="tab" onClick={() => go('register')} aria-selected={view === 'register'}>{L.tabRegister}</button>
         </div>
       ) : null}
 
-      {/* LOGIN */}
-      {view === 'login' ? (
-        <div>
-          <p className="ms-kicker">{L.loginEyebrow}</p>
-          <h1 className="au-title">{L.loginHeading}</h1>
-          <div className="au-stack">
-            <div className="ms-field">
-              <label className="ms-label" htmlFor="login-email">{L.fieldEmail}</label>
-              <input id="login-email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
-              {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
-            </div>
-            <div className="ms-field">
-              <div className="au-label-row">
-                <label className="ms-label" htmlFor="login-password">{L.fieldPassword}</label>
-                <button type="button" onClick={() => go('forgot')} className="ms-link au-small-link">{L.forgotLink}</button>
+      {/* `key`: al cambiar de vista, el contenido entra con su animación. */}
+      <div key={view} className="au-view">
+        {/* LOGIN */}
+        {view === 'login' ? (
+          <form onSubmit={alEnviar(submitLogin)} noValidate>
+            {encabezado(L.loginEyebrow, L.loginHeading, L.loginSub)}
+            {social}
+            <div className="au-stack">
+              <div className="ms-field">
+                <label className="ms-label" htmlFor="login-email">{L.fieldEmail}</label>
+                <Campo icono="mail">
+                  <input id="login-email" type="email" inputMode="email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
+                </Campo>
+                {emailErr ? <p className="ms-error">Escribe un correo válido, como nombre@empresa.com.</p> : null}
               </div>
-              <div className="au-pw">
-                <input id="login-password" className="ms-input" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="••••••••" autoComplete="current-password" aria-invalid={passErr} />
-                {ojo}
+              <div className="ms-field">
+                <div className="au-label-row">
+                  <label className="ms-label" htmlFor="login-password">{L.fieldPassword}</label>
+                  <button type="button" onClick={() => go('forgot')} className="ms-link au-small-link">{L.forgotLink}</button>
+                </div>
+                <Campo icono="lock" derecha={ojo}>
+                  <input id="login-password" className="ms-input" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Tu contraseña" autoComplete="current-password" aria-invalid={passErr} />
+                </Campo>
+                {passErr ? <p className="ms-error">Escribe tu contraseña.</p> : null}
               </div>
-              {passErr ? <p className="ms-error">Ingresa tu contraseña.</p> : null}
+              <label className="au-checkrow">
+                <input type="checkbox" className="au-check" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                <span className="au-checktxt">{L.remember}</span>
+              </label>
+              {alerta}
+              <Enviar cargando={loading} texto={L.loginSubmit} textoCargando="Entrando…" />
             </div>
-            <span className="au-checkrow">
-              <button type="button" role="checkbox" aria-checked={remember} aria-label={L.remember} onClick={() => setRemember((v) => !v)} className="ms-check">{remember ? <Icon name="check" size={12} /> : null}</button>
-              <span onClick={() => setRemember((v) => !v)} className="au-checktxt">{L.remember}</span>
-            </span>
-            {alerta}
-            <button type="button" onClick={submitLogin} disabled={loading} className="ms-btn ms-btn-lg ms-btn-block">
-              {loading ? 'Entrando…' : L.loginSubmit}
+          </form>
+        ) : null}
+
+        {/* REGISTER */}
+        {view === 'register' ? (
+          <form onSubmit={alEnviar(submitRegister)} noValidate>
+            {encabezado(L.registerEyebrow, L.registerHeading, L.registerSub)}
+            {social}
+            <div className="au-stack">
+              <div className="ms-field">
+                <label className="ms-label" htmlFor="reg-name">{L.fieldName}</label>
+                <Campo icono="user">
+                  <input id="reg-name" className="ms-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre y apellido" autoComplete="name" maxLength={100} aria-invalid={nameErr} />
+                </Campo>
+                {nameErr ? <p className="ms-error">{nombreProblema(name)}</p> : null}
+              </div>
+              <div className="ms-field">
+                <label className="ms-label" htmlFor="reg-email">{L.fieldEmail}</label>
+                <Campo icono="mail">
+                  <input id="reg-email" type="email" inputMode="email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
+                </Campo>
+                {emailErr ? <p className="ms-error">Escribe un correo válido, como nombre@empresa.com.</p> : null}
+              </div>
+              <div className="ms-field">
+                <label className="ms-label" htmlFor="reg-password">{L.fieldPassword}</label>
+                <Campo icono="lock" derecha={ojo}>
+                  <input id="reg-password" className="ms-input" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 10 caracteres" autoComplete="new-password" aria-invalid={passErr} />
+                </Campo>
+                {passErr ? <p className="ms-error">{problemaContrasena(password, { nombre: name, correo: email })}</p> : null}
+                <ReglasContrasena password={password} nombre={name} correo={email} compacta />
+              </div>
+              <div className="ms-field">
+                <label className="ms-label" htmlFor="reg-password2">Confirma tu contraseña</label>
+                <Campo
+                  icono="lock"
+                  derecha={coinciden ? <span className="au-ok" title="Coinciden"><Icon name="check" size={16} /><span className="sr-only">Las contraseñas coinciden</span></span> : undefined}
+                >
+                  <input id="reg-password2" className="ms-input" value={password2} onChange={(e) => setPassword2(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Escríbela otra vez" autoComplete="new-password" aria-invalid={pass2Err} />
+                </Campo>
+                {pass2Err ? <p className="ms-error">Las contraseñas no coinciden.</p> : null}
+              </div>
+              <div className="ms-field">
+                <label className="au-checkrow au-checkrow-top">
+                  <input type="checkbox" className="au-check" checked={terms} onChange={(e) => setTerms(e.target.checked)} aria-invalid={termsErr} />
+                  <span className="au-checktxt">
+                    Acepto los <Link href="/terminos">Términos</Link> y el <Link href="/privacidad">Aviso de privacidad</Link>.
+                  </span>
+                </label>
+                {termsErr ? <p className="ms-error">Para crear la cuenta, acepta los términos.</p> : null}
+              </div>
+              {alerta}
+              <Enviar cargando={loading} texto={L.registerSubmit} textoCargando="Creando tu cuenta…" />
+            </div>
+            {/* Quien llega aquí queriendo OFRECER equipo, no rentarlo. */}
+            <Link href="/proveedores" className="au-prov">
+              <Icon name="truck" size={16} />
+              <span>{L.providerCta}</span>
+              <Icon name="arrowRight" size={15} className="au-prov-arrow" />
+            </Link>
+          </form>
+        ) : null}
+
+        {/* FORGOT */}
+        {view === 'forgot' ? (
+          <form onSubmit={alEnviar(submitForgot)} noValidate>
+            <button type="button" onClick={() => go('login')} className="au-back">
+              <Icon name="arrowLeft" size={15} />{L.forgotBack}
+            </button>
+            {encabezado(L.forgotEyebrow, L.forgotTitle, L.forgotHint)}
+            <div className="au-stack">
+              <div className="ms-field">
+                <label className="ms-label" htmlFor="forgot-email">{L.fieldEmail}</label>
+                <Campo icono="mail">
+                  <input id="forgot-email" type="email" inputMode="email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
+                </Campo>
+                {emailErr ? <p className="ms-error">Escribe un correo válido, como nombre@empresa.com.</p> : null}
+              </div>
+              {alerta}
+              <Enviar cargando={loading} texto={L.forgotSubmit} textoCargando="Enviando…" />
+            </div>
+          </form>
+        ) : null}
+
+        {/* Registro hecho: la cuenta se activa desde el correo (2026-09-23). */}
+        {view === 'verificar' ? (
+          <div className="au-done">
+            <span className="au-done-ico" aria-hidden><Icon name="mail" size={24} /></span>
+            <h1 className="au-title">Confirma tu correo</h1>
+            <p className="au-sub">
+              Te mandamos un enlace a <strong className="au-strong">{email.trim()}</strong>. Ábrelo para activar tu cuenta: entras directo y sigues donde ibas.
+            </p>
+            <p className="ms-hint">Si no lo ves en unos minutos, revisa la carpeta de no deseados.</p>
+            <button type="button" onClick={() => void reenviar()} className="ms-btn ms-btn-sec ms-btn-lg ms-btn-block">
+              {reenviado ? <><Icon name="check" size={16} />Enlace reenviado</> : 'Reenviar el enlace'}
             </button>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {/* REGISTER */}
-      {view === 'register' ? (
-        <div>
-          <p className="ms-kicker">{L.registerEyebrow}</p>
-          <h1 className="au-title">{L.registerHeading}</h1>
-          <div className="au-stack">
-            <div className="ms-field">
-              <label className="ms-label" htmlFor="reg-name">{L.fieldName}</label>
-              <input id="reg-name" className="ms-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" autoComplete="name" aria-invalid={nameErr} />
-              {nameErr ? <p className="ms-error">Ingresa tu nombre.</p> : null}
-            </div>
-            <div className="ms-field">
-              <label className="ms-label" htmlFor="reg-email">{L.fieldEmail}</label>
-              <input id="reg-email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
-              {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
-            </div>
-            <div className="ms-field">
-              <label className="ms-label" htmlFor="reg-password">{L.fieldPassword}</label>
-              <div className="au-pw">
-                <input id="reg-password" className="ms-input" value={password} onChange={(e) => setPassword(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Mínimo 10 caracteres" autoComplete="new-password" aria-invalid={passErr} />
-                {ojo}
-              </div>
-              {passErr ? <p className="ms-error">{problemaContrasena(password, { nombre: name, correo: email })}</p> : null}
-              <ReglasContrasena password={password} nombre={name} correo={email} />
-            </div>
-            <div className="ms-field">
-              <label className="ms-label" htmlFor="reg-password2">Confirmar contraseña</label>
-              <input id="reg-password2" className="ms-input" value={password2} onChange={(e) => setPassword2(e.target.value)} type={showPw ? 'text' : 'password'} placeholder="Escríbela otra vez" autoComplete="new-password" aria-invalid={pass2Err} />
-              {pass2Err ? <p className="ms-error">Las contraseñas no coinciden.</p> : null}
-            </div>
-            <div className="ms-field">
-              <span className="au-checkrow au-checkrow-top">
-                <button type="button" role="checkbox" aria-checked={terms} aria-label="Acepto los términos y el aviso de privacidad" onClick={() => setTerms((v) => !v)} className="ms-check">{terms ? <Icon name="check" size={12} /> : null}</button>
-                <span onClick={() => setTerms((v) => !v)} className="au-checktxt">Acepto los <Link href="/terminos" onClick={(e) => e.stopPropagation()}>Términos</Link> y el <Link href="/privacidad" onClick={(e) => e.stopPropagation()}>Aviso de privacidad</Link>.</span>
-              </span>
-              {termsErr ? <p className="ms-error">Debes aceptar los términos.</p> : null}
-            </div>
-            {alerta}
-            <button type="button" onClick={submitRegister} disabled={loading} className="ms-btn ms-btn-lg ms-btn-block">
-              {loading ? 'Creando…' : L.registerSubmit}
-            </button>
+        {/* SUCCESS (forgot) */}
+        {view === 'success' ? (
+          <div className="au-done">
+            <span className="au-done-ico" aria-hidden><Icon name="check" size={24} /></span>
+            <h1 className="au-title">{L.doneTitle}</h1>
+            <p className="au-sub">{L.doneBody}</p>
+            <button type="button" onClick={() => go('login')} className="ms-btn ms-btn-lg ms-btn-block">{L.forgotBack}</button>
           </div>
-        </div>
-      ) : null}
-
-      {/* FORGOT */}
-      {view === 'forgot' ? (
-        <div>
-          <p className="ms-kicker">{L.forgotEyebrow}</p>
-          <h1 className="au-title au-title-tight">{L.forgotTitle}</h1>
-          <p className="ms-desc au-desc">{L.forgotHint}</p>
-          <div className="au-stack">
-            <div className="ms-field">
-              <label className="ms-label" htmlFor="forgot-email">{L.fieldEmail}</label>
-              <input id="forgot-email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="email" aria-invalid={emailErr} />
-              {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
-            </div>
-            {alerta}
-            <button type="button" onClick={submitForgot} disabled={loading} className="ms-btn ms-btn-lg ms-btn-block">
-              {loading ? 'Enviando…' : L.forgotSubmit}
-            </button>
-            <button type="button" onClick={() => go('login')} className="ms-btn ms-btn-sec ms-btn-block">
-              <Icon name="arrowLeft" size={14} />{L.forgotBack}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Registro hecho: la cuenta se activa desde el correo (2026-09-23). */}
-      {view === 'verificar' ? (
-        <div className="au-done">
-          <span className="ms-ico ms-ico-lg" aria-hidden><Icon name="mail" size={22} /></span>
-          <h1 className="au-title au-title-tight">Confirma tu correo</h1>
-          <p className="ms-desc">
-            Te mandamos un enlace a <strong className="au-strong">{email.trim()}</strong>. Ábrelo para activar tu cuenta: entras directo y sigues donde ibas.
-          </p>
-          <p className="ms-hint au-hint">Si no lo ves en unos minutos, revisa la carpeta de no deseados.</p>
-          <button type="button" onClick={() => void reenviar()} className="ms-btn ms-btn-sec ms-btn-lg ms-btn-block">
-            {reenviado ? 'Enlace reenviado' : 'Reenviar el enlace'}
-          </button>
-        </div>
-      ) : null}
-
-      {/* SUCCESS (forgot) */}
-      {view === 'success' ? (
-        <div className="au-done">
-          <span className="ms-ico ms-ico-lg" aria-hidden><Icon name="check" size={22} /></span>
-          <h1 className="au-title au-title-tight">{L.doneTitle}</h1>
-          <p className="ms-desc au-desc">{L.doneBody}</p>
-          <button type="button" onClick={() => go('login')} className="ms-btn ms-btn-lg ms-btn-block">{L.forgotBack}</button>
-        </div>
-      ) : null}
-
-      {/* Entrar con Google. Solo aparece si el servidor tiene credenciales. */}
-      {showSocial ? (
-        <div>
-          <div className="au-or"><span>O continúa con</span></div>
-          {/*
-            Enlace, NO botón con fetch: el navegador tiene que NAVEGAR de verdad
-            a accounts.google.com. Un fetch lo bloquearía el propio Google (no
-            permite que su pantalla de consentimiento se cargue por XHR).
-          */}
-          <a href={`/api/auth/google?next=${encodeURIComponent(redirectTo || '/')}`} className="ms-btn ms-btn-sec ms-btn-lg ms-btn-block">
-            <LogoGoogle /> Continuar con Google
-          </a>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }
 
 /* Estilos propios de la tarjeta de acceso (prefijo `au-`). Lo común sale de `ms-*`. */
 const CSS = `
-.au-card{ width:100%; max-width:440px; margin:0 auto; box-sizing:border-box; }
-.au-tabs{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:26px; }
-.au-tabs .ms-tab{ justify-content:center; min-height:40px; }
-.au-title{ margin:0 0 24px; font-family:var(--font-display); font-size:28px; font-weight:700; letter-spacing:-.025em; line-height:1.15; color:var(--color-text); text-wrap:balance; }
-.au-title-tight{ margin-bottom:8px; }
-.au-desc{ margin:0 0 22px; }
+.au-card{ width:100%; max-width:420px; margin:0 auto; box-sizing:border-box; }
+
+/* Selector Iniciar sesión / Crear cuenta: una pieza con indicador que se desliza. */
+.au-seg{
+  --au-track:color-mix(in srgb, var(--color-text) 5%, var(--color-surface));
+  --au-thumb:var(--color-surface);
+  position:relative; display:grid; grid-template-columns:1fr 1fr; padding:4px; margin-bottom:30px;
+  border-radius:12px; background:var(--au-track); border:1px solid var(--color-border);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .au-seg{ --au-thumb:color-mix(in srgb, var(--color-text) 11%, var(--color-surface)); } }
+:root[data-theme="dark"] .au-seg{ --au-thumb:color-mix(in srgb, var(--color-text) 11%, var(--color-surface)); }
+.au-seg::before{
+  content:''; position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px); border-radius:9px;
+  background:var(--au-thumb); box-shadow:0 1px 3px rgba(0,0,0,.18), inset 0 0 0 1px color-mix(in srgb, var(--color-text) 8%, transparent);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1);
+}
+.au-seg[data-activo="register"]::before{ transform:translateX(100%); }
+.au-seg button{
+  position:relative; z-index:1; min-height:38px; border:0; border-radius:9px; background:none; cursor:pointer;
+  font:inherit; font-size:14px; font-weight:600; color:var(--color-text-muted); transition:color .2s ease;
+}
+.au-seg button:hover{ color:var(--color-text); }
+.au-seg button[aria-selected="true"]{ color:var(--color-text); }
+.au-seg button:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; }
+
+.au-view{ animation:au-in .32s cubic-bezier(.2,.8,.2,1); }
+@keyframes au-in{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+
+.au-head{ margin-bottom:26px; }
+.au-head .ms-kicker{ margin-bottom:10px; }
+.au-title{ margin:0; font-family:var(--font-display); font-size:32px; font-weight:700; letter-spacing:-.03em; line-height:1.1; color:var(--color-text); text-wrap:balance; }
+.au-sub{ margin:10px 0 0; font-size:14.5px; line-height:1.55; color:var(--color-text-muted); text-wrap:pretty; }
+
+.au-google{ gap:10px; font-weight:600; }
+.au-or{ display:flex; align-items:center; gap:14px; margin:20px 0; font-size:12.5px; color:var(--color-text-muted); }
+.au-or::before, .au-or::after{ content:''; flex:1; height:1px; background:var(--color-border); }
+
 .au-stack{ display:grid; gap:18px; }
 .au-label-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
-.au-small-link{ font-size:13px; }
-.au-pw{ position:relative; }
-.au-pw .ms-input{ padding-right:46px; }
-.au-eye{ position:absolute; right:6px; top:50%; transform:translateY(-50%); width:34px; height:34px; display:grid; place-items:center; background:none; border:none; border-radius:8px; color:var(--color-text-muted); cursor:pointer; }
-.au-eye:hover{ color:var(--color-text); }
+.au-small-link{ font-size:13px; font-weight:600; }
+
+/* Campo con icono */
+.au-inp{ position:relative; }
+.au-inp .ms-input{ min-height:48px; padding-left:42px; border-radius:10px; }
+.au-inp.has-right .ms-input{ padding-right:46px; }
+.au-inp-ico{ position:absolute; left:14px; top:50%; transform:translateY(-50%); display:flex; color:var(--color-text-muted); pointer-events:none; transition:color .18s ease; }
+.au-inp:focus-within .au-inp-ico{ color:var(--color-primary); }
+.au-inp .ms-input[aria-invalid="true"] ~ .au-inp-ico, .au-inp:has(.ms-input[aria-invalid="true"]) .au-inp-ico{ color:var(--color-error); }
+.au-eye{ position:absolute; right:7px; top:50%; transform:translateY(-50%); width:34px; height:34px; display:grid; place-items:center; background:none; border:none; border-radius:8px; color:var(--color-text-muted); cursor:pointer; transition:color .18s ease, background .18s ease; }
+.au-eye:hover{ color:var(--color-text); background:color-mix(in srgb, var(--color-text) 7%, transparent); }
 .au-eye:focus-visible{ outline:2px solid var(--color-primary); outline-offset:1px; }
-.au-checkrow{ display:flex; align-items:center; gap:10px; user-select:none; }
+.au-ok{ position:absolute; right:14px; top:50%; transform:translateY(-50%); display:flex; color:var(--color-success); }
+
+/* Casillas nativas con el color de marca: accesibles sin trucos de role="checkbox". */
+.au-checkrow{ display:flex; align-items:center; gap:10px; cursor:pointer; user-select:none; }
 .au-checkrow-top{ align-items:flex-start; }
-.au-checkrow-top .ms-check{ margin-top:1px; }
-.au-checktxt{ font-size:13.5px; line-height:1.5; color:var(--color-text-muted); cursor:pointer; }
+.au-check{ width:18px; height:18px; margin:0; flex-shrink:0; accent-color:var(--color-primary); cursor:pointer; }
+.au-checkrow-top .au-check{ margin-top:2px; }
+.au-check[aria-invalid="true"]{ outline:2px solid var(--color-error); outline-offset:2px; border-radius:4px; }
+.au-checktxt{ font-size:13.5px; line-height:1.5; color:var(--color-text-muted); }
 .au-checktxt a{ color:var(--color-primary); font-weight:600; text-decoration:none; }
 .au-checktxt a:hover{ text-decoration:underline; }
+
+.au-submit{ margin-top:4px; gap:9px; font-weight:700; }
+.au-submit-arrow{ transition:transform .2s ease; }
+.au-submit:hover .au-submit-arrow{ transform:translateX(3px); }
+.au-spin{ width:16px; height:16px; border-radius:50%; border:2px solid currentColor; border-right-color:transparent; animation:au-girar .7s linear infinite; }
+@keyframes au-girar{ to{ transform:rotate(360deg); } }
+
 .au-alert{ font-size:13.5px; }
 .au-alert-ico{ color:var(--color-error); flex-shrink:0; margin-top:2px; display:inline-flex; }
 .au-inline-link{ background:none; border:none; padding:0; font:inherit; font-weight:600; color:var(--color-primary); cursor:pointer; text-decoration:underline; }
-.au-done{ display:grid; justify-items:start; gap:10px; }
-.au-done .au-title{ margin-top:8px; }
-.au-done .ms-desc{ margin:0; }
+
+.au-prov{
+  display:flex; align-items:center; gap:10px; margin-top:24px; padding:13px 14px; border-radius:10px;
+  border:1px dashed var(--color-border); color:var(--color-text-muted); font-size:13.5px; font-weight:500; text-decoration:none;
+  transition:border-color .18s ease, color .18s ease;
+}
+.au-prov > svg:first-child{ color:var(--color-primary); flex-shrink:0; }
+.au-prov span{ flex:1; }
+.au-prov:hover{ color:var(--color-text); border-color:color-mix(in srgb, var(--color-primary) 55%, var(--color-border)); }
+.au-prov-arrow{ transition:transform .2s ease; }
+.au-prov:hover .au-prov-arrow{ transform:translateX(3px); }
+
+.au-back{ display:inline-flex; align-items:center; gap:7px; margin:0 0 22px; padding:0; border:0; background:none; font:inherit; font-size:13.5px; font-weight:600; color:var(--color-text-muted); cursor:pointer; }
+.au-back:hover{ color:var(--color-text); }
+
+.au-done{ display:grid; justify-items:start; gap:12px; }
+.au-done-ico{ width:52px; height:52px; display:grid; place-items:center; border-radius:14px; color:var(--color-primary); background:color-mix(in srgb, var(--color-primary) 12%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 25%, transparent); margin-bottom:6px; }
+.au-done .au-sub{ margin:0; }
 .au-done .ms-btn{ margin-top:10px; }
-.au-hint{ margin:0; }
 .au-strong{ color:var(--color-text); font-weight:600; word-break:break-all; }
-.au-or{ display:flex; align-items:center; gap:14px; margin:24px 0 18px; font-size:13px; color:var(--color-text-muted); }
-.au-or::before, .au-or::after{ content:''; flex:1; height:1px; background:var(--color-border); }
+
+@media (prefers-reduced-motion: reduce){
+  .au-view{ animation:none; }
+  .au-seg::before{ transition:none; }
+}
 @media (max-width: 640px){
-  .au-title{ font-size:25px; }
+  .au-title{ font-size:27px; }
 }
 `;

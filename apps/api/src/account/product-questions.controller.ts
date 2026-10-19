@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
+import { avisarPanel } from '../notifications/panel';
 
 const askSchema = z.object({ question: z.string().min(5).max(500) });
 
@@ -21,13 +22,13 @@ export class ProductQuestionsController {
       take: 50,
     });
     const users = await prisma.users.findMany({
-      where: { id: { in: rows.map((r) => r.user_id) } },
+      where: { id: { in: rows.map((r) => r.user_id).filter((x): x is number => x != null) } },
       select: { id: true, name: true },
     });
     const names = new Map(users.map((u) => [u.id, u.name]));
     return rows.map((r) => ({
       id: r.id,
-      author: names.get(r.user_id) ?? 'Cliente',
+      author: (r.user_id ? names.get(r.user_id) : null) ?? r.asker_name ?? 'Cliente',
       question: r.question,
       answer: r.answer,
       date: r.created_at ? r.created_at.toISOString() : null,
@@ -47,8 +48,10 @@ export class ProductQuestionsController {
     const product = await prisma.products.findFirst({ where: { id: productId, status: 1 } });
     if (!product) throw new BadRequestException('Producto no disponible');
     await prisma.product_questions.create({
-      data: { product_id: productId, user_id: req.userId, question: parsed.data.question, answer: null, status: 1, created_at: new Date(), updated_at: new Date() },
+      data: { product_id: productId, user_id: req.userId, source: 'producto', question: parsed.data.question, answer: null, status: 1, created_at: new Date(), updated_at: new Date() },
     });
+    // Antes llegaba al panel sin avisar: se veía solo si alguien abría Preguntas.
+    void avisarPanel({ modulo: 'comunidad', evento: 'pregunta', titulo: `Pregunta sobre ${product.name}`, cuerpo: parsed.data.question.slice(0, 300), link: '/mensajes' });
     return { ok: true };
   }
 }

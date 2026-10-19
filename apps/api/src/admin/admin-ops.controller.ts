@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, Controller, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Query, Req, UseGuards,
+  ParseIntPipe, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/quote-validity';
@@ -11,23 +11,28 @@ import { MailerService } from '../notifications/mailer.service';
 import { correoCotizacionRespondida } from '../notifications/email-templates';
 import { DIAS_AVISO } from '../catalog/provider-trust';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
-import { PASOS, esEstado } from '../quotes/service-flow';
+import { PASOS, esEstado, estadoInicial } from '../quotes/service-flow';
+import { ServiceService } from '../quotes/service.service';
+import { registrarAccion } from './audit';
+import { sincronizarReserva } from '../quotes/reservas';
 
 /**
  * De dónde llegó una solicitud (rediseño de Solicitudes, 2026-10-08). El
  * cotizador y el de máquinas lo dejan escrito en `requirements.origen`; lo que
  * entra por el formulario "Cotizar" no lo trae y llega sin precio.
  */
-function origenDe(req: unknown, respondedBy: string | null): 'cotizador' | 'maquina' | 'formulario' {
+function origenDe(req: unknown, respondedBy: string | null): 'cotizador' | 'maquina' | 'formulario' | 'panel' {
   const o = req && typeof req === 'object' ? (req as { origen?: unknown }).origen : undefined;
   if (o === 'cotizador') return 'cotizador';
+  // La armó MAQSER24 en su cotizador y el cliente la aceptó por fuera (2026-10-15).
+  if (o === 'panel') return 'panel';
   if (o === 'maquina' || respondedBy === 'Cotizador de máquinas') return 'maquina';
   if (respondedBy?.startsWith('Cotizador de')) return 'cotizador';
   return 'formulario';
 }
 
 /**
- * Operación diaria: cotizaciones, vendedores y retiros.
+ * Operación diaria: cotizaciones y el tablero de Inicio.
  *
  * Las órdenes del carrito se retiraron (2026-10-08): en MAQSER24 todo se
  * cotiza y se paga fuera del sitio. Los pedidos viejos siguen en la tabla.
@@ -38,6 +43,7 @@ export class AdminOpsController {
   constructor(
     private readonly notifications: NotificationsService,
     private readonly mailer: MailerService,
+    private readonly services: ServiceService,
   ) {}
 
   /**
@@ -50,16 +56,13 @@ export class AdminOpsController {
   async dashboard() {
     const [
       products, quotes, pendingQuotes,
-      vendorsPending, withdrawsPending, withdrawsAmount, unansweredQuestions,
+      unansweredQuestions,
       pendingReviews, docsExpired, docsExpiring, pendingMessages,
       pendingQuoterRequests, pendingOffers,
     ] = await Promise.all([
       prisma.products.count({ where: { status: 1 } }),
       prisma.quotes.count(),
       prisma.quotes.count({ where: { status: 'pending' } }),
-      prisma.users.count({ where: { is_vendor: 1 } }),
-      prisma.withdraws.count({ where: { status: 'pending' } }),
-      prisma.withdraws.aggregate({ where: { status: 'pending' }, _sum: { amount: true } }),
       prisma.product_questions.count({ where: { answer: null, status: 1 } }),
       prisma.site_reviews.count({ where: { status: 0 } }),
       // Expedientes que piden atención (documento institucional, 23). Se cuentan
@@ -81,9 +84,12 @@ export class AdminOpsController {
           },
         },
       }),
-      // Mensajes de contacto que nadie ha contestado. Va en "por atender"
-      // porque es alguien esperando respuesta, igual que una cotización.
-      prisma.contact_messages.count({ where: { state: 'nuevo' } }),
+      // Mensajes sin contestar (2026-10-14: una sola bandeja): lo de Contacto y
+      // las preguntas. Va en "por atender" porque es alguien esperando respuesta.
+      Promise.all([
+        prisma.contact_messages.count({ where: { state: 'nuevo' } }),
+        prisma.product_questions.count({ where: { answer: null, status: 1, source: { not: 'contacto' } } }),
+      ]).then(([a, b]) => a + b),
       // Cotizaciones que un visitante pidio desde el sitio y nadie ha tocado.
       // Mismo criterio que los mensajes de contacto: alguien esperando.
       prisma.quoter_quotes.count({ where: { state: 'solicitada' } }),
@@ -93,9 +99,8 @@ export class AdminOpsController {
 
     return {
       // Por atender
-      pendingQuotes, vendorsPending,
+      pendingQuotes,
       docsExpired, docsExpiring, pendingMessages, pendingQuoterRequests, pendingOffers,
-      withdrawsPending, withdrawsAmount: withdrawsAmount._sum.amount ?? 0,
       unansweredQuestions, pendingReviews,
       // Negocio
       quotes, products,
@@ -200,6 +205,69 @@ export class AdminOpsController {
 
   /** Responder cotización: ajustar montos/condiciones y marcar completed. */
   @Modulo('cotizaciones')
+  /**
+   * APROBAR Y MANDAR A PROVEEDORES (2026-10-15).
+   *
+   * Para lo que llega del cotizador del sitio: el cliente ya vio el precio y
+   * pidió el servicio, así que no se le vuelve a preguntar. MAQSER24 revisa
+   * que todo esté bien y con esto queda en servicio y se ofrece sola a los
+   * aliados que llegan a la obra; al cliente le llega "autorizada" cuando uno
+   * la toma. Si al revisar se le cambió el precio ("Volver a cotizar"), ya no
+   * es lo que él vio: entonces se le responde y la acepta él.
+   */
+  @Post('quotes/:id/aprobar')
+  async aprobar(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
+    const q = await prisma.quotes.findUnique({ where: { id } });
+    if (!q) throw new NotFoundException();
+    const r = (q.requirements ?? {}) as { origen?: unknown; folio?: unknown; precioAjustado?: unknown };
+    if (r.origen !== 'cotizador') throw new BadRequestException('Solo las del cotizador del sitio se aprueban así; las demás se responden.');
+    if (r.precioAjustado) throw new BadRequestException('Le cambiaste el precio: respóndele para que el cliente la acepte.');
+    if (q.accepted_at || q.status !== 'pending') throw new BadRequestException('Esta cotización ya se había aprobado o respondido.');
+
+    // Todas las partes del mismo documento (el cotizador parte por línea).
+    const folio = typeof r.folio === 'string' && r.folio ? r.folio : null;
+    const partes = folio
+      ? await prisma.quotes.findMany({ where: { status: 'pending', accepted_at: null, requirements: { path: '$.folio', equals: folio } } })
+      : [q];
+    const ahora = new Date();
+    const vence = new Date(`${vigenciaPorDefecto()}T00:00:00Z`);
+    for (const p of partes) {
+      await prisma.quotes.update({
+        where: { id: p.id },
+        data: {
+          status: 'completed',
+          responded_at: ahora,
+          responded_by: req.adminNombre ?? null,
+          valid_until: vence,
+          accepted_at: ahora,
+          service_state: estadoInicial(),
+          ...(p.first_contact_at ? {} : { first_contact_at: ahora, first_contact_via: 'cotizacion' }),
+          updated_at: ahora,
+        },
+      });
+      await prisma.service_events.create({
+        data: { quote_id: p.id, admin_id: req.adminId, to_state: estadoInicial(), note: `MAQSER24 revisó la cotización${folio ? ` ${folio}` : ''} y la mandó a los aliados` },
+      });
+      await sincronizarReserva(Number(p.id));
+    }
+
+    const ofrecidos: string[] = [];
+    for (const p of partes) ofrecidos.push(...(await this.services.ofrecerATodos(Number(p.id))).ofrecidos);
+    const unicos = [...new Set(ofrecidos)];
+
+    if (q.user_id) {
+      await this.notifications.push({
+        userId: Number(q.user_id),
+        type: 'service_status',
+        title: `Revisamos tu cotización ${folio ?? q.quote_number}`,
+        body: 'Todo en orden: ya la estamos asignando a un proveedor. Te avisamos en cuanto quede autorizada.',
+        link: `/cuenta/cotizaciones/${q.quote_number}`,
+      });
+    }
+    await registrarAccion(req, 'cotizaciones', 'solicitud.aprobar', q.quote_number, unicos.length ? `ofrecida a ${unicos.join(', ')}` : 'ningún aliado llega a la obra');
+    return { ok: true, partes: partes.length, ofrecidos: unicos };
+  }
+
   @Patch('quotes/:id')
   async updateQuote(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const schema = z.object({
@@ -211,6 +279,12 @@ export class AdminOpsController {
       excluded: z.string().max(4000).optional(),
       freightCost: z.coerce.number().min(0).optional(),
       tax: z.coerce.number().min(0).optional(),
+      /**
+       * Precio de lo pedido, para las solicitudes que no se cotizan con el
+       * tabulador (2026-10-15): antes solo se capturaban flete e impuesto y un
+       * equipo sin precio en el catálogo llegaba al cliente en $0.
+       */
+      subtotal: z.coerce.number().min(0).max(100_000_000).optional(),
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
@@ -220,9 +294,15 @@ export class AdminOpsController {
     // Respondiendo = pasa a completada ahora; solo entonces se sella vigencia
     // y autor. Editar despues una cotizacion ya respondida no reinicia su reloj.
     const respondiendo = parsed.data.status === 'completed' && q.status !== 'completed';
-    const freight = parsed.data.freightCost ?? Number(q.freight_cost);
-    const tax = parsed.data.tax ?? Number(q.tax);
-    const total = Math.round((Number(q.subtotal) + freight + tax) * 100) / 100;
+    // Cotizada con el tabulador (2026-10-15): los importes son los del documento
+    // y aquí no se tocan; lo que se responde es vigencia y condiciones.
+    const reqDoc = (q.requirements ?? {}) as { quoterId?: unknown; folio?: unknown };
+    const documentoId = typeof reqDoc.quoterId === 'number' ? reqDoc.quoterId : null;
+    const documentoFolio = documentoId && typeof reqDoc.folio === 'string' ? reqDoc.folio : null;
+    const subtotal = documentoId ? Number(q.subtotal) : (parsed.data.subtotal ?? Number(q.subtotal));
+    const freight = documentoId ? Number(q.freight_cost) : (parsed.data.freightCost ?? Number(q.freight_cost));
+    const tax = documentoId ? Number(q.tax) : (parsed.data.tax ?? Number(q.tax));
+    const total = Math.round((subtotal + freight + tax) * 100) / 100;
 
     await prisma.quotes.update({
       where: { id },
@@ -251,6 +331,7 @@ export class AdminOpsController {
           : parsed.data.validUntil
             ? { valid_until: new Date(`${parsed.data.validUntil}T00:00:00Z`) }
             : {}),
+        subtotal,
         freight_cost: freight,
         tax,
         total,
@@ -258,13 +339,60 @@ export class AdminOpsController {
       },
     });
 
+    // El documento sale con la respuesta: en el historial del cotizador pasa a "Enviada".
+    if (respondiendo && documentoId) {
+      await prisma.quoter_quotes.updateMany({ where: { id: documentoId, state: { in: ['borrador', 'solicitada'] } }, data: { state: 'enviada', updated_at: new Date() } });
+    }
+
+    /**
+     * Las demás partes del MISMO documento se responden con esta (2026-10-15).
+     * El cotizador del sitio parte la cotización por línea (la excavadora por
+     * un lado, la pipa por otro) y el cliente acepta UN documento: se le
+     * manda un solo correo con el total del documento. Cada parte conserva lo
+     * que incluye; la vigencia y las condiciones son las de esta respuesta.
+     */
+    let totalDocumento = total;
+    if (respondiendo && documentoFolio) {
+      const hermanas = await prisma.quotes.findMany({
+        where: { id: { not: q.id }, status: 'pending', accepted_at: null, requirements: { path: '$.folio', equals: documentoFolio } },
+        select: { id: true, total: true },
+      });
+      if (hermanas.length) {
+        const sello = await prisma.quotes.findUnique({ where: { id }, select: { valid_until: true, responded_at: true, responded_by: true } });
+        for (const h of hermanas) {
+          await prisma.quotes.update({
+            where: { id: h.id },
+            data: {
+              status: 'completed',
+              valid_until: sello?.valid_until ?? null,
+              responded_at: sello?.responded_at ?? new Date(),
+              responded_by: sello?.responded_by ?? null,
+              ...(parsed.data.conditions !== undefined ? { conditions: parsed.data.conditions } : {}),
+              ...(parsed.data.excluded !== undefined ? { excluded: parsed.data.excluded } : {}),
+              updated_at: new Date(),
+            },
+          });
+          await sincronizarReserva(Number(h.id));
+          totalDocumento += Number(h.total);
+        }
+        totalDocumento = Math.round(totalDocumento * 100) / 100;
+      }
+    }
+
+    /**
+     * Autorizar aparta los equipos del carrito por las fechas de la solicitud;
+     * rechazarla los suelta, y cambiar la vigencia mueve hasta cuándo se
+     * sostienen si el cliente no acepta. Todo solo (ver quotes/reservas.ts).
+     */
+    await sincronizarReserva(id);
+
     // Aviso al cliente cuando la cotización pasa a respondida.
     if (parsed.data.status === 'completed' && q.status !== 'completed') {
       await this.notifications.push({
         userId: q.user_id ? Number(q.user_id) : null,
         type: 'quote_answered',
         title: `Ya respondimos tu cotización ${q.quote_number}`,
-        body: `Total cotizado: ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}. Revísala en tu cuenta.`,
+        body: `Total cotizado: ${totalDocumento.toLocaleString('es-MX', { minimumFractionDigits: 2 })}. Revísala en tu cuenta.`,
         link: '/cuenta/cotizaciones',
       });
 
@@ -279,10 +407,11 @@ export class AdminOpsController {
       const plantilla = correoCotizacionRespondida({
         nombre: q.name,
         folio: q.quote_number,
-        total,
+        total: totalDocumento,
         validUntil: parsed.data.validUntil ?? (q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null),
         included: parsed.data.included ?? q.included,
         excluded: parsed.data.excluded ?? q.excluded,
+        documento: documentoFolio,
       });
       await this.mailer.enviar({
         kind: 'quote_answered',
@@ -294,10 +423,4 @@ export class AdminOpsController {
     }
     return { ok: true, total };
   }
-
-  // Vendedores: ver `admin-vendors.controller.ts` (lista con señales + detalle de la
-  // solicitud). Vivían aquí, pero la lista no alcanzaba para decidir a quién aprobar.
-
-  // Retiros: ver `admin-withdraws.controller.ts` (mueven dinero real, así que el
-  // cobro/reembolso va en una transacción con candado; aquí era leer-y-escribir).
 }

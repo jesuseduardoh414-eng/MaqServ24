@@ -240,6 +240,7 @@ export function PasoServicios({
                 {mostrarPrecios ? (
                   <Campo label="Precio unitario">
                     <NumeroTexto
+                      decimal
                       ariaLabel="precio unitario"
                       valor={l.precio}
                       onChange={(v) => actualizar(l.uid, { precio: v })}

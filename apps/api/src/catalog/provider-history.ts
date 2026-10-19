@@ -83,7 +83,11 @@ function mediana(valores: number[]): number | null {
 const CERRADO = 'cerrado';
 const CANCELADO = 'cancelado';
 
-export function historialDe(asignaciones: AsignacionHistorica[]): HistorialAliado {
+export function historialDe(todas: AsignacionHistorica[]): HistorialAliado {
+  // Una oferta que tomó otro aliado antes de que él contestara (oferta
+  // automática, 2026-10-15) no es suya: ni se le ofreció "de verdad" ni la dejó
+  // sin contestar. Contarla le bajaría la tasa sin que hiciera nada.
+  const asignaciones = todas.filter((a) => a.state !== 'tomado');
   const ofrecidos = asignaciones.length;
   const aceptadas = asignaciones.filter((a) => a.state === 'aceptado');
   const rechazados = asignaciones.filter((a) => a.state === 'rechazado').length;

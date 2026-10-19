@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ShButton } from '@maqserv/ui';
-import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import type { NavItem } from '@/components/MainNav';
 import { Icon, type IconName } from '@/components/Icon';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
@@ -105,7 +104,7 @@ export function MobileNav({
   items: NavItem[];
   labels: {
     login: string; register: string; logout: string; wishlist: string;
-    quoteList: string; sell: string; menu: string; groupQuick: string; groupAccount: string;
+    quoteList: string; menu: string; groupQuick: string; groupAccount: string;
     search: string; themeLight: string; themeDark: string;
   };
   contact: { phone: string | null; email: string | null };
@@ -344,10 +343,6 @@ export function MobileNav({
                     (2026-10-08) no hay pedidos que rastrear; el atajo lleva a la
                     lista de equipos para cotizar. */}
                 <Link href="/cotizar" className={ACCESO}><Icon name="specs" size={15} />{labels.quoteList}</Link>
-                {/* "Vender" es del marketplace heredado; apagado no se ofrece. */}
-                {MARKETPLACE_ACTIVO ? (
-                  <Link href="/vendedor" className={ACCESO}><Icon name="shield" size={15} />{labels.sell}</Link>
-                ) : null}
               </nav>
             </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { mostrarResultado } from '@maqserv/ui';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -195,7 +196,11 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
     const r = await fetch('/api/proxy/wishlist/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: product.id }) });
     if (r.status === 401) { router.push('/login'); return; }
     const d = await r.json().catch(() => null);
-    if (typeof d?.inWishlist === 'boolean') setFav(d.inWishlist);
+    if (typeof d?.inWishlist === 'boolean') {
+      setFav(d.inWishlist);
+      // Más preciso que el "Listo" automático.
+      mostrarResultado(d.inWishlist ? 'Agregado a tus favoritos' : 'Quitado de tus favoritos');
+    }
   }
 
   const enc = encodeURIComponent;

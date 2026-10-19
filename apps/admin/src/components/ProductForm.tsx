@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, horarioDe, margenDe, precioConMargen, rutaPanelDeCatalogo, tipoDeCatalogo, unidadesDeTarifa, type Horario, type TipoCatalogo } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
+import { AdminTimePicker } from '@/components/AdminFecha';
 import { Btn, Chip, IconBtn, Note, PageHeader, Panel, btnClass } from '@/components/ui';
+import { mostrarResultado } from '@maqserv/ui';
 
 export interface ProductFormData {
   id?: number;
@@ -43,6 +45,16 @@ interface Categoria { id: number; name: string; slug?: string; status?: number }
 interface Proveedor { id: number; name: string; level?: string }
 interface Renglon { tipo: string; id: string; nombre: string; linea: string; productos: number[] }
 interface Foto { id: number; url: string | null }
+
+/** Lo mismo que acepta la API (admin-catalog: IMAGE_TYPES y 8 MB por archivo). */
+const TIPOS_IMAGEN = 'image/png,image/jpeg,image/webp,image/avif';
+const MAX_MB = 8;
+const MAX_GALERIA = 6;
+function problemaImagen(f: File): string | null {
+  if (!TIPOS_IMAGEN.split(',').includes(f.type)) return `«${f.name}» no es una imagen PNG, JPG, WebP o AVIF.`;
+  if (f.size > MAX_MB * 1024 * 1024) return `«${f.name}» pesa más de ${MAX_MB} MB.`;
+  return null;
+}
 
 const POR_REVISAR = 2;
 
@@ -151,9 +163,44 @@ export function ProductForm({
   }, [enRevision]);
   const renglonesLinea = renglones.filter((r) => !slug || r.linea === slug);
 
+  // ---- Foto principal ----
+  /*
+   * Antes el archivo elegido se quedaba esperando en el formulario hasta pulsar
+   * "Guardar cambios", sin mostrar nada: parecía que no se había subido. Ahora,
+   * al EDITAR se sube en cuanto se elige y se ve de inmediato; al CREAR (aún no
+   * hay id) se muestra la vista previa y se sube junto con el alta.
+   */
+  const [principal, setPrincipal] = useState<string | null>(initial.image ?? null);
+  const [subiendoPrincipal, setSubiendoPrincipal] = useState(false);
+
+  async function elegirPrincipal(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    if (!file) return;
+    const problema = problemaImagen(file);
+    if (problema) { mostrarResultado(problema, 'bad'); input.value = ''; return; }
+    const vista = URL.createObjectURL(file);
+    if (!initial.id) { setPrincipal(vista); return; } // se va con el alta (name="photo")
+    setSubiendoPrincipal(true);
+    const fd = new FormData();
+    fd.set('photo', file);
+    try {
+      const r = await fetch(`/api/admin/catalog/products/${initial.id}`, { method: 'PATCH', body: fd });
+      if (r.ok) {
+        setPrincipal(vista);
+        mostrarResultado('Foto principal actualizada');
+      } else URL.revokeObjectURL(vista); // el motivo lo dice el aviso automático
+    } catch {
+      URL.revokeObjectURL(vista);
+    } finally {
+      setSubiendoPrincipal(false);
+      // Ya está arriba: que "Guardar cambios" no la vuelva a mandar.
+      input.value = '';
+    }
+  }
+
   // ---- Galería (solo al editar: necesita el id) ----
   const [fotos, setFotos] = useState<Foto[]>([]);
-  const [subiendo, setSubiendo] = useState(false);
+  const [subiendo, setSubiendo] = useState<{ va: number; de: number } | null>(null);
   useEffect(() => {
     if (!initial.id) return;
     void fetch(`/api/admin/catalog/products/${initial.id}/gallery`)
@@ -162,16 +209,38 @@ export function ProductForm({
       .catch(() => undefined);
   }, [initial.id]);
 
-  async function subirFoto(file: File) {
-    if (!initial.id) return;
-    setSubiendo(true);
-    const fd = new FormData();
-    fd.set('photo', file);
-    const r = await fetch(`/api/admin/catalog/products/${initial.id}/gallery`, { method: 'POST', body: fd });
-    const d = await r.json().catch(() => null);
-    setSubiendo(false);
-    if (!r.ok) { setError(d?.message ?? 'No se pudo subir la foto'); return; }
-    setFotos((f) => [...f, d as Foto]);
+  /**
+   * Varias de una vez (antes: una por una). Se suben en orden, una tras otra,
+   * hasta llenar los 6 lugares; lo que no quepa se avisa en vez de perderse
+   * en silencio.
+   */
+  async function subirFotos(lista: File[]) {
+    if (!initial.id || !lista.length) return;
+    const libres = MAX_GALERIA - fotos.length;
+    const validas = lista.filter((f) => !problemaImagen(f));
+    const invalidas = lista.length - validas.length;
+    const tanda = validas.slice(0, libres);
+    const sobran = validas.length - tanda.length;
+    let ok = 0;
+    for (let i = 0; i < tanda.length; i++) {
+      setSubiendo({ va: i + 1, de: tanda.length });
+      const fd = new FormData();
+      fd.set('photo', tanda[i]);
+      try {
+        const r = await fetch(`/api/admin/catalog/products/${initial.id}/gallery`, { method: 'POST', body: fd });
+        const d = await r.json().catch(() => null);
+        if (r.ok && d) { setFotos((f) => [...f, d as Foto]); ok++; }
+      } catch { /* sin conexión: ya avisado */ }
+    }
+    setSubiendo(null);
+    const notas = [
+      sobran ? `${sobran} no ${sobran === 1 ? 'cupo' : 'cupieron'} (máximo ${MAX_GALERIA})` : '',
+      invalidas ? `${invalidas} no ${invalidas === 1 ? 'es imagen válida' : 'son imágenes válidas'} o ${invalidas === 1 ? 'pesa' : 'pesan'} más de 8 MB` : '',
+      tanda.length - ok ? `${tanda.length - ok} no se ${tanda.length - ok === 1 ? 'pudo' : 'pudieron'} subir` : '',
+    ].filter(Boolean);
+    if (!ok && !notas.length) return;
+    const titulo = ok ? `${ok} ${ok === 1 ? 'foto agregada' : 'fotos agregadas'} a la galería` : 'No se agregó ninguna foto';
+    mostrarResultado(notas.length ? `${titulo}. ${notas.join('; ')}.` : titulo, notas.length ? (ok ? 'warn' : 'bad') : 'ok');
   }
   async function quitarFoto(id: number) {
     if (!initial.id) return;
@@ -403,11 +472,11 @@ export function ProductForm({
                         <td style={{ whiteSpace: 'nowrap' }}>{u.singular}</td>
                         {proveedor ? (
                           <td>
-                            <input type="number" min={0} step="1" value={costo[u.clave] ?? ''} onChange={(e) => setCosto({ ...costo, [u.clave]: e.target.value })} placeholder="—" aria-label={`Cobra el aliado por ${u.singular}`} className="adm-input adm-num" style={{ width: 120, height: 34 }} />
+                            <input type="number" min={0} step="0.01" value={costo[u.clave] ?? ''} onChange={(e) => setCosto({ ...costo, [u.clave]: e.target.value })} placeholder="—" aria-label={`Cobra el aliado por ${u.singular}`} className="adm-input adm-num" style={{ width: 120, height: 34 }} />
                           </td>
                         ) : null}
                         <td>
-                          <input type="number" min={0} step="1" value={publico[u.clave] ?? ''} onChange={(e) => setPublico({ ...publico, [u.clave]: e.target.value })} placeholder="—" aria-label={`Precio al cliente por ${u.singular}`} className="adm-input adm-num" style={{ width: 130, height: 34 }} />
+                          <input type="number" min={0} step="0.01" value={publico[u.clave] ?? ''} onChange={(e) => setPublico({ ...publico, [u.clave]: e.target.value })} placeholder="—" aria-label={`Precio al cliente por ${u.singular}`} className="adm-input adm-num" style={{ width: 130, height: 34 }} />
                         </td>
                         {proveedor ? (
                           <td className="adm-num" style={{ color: m === null ? 'var(--adm-muted)' : m < 0 ? 'var(--adm-bad)' : m < 10 ? 'var(--adm-warn)' : 'var(--adm-ok)', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -457,9 +526,9 @@ export function ProductForm({
                       })}
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input type="time" value={horario.desde} onChange={(e) => setHorario({ ...horario, desde: e.target.value })} aria-label="Desde" className="adm-input" style={{ width: 110, padding: '0 9px' }} />
+                      <div style={{ width: 128 }}><AdminTimePicker value={horario.desde} onChange={(v) => setHorario({ ...horario, desde: v })} aria-label="Desde" /></div>
                       <span style={{ color: 'var(--adm-muted)', fontSize: 13 }}>a</span>
-                      <input type="time" value={horario.hasta} onChange={(e) => setHorario({ ...horario, hasta: e.target.value })} aria-label="Hasta" className="adm-input" style={{ width: 110, padding: '0 9px' }} />
+                      <div style={{ width: 128 }}><AdminTimePicker value={horario.hasta} onChange={(v) => setHorario({ ...horario, hasta: v })} aria-label="Hasta" min={horario.desde} /></div>
                       <Btn size="sm" variant="ghost" onClick={() => setHorario(null)}>Quitar</Btn>
                     </div>
                   </div>
@@ -547,21 +616,26 @@ export function ProductForm({
           <Tarjeta titulo="Fotos" icono="ph-images">
             <div style={{ display: 'grid', gap: 8 }}>
               <span className="adm-label">Principal</span>
-              {initial.image ? (
+              {principal ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={initial.image} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 8, background: 'var(--adm-raised)', border: '1px solid var(--adm-border)' }} />
+                <img src={principal} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 8, background: 'var(--adm-raised)', border: '1px solid var(--adm-border)', opacity: subiendoPrincipal ? 0.5 : 1 }} />
               ) : (
                 <div style={{ aspectRatio: '4 / 3', borderRadius: 8, border: '1px dashed var(--adm-border-strong)', display: 'grid', placeItems: 'center', color: 'var(--adm-muted)', fontSize: 13 }}>Sin foto</div>
               )}
-              <label className={btnClass('secondary')}>
+              <label className={btnClass('secondary')} aria-disabled={subiendoPrincipal}>
                 <i className="ph ph-upload-simple" aria-hidden />
-                {initial.image ? 'Cambiar foto principal' : 'Subir foto principal'}
-                <input type="file" name="photo" accept="image/png,image/jpeg,image/webp,image/avif" style={{ display: 'none' }} />
+                {subiendoPrincipal ? 'Subiendo…' : principal ? 'Cambiar foto principal' : 'Subir foto principal'}
+                {/* `name="photo"`: al CREAR viaja con el alta. Al editar se sube sola al elegirla. */}
+                <input type="file" name="photo" accept={TIPOS_IMAGEN} style={{ display: 'none' }} disabled={subiendoPrincipal}
+                  onChange={(e) => void elegirPrincipal(e.currentTarget)} />
               </label>
+              {!initial.id && principal ? (
+                <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>Se sube al crear el equipo.</p>
+              ) : null}
             </div>
             {initial.id ? (
               <div style={{ display: 'grid', gap: 8 }}>
-                <span className="adm-label">Galería <span className="adm-num" style={{ color: 'var(--adm-faint)' }}>({fotos.length}/6)</span></span>
+                <span className="adm-label">Galería <span className="adm-num" style={{ color: 'var(--adm-faint)' }}>({fotos.length}/{MAX_GALERIA})</span></span>
                 {fotos.length ? (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                     {fotos.map((f) => (
@@ -575,13 +649,18 @@ export function ProductForm({
                     ))}
                   </div>
                 ) : null}
-                {fotos.length < 6 ? (
-                  <label className={btnClass('secondary')} aria-disabled={subiendo}>
-                    {subiendo ? null : <i className="ph ph-plus" aria-hidden />}
-                    {subiendo ? 'Subiendo…' : 'Agregar a la galería'}
-                    <input type="file" accept="image/png,image/jpeg,image/webp,image/avif" style={{ display: 'none' }} disabled={subiendo}
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) void subirFoto(f); e.target.value = ''; }} />
-                  </label>
+                {fotos.length < MAX_GALERIA ? (
+                  <>
+                    <label className={btnClass('secondary')} aria-disabled={!!subiendo}>
+                      {subiendo ? null : <i className="ph ph-plus" aria-hidden />}
+                      {subiendo ? `Subiendo ${subiendo.va} de ${subiendo.de}…` : 'Agregar a la galería'}
+                      <input type="file" multiple accept={TIPOS_IMAGEN} style={{ display: 'none' }} disabled={!!subiendo}
+                        onChange={(e) => { const l = Array.from(e.target.files ?? []); e.target.value = ''; void subirFotos(l); }} />
+                    </label>
+                    <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>
+                      Puedes elegir varias a la vez (caben {MAX_GALERIA - fotos.length} más).
+                    </p>
+                  </>
                 ) : null}
               </div>
             ) : (

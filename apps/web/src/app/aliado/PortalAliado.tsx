@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { TIPOS_ALIADO, esLineaServicio, ofertaDe, tiposDeAliado } from '@maqserv/config';
-import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
+import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue, mostrarResultado, ShDatePicker, ShDateTimePicker } from '@maqserv/ui';
 import { Icon, type IconName } from '@/components/Icon';
 import { OfrecerEquipo } from './OfrecerEquipo';
+import { CompartirUbicacion } from './CompartirUbicacion';
+import { OperadorServicio } from './OperadorServicio';
 import { telHref } from '@/lib/telefono';
 // `confirmar` ya es la función de "Sigue libre" de este portal: el diálogo va con otro nombre.
 import { confirmar as confirmarDialogo, pedirTexto } from '@/components/Dialogos';
@@ -63,6 +65,9 @@ export interface DatosPortal {
     pedido?: Array<{ label: string; valor: string }>;
     offeredAt: string;
     total?: number | null;
+    /** La cotización completa (2026-10-15): folio y partidas del documento. */
+    documento?: string | null;
+    partidas?: Array<{ concepto: string; cantidad: string; importe: number }>;
   }>;
   enCurso: Array<{
     quoteNumber: string;
@@ -78,6 +83,8 @@ export interface DatosPortal {
     contactPhone: string | null;
     requirements: string[];
     pedido?: Array<{ label: string; valor: string }>;
+    /** Quién maneja la unidad (2026-10-15). */
+    operador?: { nombre: string; telefono: string | null } | null;
   }>;
   equipos: Array<{
     id: number;
@@ -167,10 +174,6 @@ const CSS = `
 .al-kpi .ms-stat-l{ display:flex; align-items:center; gap:6px; margin:0 0 4px; }
 .al-stat-txt{ font-size:20px; line-height:1.5; }
 
-.al-msg{ margin-bottom:20px; }
-.al-msg-ico{ display:flex; margin-top:2px; }
-.al-msg[data-ok="true"] .al-msg-ico{ color:var(--color-success); }
-.al-msg[data-ok="false"] .al-msg-ico{ color:var(--color-error); }
 
 .al-barra{ height:6px; border-radius:999px; background:color-mix(in srgb, var(--color-text) 10%, transparent); overflow:hidden; }
 .al-barra > span{ display:block; height:100%; border-radius:999px; }
@@ -306,15 +309,21 @@ function mananaOcho(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T08:00`;
 }
 
-const ESTADO_EQUIPO: Record<string, { label: string; tono: Tono }> = {
-  disponible: { label: 'Disponible', tono: 'ok' },
-  limitada: { label: 'Disponible', tono: 'ok' },
-  'por-confirmar': { label: 'Por confirmar', tono: 'warn' },
-  reservado: { label: 'Reservado', tono: 'info' },
-  'en-traslado': { label: 'En traslado', tono: 'info' },
-  'en-servicio': { label: 'En servicio', tono: 'info' },
-  mantenimiento: { label: 'Mantenimiento', tono: 'warn' },
-  inactivo: { label: 'Inactivo', tono: 'bad' },
+/*
+ * Colores de ESTADOS_DISPONIBILIDAD (@maqserv/config, inyectados por el tema
+ * como `--estado-<clave>`): los mismos que ve MAQSER24 en su panel. Para el
+ * aliado, "limitada" sigue leyéndose "Disponible" (y en verde). "Sin unidades"
+ * no es un estado de disponibilidad: conserva el rojo de alerta.
+ */
+const ESTADO_EQUIPO: Record<string, { label: string; tono?: Tono; color?: string }> = {
+  disponible: { label: 'Disponible', color: 'var(--estado-disponible)' },
+  limitada: { label: 'Disponible', color: 'var(--estado-disponible)' },
+  'por-confirmar': { label: 'Por confirmar', color: 'var(--estado-por-confirmar)' },
+  reservado: { label: 'Reservado', color: 'var(--estado-reservado)' },
+  'en-traslado': { label: 'En traslado', color: 'var(--estado-en-traslado)' },
+  'en-servicio': { label: 'En servicio', color: 'var(--estado-en-servicio)' },
+  mantenimiento: { label: 'Mantenimiento', color: 'var(--estado-mantenimiento)' },
+  inactivo: { label: 'Inactivo', color: 'var(--estado-inactivo)' },
   agotado: { label: 'Sin unidades', tono: 'bad' },
 };
 
@@ -327,8 +336,12 @@ const ESTADO_DOCS: Record<string, { label: string; tono: Tono; color: string }> 
 
 // ───────────────────────── piezas ─────────────────────────
 
-function Chip({ children, tono = '' }: { children: React.ReactNode; tono?: Tono }) {
-  return <span className={`ms-chip ms-chip-dot${tono ? ` ms-chip-${tono}` : ''}`}>{children}</span>;
+/** `color` (valor CSS) para estados con color propio; gana sobre `tono`. */
+function Chip({ children, tono = '', color }: { children: React.ReactNode; tono?: Tono; color?: string }) {
+  const estilo = color
+    ? { color, borderColor: `color-mix(in srgb, ${color} 40%, transparent)`, background: `color-mix(in srgb, ${color} 10%, transparent)` }
+    : undefined;
+  return <span className={`ms-chip ms-chip-dot${tono ? ` ms-chip-${tono}` : ''}`} style={estilo}>{children}</span>;
 }
 
 /** Encabezado de sección: título en tipo oración, descripción y acción opcional. */
@@ -392,7 +405,6 @@ function Dato({ label, valor }: { label: string; valor: React.ReactNode }) {
 export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto?: ContactoMaqser }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState<number | string | null>(null);
-  const [msg, setMsg] = useState<{ texto: string; ok: boolean } | null>(null);
   const [editando, setEditando] = useState(false);
   const [subiendoDoc, setSubiendoDoc] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -425,7 +437,9 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   const ofertaCorta = tipos.length === 1 ? oferta.charAt(0).toUpperCase() + oferta.slice(1) : 'Tu oferta';
   const API = '/api/proxy';
 
-  const avisar = (texto: string, ok = true) => setMsg({ texto, ok });
+  // Al aviso flotante (ResultadosHost): el letrero de arriba quedaba fuera de
+  // la vista cuando la acción estaba más abajo en la página.
+  const avisar = (texto: string, ok = true) => mostrarResultado(texto, ok ? 'ok' : 'bad');
 
   async function llamar(url: string, body?: unknown) {
     const r = await fetch(url, {
@@ -446,7 +460,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
       avisar('Cuéntanos por qué no puedes: nos sirve para no volver a ofrecerte lo mismo.', false);
       return;
     }
-    setOcupado(assignmentId); setMsg(null);
+    setOcupado(assignmentId);
     const ok = await llamar(`${API}/aliado/solicitudes/${assignmentId}`, {
       estado,
       ...(estado === 'rechazado' ? { motivo: motivo.trim() } : {}),
@@ -461,7 +475,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   }
 
   async function confirmar(productId: number) {
-    setOcupado(productId); setMsg(null);
+    setOcupado(productId);
     const ok = await llamar(`${API}/aliado/equipos/${productId}/confirmar`);
     setOcupado(null);
     if (ok) { avisar('Confirmado. Gracias.'); router.refresh(); }
@@ -471,7 +485,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   async function reportarAvance(quoteNumber: string, estado: string) {
     const paso = Object.values(SIGUIENTE).find((x) => x?.estado === estado);
     if (paso && !(await confirmarDialogo({ titulo: `¿${paso.texto}?`, mensaje: paso.ayuda, confirmar: `Sí, ${paso.texto.charAt(0).toLowerCase()}${paso.texto.slice(1)}` }))) return;
-    setOcupado(quoteNumber); setMsg(null);
+    setOcupado(quoteNumber);
     const ok = await llamar(`${API}/aliado/servicios/${encodeURIComponent(quoteNumber)}/avance`, { estado });
     setOcupado(null);
     if (ok) { avisar('Listo: el cliente y MAQSER24 ya lo saben.'); router.refresh(); }
@@ -486,7 +500,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
       confirmar: 'Guardar ubicación',
     });
     if (donde === null) return;
-    setOcupado(productId); setMsg(null);
+    setOcupado(productId);
     const ok = await llamar(`${API}/aliado/equipos/${productId}/ubicacion`, { location: donde });
     setOcupado(null);
     if (ok) { avisar('Ubicación actualizada.'); router.refresh(); }
@@ -495,7 +509,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   async function guardarDatos(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setGuardando(true); setMsg(null);
+    setGuardando(true);
     const ok = await llamar(`${API}/aliado/perfil`, {
       contactName: String(fd.get('contactName') ?? ''),
       phone: String(fd.get('phone') ?? ''),
@@ -514,7 +528,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
     const form = e.currentTarget;
     const fd = new FormData(form);
     fd.set('kind', tipoDoc);
-    setGuardando(true); setMsg(null);
+    setGuardando(true);
     const r = await fetch(`${API}/aliado/documentos`, { method: 'POST', body: fd });
     setGuardando(false);
     if (!r.ok) {
@@ -587,13 +601,6 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           ) : null}
         </div>
       </header>
-
-      {msg ? (
-        <div role="status" className={`ms-alert al-msg ${msg.ok ? 'ms-alert-ok' : 'ms-alert-bad'}`} data-ok={msg.ok}>
-          <span className="al-msg-ico"><Icon name={msg.ok ? 'check' : 'warning'} size={16} /></span>
-          <span>{msg.texto}</span>
-        </div>
-      ) : null}
 
       {/* ── Resumen ── */}
       <nav className="ms-panel al-kpis" aria-label="Resumen">
@@ -678,6 +685,21 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
 
                 <LoQuePide pedido={s.pedido} />
 
+                {/* La cotización que el cliente aceptó, partida por partida (2026-10-15). */}
+                {s.partidas?.length ? (
+                  <div className="al-pide">
+                    <span className="al-dato-l">Cotización{s.documento ? ` ${s.documento}` : ''}</span>
+                    <dl>
+                      {s.partidas.map((p, i) => (
+                        <div key={i}>
+                          <dt>{p.concepto}{p.cantidad ? <span style={{ display: 'block', fontWeight: 400, color: 'var(--color-text-muted)' }}>{p.cantidad}</span> : null}</dt>
+                          <dd className="ms-num" style={{ textAlign: 'right' }}>{dinero(p.importe)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                ) : null}
+
                 {s.detail ? <div className="al-detalle">{s.detail}</div> : null}
 
                 {s.requirements.length > 0 ? (
@@ -689,11 +711,11 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
 
                 {abierta === 'aceptar' ? (
                   <div className="al-form">
-                    <label className="ms-field">
+                    <div className="ms-field">
                       <span className="ms-label">¿Cuándo llegas a la obra?</span>
-                      <input type="datetime-local" value={llegada} onChange={(e) => setLlegada(e.target.value)} className="ms-input" />
+                      <ShDateTimePicker value={llegada} onChange={setLlegada} min={new Date().toISOString().slice(0, 10)} aria-label="¿Cuándo llegas a la obra?" />
                       <span className="ms-hint">Es tu compromiso con el cliente y contra él medimos tu puntualidad.</span>
-                    </label>
+                    </div>
                     <div className="al-acciones" style={{ marginTop: 0 }}>
                       <button type="button" className="ms-btn" disabled={ocupado === s.assignmentId} onClick={() => contestar(s.assignmentId, 'aceptado')}>
                         <Icon name="check" size={16} />Confirmar que lo tomo
@@ -716,10 +738,10 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                   </div>
                 ) : (
                   <div className="al-acciones">
-                    <button type="button" className="ms-btn" onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'aceptar' }); setMsg(null); }}>
+                    <button type="button" className="ms-btn" onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'aceptar' }); }}>
                       <Icon name="check" size={16} />Sí puedo
                     </button>
-                    <button type="button" className="ms-btn ms-btn-sec" onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'rechazar' }); setMotivo(''); setMsg(null); }}>
+                    <button type="button" className="ms-btn ms-btn-sec" onClick={() => { setRespondiendo({ id: s.assignmentId, modo: 'rechazar' }); setMotivo(''); }}>
                       <Icon name="x" size={16} />No puedo
                     </button>
                   </div>
@@ -764,6 +786,10 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                       <Icon name="warning" size={14} /><span>Exige: {s.requirements.join(' · ')}</span>
                     </div>
                   ) : null}
+                  {/* Quién maneja la unidad: su enlace comparte la ubicación (2026-10-15). */}
+                  {s.state !== 'terminado' ? <OperadorServicio quoteNumber={s.quoteNumber} inicial={s.operador ?? null} /> : null}
+                  {/* En camino: el teléfono comparte dónde va (2026-10-14). */}
+                  {s.state === 'en_traslado' ? <CompartirUbicacion quoteNumber={s.quoteNumber} /> : null}
                   {/* Reporta el avance: el cliente y MAQSER24 se enteran al instante. */}
                   {sig ? (
                     <div className="al-avance">
@@ -792,7 +818,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         <Titulo
           desc={equipos.length > 0 ? 'Si confirmas seguido, te llegan más solicitudes: solo proponemos lo que sabemos que está libre.' : undefined}
           extra={!ofreciendo && lineasOferta.length > 0 ? (
-            <button type="button" className="ms-btn ms-btn-sm" onClick={() => { setOfreciendo(true); setMsg(null); }}>
+            <button type="button" className="ms-btn ms-btn-sm" onClick={() => { setOfreciendo(true); }}>
               <Icon name="box" size={15} />{botonOfrecer}
             </button>
           ) : null}
@@ -847,13 +873,13 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           <div className="ms-rows">
             {equipos.map((e) => {
               const viejo = e.diasSinConfirmar === null || e.diasSinConfirmar > 14;
-              const est = ESTADO_EQUIPO[e.state] ?? { label: e.state, tono: 'warn' as Tono };
+              const est = ESTADO_EQUIPO[e.state] ?? { label: e.state, color: 'var(--estado-por-confirmar)' };
               return (
                 <div key={e.id} className="ms-row al-equipo">
                   <div style={{ minWidth: 0 }}>
                     <div className="al-equipo-t">
                       <b>{e.name}</b>
-                      <Chip tono={est.tono}>{est.label}</Chip>
+                      <Chip tono={est.tono} color={est.color}>{est.label}</Chip>
                     </div>
                     <div className="al-equipo-m">
                       <span className={viejo ? 'al-viejo' : undefined}><Icon name={viejo ? 'warning' : 'clock'} size={13} />{e.confirmacion}</span>
@@ -911,13 +937,13 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                   <div>
                     <div className="al-lista-t">{r.site ?? r.category ?? 'Servicio'}</div>
                     <span className="al-lista-s">
-                      Folio {r.quoteNumber}{r.respondedAt ? ` · ${hace(r.respondedAt)}` : ''}{!acepto && r.reason ? ` · “${r.reason}”` : ''}
+                      Folio {r.quoteNumber}{r.respondedAt ? ` · ${hace(r.respondedAt)}` : ''}{!acepto && r.reason && r.answer !== 'tomado' ? ` · “${r.reason}”` : ''}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     {acepto && dinero(r.total) ? <span className="ms-num" style={{ fontSize: 13.5, fontWeight: 700 }}>{dinero(r.total)}</span> : null}
                     <Chip tono={acepto ? (r.stateLabel === 'Cerrado' ? 'ok' : 'info') : ''}>
-                      {acepto ? r.stateLabel : r.answer === 'retirado' ? 'Te retiraste' : 'No lo tomaste'}
+                      {acepto ? r.stateLabel : r.answer === 'retirado' ? 'Te retiraste' : r.answer === 'tomado' ? 'Lo tomó otro aliado' : 'No lo tomaste'}
                     </Chip>
                   </div>
                 </div>
@@ -993,11 +1019,11 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                     </ShSelectContent>
                   </ShSelect>
                 </label>
-                <label className="ms-field">
+                <div className="ms-field">
                   <span className="ms-label">¿Hasta cuándo vale?</span>
-                  <input type="date" name="expiresAt" className="ms-input" />
+                  <ShDatePicker name="expiresAt" defaultValue="" placeholder="No vence" aria-label="¿Hasta cuándo vale?" />
                   <span className="ms-hint">Si no vence, déjalo vacío.</span>
-                </label>
+                </div>
                 <label className="ms-field">
                   <span className="ms-label">Foto del documento</span>
                   {/* Foto y no archivo: en obra se le toma foto a la póliza. */}
@@ -1035,16 +1061,18 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
               </>
             ) : (
               <form onSubmit={guardarDatos} style={{ display: 'grid', gap: 14 }}>
+                {/* El autocomplete también le dice al filtro de campos qué es cada uno
+                    (nombre: solo letras; teléfono: solo números y 10 dígitos). */}
                 {([
-                  ['contactName', 'Nombre de quien contesta', aliado.contactName, 'text'],
-                  ['phone', 'Teléfono', aliado.phone, 'tel'],
-                  ['email', 'Correo', aliado.email, 'email'],
-                  ['city', 'Ciudad', aliado.city, 'text'],
-                  ['address', 'Dirección de tu base', aliado.address, 'text'],
-                ] as const).map(([name, label, valor, tipo]) => (
+                  ['contactName', 'Nombre de quien contesta', aliado.contactName, 'text', 'name', 190],
+                  ['phone', 'Teléfono', aliado.phone, 'tel', 'tel', 20],
+                  ['email', 'Correo', aliado.email, 'email', 'email', 190],
+                  ['city', 'Ciudad', aliado.city, 'text', 'address-level2', 120],
+                  ['address', 'Dirección de tu base', aliado.address, 'text', 'street-address', 500],
+                ] as const).map(([name, label, valor, tipo, auto, largo]) => (
                   <label key={name} className="ms-field">
                     <span className="ms-label">{label}</span>
-                    <input name={name} type={tipo} defaultValue={valor ?? ''} className="ms-input" />
+                    <input name={name} type={tipo} defaultValue={valor ?? ''} className="ms-input" autoComplete={auto} maxLength={largo} />
                   </label>
                 ))}
                 <label className="ms-field">

@@ -4,7 +4,7 @@ import { useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Footer, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
-import { cardStyle, inputStyle, h3Style, Field, Toggle } from '@/components/editor-kit';
+import { cardStyle, inputStyle, h3Style, Field } from '@/components/editor-kit';
 import { Btn, IconBtn, PageHeader, StatusText, Toast } from '@/components/ui';
 
 type Copys = Record<string, Record<string, string>>;
@@ -65,20 +65,8 @@ export function FooterEditor({ themeId, copys, tokens, footer, brand }: {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 440px', gap: 24, alignItems: 'start' }} className="ftr-ed-grid">
         <div style={{ display: 'grid', gap: 18 }}>
-          {/* Boletín */}
-          <div style={{ ...cardStyle, display: 'grid', gap: 16, marginBottom: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div><h3 style={h3Style}>Boletín (novedades)</h3><p style={desc}>La caja de suscripción arriba del pie.</p></div>
-              <Toggle on={config.showNewsletter} onClick={() => setF({ showNewsletter: !config.showNewsletter })} />
-            </div>
-            {config.showNewsletter ? (
-              <>
-                <Field label="Título"><input value={config.newsletterTitle} onChange={(e) => setF({ newsletterTitle: e.target.value })} style={inputStyle} placeholder="Recibe nuestras novedades" /></Field>
-                <Field label="Subtítulo"><textarea value={config.newsletterSubtitle} onChange={(e) => setF({ newsletterSubtitle: e.target.value })} rows={2} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
-              </>
-            ) : null}
-          </div>
-
+          {/* El boletín se retiró (2026-10-15): el sitio ya no tiene caja de
+              suscripción. Sus campos se quedan en el tema guardado, sin uso. */}
           {/* Descripción */}
           <div style={{ ...cardStyle, display: 'grid', gap: 12, marginBottom: 0 }}>
             <h3 style={h3Style}>Descripción de la marca</h3>

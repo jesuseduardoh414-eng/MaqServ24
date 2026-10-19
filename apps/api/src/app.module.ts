@@ -14,9 +14,9 @@ import { ProvidersModule } from './providers/providers.module';
 import { FreightModule } from './freight/freight.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AccountModule } from './account/account.module';
-import { VendorsModule } from './vendors/vendors.module';
 import { AdminModule } from './admin/admin.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 /**
  * Techo GLOBAL, generoso a propósito: es una red de seguridad contra inundaciones, no
@@ -31,7 +31,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
     // `@Throttle({ default: ... })` de cada endpoint. Ponerle nombre propio hacía que
     // esos decoradores no coincidieran con nada y NINGÚN límite por ruta se aplicara.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
-    AuthModule, ThemeModule, CatalogModule, SettingsModule, ContentModule, QuotesModule, QuoterModule, ProvidersModule, FreightModule, NotificationsModule, AccountModule, VendorsModule, AdminModule, IntegrationsModule,
+    AuthModule, ThemeModule, CatalogModule, SettingsModule, ContentModule, QuotesModule, QuoterModule, ProvidersModule, FreightModule, NotificationsModule, AccountModule, AdminModule, IntegrationsModule, ReviewsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ClientThrottlerGuard }],

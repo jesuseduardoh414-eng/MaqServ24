@@ -125,7 +125,7 @@ export function BlogManager({ blogs, themeId, copys, tokens, sectionEnabled }: {
     <div>
       <PageHeader
         eyebrow={['Ajustes', 'Sitio web']}
-        title="Bitácora / Blog"
+        title="Blog"
         actions={<Btn variant="primary" icon="ph-plus" href="/blog/nuevo">Nueva entrada</Btn>}
       />
 

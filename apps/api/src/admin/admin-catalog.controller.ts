@@ -3,7 +3,8 @@ import {
   ParseIntPipe, Patch, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { mediaStorage } from '../common/media-multer';
+import { mediaStorage, videoStorage } from '../common/media-multer';
+import { borrarSubidas } from '../common/media';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
@@ -31,9 +32,12 @@ import { horarioSchema, tarifasDe } from '@maqserv/config';
 import { ESTADO_ELIMINADO } from '../catalog/ofertas';
 import { AJUSTE_MARGEN, guardarAjuste, margenAliadoPct } from '../common/platform-settings';
 import { imageUrl } from '../catalog/images';
+import { ordenDeCategorias } from '../catalog/categories.service';
 
 const photoStorage = mediaStorage();
 const IMAGE_TYPES = /^image\/(png|jpe?g|webp|avif)$/;
+/** Tope del video de una tarjeta de categoría. Debe caber en `middlewareClientMaxBodySize` del panel. */
+const VIDEO_MAX_MB = 30;
 
 /**
  * Booleano que llega por multipart (todo es texto). OJO: `z.coerce.boolean`
@@ -410,12 +414,13 @@ export class AdminCatalogController {
       prisma.products.groupBy({ by: ['category_id'], _count: { _all: true } }),
     ]);
     const countMap = new Map(counts.map((c) => [c.category_id, c._count._all]));
-    return cats.map((c) => ({
+    return ordenDeCategorias(cats).map((c) => ({
       id: c.id,
       name: c.cat_name,
       slug: c.cat_slug,
       status: c.status,
       image: imageUrl(c.photo),
+      video: imageUrl(c.video),
       description: c.description ?? null,
       productCount: countMap.get(c.id) ?? 0,
     }));
@@ -430,6 +435,8 @@ export class AdminCatalogController {
     const slug = slugify(parsed.data.name);
     const dup = await prisma.categories.findUnique({ where: { cat_slug: slug } });
     if (dup) throw new BadRequestException('Ya existe una categoría con ese nombre');
+    // La nueva entra al final del orden del sitio; con 0 caía donde le tocara por nombre.
+    const ultima = await prisma.categories.aggregate({ _max: { sort_order: true } });
     const c = await prisma.categories.create({
       data: {
         cat_name: parsed.data.name,
@@ -437,9 +444,25 @@ export class AdminCatalogController {
         status: parsed.data.status ?? 1,
         photo: photo ? `uploads/${photo.filename}` : null,
         description: parsed.data.description?.trim() || null,
+        sort_order: (ultima._max.sort_order ?? 0) + 1,
       },
     });
     return { id: c.id, slug: c.cat_slug };
+  }
+
+  /**
+   * Orden de las tarjetas en el inicio y en /categorias (flechas de Catálogo →
+   * Categorías). Recibe TODOS los ids en el orden nuevo y numera 1..n.
+   */
+  @Post('categories/orden')
+  async reorderCategories(@Body() body: unknown) {
+    const parsed = z.object({ ids: z.array(z.number().int().positive()).min(1).max(200) }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Datos inválidos');
+    const ids = [...new Set(parsed.data.ids)];
+    await prisma.$transaction(
+      ids.map((id, i) => prisma.categories.updateMany({ where: { id }, data: { sort_order: i + 1 } })),
+    );
+    return { ok: true };
   }
 
   @Patch('categories/:id')
@@ -463,11 +486,41 @@ export class AdminCatalogController {
     return { ok: true };
   }
 
+  /**
+   * Video en bucle de la tarjeta (2026-10-19). Va aparte del PATCH para que un
+   * archivo de varios MB no viaje cada vez que se corrige el nombre. El video
+   * anterior se borra del disco: pesan mucho para dejarlos huérfanos.
+   */
+  @Post('categories/:id/video')
+  @UseInterceptors(FileInterceptor('video', { storage: videoStorage(), limits: { fileSize: VIDEO_MAX_MB * 1024 * 1024 } }))
+  async uploadCategoryVideo(@Param('id', ParseIntPipe) id: number, @UploadedFile() video?: Express.Multer.File) {
+    if (!video) throw new BadRequestException('Falta el video');
+    const path = `uploads/${video.filename}`;
+    const cat = await prisma.categories.findUnique({ where: { id }, select: { video: true } });
+    if (!cat) {
+      await borrarSubidas([path]);
+      throw new NotFoundException();
+    }
+    await prisma.categories.update({ where: { id }, data: { video: path } });
+    if (cat.video && cat.video !== path) void borrarSubidas([cat.video]);
+    return { ok: true, video: imageUrl(path) };
+  }
+
+  @Delete('categories/:id/video')
+  async deleteCategoryVideo(@Param('id', ParseIntPipe) id: number) {
+    const cat = await prisma.categories.findUnique({ where: { id }, select: { video: true } });
+    if (!cat) throw new NotFoundException();
+    await prisma.categories.update({ where: { id }, data: { video: null } });
+    void borrarSubidas([cat.video]);
+    return { ok: true };
+  }
+
   @Delete('categories/:id')
   async deleteCategory(@Param('id', ParseIntPipe) id: number) {
     const inUse = await prisma.products.count({ where: { category_id: id } });
     if (inUse > 0) throw new BadRequestException(`La categoría tiene ${inUse} producto(s); muévelos primero`);
-    await prisma.categories.delete({ where: { id } });
+    const borrada = await prisma.categories.delete({ where: { id } });
+    void borrarSubidas([borrada.video]);
     return { ok: true };
   }
 }

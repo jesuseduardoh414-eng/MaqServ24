@@ -7,6 +7,7 @@ import { ICON_TYPES, mediaStorage } from '../common/media-multer';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
+import { zTelefono } from '../common/campos';
 import { prisma } from '@maqserv/db';
 import { productSlug, themeTokensSchema } from '@maqserv/config';
 import { AdminGuard, Modulo } from './admin-auth';
@@ -57,7 +58,7 @@ const itemSchema = z.object({
 
 const settingsSchema = z.object({
   email: z.string().email().max(190).optional(),
-  phone: z.string().max(50).optional(),
+  phone: zTelefono().optional(),
   street: z.string().max(400).optional(),
 });
 

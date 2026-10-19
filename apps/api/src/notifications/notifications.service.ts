@@ -5,9 +5,7 @@ import { prisma } from '@maqserv/db';
 export type NotificationType =
   | 'quote_answered' | 'order_status' | 'payment_confirmed' | 'question_answered'
   /** Avance del servicio despues de aceptar la cotizacion. */
-  | 'service_status'
-  /** Retiro pagado o rechazado (vendedor). */
-  | 'withdraw';
+  | 'service_status';
 
 export interface NotificationDto {
   id: number;

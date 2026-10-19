@@ -3,6 +3,7 @@ import {
   ParseIntPipe, Patch, Post, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
+import { revisarCampos } from '../common/campos';
 import { Prisma, prisma } from '@maqserv/db';
 import { copysSchema, slugify, themeTokensSchema } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
@@ -61,6 +62,18 @@ export class AdminThemesController {
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
       throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Tema inválido');
+    }
+    // Los canales de contacto se publican en todo el sitio (barra, pie, Contacto):
+    // se revisan al guardar. El esquema del tema no, para no tumbar su lectura.
+    const contacto = parsed.data.tokens?.contact;
+    if (contacto) {
+      const malo = revisarCampos([
+        ['telefono', contacto.phone],
+        ['telefono', contacto.whatsapp],
+        ['correo', contacto.email],
+        ...(contacto.branches ?? []).map((b) => ['telefono', b.phone] as ['telefono', string]),
+      ]);
+      if (malo) throw new BadRequestException(`Contacto: ${malo}`);
     }
     const t = await prisma.theme.findUnique({ where: { id } });
     if (!t) throw new NotFoundException();

@@ -12,6 +12,7 @@ import {
   BrandsSection,
   CategoriesSection,
   FaqSection,
+  FAQ_EN_HOME,
   FeaturedSection,
   Hero,
   OfferSection,
@@ -99,7 +100,8 @@ async function datosEstructurados(theme: Theme, faqEncendida: boolean) {
       datos.push({
         '@context': 'https://schema.org',
         '@type': 'FAQPage',
-        mainEntity: faqs.map((f) => ({ '@type': 'Question', name: f.question, acceptedAnswer: { '@type': 'Answer', text: sinHtml(f.answer) } })),
+        // Las mismas que se ven en el home; la lista completa la declara /preguntas-frecuentes.
+        mainEntity: faqs.slice(0, FAQ_EN_HOME).map((f) => ({ '@type': 'Question', name: f.question, acceptedAnswer: { '@type': 'Answer', text: sinHtml(f.answer) } })),
       });
     }
   }

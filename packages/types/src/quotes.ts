@@ -168,5 +168,31 @@ export interface QuoteDetail extends QuoteSummary {
     closed: string | null;
     /** Los pasos por los que ya pasó, del más viejo al más nuevo. */
     history: Array<{ label: string; note: string | null; at: string | null }>;
+    /** Cuándo prometió llegar el aliado que lo tomó (ISO). */
+    arrival?: string | null;
+    /** Quién maneja la unidad (2026-10-15). Solo el nombre: para hablar, el cliente llama a MAQSER24. */
+    operator?: string | null;
+  } | null;
+  /**
+   * Solo mientras la unidad va en camino (2026-10-14): cuántos km le faltan,
+   * según la última ubicación que mandó el teléfono del aliado. Null en
+   * cualquier otro momento: fuera del traslado no se enseña dónde está nadie.
+   */
+  tracking?: {
+    /** Km por carretera hasta la obra; null si todavía no hay ubicación. */
+    km: number | null;
+    /** Cuándo se tomó esa ubicación. */
+    updatedAt: string | null;
+    /** La obra no tiene coordenadas: se mide al centro de su municipio. */
+    approximate: boolean;
+    /**
+     * Para el mapa del cliente (2026-10-15): su obra siempre; la unidad y su
+     * recorrido solo mientras va en camino. El patio del aliado no se enseña.
+     */
+    site?: { lat: number; lng: number; name: string | null } | null;
+    unit?: { lat: number; lng: number; at: string } | null;
+    route?: Array<{ lat: number; lng: number }>;
+    /** Va en camino: hay unidad que seguir y la página se refresca sola. */
+    moving?: boolean;
   } | null;
 }

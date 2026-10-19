@@ -173,6 +173,10 @@ model categories {
   // catálogo público y el panel ordenan por esto y luego por nombre; 0 = al
   // final, en orden alfabético. Columna agregada 2026-09-21.
   sort_order  Int     @default(0)
+  // Video en bucle de la tarjeta del sitio (MP4/WebM, "uploads/…"). Si hay,
+  // se pinta en lugar de la foto, que queda como portada. Columna agregada
+  // 2026-10-19 (sql/categorias-video.sql).
+  video       String? @db.Text
 
   @@index([id], map: "id")
 }
@@ -272,10 +276,18 @@ model faqs {
 }
 
 /// Preguntas de producto (tipo MercadoLibre): el cliente pregunta, el admin responde.
+/// Preguntas de producto y, desde 2026-10-12, también generales (sql/preguntas-sitio.sql):
+/// sin producto ni cuenta cuando llegan del formulario del sitio o se capturan en el panel.
+/// featured = 1 la publica en Preguntas frecuentes.
 model product_questions {
   id          Int       @id @default(autoincrement())
-  product_id  Int
-  user_id     Int
+  product_id  Int?
+  user_id     Int?
+  /// Quien preguntó sin cuenta: a ese correo se le avisa al responder.
+  asker_name  String?   @db.VarChar(190)
+  asker_email String?   @db.VarChar(190)
+  /// producto · sitio · correo · whatsapp · telefono · otro
+  source      String    @default("producto") @db.VarChar(20)
   question    String @db.Text
   answer      String? @db.Text
   status      Int       @default(1)
@@ -1179,6 +1191,39 @@ model services {
   photo String @db.Text
 }
 
+/// Rastreo (sql/rastreo.sql): dónde va la unidad mientras el servicio está "en traslado".
+/// La manda el teléfono del aliado desde su portal; se guardan los últimos puntos de cada servicio.
+model service_locations {
+  id          Int      @id @default(autoincrement())
+  quote_id    BigInt
+  provider_id Int
+  lat         Decimal  @db.Decimal(10, 7)
+  lng         Decimal  @db.Decimal(10, 7)
+  /// Qué tan exacto dice el teléfono que es el punto, en metros.
+  accuracy_m  Int?
+  created_at  DateTime @default(now()) @db.DateTime(6)
+
+  @@index([quote_id, id], map: "service_locations_quote_idx")
+}
+
+/// Reseña de un servicio cerrado (sql/resenas-servicio.sql). Una por servicio:
+/// el cliente la deja desde el enlace del correo de cierre, sin iniciar sesión.
+/// status: 0 por revisar · 1 publicada (se ve en el sitio) · 2 oculta.
+model service_reviews {
+  id          Int      @id @default(autoincrement())
+  quote_id    BigInt   @unique(map: "service_reviews_quote_key")
+  provider_id Int?
+  rating      Int      @db.TinyInt
+  comment     String?  @db.Text
+  author      String   @db.VarChar(190)
+  status      Int      @default(0) @db.TinyInt
+  created_at  DateTime @default(now()) @db.DateTime(0)
+  updated_at  DateTime @default(now()) @db.DateTime(0)
+
+  @@index([status, id], map: "service_reviews_status_idx")
+  @@index([provider_id], map: "service_reviews_provider_idx")
+}
+
 model site_reviews {
   id         BigInt    @id @default(autoincrement())
   user_id    Int
@@ -1690,6 +1735,8 @@ model email_log {
   subject     String @db.Text
   state       String   @db.VarChar(20)
   detail      String? @db.Text
+  /// El correo tal como salió, con los enlaces personales ocultos (sql/correo-contenido.sql).
+  body_html   String? @db.MediumText
   quote_id    BigInt?
   order_id    Int?
   provider_id Int?
@@ -1737,6 +1784,11 @@ model contact_messages {
   state      String    @default("nuevo") @db.VarChar(20)
   handled_by String?   @db.VarChar(190)
   handled_at DateTime? @db.DateTime(6)
+  /// La respuesta que se le mandó por correo desde Mensajes (sql/preguntas-sitio.sql).
+  answer      String?   @db.Text
+  answered_at DateTime? @db.DateTime(6)
+  /// Si se publicó en Preguntas frecuentes: la fila de product_questions que la muestra.
+  faq_id      Int?
   crm_pushed Boolean   @default(false)
   created_at DateTime  @default(now()) @db.DateTime(6)
 

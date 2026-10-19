@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { ShSelectCampo } from '@maqserv/ui';
 import { useState, type ReactNode } from 'react';
-import { OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR, centroDeMunicipio, radioDeCobertura, type OfertaProveedor, type TipoProveedor } from '@maqserv/config';
+import { OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR, centroDeMunicipio, problemaEmail, problemaNombre, problemaTelefono, radioDeCobertura, type OfertaProveedor, type TipoProveedor } from '@maqserv/config';
 import { evento } from '@/lib/analitica';
 import { Icon } from '@/components/Icon';
 
@@ -23,8 +24,10 @@ const RESPUESTAS: Array<[string, string]> = [
   ['480', 'El mismo día'],
 ];
 
-const correoOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-const digitos = (v: string) => v.replace(/\D/g, '').length;
+// Mismas reglas que la API (@maqserv/config). Antes bastaban 10 dígitos en
+// cualquier parte: "81-1234-5678 o casa" pasaba.
+const correoOk = (v: string) => !problemaEmail(v);
+const telefonoOk = (v: string) => !!v.trim() && !problemaTelefono(v);
 const aLista = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
 
 /**
@@ -78,7 +81,8 @@ export function RegistroProveedorForm() {
   const empresa = tipo === 'empresa';
   const err = {
     nombre: tocado && nombre.trim().length < 2,
-    telefono: tocado && digitos(telefono) < 10,
+    telefono: tocado && !telefonoOk(telefono),
+    contacto: tocado && empresa && !!problemaNombre(contacto),
     correo: tocado && correo.trim() !== '' && !correoOk(correo.trim()),
     ciudad: tocado && !ciudad.trim(),
     municipios: tocado && aLista(municipios).length === 0,
@@ -94,7 +98,8 @@ export function RegistroProveedorForm() {
     setTocado(true);
     setErrorServidor(null);
     if (
-      nombre.trim().length < 2 || digitos(telefono) < 10 || (correo.trim() && !correoOk(correo.trim())) ||
+      nombre.trim().length < 2 || !telefonoOk(telefono) || (correo.trim() && !correoOk(correo.trim())) ||
+      (empresa && problemaNombre(contacto)) ||
       !ciudad.trim() || aLista(municipios).length === 0 || ofrece.length === 0 || mensaje.trim().length < 10
     ) return;
     setEnviando(true);
@@ -164,24 +169,23 @@ export function RegistroProveedorForm() {
         {empresa ? (
           <div className="ms-field">
             <label htmlFor="rp-contacto" className="ms-label">Persona de contacto</label>
-            <input id="rp-contacto" className="ms-input" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Quién atenderá" autoComplete="name" />
+            <input id="rp-contacto" className="ms-input" value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Quién atenderá" autoComplete="name" maxLength={190} aria-invalid={err.contacto} />
+            {err.contacto ? <p className="ms-error">{problemaNombre(contacto)}</p> : null}
           </div>
         ) : null}
         <div className="ms-field">
           <label htmlFor="rp-tel" className="ms-label">Teléfono o WhatsApp<span className="ms-req">*</span></label>
-          <input id="rp-tel" type="tel" className="ms-input" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="10 dígitos" aria-invalid={err.telefono} autoComplete="tel" />
-          {err.telefono ? <p className="ms-error">Escribe un teléfono de 10 dígitos.</p> : null}
+          <input id="rp-tel" type="tel" className="ms-input" value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="81 1234 5678" aria-invalid={err.telefono} autoComplete="tel" inputMode="tel" maxLength={20} />
+          {err.telefono ? <p className="ms-error">{problemaTelefono(telefono) ?? 'Escribe un teléfono de 10 dígitos.'}</p> : null}
         </div>
         <div className="ms-field">
           <label htmlFor="rp-correo" className="ms-label">Correo</label>
           <input id="rp-correo" type="email" className="ms-input" value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="tu@correo.com" aria-invalid={err.correo} autoComplete="email" />
-          {err.correo ? <p className="ms-error">Correo no válido.</p> : <p className="ms-hint">Aquí te llega el enlace a tu portal si te aceptamos.</p>}
+          {err.correo ? <p className="ms-error">{problemaEmail(correo)}</p> : <p className="ms-hint">Aquí te llega el enlace a tu portal si te aceptamos.</p>}
         </div>
         <div className="ms-field">
           <label htmlFor="rp-respuesta" className="ms-label">¿En cuánto contestas una solicitud?</label>
-          <select id="rp-respuesta" className="ms-select" value={respuesta} onChange={(e) => setRespuesta(e.target.value)}>
-            {RESPUESTAS.map(([v, t]) => <option key={v || 'nd'} value={v}>{t}</option>)}
-          </select>
+          <ShSelectCampo id="rp-respuesta" value={respuesta} onChange={setRespuesta} options={RESPUESTAS.map(([v, t]) => ({ value: v, label: t }))} />
         </div>
       </div>
 
@@ -201,9 +205,7 @@ export function RegistroProveedorForm() {
           </div>
           <div className="ms-field">
             <label htmlFor="rp-estado" className="ms-label">Estado<span className="ms-req">*</span></label>
-            <select id="rp-estado" className="ms-select" value={estado} onChange={(e) => setEstado(e.target.value)}>
-              {ESTADOS_MX.map((e) => <option key={e} value={e}>{e}</option>)}
-            </select>
+            <ShSelectCampo id="rp-estado" value={estado} onChange={setEstado} options={ESTADOS_MX.map((e) => ({ value: e, label: e }))} />
           </div>
         </div>
         <div className="ms-field">

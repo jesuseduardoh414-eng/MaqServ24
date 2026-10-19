@@ -12,3 +12,5 @@ export const REFRESH_COOKIE = 'servmaq_refresh';
  * navegador y en los logs de acceso de Vercel y Render.
  */
 export const ALIADO_COOKIE = 'servmaq_aliado';
+/** Enlace firmado del operador de la unidad (2026-10-15): un servicio, 15 días. */
+export const OPERADOR_COOKIE = 'servmaq_operador';

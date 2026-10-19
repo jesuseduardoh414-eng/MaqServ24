@@ -104,7 +104,9 @@ async function bootstrap() {
     // bajo nuestro dominio (QA 2026-09-25).
     setHeaders: (res, ruta) => {
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      if (!/\.(png|jpe?g|webp|avif|gif|ico)$/i.test(ruta)) {
+      // Los videos de categoría (mp4/webm) se sirven en línea como las fotos:
+      // se reproducen dentro de un <video> y no ejecutan nada.
+      if (!/\.(png|jpe?g|webp|avif|gif|ico|mp4|webm)$/i.test(ruta)) {
         res.setHeader('Content-Disposition', 'attachment');
         res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
       }

@@ -1,8 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
-import { VENDOR_STATES, type VendorState } from '@maqserv/types';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { Btn, Chip, PageHeader, Panel, Stat, Stats, StatusText, type Tone } from '@/components/ui';
+import { Chip, PageHeader, Panel, Stat, Stats, StatusText, type Tone } from '@/components/ui';
 
 interface CustomerDetail {
   id: number;
@@ -10,16 +9,13 @@ interface CustomerDetail {
   email: string;
   phone: string | null;
   createdAt: string | null;
-  vendorState: VendorState | null;
-  shopName: string | null;
   profile: { address: string | null; city: string | null; zip: string | null; residency: string | null };
   stats: { orders: number; spent: number; quotes: number; comments: number; questions: number };
   quotes: Array<{ id: number; quoteNumber: string; total: number; status: string; createdAt: string | null }>;
   comments: Array<{ id: number; productId: number; product: string; rating: number | null; text: string; status: number; createdAt: string }>;
-  questions: Array<{ id: number; productId: number; product: string; question: string; answered: boolean; createdAt: string }>;
+  questions: Array<{ id: number; productId: number | null; product: string; question: string; answered: boolean; createdAt: string }>;
 }
 
-const VENDOR_TONE: Record<'warn' | 'ok' | 'bad', Tone> = { warn: 'warn', ok: 'info', bad: 'bad' };
 const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const day = (iso: string | null) =>
   iso ? new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'long', year: 'numeric' }).format(new Date(iso)) : '—';
@@ -42,7 +38,6 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
   const c = await adminFetch<CustomerDetail>(`/admin/users/${id}`);
   if (!c) notFound();
 
-  const vs = c.vendorState ? VENDOR_STATES[c.vendorState] : null;
   const p = c.profile;
   const address = [p.address, p.city, p.zip ? `CP ${p.zip}` : null, p.residency].filter(Boolean).join(', ');
 
@@ -63,12 +58,6 @@ export default async function CustomerDetailPage({ params }: { params: Promise<{
           eyebrow={['1 · Recibir', ['Cuentas del sitio', '/usuarios']]}
           title={c.name}
           subtitle={`Cliente desde el ${day(c.createdAt)}`}
-          actions={vs ? (
-            <Btn size="sm" href={`/vendedores/${c.id}`}>
-              <StatusText tone={VENDOR_TONE[vs.tone]}>{c.shopName ?? 'Vendedor'} · {vs.label.toLowerCase()}</StatusText>
-              <i className="ph ph-arrow-right" aria-hidden />
-            </Btn>
-          ) : null}
         />
 
         {/* Resumen */}

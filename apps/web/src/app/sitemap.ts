@@ -18,6 +18,7 @@ const FIJAS: Array<[ruta: string, freq: Frecuencia, prio: number]> = [
   ...LANDINGS.map((l): [string, Frecuencia, number] => [l.ruta, 'monthly', 0.9]),
   ['/quienes-somos', 'monthly', 0.6],
   ['/contacto', 'monthly', 0.6],
+  ['/preguntas-frecuentes', 'weekly', 0.6],
   ['/proveedores', 'monthly', 0.6],
   ['/blog', 'weekly', 0.7],
   ['/privacidad', 'yearly', 0.2],

@@ -5,6 +5,7 @@ import {
   COTIZADORES_META,
   calcularCotizacion,
   catalogoCotizadorSchema,
+  centroDeMunicipio,
   partidasPorProveedor,
   tieneImporte,
   type CalculoCotizacion,
@@ -14,6 +15,7 @@ import {
   type PartidaCotizador,
 } from '@maqserv/config';
 import { MailerService } from '../notifications/mailer.service';
+import { sincronizarReserva } from '../quotes/reservas';
 import {
   correoAcuseSolicitud,
   correoCotizacionDelPanel,
@@ -215,6 +217,115 @@ export class QuoterService {
       }
     }
     throw new BadRequestException('No se pudo asignar folio. Inténtalo de nuevo.');
+  }
+
+  /**
+   * COTIZAR UNA SOLICITUD CON EL TABULADOR (2026-10-15).
+   *
+   * La solicitud del formulario "Cotizar" llega sin precio, y "Responder" solo
+   * dejaba poner flete e impuesto: si el equipo no tenía precio en el catálogo
+   * al cliente le llegaba $0 de renta, y sin documento. Ahora se cotiza en el
+   * mismo cotizador del panel, ya llenado con los datos de la solicitud, y el
+   * documento (MQ-/TR-) queda ligado a ella: los importes salen de él.
+   *
+   * Se puede volver a cotizar mientras el cliente no acepte. Si ya se le había
+   * respondido con otro precio, la solicitud regresa a "Por cotizar" para que
+   * se le mande el bueno.
+   */
+  async solicitudLigable(quoteId: number) {
+    const q = await prisma.quotes.findUnique({
+      where: { id: BigInt(quoteId) },
+      select: {
+        id: true, quote_number: true, name: true, company_name: true, email: true, phone: true,
+        address: true, region: true, product_interested: true, requirements: true, comments: true,
+        status: true, accepted_at: true, user_id: true,
+        client_sites: { select: { name: true, address: true, municipality: true } },
+      },
+    });
+    if (!q) throw new NotFoundException('Solicitud no encontrada');
+    const req = (q.requirements ?? {}) as Record<string, unknown>;
+    if (req.origen === 'maquina') throw new BadRequestException('Esta solicitud ya trae su documento del cotizador.');
+    // Del cotizador del sitio (2026-10-15): llega por confirmar y se puede ajustar
+    // con el tabulador, siempre que sea de UNA parte (si el cliente pidió varias
+    // líneas, el documento es de todas y se responde tal como lo armó).
+    if (req.origen === 'cotizador' && typeof req.folio === 'string') {
+      const partes = await prisma.quotes.count({ where: { requirements: { path: '$.folio', equals: req.folio } } });
+      if (partes > 1) throw new BadRequestException('Esta cotización del sitio viene en varias partes: respóndela tal como la armó el cliente.');
+    }
+    if (q.accepted_at) throw new BadRequestException('El cliente ya aceptó esta cotización: su precio ya no se cambia.');
+    if (q.status === 'rejected') throw new BadRequestException('Esta solicitud está descartada.');
+    return q;
+  }
+
+  /** Lo que el cotizador necesita para abrirse ya llenado, y lo que pidió el cliente para tenerlo a la vista. */
+  async datosParaCotizar(quoteId: number) {
+    const q = await this.solicitudLigable(quoteId);
+    const req = (q.requirements ?? {}) as Record<string, unknown>;
+    const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+    const internas = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'obra_ubicacion', 'productos', 'productId']);
+    // El municipio casi nunca viene solo: va al final de la dirección ("Av. …, San
+    // Pedro Garza García") y `region` es el ESTADO. Se busca pieza por pieza.
+    const municipio = [q.client_sites?.municipality, texto(req.obra_ubicacion), q.address, q.region]
+      .flatMap((t) => (t ?? '').split(',').map((p) => p.trim()).filter(Boolean).reverse())
+      .map((p) => centroDeMunicipio(p)?.nombre)
+      .find(Boolean);
+    return {
+      id: Number(q.id),
+      quoteNumber: q.quote_number,
+      folioActual: texto(req.folio) || null,
+      inicial: {
+        cliente: q.company_name?.trim() || q.name,
+        obra: q.client_sites?.name ?? (texto(req.obra) || q.address || ''),
+        atencion: q.company_name ? q.name : '',
+        municipio: municipio ?? (q.client_sites?.municipality || texto(req.obra_ubicacion) || q.region || ''),
+        correo: q.email ?? '',
+        telefono: q.phone ?? '',
+        notas: '',
+      },
+      pide: q.product_interested ?? null,
+      detalle: Object.entries(req)
+        .filter(([k, v]) => !internas.has(k) && typeof v === 'string' && v.trim())
+        .slice(0, 12)
+        .map(([k, v]) => [k, String(v)] as [string, string]),
+      comentarios: q.comments ?? null,
+    };
+  }
+
+  /** Liga el documento recién emitido a la solicitud y le pasa sus importes. */
+  async ligarASolicitud(
+    q: Awaited<ReturnType<QuoterService['solicitudLigable']>>,
+    cot: { id: number; folio: string; subtotal: Prisma.Decimal; tax: Prisma.Decimal; total: Prisma.Decimal },
+  ) {
+    const req = (q.requirements ?? {}) as Record<string, unknown>;
+    const anterior = typeof req.quoterId === 'number' && req.quoterId !== cot.id ? req.quoterId : null;
+    await prisma.$transaction([
+      prisma.quotes.update({
+        where: { id: q.id },
+        data: {
+          requirements: {
+            ...req,
+            folio: cot.folio,
+            quoterId: cot.id,
+            // Del cotizador del sitio con precio nuevo: ya no es lo que el cliente
+            // vio, así que se le responde y la acepta él (no se aprueba directo).
+            ...(req.origen === 'cotizador' ? { precioAjustado: true } : {}),
+          } as Prisma.InputJsonValue,
+          // El flete ya va dentro de las partidas del documento.
+          subtotal: cot.subtotal,
+          tax: cot.tax,
+          freight_cost: 0,
+          total: cot.total,
+          ...(q.status === 'completed' ? { status: 'pending' } : {}),
+          updated_at: new Date(),
+        },
+      }),
+      // El documento que reemplaza no se borra (queda el rastro), pero ya no vale.
+      ...(anterior
+        ? [prisma.quoter_quotes.updateMany({ where: { id: anterior, state: { in: ['borrador', 'solicitada', 'enviada'] } }, data: { state: 'cancelada', updated_at: new Date() } })]
+        : []),
+    ]);
+    // Si regresó a "Por cotizar", suelta lo que apartaba; al responder se vuelve a apartar.
+    await sincronizarReserva(Number(q.id));
   }
 
   /**

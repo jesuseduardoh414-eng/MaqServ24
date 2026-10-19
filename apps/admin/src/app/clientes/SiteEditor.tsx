@@ -181,10 +181,10 @@ export function SiteEditor({
           <input className="adm-input" value={f.municipality} onChange={(e) => set('municipality', e.target.value)} placeholder="Monterrey" />
         </FormField>
         <FormField label="Quién responde en obra">
-          <input className="adm-input" value={f.contactName} onChange={(e) => set('contactName', e.target.value)} placeholder="Ing. residente" />
+          <input className="adm-input" data-campo="nombre" maxLength={190} value={f.contactName} onChange={(e) => set('contactName', e.target.value)} placeholder="Ing. residente" />
         </FormField>
         <FormField label="Su teléfono">
-          <input className="adm-input" value={f.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="81 8000 0000" />
+          <input className="adm-input" type="tel" inputMode="tel" maxLength={20} value={f.contactPhone} onChange={(e) => set('contactPhone', e.target.value)} placeholder="81 8000 0000" />
         </FormField>
       </div>
 

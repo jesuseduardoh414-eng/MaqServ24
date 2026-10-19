@@ -1,9 +1,10 @@
 import {
   BadRequestException, Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, Req, UseGuards,
+  ParseIntPipe, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
-import { prisma } from '@maqserv/db';
+import { zTelefono } from '../common/campos';
+import { prisma, type Prisma } from '@maqserv/db';
 import { problemaContrasena, rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
 import { AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
 import { hashPassword } from '../common/app-auth';
@@ -47,6 +48,28 @@ async function principalId(): Promise<number | null> {
 
 const SOLO_PRINCIPAL = 'Solo la cuenta principal puede dar o quitar Dirección General y modificar otras cuentas de Dirección';
 
+/**
+ * Acciones que se anotaron con una clave de código ("tabulador.guardar"). En la
+ * bitácora se leen así, y así se encuentran: buscar "tarifas" trae también las
+ * filas guardadas como `tabulador.*`. Las que ya se anotan en palabras
+ * ("cambio de rol") pasan tal cual.
+ */
+const ACCIONES: Record<string, string> = {
+  'tabulador.guardar': 'guardar tarifas',
+  'tabulador.restaurar': 'restaurar tarifas de fábrica',
+  'permisos.cambiar': 'cambio de permisos',
+  'permisos.restablecer': 'restablecer permisos',
+  'crm.maquina.alta': 'alta de máquina (costos)',
+  'crm.maquina.edicion': 'edición de máquina (costos)',
+  'crm.maquina.baja': 'baja de máquina (costos)',
+  'cotizacion.estado': 'cambio de estado de cotización',
+  'cotizacion.enviar': 'envío de cotización',
+  'cotizacion.eliminar': 'eliminar cotización',
+  'contrasena.restablecer': 'restablecer contraseña (por correo)',
+};
+
+const plano = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 @Modulo('admins')
 @Controller('admin/admins')
 @UseGuards(AdminGuard)
@@ -77,22 +100,56 @@ export class AdminAdminsController {
    * aquí y no en su propio menú porque se consulta cuando ya pasó algo raro, y
    * lo primero que se mira entonces es quién tenía acceso.
    */
+  /*
+   * Por páginas (2026-10-15): antes eran las últimas 60 filas y nada más; lo de
+   * la semana pasada ya no se podía consultar. `antes` es el id de la última
+   * fila que ya se ve ("Ver más" pide las anteriores) y `q` busca palabra por
+   * palabra en quién, acción, objetivo, detalle, rol y módulo: "laura rol"
+   * encuentra el cambio de rol de Laura aunque las dos palabras estén en
+   * columnas distintas. La comparación la hace MySQL con su collation, que no
+   * distingue mayúsculas ni acentos.
+   */
   @Get('bitacora')
-  async bitacora() {
-    const filas = await prisma.admin_audit.findMany({
-      orderBy: { id: 'desc' },
-      take: 60,
+  async bitacora(@Query('q') q?: string, @Query('antes') antes?: string, @Query('limite') limite?: string) {
+    const tope = Math.min(Math.max(Math.trunc(Number(limite)) || 25, 1), 100);
+    const cursor = Math.trunc(Number(antes));
+    const palabras = (q ?? '').trim().slice(0, 100).split(/\s+/).filter(Boolean).slice(0, 6);
+
+    const and: Prisma.admin_auditWhereInput[] = palabras.map((p) => {
+      const claves = Object.keys(ACCIONES).filter((k) => plano(ACCIONES[k]).includes(plano(p)));
+      return {
+        OR: [
+          { accion: { contains: p } },
+          { objetivo: { contains: p } },
+          { detalle: { contains: p } },
+          { admin_email: { contains: p } },
+          { admin_rol: { contains: p } },
+          { modulo: { contains: p } },
+          ...(claves.length ? [{ accion: { in: claves } }] : []),
+        ],
+      };
     });
-    return filas.map((f) => ({
-      id: f.id,
-      quien: f.admin_email,
-      rol: f.admin_rol,
-      modulo: f.modulo,
-      accion: f.accion,
-      objetivo: f.objetivo,
-      detalle: f.detalle,
-      cuando: f.created_at.toISOString(),
-    }));
+    if (cursor > 0) and.push({ id: { lt: cursor } });
+
+    const filas = await prisma.admin_audit.findMany({
+      where: and.length ? { AND: and } : undefined,
+      orderBy: { id: 'desc' },
+      // Una de más: si llega, hay otra página y se ofrece "Ver más".
+      take: tope + 1,
+    });
+    return {
+      filas: filas.slice(0, tope).map((f) => ({
+        id: f.id,
+        quien: f.admin_email,
+        rol: f.admin_rol,
+        modulo: f.modulo,
+        accion: ACCIONES[f.accion] ?? f.accion,
+        objetivo: f.objetivo,
+        detalle: f.detalle,
+        cuando: f.created_at.toISOString(),
+      })),
+      hayMas: filas.length > tope,
+    };
   }
 
   @Post()
@@ -101,7 +158,7 @@ export class AdminAdminsController {
       name: z.string().min(2).max(100),
       email: z.string().email().max(190),
       password: z.string().min(8).max(100),
-      phone: z.string().max(50).optional(),
+      phone: zTelefono().optional(),
       // Sin rol explícito cae en el de MENOS alcance, no en el de más: una
       // cuenta con permisos de sobra no se nota hasta que alguien borra algo.
       rol: z.enum(ROLES_VALIDOS).default(ROL_POR_DEFECTO),

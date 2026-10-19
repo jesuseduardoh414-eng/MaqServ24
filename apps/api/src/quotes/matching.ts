@@ -158,6 +158,8 @@ export interface Coincidencia {
    * dos máquinas iguales no valen lo mismo si una está a 5 km y la otra a 150.
    */
   distanciaKm: number | null;
+  /** Llega a la obra (la tiene en su lista o queda dentro de su radio). La oferta automática solo va a estos. */
+  cubre: boolean;
 }
 
 /** Compara municipios ignorando acentos, mayúsculas y espacios de sobra. */
@@ -330,7 +332,7 @@ export function emparejar(
         advertencias.push('No tiene equipos registrados en esta categoría');
       }
 
-      return { proveedor: p, puntaje, razones, advertencias, equiposDisponibles, distanciaKm: cob.km };
+      return { proveedor: p, puntaje, razones, advertencias, equiposDisponibles, distanciaKm: cob.km, cubre: cob.cubre };
     })
     .sort((a, b) => {
       if (b.puntaje !== a.puntaje) return b.puntaje - a.puntaje;

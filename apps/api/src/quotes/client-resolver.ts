@@ -1,4 +1,5 @@
 import { prisma } from '@maqserv/db';
+import { centroDeMunicipio } from '@maqserv/config';
 
 /**
  * A QUÉ CLIENTE Y A QUÉ OBRA PERTENECE UNA SOLICITUD NUEVA.
@@ -70,6 +71,118 @@ export interface Resuelto {
   siteId: number | null;
 }
 
+type Ref = { id: number; user_id: number | null };
+
+/**
+ * El cliente con ese nombre de empresa. La comparación exacta es salvo
+ * mayúsculas, así que "Constructora del Norte SA de CV" y "Constructora del
+ * Norte" quedarían separadas: se hace una segunda pasada normalizada sobre los
+ * candidatos que empiezan parecido, en vez de traerse la tabla entera.
+ */
+async function porEmpresa(empresa: string, clave: string): Promise<Ref | null> {
+  const exacto = await prisma.clients.findFirst({
+    where: { name: { equals: empresa } },
+    select: { id: true, user_id: true },
+  });
+  if (exacto) return exacto;
+  const primeras = empresa.split(/\s+/).slice(0, 2).join(' ');
+  const cercanos = await prisma.clients.findMany({
+    where: { name: { startsWith: primeras } },
+    select: { id: true, name: true, user_id: true },
+    take: 25,
+  });
+  const igual = cercanos.find((c) => normalizar(c.name) === clave);
+  return igual ? { id: igual.id, user_id: igual.user_id } : null;
+}
+
+/**
+ * EL CLIENTE DE UNA CUENTA DEL SITIO (2026-10-15).
+ *
+ * Quien se registra también es cliente, aunque todavía no pida nada: el panel
+ * lo ve en Clientes y obras desde que confirma su correo. Al registrarse sólo
+ * da su nombre, así que el cliente nace con el nombre de la PERSONA; cuando
+ * cotiza con el de su empresa, `deLaCuenta` lo corrige.
+ *
+ * Si antes pidió algo sin cuenta con ese mismo correo, se liga ese cliente en
+ * vez de crear otro. Nunca lanza.
+ */
+export async function clienteDeCuenta(userId: number): Promise<number | null> {
+  try {
+    const ya = await prisma.clients.findFirst({ where: { user_id: userId }, select: { id: true } });
+    if (ya) return ya.id;
+    const u = await prisma.users.findUnique({ where: { id: userId }, select: { name: true, email: true, phone: true } });
+    if (!u) return null;
+    const correo = u.email.trim().toLowerCase();
+    const sinCuenta = await prisma.clients.findFirst({ where: { email: { equals: correo }, user_id: null }, select: { id: true } });
+    if (sinCuenta) {
+      await prisma.clients.update({ where: { id: sinCuenta.id }, data: { user_id: userId, updated_at: new Date() } });
+      return sinCuenta.id;
+    }
+    const nuevo = await prisma.clients.create({
+      data: {
+        name: (u.name.trim() || correo).slice(0, 190),
+        user_id: userId,
+        email: correo,
+        phone: u.phone?.trim() || null,
+        notes: 'Se registró en el sitio.',
+      },
+      select: { id: true },
+    });
+    return nuevo.id;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * El cliente de la cuenta que está pidiendo.
+ *
+ * Sin empresa, o con la misma que ya tiene: ese. Con OTRA empresa, sólo se
+ * toca el cliente si sigue siendo el de la cuenta recién creada (el nombre de
+ * la persona, sin solicitudes ni obras): ahora se sabe cómo se llama de verdad,
+ * así que se renombra, o se junta con esa empresa si ya existía. Un cliente con
+ * historia no se renombra nunca: esa cuenta pide para otra empresa, y esa va
+ * aparte como siempre.
+ */
+async function deLaCuenta(userId: number, empresa: string, clave: string): Promise<Ref | null> {
+  const suyos = await prisma.clients.findMany({
+    where: { user_id: userId },
+    orderBy: { id: 'asc' },
+    select: { id: true, name: true, user_id: true },
+  });
+  if (suyos.length === 0) return null;
+  if (!clave) return suyos[0];
+  const mismo = suyos.find((c) => normalizar(c.name) === clave);
+  if (mismo) return mismo;
+
+  const u = await prisma.users.findUnique({ where: { id: userId }, select: { name: true } });
+  let provisional: Ref | null = null;
+  for (const c of suyos) {
+    if (!u || normalizar(c.name) !== normalizar(u.name)) continue;
+    const [pedidos, obras] = await Promise.all([
+      prisma.quotes.count({ where: { client_id: c.id } }),
+      prisma.client_sites.count({ where: { client_id: c.id } }),
+    ]);
+    if (pedidos === 0 && obras === 0) { provisional = c; break; }
+  }
+  if (!provisional) return null;
+
+  const existente = await porEmpresa(empresa, clave);
+  if (existente && existente.id !== provisional.id) {
+    // La empresa ya estaba: el de la cuenta no tenía nada, se va.
+    await prisma.clients.deleteMany({ where: { id: provisional.id } });
+    if (existente.user_id === null) {
+      await prisma.clients.update({ where: { id: existente.id }, data: { user_id: userId } });
+    }
+    return existente;
+  }
+  await prisma.clients.update({
+    where: { id: provisional.id },
+    data: { name: empresa.slice(0, 190), notes: 'Se registró en el sitio; la empresa salió de su primera solicitud.', updated_at: new Date() },
+  });
+  return provisional;
+}
+
 /**
  * Devuelve a qué cliente y obra pertenece, creándolos si hace falta.
  * Nunca lanza: ante cualquier problema devuelve nulls y la cotización sigue.
@@ -88,34 +201,20 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
     const empresa = (d.companyName ?? '').trim();
     const correo = (d.email ?? '').trim().toLowerCase();
     const claveEmpresa = normalizar(empresa);
-    if (!claveEmpresa && !correo) return { clientId: null, siteId: null };
+
+    // Quien tiene cuenta ya tiene cliente desde que la confirmó (ver
+    // `clienteDeCuenta`): se parte de ese antes que de adivinar por el nombre.
+    let cliente = d.userId ? await deLaCuenta(d.userId, empresa, claveEmpresa) : null;
+    if (!cliente && !claveEmpresa && !correo) return { clientId: null, siteId: null };
 
     // Buscar el cliente. Por empresa cuando la hay; si no, por correo.
-    let cliente = claveEmpresa
-      ? await prisma.clients.findFirst({
-          where: { name: { equals: empresa } },
-          select: { id: true, user_id: true },
-        })
-      : await prisma.clients.findFirst({
-          where: { email: { equals: correo } },
-          select: { id: true, user_id: true },
-        });
-
-    /**
-     * La comparación de arriba es exacta salvo mayúsculas, así que "Constructora
-     * del Norte SA de CV" y "Constructora del Norte" quedarían separadas. Se
-     * hace una segunda pasada normalizada sobre los candidatos que empiezan
-     * parecido, en vez de traerse la tabla entera.
-     */
-    if (!cliente && claveEmpresa) {
-      const primeras = empresa.split(/\s+/).slice(0, 2).join(' ');
-      const cercanos = await prisma.clients.findMany({
-        where: { name: { startsWith: primeras } },
-        select: { id: true, name: true, user_id: true },
-        take: 25,
-      });
-      const igual = cercanos.find((c) => normalizar(c.name) === claveEmpresa);
-      if (igual) cliente = { id: igual.id, user_id: igual.user_id };
+    if (!cliente) {
+      cliente = claveEmpresa
+        ? await porEmpresa(empresa, claveEmpresa)
+        : await prisma.clients.findFirst({
+            where: { email: { equals: correo } },
+            select: { id: true, user_id: true },
+          });
     }
 
     if (!cliente) {
@@ -155,7 +254,12 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
         client_id: cliente.id,
         name: nombrarObra(direccion, d.region),
         address: direccion,
-        municipality: d.region ?? null,
+        // El municipio REAL, si se reconoce (2026-10-15): `region` en el formulario
+        // es el ESTADO, y guardarlo como municipio dejaba la obra sin mapa.
+        municipality: [d.region, direccion]
+          .flatMap((t) => (t ?? '').split(',').map((p) => p.trim()).filter(Boolean).reverse())
+          .map((p) => centroDeMunicipio(p)?.nombre)
+          .find(Boolean) ?? null,
         contact_name: d.contactName ?? null,
         contact_phone: d.phone ?? null,
         notes: 'Obra deducida de una solicitud. Conviene revisar el nombre.',

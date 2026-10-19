@@ -195,6 +195,42 @@ export const COTIZADOR_CSS = `
 .cz-money .mr{ display:flex; justify-content:space-between; gap:12px; font-size:12.5px; color:var(--cz-muted); }
 .cz-money .mr.sub{ color:var(--cz-text); font-weight:700; font-size:13.5px; }
 
+/* ---- Triturados: una sección por forma de venta (2026-10-15) ---- */
+.cz-bloque + .cz-bloque{ margin-top:14px; }
+.cz-bloque-h{ display:flex; align-items:flex-start; gap:12px; }
+.cz-bloque-h .ico{ color:var(--cz-accent); flex-shrink:0; margin-top:-1px; }
+.cz-bloque-h .cz-card-s{ margin-bottom:14px; }
+.cz-bloque[data-vacio] .cz-bloque-h .cz-card-s{ margin-bottom:12px; }
+.cz-filas{ display:grid; gap:10px; margin-bottom:12px; }
+.cz-fila{ position:relative; display:flex; flex-wrap:wrap; align-items:flex-start; gap:11px 12px;
+  border:1px solid var(--cz-border); border-radius:var(--cz-radius); background:var(--cz-surface-2); padding:13px 44px 13px 14px; }
+.cz-fila > .cz-field{ flex:1 1 170px; min-width:0; }
+/* El primer campo (material, zona) es el de texto largo: más ancho. */
+.cz-fila > .cz-field:first-child{ flex:2 1 220px; }
+/* La columna del campo acotada: sin esto el texto largo de un desplegable
+   ("Base hidráulica · $260/ton") medía su ancho y se encimaba al campo vecino. */
+.cz-fila .cz-field, .cz-flete .cz-field{ grid-template-columns:minmax(0, 1fr); }
+.cz-fila > .cz-qty{ flex:1 1 150px; }
+.cz-fila-imp{ flex:1 1 150px; display:grid; gap:3px; align-content:end; justify-items:end; min-height:66px; text-align:right; }
+.cz-fila-imp span{ font-size:11.5px; color:var(--cz-muted); }
+.cz-fila-imp b{ font-size:15px; font-variant-numeric:tabular-nums; }
+.cz-fila-rm{ position:absolute; top:8px; right:8px; width:30px; height:30px; display:grid; place-items:center; border-radius:8px; }
+.cz-fila-rm:hover{ background:color-mix(in srgb, var(--cz-bad) 12%, transparent); }
+.cz-agregar{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:44px;
+  border:1px dashed color-mix(in srgb, var(--cz-accent) 55%, var(--cz-border)); border-radius:var(--cz-radius);
+  background:transparent; color:var(--cz-accent); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
+  transition:background .15s ease, border-color .15s ease; }
+.cz-agregar:hover{ background:var(--cz-accent-soft); border-color:var(--cz-accent); }
+.cz-agregar:focus-visible{ outline:2px solid var(--cz-accent); outline-offset:2px; }
+.cz-flete{ display:grid; gap:11px; margin-top:14px; padding-top:14px; border-top:1px dashed var(--cz-border); }
+.cz-flete-h{ display:grid; gap:2px; }
+.cz-flete-h b{ font-size:13.5px; }
+.cz-flete-h span{ font-size:12px; color:var(--cz-muted); }
+.cz-flete .cz-fila-imp{ min-height:0; justify-items:start; text-align:left; }
+@media (max-width: 640px){
+  .cz-fila-imp{ justify-items:start; text-align:left; min-height:0; }
+}
+
 /* ---- Resumen lateral ---- */
 .cz-side{ position:sticky; top:16px; background:var(--cz-surface); border:1px solid var(--cz-border);
   border-radius:var(--cz-radius); overflow:hidden; }

@@ -57,6 +57,7 @@ export function HistorialTabla({
   const [pendiente, empezar] = useTransition();
   const [busqueda, setBusqueda] = useState(filtros.search);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   function navegar(patch: Record<string, string>) {
     const p = new URLSearchParams({ ...filtros, ...patch });
@@ -64,8 +65,19 @@ export function HistorialTabla({
     empezar(() => router.push(`/cotizador/historial${p.size ? `?${p}` : ''}`));
   }
 
-  async function cambiarEstado(id: number, estado: string) {
+  async function cambiarEstado(fila: FilaCotizacion, estado: string) {
+    const id = fila.id;
     setError(null);
+    setAviso(null);
+    // Las del panel: "Aceptada" quiere decir que el cliente dijo que sí y abre su servicio (2026-10-15).
+    if (estado === 'aceptada' && fila.origen === 'panel' && fila.estado !== 'aceptada') {
+      const ok = await confirmar({
+        titulo: `¿El cliente aceptó ${fila.folio}?`,
+        mensaje: 'Se crea su servicio y se manda a los aliados que llegan a la obra. El primero que acepte se lo queda, y al cliente le llega la cotización autorizada.',
+        confirmar: 'Sí, aceptó',
+      });
+      if (!ok) return;
+    }
     const res = await fetch(`/api/admin/quoter/quotes/${id}/state`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -75,6 +87,12 @@ export function HistorialTabla({
       const b = await res.json().catch(() => null);
       setError(b?.message ?? 'No se pudo cambiar el estado.');
       return;
+    }
+    const b = await res.json().catch(() => null);
+    if (b?.servicio) {
+      setAviso(b.servicio.ofrecidos?.length
+        ? `Se creó el servicio ${b.servicio.quoteNumber} y se le ofreció a ${b.servicio.ofrecidos.join(', ')}. El primero que acepte se lo queda.`
+        : `Se creó el servicio ${b.servicio.quoteNumber}, pero ningún aliado llega a esa obra: búscale uno en Servicios.`);
     }
     empezar(() => router.refresh());
   }
@@ -136,6 +154,7 @@ export function HistorialTabla({
       </Toolbar>
 
       {error ? <Note tone="bad" style={{ marginBottom: 14 }}>{error}</Note> : null}
+      {aviso ? <Note tone="ok" icon="ph-check-circle" style={{ marginBottom: 14 }}>{aviso}</Note> : null}
 
       {items.length === 0 ? (
         <Panel>
@@ -183,7 +202,7 @@ export function HistorialTabla({
                           className="w-auto min-w-[140px]"
                           ariaLabel={`Estado de ${q.folio}`}
                           value={q.estado}
-                          onChange={(v) => cambiarEstado(q.id, v)}
+                          onChange={(v) => cambiarEstado(q, v)}
                           style={{ color: est.color, fontWeight: 600 }}
                           options={Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto }))}
                         />

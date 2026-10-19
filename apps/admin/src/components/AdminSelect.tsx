@@ -32,6 +32,22 @@ export interface OpcionSelect {
  */
 const VACIO = '__vacio__';
 
+/**
+ * Forma de los campos de Radix en el panel (desplegable, fecha, hora): mismo
+ * alto, radio, borde y fondo que `.adm-input`.
+ *
+ * Medidas del kit del panel (2026-10-08): el disparador de shadcn trae 44px y
+ * el radio redondeado del sitio; junto a `.adm-input` (38px) y a la búsqueda
+ * y los filtros (36px) se veía de otra familia. `md` iguala a `.adm-input` y
+ * `sm` a la barra de herramientas; quien lo use dentro de una fila de tabla
+ * puede bajarlo con `className` (p. ej. `h-[30px]`), que gana por tailwind-merge.
+ */
+export function claseCampoAdmin(size: 'sm' | 'md' = 'md') {
+  const kit = 'rounded-[8px] border-[var(--adm-border-strong)] bg-[rgba(255,255,255,0.025)]';
+  const medida = size === 'sm' ? 'h-9 px-3 text-[13px] gap-1.5' : 'h-[38px] px-3 text-[14px]';
+  return `${kit} ${medida}`;
+}
+
 export function AdminSelect({
   options,
   value,
@@ -77,16 +93,6 @@ export function AdminSelect({
     onChange?.(real);
   }
 
-  /*
-   * Medidas del kit del panel (2026-10-08): el disparador de shadcn trae 44px y
-   * el radio redondeado del sitio; junto a `.adm-input` (38px) y a la búsqueda
-   * y los filtros (36px) se veía de otra familia. `md` iguala a `.adm-input` y
-   * `sm` a la barra de herramientas; quien lo use dentro de una fila de tabla
-   * puede bajarlo con `className` (p. ej. `h-[30px]`), que gana por tailwind-merge.
-   */
-  const kit = 'rounded-[8px] border-[var(--adm-border-strong)] bg-[rgba(255,255,255,0.025)]';
-  const medida = size === 'sm' ? 'h-9 px-3 text-[13px] gap-1.5' : 'h-[38px] px-3 text-[14px]';
-
   return (
     <div style={{ position: 'relative', display: 'inline-flex', width: className?.includes('w-auto') ? 'auto' : '100%' }}>
       {name ? (
@@ -101,15 +107,15 @@ export function AdminSelect({
         />
       ) : null}
       <ShSelect value={valorRadix} onValueChange={cambiar} disabled={disabled}>
-        <ShSelectTrigger id={id} aria-label={ariaLabel} className={[kit, medida, className].filter(Boolean).join(' ')} style={style}>
+        <ShSelectTrigger id={id} aria-label={ariaLabel} className={[claseCampoAdmin(size), className].filter(Boolean).join(' ')} style={style}>
           <ShSelectValue placeholder={placeholder ?? 'Selecciona…'} />
         </ShSelectTrigger>
-        {/* La lista va en un portal colgado de <body> con z-index 120 (el del
-            sitio). En el panel hay ventanas más altas —Modal 1000, el detalle
-            de Solicitudes e Incidencias 200— y la lista se abría DETRÁS: el
-            selector parecía no hacer nada (Nivel y Estado en "Nuevo aliado").
-            1050 queda sobre todas ellas y bajo los avisos flotantes (1100). */}
-        <ShSelectContent className="z-[1050]">
+        {/* La lista va en un portal colgado de <body> en la capa 1050 (ver
+            popover.tsx en @maqserv/ui): sobre las ventanas del panel —Modal
+            1000, el detalle de Solicitudes e Incidencias 200— y bajo los
+            avisos flotantes (1100). Con 120 se abría DETRÁS y el selector
+            parecía no hacer nada (Nivel y Estado en "Nuevo aliado"). */}
+        <ShSelectContent>
           {options.map((o) => (
             <ShSelectItem key={o.value} value={aRadix(o.value)} disabled={o.disabled}>
               {o.label}

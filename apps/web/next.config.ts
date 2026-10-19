@@ -41,6 +41,13 @@ const origenesAcciones = [...new Set([dominioPublico ?? 'maqserv24.com', 'maqser
 const nextConfig: NextConfig = {
   ...(standalone ? { output: 'standalone' as const, outputFileTracingRoot: repoRoot } : {}),
   /**
+   * Solo en desarrollo: probar desde un celular el portal del aliado (rastreo,
+   * 2026-10-14) a través de un túnel HTTPS temporal (cloudflared). Sin esto,
+   * `next dev` bloquea los archivos de la página pedidos desde otro origen y
+   * los componentes del cliente no arrancan. En producción no hace nada.
+   */
+  allowedDevOrigins: ['*.trycloudflare.com'],
+  /**
    * Marca de la compilación, incrustada en el service worker (/sw.js). Cada
    * `next build` produce un valor distinto → el navegador ve un worker nuevo →
    * instala el nuevo y borra las cachés de la versión anterior. Sin esto, una

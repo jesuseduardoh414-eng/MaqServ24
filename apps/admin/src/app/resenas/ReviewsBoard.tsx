@@ -6,7 +6,21 @@ import {
 } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
 
-interface Review { id: number; author: string; product: string; rating: number; review: string; status: number; verified?: boolean; createdAt: string | null }
+/**
+ * Dos fuentes en un mismo tablero (2026-10-12): las reseñas de SERVICIO, que el
+ * cliente deja al cerrar su servicio (0 por revisar · 1 publicada · 2 oculta), y
+ * las de PRODUCTO que quedan de cuando había carrito (1 aprobada · 0 pendiente).
+ * `key` las distingue: el id solo no basta, son tablas distintas.
+ */
+export interface Review {
+  key: string; id: number; fuente: 'servicio' | 'producto';
+  author: string; product: string; rating: number; review: string; status: number; verified?: boolean; createdAt: string | null;
+  folio?: string | null; aliado?: string | null;
+}
+
+const base = (r: Review) => (r.fuente === 'servicio' ? '/api/admin/service-reviews' : '/api/admin/comments');
+/** "Ocultar" no es lo mismo en las dos: en la de producto vuelve a pendiente. */
+const oculta = (r: Review) => (r.fuente === 'servicio' ? 2 : 0);
 
 const PAGE_SIZE = 8;
 
@@ -16,9 +30,10 @@ const fmtDate = (iso: string | null) => {
   const d = new Date(iso);
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 };
-const statusMeta = (s: number): { label: string; tone: Tone } => s === 1
-  ? { label: 'Aprobada', tone: 'ok' }
-  : { label: 'Pendiente', tone: 'warn' };
+const statusMeta = (r: Review): { label: string; tone: Tone } => r.status === 1
+  ? { label: r.fuente === 'servicio' ? 'Publicada' : 'Aprobada', tone: 'ok' }
+  : r.status === 2 ? { label: 'Oculta', tone: 'muted' }
+    : { label: r.fuente === 'servicio' ? 'Por revisar' : 'Pendiente', tone: 'warn' };
 
 const Star = ({ filled, size }: { filled: boolean; size: number }) => filled
   ? <svg width={size} height={size} viewBox="0 0 24 24" fill="var(--adm-accent)" stroke="none" aria-hidden><polygon points="12 2 15 9 22 9.3 16.5 14 18.5 21 12 17 5.5 21 7.5 14 2 9.3 9 9" /></svg>
@@ -33,7 +48,7 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
   const [reviews, setReviews] = useState<Review[]>(initial);
   const [tab, setTab] = useState<'todas' | 'pend' | 'aprob'>('todas');
   const [query, setQuery] = useState('');
-  const [sel, setSel] = useState<Record<number, boolean>>({});
+  const [sel, setSel] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => { if (!toast) return; const id = setTimeout(() => setToast(null), 3500); return () => clearTimeout(id); }, [toast]);
@@ -51,7 +66,7 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
     const q = query.trim().toLowerCase();
     return reviews.filter((r) => {
       const tabOk = tab === 'todas' || (tab === 'pend' && r.status === 0) || (tab === 'aprob' && r.status === 1);
-      const qOk = !q || r.author.toLowerCase().includes(q) || r.review.toLowerCase().includes(q) || r.product.toLowerCase().includes(q);
+      const qOk = !q || [r.author, r.review, r.product, r.folio ?? '', r.aliado ?? ''].some((x) => x.toLowerCase().includes(q));
       return tabOk && qOk;
     });
   }, [reviews, tab, query]);
@@ -60,39 +75,41 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
   const cur = Math.min(page, pages);
   const paged = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE);
 
-  const visIds = filtered.map((r) => r.id);
-  const selectedCount = Object.keys(sel).filter((k) => sel[Number(k)]).length;
+  const visIds = filtered.map((r) => r.key);
+  const selectedCount = Object.keys(sel).filter((k) => sel[k]).length;
   const allSelected = visIds.length > 0 && visIds.every((id) => sel[id]);
 
   // ---- acciones (optimista + API) ----
-  async function apiStatus(id: number, status: number) {
-    return fetch(`/api/admin/comments/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+  async function apiStatus(r: Review, status: number) {
+    return fetch(`${base(r)}/${r.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
   }
-  async function setStatus(id: number, status: number) {
+  async function setStatus(rev: Review, status: number) {
     const prev = reviews;
-    setReviews((rs) => rs.map((r) => (r.id === id ? { ...r, status } : r)));
-    const r = await apiStatus(id, status);
+    setReviews((rs) => rs.map((r) => (r.key === rev.key ? { ...r, status } : r)));
+    const r = await apiStatus(rev, status);
     if (!r.ok) { setReviews(prev); setToast({ ok: false, text: 'No se pudo actualizar la reseña' }); }
   }
-  async function remove(id: number) {
+  async function remove(rev: Review) {
     if (!(await confirmar({ titulo: '¿Eliminar esta reseña?', mensaje: 'No se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
     const prev = reviews;
-    setReviews((rs) => rs.filter((r) => r.id !== id));
-    setSel((s) => { const n = { ...s }; delete n[id]; return n; });
-    const r = await fetch(`/api/admin/comments/${id}`, { method: 'DELETE' });
+    setReviews((rs) => rs.filter((r) => r.key !== rev.key));
+    setSel((s) => { const n = { ...s }; delete n[rev.key]; return n; });
+    const r = await fetch(`${base(rev)}/${rev.id}`, { method: 'DELETE' });
     if (!r.ok) { setReviews(prev); setToast({ ok: false, text: 'No se pudo eliminar' }); }
   }
   async function bulk(action: 'approve' | 'hide' | 'delete') {
-    const ids = Object.keys(sel).filter((k) => sel[Number(k)]).map(Number);
-    if (!ids.length) return;
-    if (action === 'delete' && !(await confirmar({ titulo: `¿Eliminar ${ids.length} ${ids.length === 1 ? 'reseña' : 'reseñas'}?`, mensaje: 'No se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
+    const elegidas = reviews.filter((r) => sel[r.key]);
+    if (!elegidas.length) return;
+    if (action === 'delete' && !(await confirmar({ titulo: `¿Eliminar ${elegidas.length} ${elegidas.length === 1 ? 'reseña' : 'reseñas'}?`, mensaje: 'No se puede deshacer.', confirmar: 'Eliminar', peligro: true }))) return;
     const prev = reviews;
-    if (action === 'delete') setReviews((rs) => rs.filter((r) => !ids.includes(r.id)));
-    else setReviews((rs) => rs.map((r) => (ids.includes(r.id) ? { ...r, status: action === 'approve' ? 1 : 0 } : r)));
+    const keys = new Set(elegidas.map((r) => r.key));
+    const nuevo = (r: Review) => (action === 'approve' ? 1 : oculta(r));
+    if (action === 'delete') setReviews((rs) => rs.filter((r) => !keys.has(r.key)));
+    else setReviews((rs) => rs.map((r) => (keys.has(r.key) ? { ...r, status: nuevo(r) } : r)));
     setSel({});
-    const results = await Promise.all(ids.map((id) => (action === 'delete'
-      ? fetch(`/api/admin/comments/${id}`, { method: 'DELETE' })
-      : apiStatus(id, action === 'approve' ? 1 : 0))));
+    const results = await Promise.all(elegidas.map((r) => (action === 'delete'
+      ? fetch(`${base(r)}/${r.id}`, { method: 'DELETE' })
+      : apiStatus(r, nuevo(r)))));
     if (results.some((r) => !r.ok)) { setReviews(prev); setToast({ ok: false, text: 'Algunas no se pudieron actualizar' }); }
   }
   function toggleAll() {
@@ -104,8 +121,8 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
     });
   }
   function exportCsv() {
-    const head = ['Autor', 'Producto', 'Calificación', 'Reseña', 'Estado', 'Verificada', 'Fecha'];
-    const rows = reviews.map((r) => [r.author, r.product, String(r.rating), r.review, r.status === 1 ? 'Aprobada' : 'Pendiente', r.verified ? 'Sí' : 'No', fmtDate(r.createdAt)]);
+    const head = ['Tipo', 'Folio', 'Autor', 'Servicio o producto', 'Aliado', 'Calificación', 'Reseña', 'Estado', 'Fecha'];
+    const rows = reviews.map((r) => [r.fuente === 'servicio' ? 'Servicio' : 'Producto', r.folio ?? '', r.author, r.product, r.aliado ?? '', String(r.rating), r.review, statusMeta(r).label, fmtDate(r.createdAt)]);
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -148,7 +165,7 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
       <PageHeader
         eyebrow={['Ajustes', 'Sitio web']}
         title="Reseñas y opiniones"
-        subtitle="Modera las reseñas que tus clientes dejan sobre equipos y servicio."
+        subtitle="Las calificaciones que dejan los clientes al terminar su servicio. Solo las publicadas y con comentario se ven en el sitio."
         actions={<Btn icon="ph-download-simple" onClick={exportCsv}>Exportar CSV</Btn>}
       />
 
@@ -194,15 +211,15 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
 
       {/* toolbar: tabs + búsqueda */}
       <Toolbar end={`${filtered.length} de ${total}`}>
-        <SearchBox value={query} onChange={(e) => changeQuery(e.target.value)} placeholder="Buscar por autor o reseña…" aria-label="Buscar reseña" />
+        <SearchBox value={query} onChange={(e) => changeQuery(e.target.value)} placeholder="Buscar por cliente, folio, aliado o reseña…" aria-label="Buscar reseña" />
         <Segmented<typeof tab>
           ariaLabel="Filtrar por estado"
           value={tab}
           onChange={changeTab}
           items={[
             { key: 'todas', label: 'Todas', count: total },
-            { key: 'pend', label: 'Pendientes', count: pending },
-            { key: 'aprob', label: 'Aprobadas', count: approved },
+            { key: 'pend', label: 'Por revisar', count: pending },
+            { key: 'aprob', label: 'Publicadas', count: approved },
           ]}
         />
       </Toolbar>
@@ -244,29 +261,29 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
         {paged.length === 0 ? (
           <EmptyState icon="ph-chat-centered-text" title="No hay reseñas que coincidan" sub="Prueba con otro filtro o término de búsqueda." />
         ) : paged.map((r) => {
-          const meta = statusMeta(r.status);
-          const on = !!sel[r.id];
+          const meta = statusMeta(r);
+          const on = !!sel[r.key];
           return (
-            <div key={r.id} className="adm-trow rev-row">
-              <button type="button" onClick={() => setSel((s) => ({ ...s, [r.id]: !s[r.id] }))} className="rev-c-sel" aria-label="Seleccionar" style={box(on)}>{on ? check : null}</button>
+            <div key={r.key} className="adm-trow rev-row">
+              <button type="button" onClick={() => setSel((s) => ({ ...s, [r.key]: !s[r.key] }))} className="rev-c-sel" aria-label="Seleccionar" style={box(on)}>{on ? check : null}</button>
               <div className="rev-c-author" style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
                 <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: 12.5, fontWeight: 600, color: 'var(--adm-text-2)', background: 'var(--adm-raised)', border: '1px solid var(--adm-border)' }}>{initials(r.author)}</span>
                 <div style={{ minWidth: 0 }}>
                   <div className="adm-cell-title" style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
                     <span className="adm-ellipsis">{r.author}</span>
-                    {r.verified ? <i className="ph-bold ph-seal-check" style={{ fontSize: 14, color: 'var(--adm-ok)', flexShrink: 0 }} title="Compra verificada" aria-label="Compra verificada" /> : null}
+                    {r.verified ? <i className="ph-bold ph-seal-check" style={{ fontSize: 14, color: 'var(--adm-ok)', flexShrink: 0 }} title={r.fuente === 'servicio' ? 'Servicio cerrado' : 'Compra verificada'} aria-label={r.fuente === 'servicio' ? 'Servicio cerrado' : 'Compra verificada'} /> : null}
                   </div>
-                  <div className="adm-cell-sub adm-ellipsis">{r.product}</div>
+                  <div className="adm-cell-sub adm-ellipsis">{[r.folio, r.product, r.aliado ? `Aliado: ${r.aliado}` : null].filter(Boolean).join(' · ')}</div>
                 </div>
               </div>
               <span className="rev-c-stars"><Stars n={Math.max(0, Math.min(5, r.rating))} /></span>
-              <div className="rev-c-text" style={{ fontSize: 13.5, color: 'var(--adm-text-2)', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{r.review}</div>
+              <div className="rev-c-text" title={r.review || undefined} style={{ fontSize: 13.5, color: r.review ? 'var(--adm-text-2)' : 'var(--adm-muted)', lineHeight: 1.45, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{r.review || 'Solo calificó, sin comentario.'}</div>
               <div className="rev-c-date" style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>{fmtDate(r.createdAt)}</div>
               <div className="rev-c-state"><StatusText tone={meta.tone}>{meta.label}</StatusText></div>
               <div className="rev-c-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                <IconBtn icon="ph-check" label="Aprobar" plain onClick={() => setStatus(r.id, 1)} />
-                <IconBtn icon="ph-eye-slash" label="Ocultar" plain onClick={() => setStatus(r.id, 0)} />
-                <IconBtn icon="ph-trash" label="Eliminar" plain danger onClick={() => remove(r.id)} />
+                <IconBtn icon="ph-check" label={r.fuente === 'servicio' ? 'Publicar' : 'Aprobar'} plain onClick={() => setStatus(r, 1)} />
+                <IconBtn icon="ph-eye-slash" label="Ocultar" plain onClick={() => setStatus(r, oculta(r))} />
+                <IconBtn icon="ph-trash" label="Eliminar" plain danger onClick={() => remove(r)} />
               </div>
             </div>
           );

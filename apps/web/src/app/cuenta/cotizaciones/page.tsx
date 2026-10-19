@@ -95,6 +95,8 @@ export default async function MyQuotesPage() {
             // Todas se abren (2026-10-05): la pendiente también, para ver lo que
             // se pidió y su estado; antes era una tarjeta muerta sin enlace.
             const pendiente = q.state === 'pendiente';
+            // Pedida desde el cotizador viendo el precio: ya tiene costo, solo falta revisarla (2026-10-15).
+            const enRevision = pendiente && q.total > 0;
             return (
               <Link key={q.id} href={`/cuenta/cotizaciones/${q.quoteNumber}`} className="ac-row">
                 <div style={{ minWidth: 0 }}>
@@ -105,12 +107,12 @@ export default async function MyQuotesPage() {
                   </div>
                   <div className="ac-chips">
                     <span className="ac-chip" style={{ color: c.fg, background: c.bg, border: `1px solid ${c.border}` }}>{st.text}</span>
-                    {pendiente ? <span className="ac-meta" style={{ marginTop: 0, alignSelf: 'center' }}>Un asesor te contactará</span> : null}
+                    {pendiente ? <span className="ac-meta" style={{ marginTop: 0, alignSelf: 'center' }}>{enRevision ? 'La estamos revisando' : 'Un asesor te contactará'}</span> : null}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                   <div className="ac-amount">
-                    {pendiente ? 'Por cotizar' : formatPrice(q.total)}
+                    {pendiente && !enRevision ? 'Por cotizar' : formatPrice(q.total)}
                     <small>{q.state === 'vigente' ? 'Ver y aceptar' : pendiente ? 'Ver solicitud' : 'Ver detalle'}</small>
                   </div>
                   <span aria-hidden style={{ color: 'var(--color-text-muted)', display: 'flex' }}><Icon name="chevronRight" size={18} /></span>

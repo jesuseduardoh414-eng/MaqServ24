@@ -102,6 +102,8 @@ export interface Category {
   image: string | null;
   /** Una línea bajo el nombre ("Arena, grava, base hidráulica y CNC"). */
   description: string | null;
+  /** Video en bucle de la tarjeta (URL). Si hay, va en lugar de `image`, que queda de portada. */
+  video: string | null;
   productCount: number;
 }
 

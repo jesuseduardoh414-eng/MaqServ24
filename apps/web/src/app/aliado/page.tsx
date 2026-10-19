@@ -6,6 +6,8 @@ import { getTheme } from '@/lib/theme';
 import { SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 import { PortalAliado, type DatosPortal } from './PortalAliado';
+// El mismo encabezado que el enlace del operador (2026-10-15).
+import { EncabezadoPortal } from './EncabezadoPortal';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
@@ -67,7 +69,7 @@ export default async function AliadoPage({
 
   return (
     <>
-      <EncabezadoAliado theme={theme} />
+      <EncabezadoPortal theme={theme} />
       <main className="ms-page" style={{ minHeight: '100vh' }}>
         <PortalAliado datos={datos} contacto={contacto} />
       </main>
@@ -76,51 +78,10 @@ export default async function AliadoPage({
   );
 }
 
-/**
- * Encabezado del portal: solo el logo (2026-09-24). Sin el menú del sitio a
- * propósito: quien llega aquí viene a contestar una solicitud, no a navegar
- * el catálogo. Usa los mismos logos del tema que el header del sitio, con el
- * mismo intercambio claro/oscuro por CSS (`brand-swap`).
- */
-function EncabezadoAliado({ theme }: { theme: Awaited<ReturnType<typeof getTheme>> }) {
-  const b = theme.tokens.branding ?? {};
-  const claro = b.logoLight ?? null;
-  const oscuro = b.logoDark ?? null;
-  const alt = 'MAQSER24';
-  const img: React.CSSProperties = { objectFit: 'contain', width: 'auto' };
-  return (
-    <header
-      style={{
-        position: 'sticky', top: 0, zIndex: 40,
-        background: 'color-mix(in srgb, var(--color-bg) 94%, transparent)',
-        borderBottom: '1px solid var(--color-border)',
-      }}
-    >
-      <div style={{ maxWidth: 1240, margin: '0 auto', padding: '12px clamp(14px, 2.5vw, 24px)', display: 'flex', alignItems: 'center' }}>
-        <Link href="/" aria-label="Ir al sitio de MAQSER24" style={{ display: 'inline-flex', alignItems: 'center' }}>
-          {claro && oscuro ? (
-            <span className="brand-swap" style={{ display: 'inline-flex', alignItems: 'center' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="brand-logo-light hdr-logo-img" src={claro} alt={alt} style={img} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="brand-logo-dark hdr-logo-img" src={oscuro} alt={alt} style={img} />
-            </span>
-          ) : claro || oscuro ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img className="hdr-logo-img" src={(claro ?? oscuro) as string} alt={alt} style={img} />
-          ) : (
-            <strong style={{ fontFamily: 'var(--font-display)', fontSize: 20, letterSpacing: '-0.01em' }}>{alt}</strong>
-          )}
-        </Link>
-      </div>
-    </header>
-  );
-}
-
 function SinAcceso({ theme, motivo }: { theme: Awaited<ReturnType<typeof getTheme>>; motivo: string }) {
   return (
     <>
-      <EncabezadoAliado theme={theme} />
+      <EncabezadoPortal theme={theme} />
       <main className="ms-page" style={{ minHeight: '70vh', display: 'grid', alignItems: 'center' }}>
         <div className="ms-wrap-narrow" style={{ width: '100%', boxSizing: 'border-box' }}>
           <div className="ms-empty">

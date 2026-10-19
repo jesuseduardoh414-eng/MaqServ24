@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import type { Copys, ThemeTokens } from '@maqserv/config';
+import { defaultTheme, type Copys, type ThemeTokens } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ThemeEditor } from './ThemeEditor';
@@ -22,6 +22,14 @@ export default async function ThemeEditPage({ params }: { params: Promise<{ id: 
   const theme = await adminFetch<ThemeFull>(`/admin/themes/${id}`);
   if (!theme) notFound();
 
+  // Los textos que el código estrenó después de guardar este tema (p. ej. los
+  // del acceso, 2026-10-15) no estaban en su copia y no salían en el editor:
+  // se listan con su valor de fábrica, y lo guardado manda.
+  const copys: Copys = {
+    ...theme.copys,
+    es: { ...(defaultTheme.copys.es ?? {}), ...(theme.copys?.es ?? {}) },
+  };
+
   // El encabezado lo pinta el editor: los botones de Publicar/Guardar viven en
   // su estado y van a la derecha del título, como en el resto del panel.
   return (
@@ -31,7 +39,7 @@ export default async function ThemeEditPage({ params }: { params: Promise<{ id: 
         themeName={theme.name}
         active={theme.active}
         initialTokens={theme.tokens}
-        initialCopys={theme.copys}
+        initialCopys={copys}
         hasDraft={theme.hasDraft}
       />
     </AdminShell>

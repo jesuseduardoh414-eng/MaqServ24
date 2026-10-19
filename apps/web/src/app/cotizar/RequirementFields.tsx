@@ -1,6 +1,7 @@
 'use client';
 
 import type { RequestForm } from '@maqserv/config';
+import { ShDatePicker, ShSelectCampo } from '@maqserv/ui';
 
 /**
  * Preguntas propias del servicio (documento institucional, secciones 8 a 13).
@@ -89,12 +90,16 @@ export function RequirementFields({
               </label>
 
               {f.type === 'opcion' ? (
-                <select {...comun} className="ms-select" onChange={(e) => onChange(f.key, e.target.value)}>
-                  <option value="">Selecciona…</option>
-                  {(f.options ?? []).map((o) => (
-                    <option key={o} value={o}>{o}</option>
-                  ))}
-                </select>
+                // name: su campo oculto entra en la validación del paso (pasoValido).
+                <ShSelectCampo
+                  id={comun.id}
+                  name={comun.id}
+                  value={comun.value}
+                  required={comun.required}
+                  aria-label={comun['aria-label']}
+                  onChange={(v) => onChange(f.key, v)}
+                  options={(f.options ?? []).map((o) => ({ value: o, label: o }))}
+                />
               ) : f.type === 'parrafo' ? (
                 <textarea
                   {...comun}
@@ -102,12 +107,24 @@ export function RequirementFields({
                   className="ms-textarea"
                   onChange={(e) => onChange(f.key, e.target.value)}
                 />
+              ) : f.type === 'fecha' ? (
+                <ShDatePicker
+                  id={comun.id}
+                  name={comun.id}
+                  value={comun.value}
+                  required={comun.required}
+                  aria-label={comun['aria-label']}
+                  min={hoyLocal()}
+                  onChange={(v) => onChange(f.key, v)}
+                />
               ) : (
                 <input
                   {...comun}
                   className="ms-input"
-                  type={f.type === 'fecha' ? 'date' : f.type === 'numero' ? 'number' : 'text'}
-                  min={f.type === 'numero' ? 0 : f.type === 'fecha' ? hoyLocal() : undefined}
+                  type={f.type === 'numero' ? 'number' : 'text'}
+                  min={f.type === 'numero' ? 0 : undefined}
+                  // Superficie (m²) y espesor (cm) llevan decimales: sin esto el paso por defecto (1) rechaza 12.5.
+                  step={f.type === 'numero' ? 'any' : undefined}
                   onChange={(e) => onChange(f.key, e.target.value)}
                 />
               )}

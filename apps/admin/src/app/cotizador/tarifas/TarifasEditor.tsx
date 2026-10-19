@@ -162,28 +162,28 @@ export function TarifasEditor({
             <input className="adm-input" value={cat.empresa.nombre} onChange={(e) => set({ empresa: { ...cat.empresa, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="RFC">
-            <input className="adm-input" value={cat.empresa.rfc} placeholder="Sin capturar" onChange={(e) => set({ empresa: { ...cat.empresa, rfc: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" data-campo="rfc" maxLength={13} value={cat.empresa.rfc} placeholder="Sin capturar" onChange={(e) => set({ empresa: { ...cat.empresa, rfc: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Domicilio fiscal" ancho>
             <input className="adm-input" value={cat.empresa.direccion} placeholder="Sin capturar" onChange={(e) => set({ empresa: { ...cat.empresa, direccion: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Teléfono">
-            <input className="adm-input" value={cat.empresa.telefono} onChange={(e) => set({ empresa: { ...cat.empresa, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="tel" inputMode="tel" maxLength={20} value={cat.empresa.telefono} onChange={(e) => set({ empresa: { ...cat.empresa, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Correo">
-            <input className="adm-input" value={cat.empresa.correo} onChange={(e) => set({ empresa: { ...cat.empresa, correo: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="email" maxLength={190} value={cat.empresa.correo} onChange={(e) => set({ empresa: { ...cat.empresa, correo: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Sitio web">
             <input className="adm-input" value={cat.empresa.web} onChange={(e) => set({ empresa: { ...cat.empresa, web: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Firma · nombre" nota="Vacío = el documento no lleva bloque de firma.">
-            <input className="adm-input" value={cat.firma.nombre} placeholder="Sin capturar" onChange={(e) => set({ firma: { ...cat.firma, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" data-campo="nombre" maxLength={190} value={cat.firma.nombre} placeholder="Sin capturar" onChange={(e) => set({ firma: { ...cat.firma, nombre: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Firma · puesto">
             <input className="adm-input" value={cat.firma.puesto} onChange={(e) => set({ firma: { ...cat.firma, puesto: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Firma · teléfono">
-            <input className="adm-input" value={cat.firma.telefono} onChange={(e) => set({ firma: { ...cat.firma, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
+            <input className="adm-input" type="tel" inputMode="tel" maxLength={20} value={cat.firma.telefono} onChange={(e) => set({ firma: { ...cat.firma, telefono: e.target.value } } as Partial<CatalogoCotizador>)} />
           </Campo>
           <Campo etiqueta="Párrafo de saludo" ancho>
             <textarea className="adm-textarea" rows={3} value={cat.saludo} onChange={(e) => set({ saludo: e.target.value } as Partial<CatalogoCotizador>)} />

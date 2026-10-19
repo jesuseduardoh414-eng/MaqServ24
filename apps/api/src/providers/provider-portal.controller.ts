@@ -1,59 +1,20 @@
 import {
-  BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Patch, Post,
+  BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Put,
   Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
+import { asignarOperador, operadorDe } from './operador';
+import { guardarUbicacion } from '../quotes/rastreo';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { atributosDe, esLineaServicio, horarioSchema, requestFormFor, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
 
-/** Claves internas de `quotes.requirements` que no le dicen nada al aliado. */
-const INTERNAS = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'obra_ubicacion']);
-
-/**
- * LO QUE PIDE EL CLIENTE, para el aliado (2026-10-08).
- *
- * El documento (sección 14) dice qué necesita cada proveedor para decidir:
- * la rentadora, equipo y fechas; el de servicios, "datos completos"; el de
- * materiales, "especificación, tonelaje/volumen, destino, ventana". Antes la
- * tarjeta solo traía la categoría y un comentario libre. Ahora trae las
- * respuestas del formulario de SU línea, con su etiqueta, y los conceptos que
- * armó el cotizador ("Retroexcavadora c/ cucharón · 3 días").
- */
-/**
- * Las notas sueltas del comentario (lo que escribió el cliente aparte del
- * formulario). El resto del comentario repite lo que ya va en `pedido`.
- */
-function notasDe(comments: string | null): string | null {
-  const notas = (comments ?? '').split('\n').map((l) => l.trim()).filter((l) => /^(Notas del cliente|Atención|Comentarios?):/i.test(l));
-  return notas.length ? notas.join('\n') : null;
-}
-
-function pedidoDe(categoria: string | null, requirements: unknown, comments: string | null): Array<{ label: string; valor: string }> {
-  const out: Array<{ label: string; valor: string }> = [];
-  const conceptos = comments?.match(/Conceptos:s*(.+)/)?.[1]?.trim();
-  if (conceptos) out.push({ label: 'Lo que pidió', valor: conceptos });
-  const req = requirements && typeof requirements === 'object' && !Array.isArray(requirements)
-    ? (requirements as Record<string, unknown>)
-    : {};
-  const form = requestFormFor(categoria);
-  const campos = new Map((form?.fields ?? []).map((c) => [c.key, c]));
-  // En el orden del formulario de la línea; lo que no esté en él, al final.
-  const claves = [...(form?.fields ?? []).map((c) => c.key), ...Object.keys(req).filter((k) => !campos.has(k))];
-  for (const k of [...new Set(claves)]) {
-    if (INTERNAS.has(k)) continue;
-    const v = req[k];
-    if (v === null || v === undefined || v === '' || typeof v === 'object') continue;
-    const c = campos.get(k);
-    const label = c?.label ?? (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ');
-    out.push({ label, valor: `${String(v)}${c?.unit ? ` ${c.unit}` : ''}` });
-  }
-  return out;
-}
 import { MailerService } from '../notifications/mailer.service';
+import { notasDe, pedidoDe } from './pedido';
 import { avisarPanel } from '../notifications/panel';
 import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
 import { sanitizeUserHtml } from '../common/sanitize';
 import { z } from 'zod';
+import { zCorreo, zTelefono } from '../common/campos';
 import { mediaStorage } from '../common/media-multer';
 import { imageUrl } from '../catalog/images';
 import {
@@ -68,6 +29,7 @@ import { lista } from '../common/json-list';
 import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { ubicarAliado } from './cobertura-aliado';
+import { MAX_PUNTOS, SEGUNDOS_ENTRE_PUNTOS } from '../quotes/rastreo';
 
 /**
  * EL PORTAL DEL ALIADO (documento institucional, sección 20).
@@ -100,8 +62,8 @@ import { ubicarAliado } from './cobertura-aliado';
  */
 const perfilSchema = z.object({
   contactName: z.string().max(190).optional().nullable(),
-  phone: z.string().max(40).optional().nullable(),
-  email: z.string().max(190).optional().nullable(),
+  phone: zTelefono().optional().nullable(),
+  email: zCorreo().optional().nullable(),
   city: z.string().max(120).optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   coverage: z.array(z.string().max(120)).max(60).optional(),
@@ -204,7 +166,7 @@ export class ProviderPortalController {
             starts_on: { lte: hoy },
             OR: [{ ends_on: null }, { ends_on: { gte: hoy } }],
           },
-          select: { product_id: true, state: true, starts_on: true, ends_on: true },
+          select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
         })
       : [];
     const porEquipo = new Map<number, typeof bloques>();
@@ -223,6 +185,22 @@ export class ProviderPortalController {
     );
 
     const enCurso = ['cerrado', 'cancelado'];
+
+    /**
+     * La cotización completa de lo que espera respuesta (2026-10-15): el
+     * aliado ve las mismas partidas e importes que el cliente aceptó.
+     */
+    const quoterIdDe = (r: unknown) => {
+      const id = (r as { quoterId?: unknown } | null)?.quoterId;
+      return typeof id === 'number' ? id : null;
+    };
+    const idsCotizacion = [...new Set(
+      asignaciones.filter((a) => a.state === 'propuesto').map((a) => quoterIdDe(a.quotes.requirements)).filter((x): x is number => x !== null),
+    )];
+    const cotizaciones = idsCotizacion.length
+      ? await prisma.quoter_quotes.findMany({ where: { id: { in: idsCotizacion } }, select: { id: true, folio: true, snapshot: true } })
+      : [];
+    const cotizacionDe = new Map(cotizaciones.map((c) => [c.id, { folio: c.folio, partidas: renglonesDe(c.snapshot) }]));
 
     /**
      * Nombres legibles de sus líneas de servicio: el aliado no tiene por qué
@@ -288,6 +266,8 @@ export class ProviderPortalController {
           // Lo que el cliente ya aceptó pagar: es lo primero que el aliado
           // pregunta antes de decir que sí.
           total: Number(a.quotes.total) || null,
+          documento: cotizacionDe.get(quoterIdDe(a.quotes.requirements) ?? -1)?.folio ?? null,
+          partidas: cotizacionDe.get(quoterIdDe(a.quotes.requirements) ?? -1)?.partidas ?? [],
         })),
 
       /** Lo que ya es suyo y sigue corriendo, con los datos de la obra. */
@@ -306,6 +286,8 @@ export class ProviderPortalController {
           contactPhone: a.quotes.client_sites?.contact_phone ?? null,
           requirements: a.quotes.client_sites?.requirements ?? [],
           pedido: pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments),
+          // Quién maneja la unidad (2026-10-15): su enlace es para él, no para la empresa.
+          operador: (() => { const o = operadorDe(a.quotes.requirements); return o ? { nombre: o.nombre, telefono: o.telefono } : null; })(),
         })),
 
       /**
@@ -473,6 +455,48 @@ export class ProviderPortalController {
     if (!q || !suya) throw new BadRequestException('Ese servicio no es tuyo.');
     const prov = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { name: true } });
     return this.services.mover(Number(q.id), p.data.estado, { adminId: null, porAliado: prov?.name ?? 'El aliado', note: `Lo reportó ${prov?.name ?? 'el aliado'} desde su portal` });
+  }
+
+  /**
+   * EL OPERADOR DE LA UNIDAD (2026-10-15, ver operador.ts). El aliado dice quién
+   * la maneja y le manda SU enlace por WhatsApp: con él avisa que salió y que
+   * llegó, y comparte la ubicación, sin ver nada más del aliado. Volver a
+   * mandarlo invalida el enlace anterior.
+   */
+  @Put('servicios/:quoteNumber/operador')
+  async operador(@Req() req: AliadoRequest, @Param('quoteNumber') quoteNumber: string, @Body() body: unknown) {
+    const p = z.object({ nombre: z.string().trim().min(2, 'Escribe el nombre del operador').max(120), telefono: zTelefono().optional().nullable() }).safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Datos inválidos');
+    const q = await prisma.quotes.findFirst({ where: { quote_number: quoteNumber.slice(0, 40) }, select: { id: true, service_state: true } });
+    const suya = q
+      ? await prisma.service_assignments.findFirst({ where: { quote_id: q.id, provider_id: req.providerId, state: 'aceptado' }, select: { id: true } })
+      : null;
+    if (!q || !suya) throw new BadRequestException('Ese servicio no es tuyo.');
+    if (q.service_state === 'cerrado' || q.service_state === 'cancelado') throw new BadRequestException('Ese servicio ya terminó.');
+    return asignarOperador(Number(q.id), { nombre: p.data.nombre, telefono: p.data.telefono ?? null });
+  }
+
+  /**
+   * DÓNDE VA LA UNIDAD (2026-10-14). Mientras el servicio está "en traslado",
+   * el teléfono del aliado manda su ubicación cada pocos minutos desde este
+   * portal. Fuera de esa ventana se rechaza con `detener: true`: el teléfono
+   * deja de mandar y no se guarda la ubicación de nadie que no vaya en camino.
+   */
+  @Post('servicios/:quoteNumber/ubicacion')
+  async ubicacionUnidad(@Req() req: AliadoRequest, @Param('quoteNumber') quoteNumber: string, @Body() body: unknown) {
+    const p = z.object({
+      lat: z.number().min(-90).max(90),
+      lng: z.number().min(-180).max(180),
+      precision: z.number().min(0).max(100_000).optional(),
+    }).safeParse(body);
+    if (!p.success) throw new BadRequestException('Ubicación inválida');
+    const q = await prisma.quotes.findFirst({ where: { quote_number: quoteNumber.slice(0, 40) }, select: { id: true, service_state: true } });
+    const suya = q
+      ? await prisma.service_assignments.findFirst({ where: { quote_id: q.id, provider_id: req.providerId, state: 'aceptado' }, select: { id: true } })
+      : null;
+    if (!q || !suya) throw new BadRequestException('Ese servicio no es tuyo.');
+    // Un punto cada pocos segundos y los últimos del recorrido (quotes/rastreo.ts).
+    return guardarUbicacion(q, req.providerId, p.data);
   }
 
   /**
@@ -745,4 +769,12 @@ export class ProviderPortalController {
       estadoDocumentos: estadoDocumentos(todos),
     };
   }
+}
+
+/** Los renglones del documento congelado, como se le enseñan al aliado. */
+function renglonesDe(snapshot: unknown): Array<{ concepto: string; cantidad: string; importe: number }> {
+  const renglones = (snapshot as { calc?: { renglones?: Array<{ concepto?: string; cantidad?: number; unidad?: string; importe?: number }> } } | null)?.calc?.renglones ?? [];
+  return renglones
+    .filter((r) => r.concepto)
+    .map((r) => ({ concepto: String(r.concepto), cantidad: `${r.cantidad ?? ''} ${r.unidad ?? ''}`.trim(), importe: Number(r.importe ?? 0) }));
 }

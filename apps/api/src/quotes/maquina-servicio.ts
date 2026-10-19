@@ -11,7 +11,7 @@ import { newQuoteNumber } from './quotes.service';
 import { estadoInicial } from './service-flow';
 import { VIGENCIA_DEFAULT_DIAS } from './quote-validity';
 import { resolverClienteYObra } from './client-resolver';
-import { reservar } from './reservas';
+import { sincronizarReserva } from './reservas';
 import { textoPedido, type EntradaRecomendacion, type MaquinaRecomendada } from './recomendador.service';
 import type { DatosCuenta } from '../common/cuenta';
 
@@ -213,12 +213,9 @@ export class MaquinaServicio {
         await prisma.quotes.update({ where: { id: q.id }, data: { client_id: ligada.clientId, site_id: ligada.siteId } });
       }
 
-      // Apartar la máquina y ofrecérsela a su dueño.
-      try {
-        await reservar({ productId: m.id, folio: q.quote_number, desde: e.fecha, hasta: p.fin });
-      } catch (err) {
-        this.log.warn(`No se pudo apartar la máquina ${m.id} para ${q.quote_number}: ${(err as Error).message}`);
-      }
+      // Apartar la máquina (tantas piezas como pidió) y ofrecérsela a su dueño.
+      // Nunca lanza: si falla, la corrida diaria la vuelve a intentar.
+      await sincronizarReserva(quoteId);
       try {
         await this.services.ofrecer(quoteId, m.providerId, {
           scope: `${m.name} · ${pedido} · ${e.fecha}${e.hora ? ` ${e.hora}` : ''}`,

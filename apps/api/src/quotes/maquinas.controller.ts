@@ -5,6 +5,7 @@ import { esLineaServicio, unidadesDe } from '@maqserv/config';
 import { z } from 'zod';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
+import { zTelefono } from '../common/campos';
 import { RecomendadorService, fechaFin, type MaquinaRecomendada } from './recomendador.service';
 import { conCandado } from '../common/candado';
 import { MaquinaServicio, type PartidaMaquina } from './maquina-servicio';
@@ -69,7 +70,7 @@ const partidaSchema = entradaSchema.extend({ productoId: z.number().int().positi
 const contactoSchema = z.object({
   notas: z.string().trim().max(2000).optional(),
   cliente: z.string().trim().max(190).optional(),
-  telefono: z.string().trim().max(40).optional(),
+  telefono: zTelefono().optional(),
 });
 
 /**

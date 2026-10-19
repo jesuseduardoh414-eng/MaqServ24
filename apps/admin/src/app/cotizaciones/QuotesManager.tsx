@@ -6,6 +6,7 @@ import {
   Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toolbar, type Tone,
 } from '@/components/ui';
 import { QuoteRespond } from './QuoteRespond';
+import { QuoteApprove } from './QuoteApprove';
 import { QuoteMatches } from './QuoteMatches';
 import { QuoteContact } from './QuoteContact';
 
@@ -32,7 +33,7 @@ export interface QuoteItem {
   acceptedAt: string | null;
   serviceCategory: string | null;
   /** Formulario "Cotizar" (sin precio) o cotizador del sitio (con precio, ya aceptada). */
-  origen: 'formulario' | 'cotizador' | 'maquina';
+  origen: 'formulario' | 'cotizador' | 'maquina' | 'panel';
   productInterested: string | null;
   address: string | null;
   region: string | null;
@@ -108,6 +109,7 @@ const PERDIDA = { key: 'perdida' as const, label: 'Perdidas', hint: 'Vencidas, r
 const ORIGEN: Record<QuoteItem['origen'], { label: string; title: string }> = {
   formulario: { label: 'Formulario', title: 'Llegó por "Cotizar" del sitio, sin precio' },
   cotizador: { label: 'Cotizador web', title: 'El cliente vio el precio en el cotizador y lo mandó' },
+  panel: { label: 'Cotizador del panel', title: 'La armó MAQSER24 y el cliente la aceptó por teléfono o WhatsApp' },
   maquina: { label: 'Cotizador de máquinas', title: 'Eligió una máquina con su precio en el sitio' },
 };
 
@@ -141,19 +143,58 @@ function chipDe(q: QuoteItem, e: Etapa): { texto: string; tone: Tone } {
   return { texto: q.serviceState === 'cancelado' ? 'Cancelada' : q.state === 'vencida' ? 'Vencida' : 'Rechazada', tone: 'bad' };
 }
 
-const REQ_OCULTOS = new Set(['origen', 'cotizador', 'folio', 'quoterId']);
+// precioAjustado y productId son cuentas internas del cotizador (2026-10-15).
+const REQ_OCULTOS = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'precioAjustado', 'productId']);
+
+/**
+ * Con qué cotizador del panel se le pone precio a una solicitud del
+ * formulario (2026-10-15): pipas y retiros viven en el de maquinaria. Las
+ * líneas sin cotizador (materiales, asfalto) se responden con precio a mano.
+ */
+function cotizadorDe(q: QuoteItem): 'maquinaria' | 'triturados' | null {
+  const c = q.serviceCategory ?? '';
+  if (c.includes('tritur')) return 'triturados';
+  if (c.includes('maquinaria') || c.includes('transporte')) return 'maquinaria';
+  return null;
+}
+const cotizarHref = (q: QuoteItem) => {
+  const t = cotizadorDe(q);
+  return t && (q.origen === 'formulario' || q.origen === 'cotizador') ? `/cotizador/${t}?solicitud=${q.id}` : null;
+};
+const folioDe = (q: QuoteItem) => (typeof q.requirements?.folio === 'string' ? q.requirements.folio : null);
+/**
+ * Del cotizador del sitio con el precio que el cliente vio: se APRUEBA y sale a
+ * los aliados, sin volver a preguntarle (2026-10-15). Si se le cambió el
+ * precio ("Volver a cotizar"), se le responde y la acepta él.
+ */
+const seAprueba = (q: QuoteItem) => q.origen === 'cotizador' && !q.requirements?.precioAjustado;
+
+/** El botón que abre el cotizador ya llenado con la solicitud. */
+function CotizarConTabulador({ q, principal }: { q: QuoteItem; principal?: boolean }) {
+  const href = cotizarHref(q);
+  if (!href) return null;
+  return (
+    <Btn size="sm" variant={principal ? 'primary' : 'secondary'} href={href} icon="ph-calculator">
+      {folioDe(q) ? 'Volver a cotizar' : 'Cotizar con tabulador'}
+    </Btn>
+  );
+}
 const REQ_NOMBRES: Record<string, string> = { obra: 'Obra', obra_ubicacion: 'Ubicación de la obra', fecha_inicio: 'Fecha de inicio' };
 const humano = (k: string) => REQ_NOMBRES[k] ?? (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ');
 
-export function QuotesManager({ items }: { items: QuoteItem[] }) {
+export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre esta solicitud al entrar (al volver del cotizador). */ abrir?: number | null }) {
   const conEtapa = useMemo(() => items.map((q) => ({ q, e: etapaDe(q) })), [items]);
   const cuenta = (e: Filtro) => (e === 'todas' ? conEtapa.length : conEtapa.filter((x) => x.e === e).length);
 
-  const [filtro, setFiltro] = useState<Filtro>(() => (items.some((q) => etapaDe(q) === 'por_cotizar') ? 'por_cotizar' : 'todas'));
+  const [filtro, setFiltro] = useState<Filtro>(() => {
+    const pedida = abrir ? items.find((q) => q.id === abrir) : null;
+    if (pedida) return etapaDe(pedida);
+    return items.some((q) => etapaDe(q) === 'por_cotizar') ? 'por_cotizar' : 'todas';
+  });
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<Sort>('recent');
   const [page, setPage] = useState(1);
-  const [detalleId, setDetalleId] = useState<number | null>(null);
+  const [detalleId, setDetalleId] = useState<number | null>(abrir ?? null);
   const detalle = detalleId === null ? null : conEtapa.find((x) => x.q.id === detalleId) ?? null;
 
   useEffect(() => {
@@ -309,7 +350,7 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
                 {q.total > 0 ? (
                   <>
                     <div className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>{money(q.total)}</div>
-                    {q.freightCost > 0 ? <div className="adm-cell-sub">incl. traslado</div> : null}
+                    {folioDe(q) ? <div className="adm-cell-sub adm-mono">{folioDe(q)}</div> : q.freightCost > 0 ? <div className="adm-cell-sub">incl. traslado</div> : null}
                   </>
                 ) : (
                   <div style={{ fontSize: 13, color: 'var(--adm-faint)' }}>Sin precio</div>
@@ -328,7 +369,10 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
                     {/* Primero se registra el contacto, luego quién puede, luego el precio. */}
                     <QuoteContact quoteId={q.id} firstContactAt={q.firstContactAt} firstContactVia={q.firstContactVia} />
                     <QuoteMatches quoteId={q.id} />
-                    <QuoteRespond quoteId={q.id} subtotal={q.subtotal} />
+                    <CotizarConTabulador q={q} />
+                    {seAprueba(q)
+                      ? <QuoteApprove quoteId={q.id} folio={folioDe(q)} total={q.total} />
+                      : <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} cotizarHref={cotizarHref(q)} />}
                   </>
                 ) : e === 'en_servicio' ? (
                   <>
@@ -336,7 +380,11 @@ export function QuotesManager({ items }: { items: QuoteItem[] }) {
                     <Btn size="sm" href="/servicios">Ir a Servicios <i className="ph ph-arrow-right" aria-hidden /></Btn>
                   </>
                 ) : (
-                  <Btn size="sm" onClick={() => setDetalleId(q.id)}>Ver detalle</Btn>
+                  <>
+                    {/* Ya respondida sin aceptar (o vencida): a la vista, no solo dentro del detalle. */}
+                    {e === 'esperando' || q.state === 'vencida' ? <CotizarConTabulador q={q} /> : null}
+                    <Btn size="sm" onClick={() => setDetalleId(q.id)}>Ver detalle</Btn>
+                  </>
                 )}
               </div>
             </div>
@@ -481,10 +529,16 @@ function Detalle({ q, e, onClose }: { q: QuoteItem; e: Etapa; onClose: () => voi
             <>
               <QuoteContact quoteId={q.id} firstContactAt={q.firstContactAt} firstContactVia={q.firstContactVia} />
               <QuoteMatches quoteId={q.id} />
+              <CotizarConTabulador q={q} />
               {/* Aquí sí es la acción principal: el panel es de una sola solicitud. */}
-              <QuoteRespond quoteId={q.id} subtotal={q.subtotal} principal />
+              {seAprueba(q)
+                ? <QuoteApprove quoteId={q.id} folio={folioDe(q)} total={q.total} principal />
+                : <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} cotizarHref={cotizarHref(q)} principal />}
             </>
           ) : null}
+          {/* Ya respondida (o vencida) y sin aceptar: se puede volver a cotizar
+              con el tabulador; regresa a "Por cotizar" para mandarle el precio nuevo. */}
+          {e === 'esperando' || q.state === 'vencida' ? <CotizarConTabulador q={q} /> : null}
           {e === 'en_servicio' || e === 'cerrada' ? <Btn size="sm" href="/servicios">Ver en Servicios <i className="ph ph-arrow-right" aria-hidden /></Btn> : null}
           {quoterId ? <Btn size="sm" href={`/cotizador/historial/${quoterId}`} icon="ph-file-text">Documento {folioDoc ?? ''}</Btn> : null}
         </div>

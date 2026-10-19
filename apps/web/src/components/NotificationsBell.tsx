@@ -21,7 +21,6 @@ const ICON: Record<string, IconName> = {
   order_status: 'box',
   payment_confirmed: 'check',
   question_answered: 'chat',
-  withdraw: 'diamond',
 };
 
 /** "hace 5 min" — se calcula en el cliente, pero el componente solo monta ahí. */

@@ -2,7 +2,9 @@ import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post,
 import { catalogoCotizadorSchema, esCotizadorTipo } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
+import { revisarCampos } from '../common/campos';
 import { QuoterService } from '../quoter/quoter.service';
+import { QuoterServicio } from '../quoter/quoter-servicio';
 import { prisma } from '@maqserv/db';
 import { calcularSchema, cotizacionPanelSchema, partidasDe, primerError, tipoDe } from '../quoter/quoter.dto';
 
@@ -17,7 +19,10 @@ import { calcularSchema, cotizacionPanelSchema, partidasDe, primerError, tipoDe 
 @UseGuards(AdminGuard)
 @Modulo('cotizador')
 export class AdminQuoterController {
-  constructor(private readonly quoter: QuoterService) {}
+  constructor(
+    private readonly quoter: QuoterService,
+    private readonly servicio: QuoterServicio,
+  ) {}
 
   // ---- Tabulador ----
 
@@ -70,6 +75,11 @@ export class AdminQuoterController {
       throw new BadRequestException(`${issue?.path.join('.') ?? 'tabulador'}: ${issue?.message ?? 'datos inválidos'}`);
     }
     if (parsed.data.tipo !== tipo) throw new BadRequestException('El tabulador no corresponde a este cotizador.');
+    // Los datos de la empresa salen impresos en cada cotización: se revisan al
+    // guardar (el esquema compartido no, para no tumbar la LECTURA de lo viejo).
+    const { empresa, firma } = parsed.data;
+    const malo = revisarCampos([['telefono', empresa.telefono], ['correo', empresa.correo], ['rfc', empresa.rfc], ['telefono', firma.telefono]]);
+    if (malo) throw new BadRequestException(malo);
 
     const cat = await this.quoter.guardarCatalogo(tipo, parsed.data, req.adminEmail);
     // Sensible: mover una tarifa cambia lo que se le cobra a todo el mundo.
@@ -108,12 +118,22 @@ export class AdminQuoterController {
     return this.quoter.calcular(tipo, partidasDe(tipo, parsed.data.partidas), parsed.data.opciones);
   }
 
+  /** Los datos de una solicitud del formulario para abrir el cotizador ya llenado (2026-10-15). */
+  @Get('solicitud/:id')
+  datosParaCotizar(@Param('id') id: string) {
+    return this.quoter.datosParaCotizar(Number(id));
+  }
+
   @Post('quotes/:kind')
   async crear(@Param('kind') kind: string, @Body() body: unknown, @Req() req: AdminRequest) {
     const tipo = tipoDe(kind);
     const parsed = cotizacionPanelSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
     const d = parsed.data;
+    // Cotizando una solicitud del formulario: se revisa ANTES de emitir, para
+    // no dejar un folio suelto si la solicitud ya no admite precio nuevo.
+    const solicitudId = Number((body as { solicitudId?: unknown } | null)?.solicitudId) || null;
+    const solicitud = solicitudId ? await this.quoter.solicitudLigable(solicitudId) : null;
     const cot = await this.quoter.crear(
       {
         tipo,
@@ -127,9 +147,22 @@ export class AdminQuoterController {
         opciones: d.opciones,
         partidas: partidasDe(tipo, d.partidas),
       },
-      { origen: 'panel', estado: 'borrador', adminId: req.adminId, adminNombre: req.adminNombre },
+      {
+        origen: 'panel', estado: 'borrador', adminId: req.adminId, adminNombre: req.adminNombre,
+        // De la cuenta del cliente: así el documento es suyo también en el sitio.
+        userId: solicitud?.user_id != null ? Number(solicitud.user_id) : null,
+      },
     );
-    return { id: cot.id, folio: cot.folio, total: Number(cot.total) };
+    if (solicitud) {
+      await this.quoter.ligarASolicitud(solicitud, cot);
+      await registrarAccion(req, 'cotizaciones', 'solicitud.cotizar', solicitud.quote_number, `documento ${cot.folio} · $${Number(cot.total)}`);
+    }
+    return {
+      id: cot.id,
+      folio: cot.folio,
+      total: Number(cot.total),
+      solicitud: solicitud ? { id: Number(solicitud.id), quoteNumber: solicitud.quote_number } : null,
+    };
   }
 
   // ---- Historial ----
@@ -160,6 +193,21 @@ export class AdminQuoterController {
   async cambiarEstado(@Param('id') id: string, @Body() body: { estado?: string }, @Req() req: AdminRequest) {
     const r = await this.quoter.cambiarEstado(Number(id), String(body?.estado ?? ''));
     await registrarAccion(req, 'cotizador', 'cotizacion.estado', `#${id}`, r.estado);
+    /**
+     * Aceptada = el cliente dijo que sí (2026-10-15): se abre su servicio y se
+     * ofrece a los aliados. Solo para las que armó el panel; las del sitio y
+     * las ligadas a una solicitud ya tienen su servicio.
+     */
+    if (r.estado === 'aceptada') {
+      const doc = await prisma.quoter_quotes.findUnique({ where: { id: Number(id) }, select: { kind: true } });
+      if (doc && esCotizadorTipo(doc.kind)) {
+        const abierto = await this.servicio.abrirDesdePanel(Number(id), await this.quoter.catalogo(doc.kind), req.adminNombre ?? null);
+        if (abierto) {
+          await registrarAccion(req, 'cotizador', 'cotizacion.servicio', abierto.quoteNumber, abierto.proveedores.length ? `ofrecida a ${abierto.proveedores.join(', ')}` : 'ningún aliado llega a la obra');
+          return { ...r, servicio: { quoteNumber: abierto.quoteNumber, ofrecidos: abierto.proveedores } };
+        }
+      }
+    }
     return r;
   }
 

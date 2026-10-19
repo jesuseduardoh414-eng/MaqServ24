@@ -104,7 +104,7 @@ export default async function AdminHome() {
         tono: f.recibir.sinResponder > 0 ? 'accent' : 'muted',
         lineas: [
           { texto: 'Cotizadas, esperando al cliente', n: String(f.recibir.esperandoCliente) },
-          { texto: 'Mensajes sin atender', n: String(f.recibir.mensajes), tono: f.recibir.mensajes > 0 ? 'warn' : undefined },
+          { texto: 'Mensajes sin responder', n: String(f.recibir.mensajes), tono: f.recibir.mensajes > 0 ? 'warn' : undefined },
           { texto: 'Solicitudes este mes', n: String(d.mes.solicitudes) },
         ],
       });
@@ -154,12 +154,11 @@ export default async function AdminHome() {
       { n: d.flujo.recibir.sinResponder, nivel: 'pendiente', label: 'Solicitudes por cotizar', sub: 'Llegaron sin precio; el cliente espera respuesta', href: '/cotizaciones', icon: 'ph-tray', modulo: 'cotizaciones' },
       { n: d.flujo.asignar.porAsignar, nivel: 'pendiente', label: 'Servicios por asignar', sub: 'El cliente aceptó; falta el aliado', href: '/servicios', icon: 'ph-user-switch', modulo: 'servicios' },
       { n: d.flujo.ejecutar.terminados, nivel: 'pendiente', label: 'Terminados sin cerrar', sub: 'Falta registrar cantidades y cierre', href: '/servicios', icon: 'ph-flag-checkered', modulo: 'servicios' },
-      { n: d.flujo.recibir.mensajes, nivel: 'pendiente', label: 'Mensajes sin atender', sub: 'Escribieron por la página de Contacto', href: '/mensajes', icon: 'ph-chat-centered-text', modulo: 'comunidad' },
+      { n: d.flujo.recibir.mensajes, nivel: 'pendiente', label: 'Mensajes sin responder', sub: 'Dudas de clientes: Contacto, Preguntas frecuentes y productos', href: '/mensajes', icon: 'ph-chat-centered-text', modulo: 'comunidad' },
       { n: d.red.ofertas, nivel: 'pendiente', label: 'Equipos por revisar', sub: 'Los ofrecieron aliados desde su portal', href: '/proveedores', icon: 'ph-package', modulo: 'proveedores' },
       { n: d.red.papelesPorVencer, nivel: 'aviso', label: 'Papeles por vencer', sub: 'Dentro de los próximos 30 días', href: '/proveedores', icon: 'ph-clock-countdown', modulo: 'proveedores' },
       { n: d.red.fichas - d.red.fichasConfirmadas, nivel: 'aviso', label: 'Disponibilidad por confirmar', sub: `Fichas sin confirmar en ${d.red.diasFrescura} días`, href: '/disponibilidad', icon: 'ph-calendar-x', modulo: 'disponibilidad' },
       { n: d.sitio.resenas, nivel: 'aviso', label: 'Reseñas por moderar', sub: 'Esperan aprobación para publicarse', href: '/resenas', icon: 'ph-star', modulo: 'comunidad' },
-      { n: d.sitio.preguntas, nivel: 'aviso', label: 'Preguntas sin responder', sub: 'Las hizo el público en el sitio', href: '/preguntas', icon: 'ph-chats-circle', modulo: 'comunidad' },
     ] satisfies Pendiente[]).filter((p) => p.n > 0 && puede(p.modulo))
     : [];
   const urgentes = pendientes.filter((p) => p.nivel === 'urgente').length;

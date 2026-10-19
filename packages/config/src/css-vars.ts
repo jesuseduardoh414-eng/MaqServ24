@@ -1,4 +1,5 @@
 import type { Palette, ThemeTokens } from './schema';
+import { cssEstados } from './estados-disponibilidad';
 
 /**
  * Convierte los tokens del tema en variables CSS.
@@ -50,8 +51,10 @@ function scaleVars(t: ThemeTokens): string {
  * y overrides explícitos con data-theme (el toggle del usuario gana).
  */
 export function themeToCss(tokens: ThemeTokens): string {
-  const light = paletteVars(tokens.colors.light);
-  const dark = paletteVars(tokens.colors.dark);
+  // Con la paleta van los colores de los estados de disponibilidad
+  // (`--estado-reservado`…), en su tono para fondo claro u oscuro.
+  const light = `${paletteVars(tokens.colors.light)};${cssEstados('claro')}`;
+  const dark = `${paletteVars(tokens.colors.dark)};${cssEstados('oscuro')}`;
   const scale = scaleVars(tokens);
   return [
     `:root{${light};${scale}}`,

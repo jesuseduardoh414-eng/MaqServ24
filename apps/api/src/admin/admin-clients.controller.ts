@@ -2,8 +2,9 @@ import {
   BadRequestException, Body, Controller, Delete, Get, NotFoundException,
   Param, ParseIntPipe, Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
-import { prisma } from '@maqserv/db';
+import { Prisma, prisma } from '@maqserv/db';
 import { z } from 'zod';
+import { zCorreo, zRfc, zTelefono } from '../common/campos';
 import { AdminGuard, Modulo } from './admin-auth';
 import { esEstado, PASOS } from '../quotes/service-flow';
 import { FreightService } from '../freight/freight.service';
@@ -22,9 +23,9 @@ import { FreightService } from '../freight/freight.service';
 
 const clienteSchema = z.object({
   name: z.string().min(2).max(190),
-  email: z.string().max(190).optional().nullable(),
-  phone: z.string().max(40).optional().nullable(),
-  rfc: z.string().max(20).optional().nullable(),
+  email: zCorreo().optional().nullable(),
+  phone: zTelefono().optional().nullable(),
+  rfc: zRfc().optional().nullable(),
   industry: z.string().max(120).optional().nullable(),
   notes: z.string().max(4000).optional().nullable(),
   status: z.coerce.number().int().min(0).max(1).optional(),
@@ -36,7 +37,7 @@ const obraSchema = z.object({
   municipality: z.string().max(120).optional().nullable(),
   state: z.string().max(120).optional().nullable(),
   contactName: z.string().max(190).optional().nullable(),
-  contactPhone: z.string().max(40).optional().nullable(),
+  contactPhone: zTelefono().optional().nullable(),
   /** Lo que ESA obra exige: inducción, seguro del operador, torreta. */
   requirements: z.array(z.string().max(160)).max(30).optional(),
   notes: z.string().max(4000).optional().nullable(),
@@ -44,6 +45,28 @@ const obraSchema = z.object({
 });
 
 const vacio = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+
+/**
+ * DE DÓNDE VINO CADA CLIENTE (2026-10-15).
+ *
+ * "web": se registró en el sitio, o pidió algo desde el sitio aunque fuera sin
+ * cuenta (el sistema anterior lo permitía). "panel": lo dieron de alta aquí o
+ * sólo se le ha cotizado por teléfono (`requirements.origen = 'panel'`).
+ * Se deduce, no se guarda: así sale bien también para los clientes de antes.
+ */
+type Origen = 'web' | 'panel';
+
+async function conPedidoWeb(ids: number[]): Promise<Set<number>> {
+  if (ids.length === 0) return new Set();
+  const filas = await prisma.$queryRaw<Array<{ client_id: number }>>`
+    SELECT DISTINCT client_id FROM quotes
+    WHERE client_id IN (${Prisma.join(ids)})
+      AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(requirements, '$.origen')), '') <> 'panel'`;
+  return new Set(filas.map((f) => Number(f.client_id)));
+}
+
+const origenDe = (userId: number | null, web: Set<number>, id: number): Origen =>
+  userId !== null || web.has(id) ? 'web' : 'panel';
 
 @Modulo('clientes')
 @Controller('admin/clients')
@@ -65,14 +88,16 @@ export class AdminClientsController {
           }
         : undefined,
       orderBy: [{ status: 'desc' }, { name: 'asc' }],
-      take: 300,
+      // Desde que cada cuenta del sitio es cliente (2026-10-15) son muchos más;
+      // la búsqueda del panel filtra sobre esta lista, así que no se recorta.
+      take: 3000,
     });
     if (clientes.length === 0) return [];
 
     // Obras y solicitudes de todos, en dos consultas. Una por cliente serían
     // trescientos viajes para pintar una lista.
     const ids = clientes.map((c) => c.id);
-    const [obras, solicitudes] = await Promise.all([
+    const [obras, solicitudes, web] = await Promise.all([
       prisma.client_sites.groupBy({
         by: ['client_id'],
         where: { client_id: { in: ids }, status: 1 },
@@ -85,6 +110,7 @@ export class AdminClientsController {
         _sum: { total: true },
         _max: { created_at: true },
       }),
+      conPedidoWeb(ids),
     ]);
     const porObras = new Map(obras.map((o) => [o.client_id, o._count._all]));
     const porSolic = new Map(solicitudes.map((s) => [s.client_id, s]));
@@ -100,6 +126,7 @@ export class AdminClientsController {
         industry: c.industry,
         status: c.status,
         hasAccount: c.user_id !== null,
+        origin: origenDe(c.user_id, web, c.id),
         sites: porObras.get(c.id) ?? 0,
         quotes: s?._count._all ?? 0,
         quoted: s?._sum.total ? Number(s._sum.total) : 0,
@@ -116,6 +143,14 @@ export class AdminClientsController {
       include: { client_sites: { orderBy: [{ status: 'desc' }, { name: 'asc' }] } },
     });
     if (!cliente) throw new NotFoundException('Cliente no encontrado');
+
+    // La cuenta del sitio ligada, para saber quién entra por ese cliente.
+    const [cuenta, web] = await Promise.all([
+      cliente.user_id
+        ? prisma.users.findUnique({ where: { id: cliente.user_id }, select: { name: true, email: true, created_at: true } })
+        : null,
+      conPedidoWeb([id]),
+    ]);
 
     const solicitudes = await prisma.quotes.findMany({
       where: { client_id: id },
@@ -158,6 +193,8 @@ export class AdminClientsController {
       notes: cliente.notes,
       status: cliente.status,
       hasAccount: cliente.user_id !== null,
+      account: cuenta ? { name: cuenta.name, email: cuenta.email, createdAt: cuenta.created_at } : null,
+      origin: origenDe(cliente.user_id, web, id),
       sites: cliente.client_sites.map((s) => ({
         id: s.id,
         name: s.name,
@@ -200,7 +237,7 @@ export class AdminClientsController {
   @Patch(':id')
   async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const p = clienteSchema.partial().safeParse(body);
-    if (!p.success) throw new BadRequestException('Datos inválidos');
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Datos inválidos');
     const d = p.data;
     return prisma.clients.update({
       where: { id },

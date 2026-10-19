@@ -10,7 +10,7 @@ import { DevAutoRefresh } from '@/components/DevAutoRefresh';
 import { Pwa } from '@/components/Pwa';
 import { IMAGEN_OG, SITE_URL } from '@/lib/seo';
 import './globals.css';
-import { RecortarEspacios } from '@maqserv/ui';
+import { FiltroDeCampos, ResultadosHost } from '@maqserv/ui';
 import { EstilosSistema } from '@/components/EstilosSistema';
 import { DialogosHost } from '@/components/Dialogos';
 
@@ -102,11 +102,21 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body>
-        {/* Un espacio pegado sin querer no debe costar un "datos incorrectos". */}
-        <RecortarEspacios />
+        {/* Qué entra en cada campo: filtra por tipo (una letra no entra en un teléfono) y recorta espacios. */}
+        <FiltroDeCampos />
         <CartProvider>{children}</CartProvider>
         {/* confirmar / pedirTexto: en lugar de los diálogos del navegador. */}
         <DialogosHost />
+        {/* "Sí se hizo / no se hizo" tras cada cambio de la persona (perfil, favoritos, portal de aliado, formularios). Entrar/salir y marcar avisos leídos no avisan: ya tienen su propia respuesta. */}
+        <ResultadosHost
+          observar={['/api/proxy/', '/api/contacto', '/api/cotizar', '/api/proveedores', '/api/preguntas', '/api/resena', '/api/suscribir']}
+          silencio={['/api/proxy/notifications/']}
+          callar401
+          colores={{
+            fondo: 'var(--color-surface)', texto: 'var(--color-text)', borde: 'var(--color-border)', tenue: 'var(--color-text-muted)',
+            ok: 'var(--color-success)', mal: 'var(--color-error)', alerta: 'var(--color-warning)', info: 'var(--color-primary)',
+          }}
+        />
         <Pwa
           labels={{
             brand: t(theme, 'site.name'),

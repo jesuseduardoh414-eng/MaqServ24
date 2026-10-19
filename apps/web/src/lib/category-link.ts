@@ -11,8 +11,12 @@
  * La regla es por conteo y no por una lista fija de slugs a propósito: si el
  * cliente da de alta una categoría nueva sin productos, se comporta igual sin
  * tocar código.
+ *
+ * La excepción son las categorías con página propia (PAGINA_PROPIA).
  */
 export function categoryHref(c: { slug: string; productCount: number }): string {
+  const propia = PAGINA_PROPIA[c.slug];
+  if (propia) return propia.href;
   // Todo va a /servicios (2026-10-08): sin venta en línea, /productos ya solo
   // redirige ahí y enlazarlo directo ahorra el salto.
   return c.productCount > 0
@@ -20,12 +24,23 @@ export function categoryHref(c: { slug: string; productCount: number }): string 
     : `/cotizar?servicio=${encodeURIComponent(c.slug)}`;
 }
 
+/**
+ * Venta de maquinaria (sexta tarjeta, 2026-10-19) no es un servicio que se
+ * cotice: se compra con la red de proveedores. Su tarjeta lleva a su página
+ * (lib/landings.ts), cuyo botón abre Contacto con «Comprar maquinaria».
+ */
+const PAGINA_PROPIA: Record<string, { href: string; accion: string }> = {
+  'venta-de-maquinaria': { href: '/venta-de-maquinaria-pesada', accion: 'Ver opciones de compra' },
+};
+
 /** Texto bajo el nombre: el conteo si hay equipos, la acción si no los hay. */
 export function categoryCountLabel(
-  c: { productCount: number },
+  c: { slug?: string; productCount: number },
   unit: string,
   unitOne?: string,
 ): string {
+  const propia = c.slug ? PAGINA_PROPIA[c.slug] : undefined;
+  if (propia) return propia.accion;
   // Misma voz que el botón principal del hero ("Solicitar cotización").
   if (c.productCount <= 0) return 'Solicitar cotización';
   // "1 equipos" se leía en la tarjeta de Volteos. El singular es un copy

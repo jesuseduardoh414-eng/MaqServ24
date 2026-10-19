@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { NEWSLETTER_ACTIVO, modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
+import { MODULOS_CON_CORREO, modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 
 /**
  * `useLayoutEffect` en cliente y `useEffect` en el servidor.
@@ -31,7 +31,7 @@ const SUBMENUS_KEY = 'maqserv_admin_nav_submenus';
 /** Por dónde iba el menú. Ver `useLayoutEffectSeguro` en el componente. */
 const SCROLL_KEY = 'maqserv_admin_nav_scroll';
 
-type BadgeKey = 'quotes' | 'withdraws' | 'messages';
+type BadgeKey = 'quotes' | 'messages';
 /**
  * Un hijo de submenú: un enlace, o un submenú de enlaces (un solo nivel más).
  * `modulo` en un enlace es su PERMISO cuando difiere del de la entrada que lo
@@ -46,17 +46,20 @@ type Hijo = { href: string; label: string; modulo?: ModuloAdmin } | { label: str
  * secciones van numeradas porque ese orden ES el trabajo de cada día. Debajo,
  * lo que sostiene ese flujo (la red y su oferta) y los ajustes, que casi no
  * se tocan. Cada sección lista sus módulos por el `title` de GROUPS, en el
- * orden en que se usan; la sección sin título (Sobrantes) va sin rótulo.
+ * orden en que se usan.
  */
 const SECCIONES: ReadonlyArray<{ titulo: string | null; grupos: readonly string[] }> = [
-  { titulo: null, grupos: ['Sobrantes'] },
   { titulo: 'Panel', grupos: ['Panel'] },
   // 1. El cliente pide: llega la solicitud, se identifica al cliente y su obra.
   { titulo: '1 · Recibir', grupos: ['Solicitudes', 'Clientes', 'Comunicaciones'] },
   // 2. Se busca quién puede, si está libre, si llega, y se arma el precio.
-  { titulo: '2 · Cotizar', grupos: ['Matching', 'Disponibilidad', 'Geolocalización', 'Cotización'] },
+  // Sin "Matching" (2026-10-15): los aliados sugeridos ya viven en cada
+  // solicitud y en "Buscar aliado" de Servicios; una pantalla aparte repetía eso.
+  { titulo: '2 · Cotizar', grupos: ['Disponibilidad', 'Geolocalización', 'Cotización'] },
   // 3. Se asigna, se da seguimiento y se cierra con evidencias.
-  { titulo: '3 · Ejecutar', grupos: ['Operaciones', 'Documentos'] },
+  // Sin "Documentos" (2026-10-15): los papeles de cada aliado y sus
+  // vencimientos ya se ven en Proveedores.
+  { titulo: '3 · Ejecutar', grupos: ['Operaciones'] },
   // 4. Se cobra, se paga al aliado y se mide cómo fue.
   { titulo: '4 · Cobrar y medir', grupos: ['Administración', 'Analítica'] },
   // Lo que alimenta el flujo: quién ofrece, qué ofrece y cómo se clasifica.
@@ -70,6 +73,8 @@ const SECCIONES: ReadonlyArray<{ titulo: string | null; grupos: readonly string[
  */
 type Item = {
   modulo: ModuloAdmin;
+  /** También la ve quien tenga alguno de estos permisos (la pantalla filtra lo que enseña). */
+  tambien?: readonly ModuloAdmin[];
   label: string;
   icon: string;
   /** Ausente sólo en las entradas que existen para agrupar. */
@@ -78,6 +83,11 @@ type Item = {
   hijos?: Hijo[];
   /** Módulo del documento que aún no se construye: se ve, pero no navega. */
   pronto?: boolean;
+  /**
+   * Pantalla que ya se ve pero solo como DISEÑO, con datos de ejemplo
+   * (Administración, 2026-10-09): navega, y la etiqueta avisa que no es real.
+   */
+  diseno?: boolean;
 };
 
 /**
@@ -85,32 +95,16 @@ type Item = {
  *
  * Cada grupo es un módulo del documento; el orden en pantalla lo decide
  * SECCIONES, no el orden de esta lista. Las pantallas que
- * ya existían se movieron a su módulo con el nombre que les corresponde; las
- * que el modelo no tiene quedaron arriba en "Sobrantes" hasta decidir si se
- * retiran, y los módulos que aún no existen aparecen con "Pronto" y sin
- * enlace (ver `pronto`), para que se vea el mapa completo.
+ * ya existían se movieron a su módulo con el nombre que les corresponde, y los
+ * módulos que aún no existen aparecen con "Pronto" y sin enlace (ver
+ * `pronto`), para que se vea el mapa completo. Lo que el modelo no tiene
+ * (marketplace, boletín) estuvo en "Sobrantes" y se retiró el 2026-10-15.
  *
  * `modulo` sigue siendo la clave de PERMISO (admin-roles.ts), no el grupo:
  * por eso una entrada "Pronto" toma el permiso más cercano y nada cambia en
  * quién ve qué.
  */
 const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
-  {
-    // Lo que no encaja con el modelo de cotizar todo. Se queda funcionando
-    // hasta decidir si se retira; nada de aquí se borró.
-    title: 'Sobrantes', icon: 'ph-archive',
-    items: [
-      // Órdenes, Productos, Pagos en línea y Traslado se retiraron el 2026-10-08
-      // (revisión del panel): sin carrito ni pago en línea no tenían uso.
-      // Marketplace heredado: apagado en admin-roles.ts, no le aparece a nadie.
-      { modulo: 'marketplace', href: '/vendedores', label: 'Vendedores', icon: 'ph-storefront' },
-      { modulo: 'marketplace', href: '/retiros', label: 'Retiros', icon: 'ph-hand-coins', badge: 'withdraws' },
-      // El boletín no está en el modelo MAQSER24 (newsletter.ts).
-      ...(NEWSLETTER_ACTIVO
-        ? [{ modulo: 'comunidad' as const, href: '/suscriptores', label: 'Suscriptores', icon: 'ph-envelope-simple' }]
-        : []),
-    ],
-  },
   {
     title: 'Panel', icon: 'ph-house',
     items: [
@@ -145,13 +139,6 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
     ],
   },
   {
-    title: 'Matching', icon: 'ph-intersect',
-    items: [
-      // Hoy vive dentro de cada solicitud (aliados sugeridos); falta su pantalla.
-      { modulo: 'cotizador', label: 'Emparejamiento', icon: 'ph-intersect', pronto: true },
-    ],
-  },
-  {
     title: 'Cotización', icon: 'ph-calculator',
     items: [
       { modulo: 'cotizador', href: '/cotizador/maquinaria', label: 'Cotizador de maquinaria', icon: 'ph-tractor' },
@@ -163,7 +150,7 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
   {
     title: 'Geolocalización', icon: 'ph-map-trifold',
     items: [
-      { modulo: 'proveedores', label: 'Mapa y cobertura', icon: 'ph-map-trifold', pronto: true },
+      { modulo: 'proveedores', href: '/cobertura', label: 'Mapa y cobertura', icon: 'ph-map-trifold' },
     ],
   },
   {
@@ -190,25 +177,17 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
     ],
   },
   {
-    title: 'Documentos', icon: 'ph-folder-simple',
-    items: [
-      // Hoy solo existen los papeles de cada aliado, dentro de Proveedores.
-      { modulo: 'proveedores', label: 'Documentos y vencimientos', icon: 'ph-folder-simple', pronto: true },
-    ],
-  },
-  {
     title: 'Comunicaciones', icon: 'ph-chat-centered-text',
     items: [
       { modulo: 'comunidad', href: '/mensajes', label: 'Mensajes', icon: 'ph-chat-centered-text', badge: 'messages' },
-      { modulo: 'servicios', label: 'Bitácora de interacciones', icon: 'ph-list-bullets', pronto: true },
     ],
   },
   {
     title: 'Administración', icon: 'ph-bank',
     items: [
-      { modulo: 'administracion', label: 'Cobranza a clientes', icon: 'ph-invoice', pronto: true },
-      { modulo: 'administracion', label: 'Pagos a aliados', icon: 'ph-hand-coins', pronto: true },
-      { modulo: 'administracion', label: 'Margen y conciliación', icon: 'ph-scales', pronto: true },
+      { modulo: 'administracion', href: '/administracion/cobranza', label: 'Cobranza a clientes', icon: 'ph-invoice', diseno: true },
+      { modulo: 'administracion', href: '/administracion/pagos', label: 'Pagos a aliados', icon: 'ph-hand-coins', diseno: true },
+      { modulo: 'administracion', href: '/administracion/margen', label: 'Margen y conciliación', icon: 'ph-scales', diseno: true },
     ],
   },
   {
@@ -221,8 +200,9 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
     title: 'Configuración', icon: 'ph-gear',
     items: [
       { modulo: 'cotizador', href: '/cotizador/tarifas', label: 'Tarifas y condiciones', icon: 'ph-sliders-horizontal' },
-      { modulo: 'configuracion', label: 'Zonas', icon: 'ph-map-pin-area', pronto: true },
-      { modulo: 'configuracion', href: '/correo', label: 'Correo', icon: 'ph-envelope-simple-open' },
+      { modulo: 'configuracion', href: '/zonas', label: 'Zonas', icon: 'ph-map-pin-area', diseno: true },
+      // Cada rol ve ahí los correos de sus módulos (2026-10-12).
+      { modulo: 'configuracion', tambien: MODULOS_CON_CORREO, href: '/correo', label: 'Correo', icon: 'ph-envelope-simple-open' },
       { modulo: 'admins', href: '/admins', label: 'Administradores', icon: 'ph-user-gear' },
       { modulo: 'admins', href: '/admins/permisos', label: 'Permisos', icon: 'ph-lock-key' },
     ],
@@ -261,9 +241,9 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
           { href: '/diseno/legal', label: 'Legal (términos/privacidad)' },
           { href: '/temas', label: 'Temas y colores' },
           // Lo que el público escribe y se publica en el sitio (revisión del
-          // panel, 2026-10-08): antes estaban en Sobrantes.
-          { href: '/resenas', label: 'Reseñas', modulo: 'comunidad' },
-          { href: '/preguntas', label: 'Preguntas', modulo: 'comunidad' },
+          // panel, 2026-10-08): antes estaban en Sobrantes. "Aprobar" en el
+          // nombre (2026-10-15): "7 · Reseñas" de arriba es cómo se ven en el home.
+          { href: '/resenas', label: 'Aprobar reseñas', modulo: 'comunidad' },
         ],
       },
     ],
@@ -294,7 +274,7 @@ type Badges = Record<BadgeKey, number>;
 
 export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: boolean; query: string; rol: RolAdmin; modulos?: readonly ModuloAdmin[] }) {
   const pathname = usePathname() || '/';
-  const [badges, setBadges] = useState<Badges>({ quotes: 0, withdraws: 0, messages: 0 });
+  const [badges, setBadges] = useState<Badges>({ quotes: 0, messages: 0 });
   /**
    * Qué submenús dejó ABIERTOS esta persona. Nacen cerrados —para eso se
    * agruparon—, así que aquí sólo se apunta lo que alguien abrió a mano. Se lee
@@ -374,7 +354,6 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
           if (!alive || !d) return;
           setBadges({
             quotes: d.pendingQuotes ?? 0,
-            withdraws: d.withdrawsPending ?? 0,
             messages: d.pendingMessages ?? 0,
           });
         })
@@ -403,7 +382,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
       // de su entrada: así Comercial ve Reseñas dentro de Sitio web aunque no
       // tenga Diseño, y Marca ve Sitio web sin Reseñas.
       .map((it) => (it.hijos ? { ...it, hijos: it.hijos.filter((h) => mios.includes(('modulo' in h && h.modulo) || it.modulo)) } : it))
-      .filter((it) => (it.hijos ? it.hijos.length > 0 : mios.includes(it.modulo)))
+      .filter((it) => (it.hijos ? it.hijos.length > 0 : mios.includes(it.modulo) || !!it.tambien?.some((m) => mios.includes(m))))
       // Buscar también entra al submenú: escribir "oferta" tiene que encontrar
       // la sección aunque su entrada esté plegada. Si lo que coincide es el
       // nombre del submenú, se muestra con todos sus hijos.
@@ -525,6 +504,7 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
         <i className={`ph ${it.icon} adm-navico`} aria-hidden />
         {showLabels ? <span className="adm-navlabel">{it.label}</span> : null}
         {showLabels && count > 0 ? <span className="adm-badge">{count}</span> : null}
+        {showLabels && it.diseno ? <span className="adm-badge adm-pronto-chip" title="Vista de diseño con datos de ejemplo">Diseño</span> : null}
       </Link>
     );
   };

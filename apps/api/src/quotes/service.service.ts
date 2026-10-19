@@ -7,7 +7,9 @@ import { MailerService } from '../notifications/mailer.service';
 import { avisarPanel } from '../notifications/panel';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { correoServicioAvanzo, correoOfertaAAliado, correoAsignacionAAliado } from '../notifications/email-templates';
-import { liberarReserva } from './reservas';
+import { confirmarEquipos, sincronizarReserva } from './reservas';
+import { MatchingService } from './matching.service';
+import { firmarResena, rutaResena } from '../reviews/resena-link';
 import {
   PASOS, esEstado, estadoInicial, puedeCerrar, sePuedeMover,
   type EstadoServicio,
@@ -25,6 +27,8 @@ import {
 @Injectable()
 export class ServiceService {
   private readonly log = new Logger(ServiceService.name);
+  /** Sin dependencias propias: se instancia aquí y no hace falta declararlo en cada módulo que usa este servicio. */
+  private readonly matching = new MatchingService();
 
   constructor(
     private readonly notifications: NotificationsService,
@@ -96,10 +100,6 @@ export class ServiceService {
         : hacia === 'cerrado' ? { service_closed_at: ahora }
           : {};
 
-    // Un servicio cancelado suelta la máquina que tenía apartada.
-    // Cerrar (terminó antes) también suelta las fechas que quedaban apartadas.
-    if (hacia === 'cancelado' || hacia === 'cerrado') await liberarReserva(quoteId);
-
     await prisma.quotes.update({
       where: { id: quoteId },
       data: {
@@ -122,6 +122,15 @@ export class ServiceService {
       },
     });
 
+    /**
+     * La disponibilidad sigue al servicio sola (ver reservas.ts): en traslado
+     * o en obra el equipo cambia de etapa; terminado, cerrado o cancelado lo
+     * suelta. Que la máquina vuelva es además la mejor confirmación de que
+     * sigue existiendo y está bien: cuenta como confirmada hoy.
+     */
+    const reserva = await sincronizarReserva(quoteId);
+    if (hacia === 'terminado' || hacia === 'cerrado') await confirmarEquipos(reserva.antes);
+
     // Lo reportó el aliado: MAQSER24 se entera en la campana del panel.
     if (opts.porAliado) {
       void avisarPanel({
@@ -138,13 +147,25 @@ export class ServiceService {
     const cierre =
       hacia === 'cerrado' && cantidad ? ` Se registraron ${formatearCantidad(cantidad, unidad)}.` : '';
 
+    /**
+     * Al cerrar se le pide la reseña (2026-10-12), con un enlace que no pide
+     * iniciar sesión: la mayoría cotizó sin cuenta. Si no se puede firmar (falta
+     * la llave), el cierre sigue: la reseña es un extra, el cierre no.
+     */
+    let resena: string | null = null;
+    if (hacia === 'cerrado') {
+      try { resena = rutaResena(await firmarResena(quoteId)); } catch (e) { this.log.warn(`Sin enlace de reseña para ${q.quote_number}: ${(e as Error).message}`); }
+    }
+
     if (q.user_id) {
+      const detalle = `/cuenta/cotizaciones/${q.quote_number}`;
       await this.notifications.push({
         userId: Number(q.user_id),
         type: 'service_status',
         title: `Tu servicio ${q.quote_number}: ${PASOS[hacia].label.toLowerCase()}`,
-        body: PASOS[hacia].cliente + cierre,
-        link: `/cuenta/cotizaciones/${q.quote_number}`,
+        body: PASOS[hacia].cliente + cierre + (resena ? ' Toca aquí para calificarlo.' : ''),
+        // El enlace del aviso guarda 200 caracteres: si el de la reseña no cabe, va al detalle.
+        link: resena && resena.length <= 200 ? resena : detalle,
       });
     }
 
@@ -154,20 +175,18 @@ export class ServiceService {
      * La campana solo la ve quien vuelve al sitio, y la mayoría cotizó sin
      * registrarse: sin esto, "tu unidad va en camino" no le llega a nadie.
      *
-     * NO se avisa de `asignado`: al cliente no le importa que internamente ya
-     * haya aliado, le importa cuándo sale la unidad. Un correo por cada paso
-     * interno entrena a la gente a ignorar los correos.
-     *
-     * EXCEPTO cuando el servicio lo pidió el cliente desde el cotizador: ahí
-     * él mismo le mandó la cotización al proveedor para que la revisara, y
-     * "la aceptó" ES la respuesta que está esperando.
+     * `asignado` también se avisa, siempre (2026-10-15): con la oferta
+     * automática, el cliente acepta y no sabe nada hasta que un aliado toma el
+     * servicio. Ese correo es la confirmación que espera: quién lo atiende y
+     * cuándo llega. (Antes solo salía si venía del cotizador.)
      */
-    const delCotizador = (q.requirements as { origen?: string } | null)?.origen === 'cotizador';
-    if (hacia !== 'asignado' || delCotizador) {
+    {
       const aliados = await prisma.service_assignments.findMany({
         where: { quote_id: quoteId, state: 'aceptado' },
         include: { providers: { select: { name: true } } },
+        orderBy: { id: 'asc' },
       });
+      const llega = hacia === 'asignado' ? aliados.find((a) => a.committed_at)?.committed_at ?? null : null;
       const plantilla = correoServicioAvanzo({
         nombre: q.name,
         folio: q.quote_number,
@@ -175,6 +194,9 @@ export class ServiceService {
         mensaje: PASOS[hacia].cliente,
         aliados: aliados.map((a) => a.providers.name),
         cierre: hacia === 'cerrado' && cantidad ? formatearCantidad(cantidad, unidad) : null,
+        resena,
+        llegada: llega ? FECHA_HORA.format(llega) : null,
+        confirmacion: hacia === 'asignado',
       });
       await this.mailer.enviar({
         kind: 'service_status',
@@ -186,6 +208,59 @@ export class ServiceService {
     }
 
     return { from: desde, to: hacia };
+  }
+
+  /**
+   * OFERTA AUTOMÁTICA (2026-10-15).
+   *
+   * "Cuando el cliente la acepta se le debe mandar la cotización a los
+   * proveedores, y el primero que conteste que sí puede, aparece en la
+   * cotización." Al aceptar el cliente, se le ofrece sola a los mejores
+   * aliados que LLEGAN a la obra (los mismos candidatos de "Buscar aliado",
+   * en el mismo orden) y el primero que acepta se la queda: a los demás se
+   * les retira (ver `responder`).
+   *
+   * Si ya tiene aliado o ya se le ofreció a alguien, no hace nada: lo que
+   * Operaciones haya movido a mano manda. Si nadie llega a la obra, suena la
+   * campana para buscarlo a mano. Nunca lanza: aceptar no puede fallar por esto.
+   */
+  async ofrecerATodos(quoteId: number, opts: { max?: number } = {}): Promise<{ ofrecidos: string[] }> {
+    const max = opts.max ?? OFERTA_AUTOMATICA_MAX;
+    try {
+      const vivas = await prisma.service_assignments.count({ where: { quote_id: quoteId, state: { in: ['propuesto', 'aceptado'] } } });
+      if (vivas > 0) return { ofrecidos: [] };
+      const r = await this.matching.paraCotizacion(quoteId);
+      const elegidos = r.coincidencias.filter((c) => c.cubre).slice(0, max);
+      const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true, total: true } });
+      if (elegidos.length === 0) {
+        void avisarPanel({
+          modulo: 'servicios',
+          evento: 'solicitud',
+          titulo: `Ningún aliado llega a la obra de ${q?.quote_number ?? 'un servicio'}: búscale uno`,
+          cuerpo: r.motivo ?? `Nadie de la red cubre ${r.zona ?? 'esa zona'} en esa línea.`,
+          link: '/servicios',
+        });
+        return { ofrecidos: [] };
+      }
+      const ofrecidos: string[] = [];
+      for (const c of elegidos) {
+        try {
+          await this.ofrecer(quoteId, c.proveedor.id, { total: q ? Number(q.total) : null, automatica: true });
+          ofrecidos.push(c.proveedor.name);
+        } catch (e) {
+          this.log.warn(`No se pudo ofrecer ${q?.quote_number} a ${c.proveedor.name}: ${(e as Error).message}`);
+        }
+      }
+      if (ofrecidos.length) {
+        await prisma.service_events.create({
+          data: { quote_id: quoteId, to_state: 'propuesto', note: `Oferta automática a ${ofrecidos.length} aliado(s): el primero que acepte se la queda` },
+        });
+      }
+      return { ofrecidos };
+    } catch (e) {
+      this.log.warn(`Oferta automática de #${quoteId}: ${(e as Error).message}`);
+      return { ofrecidos: [] };
+    }
   }
 
   /**
@@ -203,6 +278,8 @@ export class ServiceService {
       adminId?: number | null;
       /** Importe cotizado, cuando el cliente ya lo vio (cotizador). Va en el correo. */
       total?: number | null;
+      /** Parte de la oferta automática: el correo le dice que el primero que acepte se la queda. */
+      automatica?: boolean;
     } = {},
   ) {
     const [q, p] = await Promise.all([
@@ -249,8 +326,11 @@ export class ServiceService {
      */
     const datos = await prisma.quotes.findUnique({
       where: { id: quoteId },
-      select: { quote_number: true, service_category: true, address: true, comments: true },
+      select: { quote_number: true, service_category: true, address: true, comments: true, total: true, requirements: true },
     });
+    // La cotización completa (2026-10-15): el aliado ve las partidas y el
+    // importe del documento, igual que el cliente.
+    const partidas = datos ? await partidasDelDocumento(datos.requirements) : [];
     const contacto = await prisma.providers.findUnique({
       where: { id: providerId },
       select: { email: true, contact_name: true, access_version: true },
@@ -273,7 +353,10 @@ export class ServiceService {
         zona: datos.address,
         folio: datos.quote_number,
         detalle: opts.scope?.trim() || datos.comments,
-        total: opts.total ?? null,
+        total: opts.total ?? (Number(datos.total) > 0 ? Number(datos.total) : null),
+        partidas,
+        documento: folioDe(datos.requirements),
+        automatica: !!opts.automatica,
         url,
       });
       await this.mailer.enviar({
@@ -317,7 +400,9 @@ export class ServiceService {
     });
     if (!a) throw new NotFoundException('Asignación no encontrada');
     if (a.state !== 'propuesto') {
-      throw new BadRequestException('Esta propuesta ya tenía respuesta.');
+      throw new BadRequestException(
+        a.state === 'tomado' ? 'Este servicio ya lo tomó otro aliado.' : 'Esta propuesta ya tenía respuesta.',
+      );
     }
 
     await prisma.service_assignments.update({
@@ -331,6 +416,30 @@ export class ServiceService {
     });
 
     const quoteId = Number(a.quote_id);
+
+    /**
+     * EL PRIMERO QUE ACEPTA SE LA QUEDA (2026-10-15). A los demás aliados a
+     * los que se les ofreció y no han contestado se les retira la oferta
+     * ("tomado"): no es un rechazo suyo ni cuenta en su contra.
+     */
+    if (estado === 'aceptado') {
+      const otros = await prisma.service_assignments.findMany({
+        where: { quote_id: a.quote_id, state: 'propuesto', id: { not: assignmentId } },
+        select: { id: true },
+      });
+      if (otros.length) {
+        await prisma.service_assignments.updateMany({
+          where: { id: { in: otros.map((o) => o.id) }, state: 'propuesto' },
+          // Sin responded_at: no contestó él, y contarlo como respuesta movería sus tiempos.
+          // Sin nombre: el motivo se ve en el portal de cada aliado, y no tiene por qué saber quién fue.
+          data: { state: 'tomado', reason: 'Lo tomó otro aliado' },
+        });
+        await prisma.service_events.create({
+          data: { quote_id: quoteId, to_state: 'tomado', note: `Se les retiró la oferta a ${otros.length} aliado(s): ya la tomó ${a.providers.name}` },
+        });
+      }
+    }
+
     await prisma.service_events.create({
       data: {
         quote_id: quoteId,
@@ -359,9 +468,15 @@ export class ServiceService {
       });
     }
 
-    // Si no la toma, la máquina vuelve a estar libre para otros.
+    /**
+     * Si no la toma, su máquina vuelve a estar libre para otros. Si la toma,
+     * queda apartado lo SUYO —aunque el cliente hubiera elegido la de otro
+     * aliado— y decir "sí, la llevo" cuenta como confirmar que la tiene.
+     */
+    const reserva = await sincronizarReserva(quoteId);
+    if (estado === 'aceptado') await confirmarEquipos(reserva.productos, a.provider_id);
+
     if (estado !== 'aceptado') {
-      await liberarReserva(quoteId);
       /**
        * El cliente se entera también de la negativa (2026-09-25): antes solo
        * veía "esperando al aliado" para siempre. El mensaje dice que no es el
@@ -488,4 +603,27 @@ export class ServiceService {
       at: r.created_at,
     }));
   }
+}
+
+/** A cuántos aliados se les ofrece a la vez cuando el cliente acepta. */
+const OFERTA_AUTOMATICA_MAX = 5;
+
+const FECHA_HORA = new Intl.DateTimeFormat('es-MX', {
+  weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/Monterrey',
+});
+
+const folioDe = (requirements: unknown): string | null => {
+  const f = (requirements as { folio?: unknown } | null)?.folio;
+  return typeof f === 'string' && f.trim() ? f : null;
+};
+
+/** Las partidas del documento del cotizador ligado, para enseñárselas al aliado. */
+async function partidasDelDocumento(requirements: unknown): Promise<Array<{ concepto: string; cantidad: string; importe: number }>> {
+  const id = (requirements as { quoterId?: unknown } | null)?.quoterId;
+  if (typeof id !== 'number') return [];
+  const doc = await prisma.quoter_quotes.findUnique({ where: { id }, select: { snapshot: true } });
+  const renglones = (doc?.snapshot as { calc?: { renglones?: Array<{ concepto?: string; cantidad?: number; unidad?: string; importe?: number }> } } | null)?.calc?.renglones ?? [];
+  return renglones
+    .filter((r) => r.concepto)
+    .map((r) => ({ concepto: String(r.concepto), cantidad: `${r.cantidad ?? ''} ${r.unidad ?? ''}`.trim(), importe: Number(r.importe ?? 0) }));
 }

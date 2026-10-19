@@ -30,9 +30,21 @@ export interface PuntoMapa {
   lng: number;
   /** Radio de cobertura en km. Sólo los aliados lo traen. */
   radioKm?: number | null;
-  tipo: 'aliado' | 'obra';
+  /** `salida` y `unidad`: el rastreo de Servicios en curso (de dónde salió y por dónde va). */
+  tipo: 'aliado' | 'obra' | 'salida' | 'unidad';
   detalle?: string | null;
+  /** Letrero fijo junto al punto, sin tener que darle clic ("Salida", "Destino"). */
+  etiqueta?: string | null;
 }
+
+/** Una línea del rastreo: lo que ya recorrió (continua) o lo que le falta (punteada). */
+export interface RutaMapa {
+  linea: Array<[number, number]>;
+  falta?: boolean;
+}
+
+const COLOR: Record<PuntoMapa['tipo'], string> = { aliado: '#008CFF', unidad: '#008CFF', obra: '#E0A32E', salida: '#22A06B' };
+const TAMANO: Record<PuntoMapa['tipo'], number> = { aliado: 6, unidad: 9, obra: 8, salida: 7 };
 
 /** Texto → HTML seguro para los globos de Leaflet. */
 const esc = (s: string) =>
@@ -45,9 +57,12 @@ export function MapaCobertura({
   puntos,
   alto = 340,
   onMover,
+  rutas,
 }: {
   puntos: PuntoMapa[];
   alto?: number;
+  /** Recorridos para dibujar como línea (rastreo de unidades, 2026-10-14). Memorízalos: cambian el mapa. */
+  rutas?: RutaMapa[];
   /**
    * Modo "marcar a mano" (2026-09-25): un clic en el mapa o arrastrar el
    * punto lo mueve. Para cuando la dirección no existe en OpenStreetMap.
@@ -82,12 +97,20 @@ export function MapaCobertura({
 
       const capas: Array<{ getBounds?: () => unknown; getLatLng?: () => unknown }> = [];
 
+      // El camino de cada unidad, debajo de los marcadores: continuo lo que ya
+      // anduvo, punteado y del color del destino lo que le falta (en línea recta, no la carretera).
+      for (const r of rutas ?? []) {
+        if (r.linea.length < 2) continue;
+        L.polyline(r.linea, r.falta
+          ? { color: '#E0A32E', weight: 3, opacity: 0.9, dashArray: '2 8', lineCap: 'round' }
+          : { color: '#008CFF', weight: 4, opacity: 0.75 }).addTo(m);
+      }
+
       for (const p of puntos) {
-        const esObra = p.tipo === 'obra';
-        const color = esObra ? '#E0A32E' : '#008CFF';
+        const color = COLOR[p.tipo];
 
         // El radio primero, para que los marcadores queden encima.
-        if (!esObra && p.radioKm && p.radioKm > 0) {
+        if (p.tipo === 'aliado' && p.radioKm && p.radioKm > 0) {
           const c = L.circle([p.lat, p.lng], {
             radius: p.radioKm * 1000,
             color,
@@ -113,11 +136,12 @@ export function MapaCobertura({
         }
 
         const marca = L.circleMarker([p.lat, p.lng], {
-          radius: esObra ? 8 : 6,
-          color,
-          weight: 2,
+          radius: TAMANO[p.tipo],
+          // La unidad con borde blanco: es el punto que se busca primero.
+          color: p.tipo === 'unidad' ? '#fff' : color,
+          weight: p.tipo === 'unidad' ? 3 : 2,
           fillColor: color,
-          fillOpacity: 0.9,
+          fillOpacity: 0.95,
         }).addTo(m);
         // Escapado: el nombre de la obra lo escribe el CLIENTE y el del aliado
         // lo captura cualquiera; bindPopup interpreta HTML (QA 2026-09-25:
@@ -127,6 +151,9 @@ export function MapaCobertura({
             p.radioKm ? `<br>Llega hasta ${p.radioKm} km` : ''
           }`,
         );
+        if (p.etiqueta) {
+          marca.bindTooltip(esc(p.etiqueta), { permanent: true, direction: 'top', offset: [0, -TAMANO[p.tipo]], className: `mapa-etq mapa-etq-${p.tipo}` });
+        }
         capas.push(marca);
       }
 
@@ -146,14 +173,16 @@ export function MapaCobertura({
         // undefined" en cuanto había dos aliados ubicados y uno con radio —el
         // mapa quedaba gris (2026-09-25). 1° de latitud ≈ 111 km.
         const limites = L.latLngBounds(puntos.map((p) => [p.lat, p.lng] as [number, number]));
+        for (const r of rutas ?? []) for (const ll of r.linea) limites.extend(ll);
         for (const p of puntos) {
-          if (p.tipo === 'obra' || !p.radioKm) continue;
+          if (p.tipo !== 'aliado' || !p.radioKm) continue;
           const dLat = p.radioKm / 111;
           const dLng = p.radioKm / (111 * Math.max(0.2, Math.cos((p.lat * Math.PI) / 180)));
           limites.extend([p.lat - dLat, p.lng - dLng]).extend([p.lat + dLat, p.lng + dLng]);
         }
         // maxZoom: si todos están en el mismo punto no se acerca hasta la banqueta.
-        m.fitBounds(limites.pad(0.15), { maxZoom: 13 });
+        // Más margen con letreros: si no, el de arriba queda cortado por el borde.
+        m.fitBounds(limites.pad(puntos.some((p) => p.etiqueta) ? 0.25 : 0.15), { maxZoom: 13 });
       }
     })();
 
@@ -164,7 +193,7 @@ export function MapaCobertura({
         mapa.current = null;
       }
     };
-  }, [puntos, onMover]);
+  }, [puntos, onMover, rutas]);
 
   if (puntos.length === 0 && !onMover) {
     return (
@@ -204,6 +233,11 @@ export function MapaCobertura({
         .mapa-cob .leaflet-popup-content { margin: 11px 14px; font-size: 13px; line-height: 1.5; }
         .mapa-cob.leaflet-container a.leaflet-popup-close-button { color: var(--adm-muted); }
         .mapa-cob.leaflet-container a.leaflet-popup-close-button:hover { color: var(--adm-text); }
+        .mapa-cob .leaflet-tooltip.mapa-etq { background: var(--adm-raised); color: var(--adm-text); border: 1px solid var(--adm-border-strong); border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,.35); white-space: nowrap; }
+        .mapa-cob .leaflet-tooltip-top.mapa-etq::before { border-top-color: var(--adm-border-strong); }
+        .mapa-cob .mapa-etq-salida { border-left: 3px solid #22A06B; }
+        .mapa-cob .mapa-etq-unidad { border-left: 3px solid #008CFF; }
+        .mapa-cob .mapa-etq-obra { border-left: 3px solid #E0A32E; }
       `}</style>
       <div
         ref={caja}

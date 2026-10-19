@@ -1,4 +1,3 @@
-import { MARKETPLACE_ACTIVO } from './marketplace';
 
 /**
  * ROLES Y PERMISOS DEL PANEL (documento institucional, sección 24 · Organización
@@ -56,7 +55,8 @@ export const MODULOS_ADMIN = [
   // construye después; el permiso existe ya para el rol Administración.
   'administracion',
   'proveedores',
-  'marketplace',
+  // 'marketplace' (vendedores y retiros) se retiró con la tienda heredada
+  // (2026-10-15): un permiso guardado con ese nombre lo descarta normalizarModulos.
   'comunidad',
   'diseno',
   'configuracion',
@@ -66,19 +66,11 @@ export const MODULOS_ADMIN = [
 export type ModuloAdmin = (typeof MODULOS_ADMIN)[number];
 
 /**
- * MÓDULOS APAGADOS.
- *
- * Existen en el código pero nadie los alcanza: ni el menú, ni Permisos, ni el
- * guard de la API, ni Dirección. Hoy es el marketplace heredado (vendedores y
- * retiros), que el modelo MAQSER24 no tiene (ver `marketplace.ts`). Se filtra
- * en un solo sitio —aquí— para que el menú y la API no puedan divergir.
+ * Los módulos que ven las personas. Hoy son todos: el único apagado era el
+ * marketplace heredado y se retiró del código (2026-10-15). Se queda el nombre
+ * porque Permisos y la API lo usan para listar lo que se puede repartir.
  */
-const MODULOS_OCULTOS: readonly ModuloAdmin[] = MARKETPLACE_ACTIVO ? [] : ['marketplace'];
-
-export const esModuloOculto = (m: ModuloAdmin): boolean => MODULOS_OCULTOS.includes(m);
-
-/** Los módulos que sí existen para las personas: la lista de arriba sin los apagados. */
-export const MODULOS_VISIBLES: readonly ModuloAdmin[] = MODULOS_ADMIN.filter((m) => !esModuloOculto(m));
+export const MODULOS_VISIBLES: readonly ModuloAdmin[] = MODULOS_ADMIN;
 
 /**
  * Cómo se llama cada módulo en pantalla. La clave es para el código; esto es
@@ -97,8 +89,7 @@ export const MODULOS_META: Record<ModuloAdmin, { nombre: string; detalle: string
   clientes: { nombre: 'Clientes y obras', detalle: 'Las empresas que contratan y sus frentes abiertos.' },
   administracion: { nombre: 'Administración', detalle: 'Cobranza a clientes, pagos a aliados, margen y conciliación.' },
   proveedores: { nombre: 'Proveedores', detalle: 'La red de aliados, sus papeles y su desempeño.' },
-  marketplace: { nombre: 'Marketplace', detalle: 'Vendedores y RETIROS DE DINERO.' },
-  comunidad: { nombre: 'Comunidad', detalle: 'Cuentas, reseñas, preguntas, mensajes y suscriptores.' },
+  comunidad: { nombre: 'Comunidad', detalle: 'Cuentas, reseñas, preguntas y mensajes.' },
   diseno: { nombre: 'Diseño del sitio', detalle: 'Secciones del home, textos, colores, blog y marca.' },
   configuracion: { nombre: 'Configuración', detalle: 'Correo y ajustes generales.' },
   admins: { nombre: 'Administradores', detalle: 'Las cuentas del panel y estos permisos.' },
@@ -173,17 +164,16 @@ export function rolDeAdmin(valor: string | null | undefined): RolAdmin {
   return ROL_POR_DEFECTO;
 }
 
-/** ¿Este rol puede entrar a este módulo? Un módulo apagado, nadie. */
+/** ¿Este rol puede entrar a este módulo? */
 export function puedeVer(rol: RolAdmin, modulo: ModuloAdmin): boolean {
-  if (esModuloOculto(modulo)) return false;
   const def = ROLES_ADMIN[rol];
   if (!def) return false;
   return def.modulos === null || def.modulos.includes(modulo);
 }
 
-/** Los módulos de un rol, ya resueltos (Dirección incluida), sin los apagados. */
+/** Los módulos de un rol, ya resueltos (Dirección incluida). */
 export function modulosDe(rol: RolAdmin): readonly ModuloAdmin[] {
-  return (ROLES_ADMIN[rol]?.modulos ?? MODULOS_ADMIN).filter((m) => !esModuloOculto(m));
+  return ROLES_ADMIN[rol]?.modulos ?? MODULOS_ADMIN;
 }
 
 /* ============================================================

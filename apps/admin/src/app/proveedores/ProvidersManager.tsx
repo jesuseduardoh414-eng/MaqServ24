@@ -1,8 +1,9 @@
 'use client';
 
 import { Fragment, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, centroDeMunicipio, coordenadasDe, esLineaServicio, radioDeCobertura } from '@maqserv/config';
+import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, centroDeMunicipio, coordenadasDe, esLineaServicio, presentacionEstado, radioDeCobertura } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
+import { AdminDatePicker } from '@/components/AdminFecha';
 import { Modal } from '@/components/Modal';
 import {
   Btn, btnClass, Chip, EmptyState, FormField, IconBtn, Note, PageHeader, Panel, SearchBox, Stat, Stats, StatusText, Thumb, Toolbar,
@@ -74,17 +75,11 @@ interface Renglon {
   productos: number[];
 }
 
-/** Cómo se lee la disponibilidad de un equipo en una línea. */
-const DISP: Record<string, { texto: string; tono: Tone }> = {
-  disponible: { texto: 'Disponible', tono: 'ok' },
-  limitada: { texto: 'Disponible', tono: 'ok' },
-  'por-confirmar': { texto: 'Por confirmar', tono: 'warn' },
-  reservado: { texto: 'Reservado', tono: 'info' },
-  'en-traslado': { texto: 'En traslado', tono: 'info' },
-  'en-servicio': { texto: 'En servicio', tono: 'info' },
-  mantenimiento: { texto: 'Mantenimiento', tono: 'warn' },
-  inactivo: { texto: 'Inactivo', tono: 'bad' },
-};
+/*
+ * Cómo se lee la disponibilidad de un equipo: ESTADOS_DISPONIBILIDAD
+ * (@maqserv/config), con los mismos nombres y colores que Disponibilidad y la
+ * Agenda. Antes aquí "reservado" era azul y en Disponibilidad ámbar.
+ */
 
 interface DocRow {
   id: number;
@@ -412,13 +407,13 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
             <input className="adm-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           </FormField>
           <FormField label="Persona que responde">
-            <input className="adm-input" value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
+            <input className="adm-input" data-campo="nombre" maxLength={190} value={form.contactName} onChange={(e) => setForm({ ...form, contactName: e.target.value })} />
           </FormField>
           <FormField label="Teléfono">
-            <input className="adm-input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            <input className="adm-input" type="tel" inputMode="tel" maxLength={20} placeholder="81 1234 5678" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </FormField>
           <FormField label="Correo">
-            <input className="adm-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <input className="adm-input" type="email" maxLength={190} placeholder="nombre@empresa.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </FormField>
           {/* Los AdminSelect no van dentro de <label>: es un botón de Radix y el
               clic en la etiqueta lo abriría dos veces. */}
@@ -427,7 +422,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
             <AdminSelect ariaLabel="Nivel" value={form.level} onChange={(v) => setForm({ ...form, level: v })} options={NIVELES.map((n) => ({ value: n, label: n }))} />
           </div>
           <FormField label="Respuesta promedio (minutos)">
-            <input className="adm-input adm-num" type="number" value={form.responseMinutes} onChange={(e) => setForm({ ...form, responseMinutes: e.target.value })} />
+            <input className="adm-input adm-num" type="number" min={0} max={10080} step={1} value={form.responseMinutes} onChange={(e) => setForm({ ...form, responseMinutes: e.target.value })} />
           </FormField>
         </div>
 
@@ -756,14 +751,14 @@ function ExpedienteModal({
         ) : (
           <Panel flush clip>
             {publicados.map((e) => {
-              const disp = DISP[e.availability] ?? { texto: e.availability, tono: 'muted' as const };
+              const disp = presentacionEstado(e.availability);
               return (
                 <div key={e.id} className="adm-trow" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 16px' }}>
                   <Thumb src={e.image} size={48} />
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                       <span className="adm-cell-title">{e.name}</span>
-                      <StatusText tone={disp.tono}>{disp.texto}</StatusText>
+                      <StatusText color={disp.color.oscuro} title={disp.nota}>{disp.nombre}</StatusText>
                     </div>
                     <div className="adm-cell-sub">{metaEquipo(e)}</div>
                     {e.specs.length > 0 ? (
@@ -825,7 +820,7 @@ function ExpedienteModal({
               <AdminSelect ariaLabel="Tipo de documento" value={kind} onChange={setKind} options={TIPOS_DOC.map(([k, n]) => ({ value: k, label: n }))} />
             </div>
             <FormField label="Vence el (opcional)">
-              <input className="adm-input" type="date" value={vence} onChange={(e) => setVence(e.target.value)} />
+              <AdminDatePicker value={vence} onChange={setVence} placeholder="No vence" />
             </FormField>
           </div>
           <FormField label="Nombre del documento">

@@ -1,6 +1,9 @@
 import {
-  Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards,
+  BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards,
 } from '@nestjs/common';
+import { asignarOperador, operadorDe } from '../providers/operador';
+import { zTelefono } from '../common/campos';
+import { registrarAccion } from './audit';
 import { prisma } from '@maqserv/db';
 import { z } from 'zod';
 import { UNIDADES, unidadesDe, unidadPorDefectoDe, formatearCantidad } from '@maqserv/config';
@@ -120,6 +123,8 @@ export class AdminServicesController {
         suggested: sugeridosDe.get(String(q.id)) || null,
         startedAt: q.service_started_at,
         closedAt: q.service_closed_at,
+        // Quién maneja la unidad (2026-10-15, ver providers/operador.ts).
+        operator: (() => { const o = operadorDe(q.requirements); return o ? { name: o.nombre, phone: o.telefono } : null; })(),
         assignments: mias.map((a) => ({
           id: a.id,
           providerId: a.providers.id,
@@ -154,6 +159,23 @@ export class AdminServicesController {
       quantity: b.quantity,
       unit: b.unit,
     });
+  }
+
+  /**
+   * El operador de la unidad y su enlace (2026-10-15). Normalmente lo pone el
+   * aliado desde su portal; aquí, para cuando no lo hizo o lo pide por
+   * teléfono. Volver a mandarlo invalida el enlace anterior.
+   */
+  @Put(':id/operador')
+  async operador(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({ nombre: z.string().trim().min(2, 'Escribe el nombre del operador').max(120), telefono: zTelefono().optional().nullable() }).safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Datos inválidos');
+    const q = await prisma.quotes.findUnique({ where: { id }, select: { quote_number: true, service_state: true } });
+    if (!q) throw new NotFoundException('Servicio no encontrado');
+    if (!q.service_state || q.service_state === 'cerrado' || q.service_state === 'cancelado') throw new BadRequestException('Ese servicio no está en curso.');
+    const r = await asignarOperador(id, { nombre: p.data.nombre, telefono: p.data.telefono ?? null });
+    await registrarAccion(req, 'servicios', 'servicio.operador', q.quote_number, `${r.operador.nombre}${r.operador.telefono ? ` · ${r.operador.telefono}` : ''}`);
+    return r;
   }
 
   @Post(':id/ofrecer')

@@ -24,6 +24,13 @@ import type { DatosCuenta } from '../common/cuenta';
  * DEL COTIZADOR AL SERVICIO (decisión del cliente, 2026-09-23; relación con
  * líneas y catálogo, 2026-09-24).
  *
+ * CAMBIO 2026-10-15: lo que manda el cliente desde el cotizador ya NO entra
+ * aceptado. Llega a Solicitudes › Por cotizar con su documento; en el panel se
+ * confirman datos y precios y se le responde; él la acepta desde su cuenta y
+ * entonces se le ofrece sola a los aliados (el primero que acepta se la queda,
+ * ver ServiceService.ofrecerATodos). Lo de abajo sobre "ya respondida y ya
+ * aceptada" describe cómo era antes.
+ *
  * Lo que sale del cotizador público no es "una solicitud de cotización": el
  * cliente YA vio el precio. Es la SOLICITUD DEL SERVICIO con esa cotización.
  * Se crea la cotización YA RESPONDIDA (precio congelado, vigencia, incluye,
@@ -88,9 +95,20 @@ export class QuoterServicio {
     cuenta: DatosCuenta;
     /** Nombre con el que firmó la solicitud (puede ser la empresa). */
     cliente: string;
-    userId: number;
+    /** Null cuando la cotización la armó el panel para alguien sin cuenta. */
+    userId: number | null;
+    /**
+     * `por_confirmar` (sitio, 2026-10-15): el cliente la pidió viendo el precio
+     * y MAQSER24 la revisa antes de mandarla a los aliados.
+     * `aceptada` (cotizador del panel): el cliente ya dijo que sí por teléfono
+     * o WhatsApp; nace en servicio y se ofrece de una vez.
+     */
+    modo?: 'por_confirmar' | 'aceptada';
+    /** Quién la marcó aceptada en el panel (solo `aceptada`). */
+    adminNombre?: string | null;
   }): Promise<ServicioAbierto> {
     const { cotizacion: cot, catalogo, partidas, cuenta, userId } = entrada;
+    const modo = entrada.modo ?? 'por_confirmar';
     const tipo = cot.kind as CotizadorTipo;
     const calcTotal = (cot.snapshot as { calc?: CalculoCotizacion } | null)?.calc;
     if (!calcTotal) throw new Error(`La cotización ${cot.folio} no trae cálculo congelado`);
@@ -129,7 +147,7 @@ export class QuoterServicio {
     for (const [linea, grupo] of porLinea) {
       // Una sola línea: el cálculo congelado del documento es exactamente este.
       const calc = unaSola ? calcTotal : calcularCotizacion(catalogo, grupo.map((g) => g.partida), opciones);
-      const abierto = await this.crearServicio({ cot, tipo, nombreCotizador, linea, lineaNombre: nombresLinea.get(linea) ?? linea, calc, grupo, entrada });
+      const abierto = await this.crearServicio({ cot, tipo, nombreCotizador, linea, lineaNombre: nombresLinea.get(linea) ?? linea, calc, grupo, entrada, modo });
 
       /**
        * PRECIO ÚNICO Y ASIGNA MAQSER24 (decisión del cliente, 2026-09-28).
@@ -160,25 +178,66 @@ export class QuoterServicio {
     // ── 4. Avisar al cliente y cerrar el documento del cotizador ──
     const todos: string[] = [];
     const principal = servicios[0];
-    await this.notifications.push({
+
+    // Del panel: el cliente ya aceptó, así que sale de una vez a los aliados
+    // (el primero que acepta se la queda; ServiceService.ofrecerATodos).
+    if (modo === 'aceptada') {
+      for (const sv of servicios) {
+        const r = await this.services.ofrecerATodos(sv.quoteId);
+        sv.proveedores = r.ofrecidos;
+        todos.push(...r.ofrecidos);
+      }
+      return { quoteId: principal.quoteId, quoteNumber: principal.quoteNumber, proveedores: [...new Set(todos)], url: principal.url, servicios };
+    }
+
+    if (userId) await this.notifications.push({
       userId,
       type: 'service_status',
-      title: `Recibimos tu solicitud de servicio ${cot.folio}`,
-      body: 'MAQSER24 está asignando al proveedor que la atenderá. Te avisamos en cuanto la acepte.',
+      title: `Recibimos tu cotización ${cot.folio}`,
+      body: 'La revisamos y te la confirmamos con precio. Después la aceptas desde tu cuenta.',
       link: principal.url,
     });
-    // Campana del panel: hay que asignarla.
+    // Campana del panel: hay que confirmarla y responderle.
     void avisarPanel({
-      modulo: 'servicios',
-      evento: 'solicitud',
-      titulo: `Nueva solicitud ${cot.folio} de ${entrada.cliente}: asigna aliado`,
+      modulo: 'cotizaciones',
+      evento: 'cotizacion',
+      titulo: `Cotización del sitio ${cot.folio} de ${entrada.cliente}: confírmala`,
       cuerpo: `${servicios.map((s) => s.linea).length} servicio(s) · ${dinero(calcTotal.total)}${cot.municipality ? ` · ${cot.municipality}` : ''}`,
-      link: '/servicios',
+      link: '/cotizaciones',
     });
-    // El documento sigue "solicitada" hasta que los aliados acepten todos sus
-    // servicios (ServiceService.documentoAceptadoSiTodos lo pasa a "aceptada").
+    // El documento sigue "solicitada"; pasa a "enviada" al responderle y a
+    // "aceptada" cuando el cliente la acepta.
 
     return { quoteId: principal.quoteId, quoteNumber: principal.quoteNumber, proveedores: todos, url: principal.url, servicios };
+  }
+
+  /**
+   * COTIZACIÓN DEL PANEL ACEPTADA (2026-10-15).
+   *
+   * Las cotizaciones que arma MAQSER24 en su cotizador (clientes que llaman o
+   * escriben por WhatsApp) eran solo un documento. Al marcarla "Aceptada" en
+   * Cotizaciones emitidas, ahora se abre su servicio y se ofrece a los aliados
+   * igual que lo demás. Si ya tenía servicio (o viene de una solicitud del
+   * sitio, que sigue su propio camino), no hace nada.
+   */
+  async abrirDesdePanel(docId: number, catalogo: CatalogoCotizador, adminNombre: string | null): Promise<ServicioAbierto | null> {
+    const doc = await prisma.quoter_quotes.findUnique({ where: { id: docId } });
+    if (!doc || doc.origin !== 'panel') return null;
+    const ya = await prisma.quotes.count({ where: { requirements: { path: '$.folio', equals: doc.folio } } });
+    if (ya > 0) return null;
+    return this.abrir({
+      cotizacion: {
+        id: doc.id, folio: doc.folio, kind: doc.kind, work: doc.work, attention: doc.attention,
+        municipality: doc.municipality, phone: doc.phone, notes: doc.notes, snapshot: doc.snapshot, options: doc.options,
+      },
+      catalogo,
+      partidas: doc.items as unknown as PartidaCotizador[],
+      cuenta: { name: doc.attention || doc.client_name, email: doc.email ?? '', phone: doc.phone },
+      cliente: doc.client_name,
+      userId: doc.user_id ?? null,
+      modo: 'aceptada',
+      adminNombre,
+    });
   }
 
   /** Crea la cotización aceptada + el servicio de UNA línea, con su historial y su cliente/obra. */
@@ -190,9 +249,11 @@ export class QuoterServicio {
     lineaNombre: string;
     calc: CalculoCotizacion;
     grupo: PartidaAnalizada[];
-    entrada: { cuenta: DatosCuenta; cliente: string; userId: number };
+    entrada: { cuenta: DatosCuenta; cliente: string; userId: number | null; adminNombre?: string | null };
+    modo: 'por_confirmar' | 'aceptada';
   }): Promise<{ quoteId: number; quoteNumber: string; url: string }> {
     const { cot, calc, entrada } = d;
+    const aceptada = d.modo === 'aceptada';
     const ahora = new Date();
     const vence = new Date(ahora.getTime() + VIGENCIA_DEFAULT_DIAS * 86400000);
 
@@ -205,10 +266,11 @@ export class QuoterServicio {
       .join('\n');
     const condiciones = calc.condiciones.map((b) => [b.titulo, ...b.puntos.map((p) => `- ${p}`)].join('\n')).join('\n\n');
     const conceptos = d.grupo.map((g) => g.concepto);
+    const ligados = [...new Set(d.grupo.flatMap((g) => g.productos))];
 
     const q = await prisma.quotes.create({
       data: {
-        user_id: entrada.userId,
+        user_id: entrada.userId ?? null,
         name: entrada.cliente || entrada.cuenta.name,
         email: entrada.cuenta.email,
         phone: cot.phone || entrada.cuenta.phone || '',
@@ -227,23 +289,36 @@ export class QuoterServicio {
         freight_cost: new Prisma.Decimal(fletes),
         tax: new Prisma.Decimal(r2(calc.iva)),
         total: new Prisma.Decimal(r2(calc.total)),
-        // Nace RESPONDIDA (el precio lo puso el tabulador) y ACEPTADA (pedir el
-        // servicio con ese precio es aceptarlo).
-        status: 'completed',
-        responded_at: ahora,
-        responded_by: `Cotizador de ${d.nombreCotizador}`,
-        valid_until: vence,
+        // Nace POR CONFIRMAR (2026-10-15): el panel revisa datos y precios y le
+        // responde; la vigencia la pone esa respuesta. Lo que incluye y las
+        // condiciones ya van llenos con lo del documento.
+        status: 'pending',
         included: incluye,
         conditions: condiciones || null,
-        accepted_at: ahora,
-        service_state: estadoInicial(),
+        // Del panel ya aceptada: respondida (el precio lo puso MAQSER24 en el
+        // documento), aceptada (el cliente dijo que sí) y en servicio.
+        ...(aceptada
+          ? {
+              status: 'completed',
+              responded_at: ahora,
+              responded_by: entrada.adminNombre ?? `Cotizador de ${d.nombreCotizador}`,
+              valid_until: vence,
+              accepted_at: ahora,
+              service_state: estadoInicial(),
+            }
+          : {}),
         // La línea REAL de lo pedido, no la del cotizador.
         service_category: d.linea,
         requirements: {
-          origen: 'cotizador',
+          // `panel`: la armó MAQSER24 en su cotizador (cliente por teléfono o WhatsApp).
+          origen: aceptada ? 'panel' : 'cotizador',
           cotizador: d.tipo,
           folio: cot.folio,
           quoterId: cot.id,
+          // Equipos ligados a los renglones pedidos. No se aparta ninguno
+          // todavía (asigna MAQSER24); cuando un aliado acepta, se aparta el
+          // suyo de esta lista (ver quotes/reservas.ts).
+          ...(ligados.length ? { productos: ligados } : {}),
           ...(cot.work ? { obra: cot.work } : {}),
           ...(cot.municipality ? { obra_ubicacion: cot.municipality } : {}),
         } as Prisma.InputJsonValue,
@@ -253,14 +328,16 @@ export class QuoterServicio {
       },
     });
 
-    await prisma.service_events.create({
-      data: {
-        quote_id: q.id,
-        to_state: estadoInicial(),
-        note: `El cliente solicitó ${d.lineaNombre.toLowerCase()} desde el cotizador de ${d.nombreCotizador} (${cot.folio}) por ${dinero(calc.total)}`,
-        created_at: ahora,
-      },
-    });
+    if (aceptada) {
+      await prisma.service_events.create({
+        data: {
+          quote_id: q.id,
+          to_state: estadoInicial(),
+          note: `El cliente aceptó la cotización ${cot.folio}${entrada.adminNombre ? ` (la registró ${entrada.adminNombre})` : ''}`,
+          created_at: ahora,
+        },
+      });
+    }
 
     // A qué cliente y obra pertenece. Nunca lanza.
     const ligada = await resolverClienteYObra({
@@ -269,7 +346,7 @@ export class QuoterServicio {
       phone: cot.phone,
       address: cot.work,
       region: cot.municipality,
-      userId: entrada.userId,
+      userId: entrada.userId ?? undefined,
     });
     if (ligada.clientId) {
       await prisma.quotes.update({ where: { id: q.id }, data: { client_id: ligada.clientId, site_id: ligada.siteId } });

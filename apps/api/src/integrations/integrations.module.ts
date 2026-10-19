@@ -99,11 +99,6 @@ class FeedController {
   }
 }
 
-// La carga inicial de suscriptores a Perfex vivía aquí (`POST admin/perfex/sync-subscribers`)
-// pero NO tenía botón en el panel: era inalcanzable. Se movió a
-// `admin-subscribers.controller.ts` (`POST admin/subscribers/sync`), junto a la lista
-// que sincroniza y con su botón.
-
 @Module({
   controllers: [FeedController],
   providers: [PerfexService],

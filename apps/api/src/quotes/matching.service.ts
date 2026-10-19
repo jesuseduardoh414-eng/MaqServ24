@@ -113,7 +113,7 @@ export class MatchingService {
             starts_on: { lte: hoy },
             OR: [{ ends_on: null }, { ends_on: { gte: hoy } }],
           },
-          select: { product_id: true, state: true, starts_on: true, ends_on: true },
+          select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
         })
       : [];
 

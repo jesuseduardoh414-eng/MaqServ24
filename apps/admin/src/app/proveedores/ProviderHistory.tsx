@@ -52,6 +52,7 @@ const ESTADO: Record<string, { texto: string; tono: Tone }> = {
   rechazado: { texto: 'Rechazó', tono: 'bad' },
   retirado: { texto: 'Se retiró', tono: 'bad' },
   propuesto: { texto: 'Sin contestar', tono: 'warn' },
+  tomado: { texto: 'Lo tomó otro', tono: 'muted' },
 };
 
 const fuerte = { color: 'var(--adm-text)', fontWeight: 600 } as const;

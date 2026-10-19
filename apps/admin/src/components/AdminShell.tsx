@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { SidebarNav } from './SidebarNav';
 import { AvisosBell } from './AvisosBell';
 import { DialogosHost } from './Dialogos';
+import { ResultadosHost } from '@maqserv/ui';
 import { useBranding } from './branding';
 import type { ModuloAdmin, RolAdmin } from '@maqserv/config';
 
@@ -172,6 +173,15 @@ export function AdminShell({
 
       {/* confirmar / pedirTexto / avisar: en lugar de los diálogos del navegador. */}
       <DialogosHost />
+      {/* Aviso de "sí se hizo / no se hizo" tras CADA cambio. Ver Resultados. */}
+      <ResultadosHost
+        observar={['/api/admin/']}
+        silencio={['/api/admin/auth/', '/api/admin/logout', '/api/admin/avisos/']}
+        colores={{
+          fondo: '#1a1a1d', texto: 'var(--adm-text)', borde: 'var(--adm-border-strong)', tenue: 'var(--adm-faint)',
+          ok: 'var(--adm-ok)', mal: 'var(--adm-bad)', alerta: 'var(--adm-warn)', info: 'var(--adm-info)',
+        }}
+      />
     </div>
   );
 }

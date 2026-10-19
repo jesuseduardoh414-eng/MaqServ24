@@ -21,6 +21,7 @@ import { borrarSubidas } from '../common/media';
 import { disponibilidadDe } from '../catalog/availability';
 import { lista } from '../common/json-list';
 import { z } from 'zod';
+import { zCorreo, zTelefono } from '../common/campos';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { QuoterService } from '../quoter/quoter.service';
 import { registrarAccion } from './audit';
@@ -53,8 +54,8 @@ const providerSchema = z.object({
   name: z.string().min(2).max(190),
   level: z.enum(NIVELES).optional(),
   contactName: z.string().max(190).optional().nullable(),
-  phone: z.string().max(40).optional().nullable(),
-  email: z.string().max(190).optional().nullable(),
+  phone: zTelefono().optional().nullable(),
+  email: zCorreo().optional().nullable(),
   city: z.string().max(120).optional().nullable(),
   state: z.string().max(120).optional().nullable(),
   coverage: z.array(z.string().max(120)).max(60).optional(),

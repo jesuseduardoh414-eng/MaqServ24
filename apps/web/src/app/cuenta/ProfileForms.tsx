@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { type AuthUser, missingProfileFields, type RequiredProfileField } from '@maqserv/types';
 import { Icon } from '@/components/Icon';
 import { ReglasContrasena } from '@/components/ReglasContrasena';
-import { problemaContrasena } from '@maqserv/config';
+import { problemaContrasena, problemaCp, problemaNombre, problemaTelefono } from '@maqserv/config';
+import { mostrarResultado } from '@maqserv/ui';
 
 /** Nombre legible de cada dato que el checkout exige, y el campo que lo captura. */
 const FIELD_LABEL: Record<RequiredProfileField, string> = {
@@ -33,15 +34,18 @@ function Seccion({ id, titulo, descripcion, children }: { id?: string; titulo: s
   );
 }
 
-function Campo({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
+function Campo({ id, label, hint, error, children }: { id: string; label: string; hint?: string; error?: string; children: React.ReactNode }) {
   return (
     <div className="pf-field">
       <label htmlFor={id} className="pf-label">{label}</label>
       {children}
-      {hint ? <p className="pf-hint">{hint}</p> : null}
+      {/* El error toma el lugar de la ayuda: ahí ya se estaba mirando. */}
+      {error ? <p id={`${id}-err`} className="pf-err" role="alert">{error}</p> : hint ? <p className="pf-hint">{hint}</p> : null}
     </div>
   );
 }
+
+type CampoValidado = 'name' | 'phone' | 'zip';
 
 export function ProfileForms({
   user,
@@ -65,8 +69,6 @@ export function ProfileForms({
   };
 }) {
   const router = useRouter();
-  const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [passMsg, setPassMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [busyPass, setBusyPass] = useState(false);
   const [actual, setActual] = useState('');
@@ -84,7 +86,24 @@ export function ProfileForms({
   };
   const [guardado, setGuardado] = useState(inicial);
   const [form, setForm] = useState(inicial);
-  const set = (k: keyof typeof form, v: string) => { setForm((f) => ({ ...f, [k]: v })); setProfileMsg(null); };
+  const [errores, setErrores] = useState<Partial<Record<CampoValidado, string>>>({});
+  const set = (k: keyof typeof form, v: string) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    // Al corregir, el aviso de ese campo se va.
+    if (k in errores) setErrores((prev) => { const resto = { ...prev }; delete resto[k as CampoValidado]; return resto; });
+  };
+  /** Mismas reglas que la API (@maqserv/config): si aquí pasa, allá también. */
+  const validar = () => {
+    const e: Partial<Record<CampoValidado, string>> = {};
+    const nombre = form.name.trim() ? problemaNombre(form.name) : 'Escribe tu nombre.';
+    if (nombre) e.name = nombre;
+    const tel = problemaTelefono(form.phone);
+    if (tel) e.phone = tel;
+    const cp = problemaCp(form.zip);
+    if (cp) e.zip = cp;
+    return e;
+  };
+  const invalido = (k: CampoValidado) => (errores[k] ? { 'aria-invalid': true as const, 'aria-describedby': `${FIELD_ID[k]}-err` } : {});
   const cambios = (Object.keys(form) as (keyof typeof form)[]).some((k) => form[k] !== guardado[k]);
 
   // Lo que falta para poder comprar/rentar: misma regla que exige el checkout.
@@ -95,54 +114,60 @@ export function ProfileForms({
 
   async function saveProfile(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setProfileMsg(null);
+    const problemas = validar();
+    setErrores(problemas);
+    const primero = (['name', 'phone', 'zip'] as const).find((k) => problemas[k]);
+    if (primero) {
+      document.getElementById(FIELD_ID[primero])?.focus();
+      mostrarResultado('Revisa los datos marcados en rojo.', 'bad');
+      return;
+    }
     setBusy(true);
-    const res = await fetch('/api/proxy/auth/profile', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json().catch(() => null);
-    setBusy(false);
-    if (res.ok) {
-      setGuardado(form);
-      setProfileMsg({ ok: true, text: labels.saved });
-      router.refresh();
-    } else {
-      setProfileMsg({ ok: false, text: typeof data?.message === 'string' ? data.message : 'No se pudo guardar. Inténtalo de nuevo.' });
+    // Si falla (o no hay conexión), el aviso automático dice por qué
+    // ("No se guardó: …" con el texto de la API); aquí solo el caso bueno.
+    try {
+      const res = await fetch('/api/proxy/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setGuardado(form);
+        // En el aviso flotante (ResultadosHost): antes era un texto junto al
+        // botón que, con la página desplazada, nadie veía.
+        mostrarResultado(labels.saved);
+        router.refresh();
+      }
+    } catch {
+      /* sin conexión: ya avisado */
+    } finally {
+      setBusy(false);
     }
   }
 
   async function changePassword(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setPassMsg(null);
     const debil = problemaContrasena(nueva, { nombre: user.name, correo: user.email });
-    if (debil) { setPassMsg({ ok: false, text: debil }); setVerReglas(true); return; }
+    if (debil) { mostrarResultado(debil, 'bad'); setVerReglas(true); return; }
     setBusyPass(true);
-    const res = await fetch('/api/proxy/auth/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ current: actual, next: nueva }),
-    });
-    const data = await res.json().catch(() => null);
-    setBusyPass(false);
-    if (res.ok) {
-      setPassMsg({ ok: true, text: labels.changed });
-      setActual('');
-      setNueva('');
-      setVerReglas(false);
-    } else {
-      setPassMsg({ ok: false, text: typeof data?.message === 'string' ? data.message : 'No se pudo actualizar. Inténtalo de nuevo.' });
+    try {
+      const res = await fetch('/api/proxy/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current: actual, next: nueva }),
+      });
+      if (res.ok) {
+        mostrarResultado(labels.changed);
+        setActual('');
+        setNueva('');
+        setVerReglas(false);
+      }
+    } catch {
+      /* sin conexión: ya avisado */
+    } finally {
+      setBusyPass(false);
     }
   }
-
-  const aviso = (m: { ok: boolean; text: string } | null) =>
-    m ? (
-      <p role={m.ok ? 'status' : 'alert'} className="pf-msg" style={{ color: m.ok ? 'var(--color-success)' : 'var(--color-error)' }}>
-        <Icon name={m.ok ? 'check' : 'warning'} size={15} />
-        {m.text}
-      </p>
-    ) : null;
 
   return (
     <div className="pf">
@@ -178,15 +203,15 @@ export function ProfileForms({
         <Seccion titulo="Datos de contacto" descripcion="Así te identificamos y te buscamos cuando hay novedades de tu servicio.">
           <div className="pf-grid">
             <div className="pf-span">
-              <Campo id="pf-name" label={labels.name}>
-                <input id="pf-name" className="pf-input" value={form.name} onChange={(e) => set('name', e.target.value)} required minLength={2} autoComplete="name" />
+              <Campo id="pf-name" label={labels.name} error={errores.name}>
+                <input id="pf-name" className="pf-input" value={form.name} onChange={(e) => set('name', e.target.value)} required minLength={2} maxLength={100} autoComplete="name" {...invalido('name')} />
               </Campo>
               </div>
             <Campo id="pf-email" label="Correo" hint="Es con el que entras; no se puede cambiar.">
               <input id="pf-email" className="pf-input" value={user.email} disabled readOnly />
             </Campo>
-            <Campo id="pf-phone" label={labels.phone} hint="10 dígitos. Lo usamos para confirmar la llegada del equipo.">
-              <input id="pf-phone" className="pf-input" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="81 1234 5678" inputMode="tel" autoComplete="tel" />
+            <Campo id="pf-phone" label={labels.phone} hint="10 dígitos. Lo usamos para confirmar la llegada del equipo." error={errores.phone}>
+              <input id="pf-phone" className="pf-input" type="tel" value={form.phone} onChange={(e) => set('phone', e.target.value)} placeholder="81 1234 5678" inputMode="tel" autoComplete="tel" maxLength={20} {...invalido('phone')} />
             </Campo>
           </div>
         </Seccion>
@@ -205,16 +230,16 @@ export function ProfileForms({
             <Campo id="pf-state" label="Estado">
               <input id="pf-state" className="pf-input" value={form.residency} onChange={(e) => set('residency', e.target.value)} placeholder="Nuevo León" autoComplete="address-level1" />
             </Campo>
-            <Campo id="pf-zip" label={labels.zip}>
-              <input id="pf-zip" className="pf-input" value={form.zip} onChange={(e) => set('zip', e.target.value)} placeholder="64000" inputMode="numeric" autoComplete="postal-code" />
+            <Campo id="pf-zip" label={labels.zip} error={errores.zip}>
+              <input id="pf-zip" className="pf-input" value={form.zip} onChange={(e) => set('zip', e.target.value)} placeholder="64000" inputMode="numeric" autoComplete="postal-code" maxLength={5} {...invalido('zip')} />
             </Campo>
             </div>
           </div>
         </Seccion>
 
         <div className="pf-save">
-          <div className="pf-save-msg">{aviso(profileMsg) ?? (cambios ? <span className="pf-dirty">Tienes cambios sin guardar</span> : null)}</div>
-          {cambios ? <button type="button" className="ac-btn ac-btn-ghost" onClick={() => { setForm(guardado); setProfileMsg(null); }}>Descartar</button> : null}
+          <div className="pf-save-msg">{cambios ? <span className="pf-dirty">Tienes cambios sin guardar</span> : null}</div>
+          {cambios ? <button type="button" className="ac-btn ac-btn-ghost" onClick={() => { setForm(guardado); setErrores({}); }}>Descartar</button> : null}
           <button type="submit" className="ac-btn" disabled={busy || !cambios}>{busy ? 'Guardando…' : labels.save}</button>
         </div>
       </form>
@@ -223,17 +248,16 @@ export function ProfileForms({
         <Seccion titulo="Seguridad" descripcion="Cambia tu contraseña. Te pedimos la actual para confirmar que eres tú.">
           <div className="pf-grid">
             <Campo id="pf-current" label={labels.current}>
-              <input id="pf-current" className="pf-input" type="password" required value={actual} onChange={(e) => { setActual(e.target.value); setPassMsg(null); }} autoComplete="current-password" />
+              <input id="pf-current" className="pf-input" type="password" required value={actual} onChange={(e) => setActual(e.target.value)} autoComplete="current-password" />
             </Campo>
             <Campo id="pf-new" label={labels.next.replace(/\s*\(.*\)\s*$/, '')}>
-              <input id="pf-new" className="pf-input" type="password" required value={nueva} onFocus={() => setVerReglas(true)} onChange={(e) => { setNueva(e.target.value); setPassMsg(null); }} placeholder="Mínimo 10 caracteres" autoComplete="new-password" />
+              <input id="pf-new" className="pf-input" type="password" required value={nueva} onFocus={() => setVerReglas(true)} onChange={(e) => setNueva(e.target.value)} placeholder="Mínimo 10 caracteres" autoComplete="new-password" />
             </Campo>
             {verReglas || nueva ? (
               <div className="pf-span"><ReglasContrasena password={nueva} nombre={user.name} correo={user.email} /></div>
             ) : null}
           </div>
           <div className="pf-inner-save">
-            <div className="pf-save-msg">{aviso(passMsg)}</div>
             <button type="submit" className="ac-btn" disabled={busyPass || !actual || !nueva}>{busyPass ? 'Actualizando…' : labels.submit}</button>
           </div>
         </Seccion>
@@ -269,6 +293,8 @@ const CSS = `
 .pf-field{ display:grid; gap:7px; align-content:start; }
 .pf-label{ font-size:13px; font-weight:500; color:var(--color-text); }
 .pf-hint{ margin:0; font-size:12.5px; line-height:1.45; color:var(--color-text-muted); }
+.pf-err{ margin:0; font-size:12.5px; line-height:1.45; font-weight:500; color:var(--color-error); }
+.pf-input[aria-invalid="true"]{ border-color:var(--color-error); }
 .pf-input{ width:100%; box-sizing:border-box; min-height:44px; padding:0 13px; font-family:inherit; font-size:14.5px; color:var(--color-text); background:var(--color-bg); border:1px solid var(--color-border); border-radius:8px; transition:border-color .18s ease, box-shadow .18s ease; }
 .pf-input::placeholder{ color:color-mix(in srgb, var(--color-text-muted) 70%, transparent); }
 .pf-input:hover:not(:disabled){ border-color:color-mix(in srgb, var(--color-text) 28%, var(--color-border)); }

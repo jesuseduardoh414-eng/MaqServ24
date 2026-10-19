@@ -13,7 +13,7 @@ export type SeccionCuenta = 'perfil' | 'cotizaciones' | 'favoritos';
 /** Rutas verificadas: el FAQ vive en el home. «Rastrear un pedido» se quitó con las compras en línea (2026-10-08). */
 const AYUDA: { href: string; label: string; icon: IconName }[] = [
   { href: '/contacto', label: 'Hablar con un asesor', icon: 'chat' },
-  { href: '/#faq', label: 'Preguntas frecuentes', icon: 'article' },
+  { href: '/preguntas-frecuentes', label: 'Preguntas frecuentes', icon: 'article' },
 ];
 
 const LEGALES = [

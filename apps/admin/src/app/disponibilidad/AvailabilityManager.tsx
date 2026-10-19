@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
+import { AdminDatePicker } from '@/components/AdminFecha';
 import {
-  Btn, EmptyState, FormField, PageHeader, Panel, SearchBox, Stat, Stats, StatusText, Switch, Toolbar, type Tone,
+  Btn, EmptyState, FormField, PageHeader, Panel, SearchBox, Stat, Stats, StatusText, Switch, Toolbar,
 } from '@/components/ui';
+import { ESTADOS_DISPONIBILIDAD, presentacionEstado, type EstadoDisponibilidad } from '@maqserv/config';
 
 export interface EquipoRow {
   id: number;
@@ -16,22 +18,22 @@ export interface EquipoRow {
   location: string | null;
   confirmedAt: string | null;
   until: string | null;
-  blocks: Array<{ id: number; state: string; startsOn: string; endsOn: string | null; note: string | null }>;
+  blocks: Array<{
+    id: number; state: string; startsOn: string; endsOn: string | null; note: string | null;
+    /** Lo puso un servicio: se mueve y se quita solo. */
+    folio: string | null;
+    /** Empieza después de hoy: no cambia el estado de hoy, pero ya está comprometido. */
+    upcoming: boolean;
+  }>;
 }
 
-/** Mismas etiquetas que ve el cliente en el sitio, para no hablar dos idiomas. */
-const ESTADO: Record<string, { texto: string; tone: Tone }> = {
-  disponible: { texto: 'DISPONIBLE', tone: 'ok' },
-  limitada: { texto: 'LIMITADA', tone: 'warn' },
-  'por-confirmar': { texto: 'POR CONFIRMAR', tone: 'warn' },
-  reservado: { texto: 'RESERVADO', tone: 'warn' },
-  'en-traslado': { texto: 'EN TRASLADO', tone: 'warn' },
-  'en-servicio': { texto: 'EN SERVICIO', tone: 'warn' },
-  mantenimiento: { texto: 'MANTENIMIENTO', tone: 'bad' },
-  'no-disponible': { texto: 'NO DISPONIBLE', tone: 'bad' },
-  inactivo: { texto: 'INACTIVO', tone: 'muted' },
-  'fuera-de-cobertura': { texto: 'FUERA DE COBERTURA', tone: 'bad' },
-};
+/*
+ * Etiquetas y colores de cada estado: ESTADOS_DISPONIBILIDAD (@maqserv/config),
+ * los mismos del sitio, Agenda y Proveedores. Antes eran una copia local donde
+ * reservado, en traslado, en servicio, limitada y por confirmar compartían el
+ * mismo ámbar. El panel es oscuro: se usa el tono `oscuro` de cada color.
+ */
+const colorEstado = (estado: string) => presentacionEstado(estado).color.oscuro;
 
 const MOTIVOS: Array<[string, string]> = [
   ['reservado', 'Reservado para otra obra'],
@@ -54,8 +56,12 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
   const [equipos, setEquipos] = useState(initial);
   const [query, setQuery] = useState('');
   const [soloAtencion, setSoloAtencion] = useState(false);
+  /** Estado elegido en la leyenda (null = todos). */
+  const [soloEstado, setSoloEstado] = useState<string | null>(null);
   const [abierto, setAbierto] = useState<number | null>(null);
   const [ocupado, setOcupado] = useState<number | null>(null);
+  // Soltar una reserva de servicio pide un segundo clic: ya no se vuelve a poner sola.
+  const [porLiberar, setPorLiberar] = useState<number | null>(null);
 
   // Formulario de bloqueo del equipo abierto
   const hoy = new Date().toISOString().slice(0, 10);
@@ -98,6 +104,7 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
   }
 
   async function liberar(blockId: number, equipoId: number) {
+    setPorLiberar(null);
     setOcupado(equipoId);
     await fetch(`/api/admin/availability/blocks/${blockId}`, { method: 'DELETE' });
     await recargar();
@@ -111,6 +118,7 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
     const q = query.trim().toLowerCase();
     return equipos.filter((e) => {
       if (soloAtencion && !necesitaAtencion(e)) return false;
+      if (soloEstado && e.state !== soloEstado) return false;
       if (!q) return true;
       return (
         e.name.toLowerCase().includes(q) ||
@@ -118,16 +126,36 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
         (e.provider ?? '').toLowerCase().includes(q)
       );
     });
-  }, [equipos, query, soloAtencion]);
+  }, [equipos, query, soloAtencion, soloEstado]);
+
+  // Leyenda: los estados que hay, en el orden del documento, con cuántos equipos.
+  const leyenda = useMemo(() => {
+    const cuenta = new Map<string, number>();
+    for (const e of equipos) cuenta.set(e.state, (cuenta.get(e.state) ?? 0) + 1);
+    const orden = Object.keys(ESTADOS_DISPONIBILIDAD) as EstadoDisponibilidad[];
+    return [...cuenta.entries()].sort(([a], [b]) => orden.indexOf(a as EstadoDisponibilidad) - orden.indexOf(b as EstadoDisponibilidad));
+  }, [equipos]);
 
   const porConfirmar = equipos.filter((e) => e.state === 'por-confirmar').length;
-  const bloqueados = equipos.filter((e) => e.blocks.length > 0).length;
+  const bloqueados = equipos.filter((e) => e.blocks.some((b) => !b.upcoming)).length;
+  const proximas = equipos.filter((e) => e.blocks.some((b) => b.upcoming)).length;
   const sinUbicacion = equipos.filter((e) => e.location === null).length;
 
   return (
     <div>
       <style>{`
         .av-main { display: grid; grid-template-columns: minmax(0, 1fr) 180px auto; gap: 16px; align-items: center; }
+        .av-leyenda { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 14px; }
+        .av-ley {
+          display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 999px; cursor: pointer;
+          border: 1px solid var(--adm-border-strong); background: transparent; color: var(--adm-text-2);
+          font: inherit; font-size: 12.5px; font-weight: 500; transition: background .15s ease, border-color .15s ease;
+        }
+        .av-ley:hover { background: rgba(255, 255, 255, 0.04); }
+        .av-ley[aria-pressed="true"] { border-color: color-mix(in srgb, var(--av-c) 60%, transparent); background: color-mix(in srgb, var(--av-c) 14%, transparent); color: var(--adm-text); }
+        .av-ley-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--av-c); }
+        .av-ley-n { color: var(--adm-faint); font-size: 12px; }
+        .av-ley-quitar { color: var(--adm-muted); border-style: dashed; }
         /* En móvil la fila se apila: nombre y datos arriba, estado y botones debajo. */
         @media (max-width: 900px) {
           .av-main { display: flex; flex-wrap: wrap; gap: 8px 12px; }
@@ -139,13 +167,14 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
       <PageHeader
         eyebrow="2 · Cotizar"
         title="Disponibilidad"
-        subtitle="Un equipo con existencias no siempre se puede asignar. Aquí se confirma que la disponibilidad sigue siendo cierta, se ubica el equipo y se bloquea cuando está ocupado. Una confirmación de más de 14 días deja de contar sola."
+        subtitle="Las reservas de los servicios se ponen y se quitan solas: al autorizar una cotización, cuando el aliado acepta, mientras la máquina va en camino o está en obra, y al terminar o cancelar. Aquí queda lo que ningún sistema sabe: mantenimiento, ubicación y confirmar que el equipo sigue ahí. Una confirmación de más de 14 días deja de contar sola."
       />
 
       <Stats>
         <Stat label="Equipos" icon="ph-wrench" tone="accent" value={equipos.length} />
         <Stat label="Por confirmar" icon="ph-clock-countdown" tone={porConfirmar > 0 ? 'warn' : 'muted'} value={porConfirmar} valueTone={porConfirmar > 0 ? 'warn' : undefined} />
-        <Stat label="Bloqueados hoy" icon="ph-lock-simple" tone={bloqueados > 0 ? 'warn' : 'muted'} value={bloqueados} valueTone={bloqueados > 0 ? 'warn' : undefined} />
+        <Stat label="Ocupados hoy" icon="ph-lock-simple" tone={bloqueados > 0 ? 'warn' : 'muted'} value={bloqueados} valueTone={bloqueados > 0 ? 'warn' : undefined} />
+        <Stat label="Con reserva próxima" icon="ph-calendar-check" tone={proximas > 0 ? 'accent' : 'muted'} value={proximas} />
         <Stat label="Sin ubicación" icon="ph-map-pin" tone={sinUbicacion > 0 ? 'warn' : 'muted'} value={sinUbicacion} valueTone={sinUbicacion > 0 ? 'warn' : undefined} />
       </Stats>
 
@@ -154,9 +183,39 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
         <Switch on={soloAtencion} onClick={() => setSoloAtencion((v) => !v)} label="Solo los que necesitan atención" />
       </Toolbar>
 
+      {/* Leyenda que también filtra: el color de cada estado y cuántos hay. */}
+      {leyenda.length > 1 ? (
+        <div className="av-leyenda" role="group" aria-label="Filtrar por estado">
+          {leyenda.map(([estado, n]) => {
+            const p = presentacionEstado(estado);
+            const activo = soloEstado === estado;
+            return (
+              <button
+                key={estado}
+                type="button"
+                className="av-ley"
+                aria-pressed={activo}
+                style={{ '--av-c': p.color.oscuro } as React.CSSProperties}
+                onClick={() => setSoloEstado(activo ? null : estado)}
+                title={p.nota}
+              >
+                <span className="av-ley-dot" aria-hidden />
+                {p.nombre}
+                <span className="adm-num av-ley-n">{n}</span>
+              </button>
+            );
+          })}
+          {soloEstado ? (
+            <button type="button" className="av-ley av-ley-quitar" onClick={() => setSoloEstado(null)}>
+              <i className="ph ph-x" aria-hidden />Ver todos
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <Panel flush clip>
         {filtrados.map((e) => {
-          const est = ESTADO[e.state] ?? { texto: e.state.toUpperCase(), tone: 'muted' as Tone };
+          const est = presentacionEstado(e.state);
           const conf = haceCuanto(e.confirmedAt);
           const open = abierto === e.id;
           return (
@@ -177,7 +236,7 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
                   </div>
                 </div>
                 <div className="av-state">
-                  <StatusText tone={est.tone}>{est.texto}</StatusText>
+                  <StatusText color={est.color.oscuro} title={est.nota}>{est.etiqueta}</StatusText>
                 </div>
                 <div className="av-actions" style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                   <Btn size="sm" icon="ph-check" onClick={() => confirmar(e.id)}>Confirmar</Btn>
@@ -197,12 +256,24 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
                 <div style={{ marginTop: 10, display: 'grid', gap: 6 }}>
                   {e.blocks.map((b) => (
                     <div key={b.id} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, columnGap: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'var(--adm-warn)', fontWeight: 500 }}>
-                        <i className="ph ph-lock-simple" aria-hidden />{ESTADO[b.state]?.texto ?? b.state}
+                      {/* Cada bloqueo con el color de SU estado (reservado, mantenimiento…); una próxima, atenuada. */}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: colorEstado(b.state), opacity: b.upcoming ? 0.75 : 1, fontWeight: 500 }}>
+                        <i className={`ph ${b.upcoming ? 'ph-calendar-check' : 'ph-lock-simple'}`} aria-hidden />
+                        {b.upcoming ? 'PRÓXIMA · ' : ''}{presentacionEstado(b.state).etiqueta}
                       </span>
                       <span className="adm-num">{b.startsOn} → {b.endsOn ?? 'sin fecha de retorno'}</span>
-                      {b.note ? <span style={{ color: 'var(--adm-faint)' }}>· {b.note}</span> : null}
-                      <Btn size="sm" variant="ghost" onClick={() => liberar(b.id, e.id)}>Liberar</Btn>
+                      {b.folio ? (
+                        <span style={{ color: 'var(--adm-faint)' }}>· automática, servicio <span className="adm-num">{b.folio}</span></span>
+                      ) : b.note ? <span style={{ color: 'var(--adm-faint)' }}>· {b.note}</span> : null}
+                      {b.folio && porLiberar === b.id ? (
+                        <>
+                          <span style={{ color: 'var(--adm-warn)' }}>El servicio ya no la volverá a apartar.</span>
+                          <Btn size="sm" variant="ghost" onClick={() => liberar(b.id, e.id)}>Sí, liberar</Btn>
+                          <Btn size="sm" variant="ghost" onClick={() => setPorLiberar(null)}>No</Btn>
+                        </>
+                      ) : (
+                        <Btn size="sm" variant="ghost" onClick={() => (b.folio ? setPorLiberar(b.id) : liberar(b.id, e.id))}>Liberar</Btn>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -222,8 +293,8 @@ export function AvailabilityManager({ initial }: { initial: EquipoRow[] }) {
                       <span className="adm-label">Motivo del bloqueo</span>
                       <AdminSelect ariaLabel="Motivo del bloqueo" value={motivo} onChange={setMotivo} options={MOTIVOS.map(([k, n]) => ({ value: k, label: n }))} />
                     </div>
-                    <FormField label="Desde"><input className="adm-input" type="date" value={desde} onChange={(ev) => setDesde(ev.target.value)} /></FormField>
-                    <FormField label="Hasta (opcional)"><input className="adm-input" type="date" value={hasta} onChange={(ev) => setHasta(ev.target.value)} /></FormField>
+                    <FormField label="Desde"><AdminDatePicker value={desde} onChange={setDesde} max={hasta || undefined} required /></FormField>
+                    <FormField label="Hasta (opcional)"><AdminDatePicker value={hasta} onChange={setHasta} min={desde || undefined} placeholder="Sin fecha de fin" /></FormField>
                     <FormField label="Nota"><input className="adm-input" placeholder="Servicio de 500 horas" value={nota} onChange={(ev) => setNota(ev.target.value)} /></FormField>
                     <Btn icon="ph-lock-simple" onClick={() => bloquear(e.id)}>Bloquear</Btn>
                   </div>

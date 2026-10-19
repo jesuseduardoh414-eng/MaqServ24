@@ -19,7 +19,10 @@ const ShPopoverContent = React.forwardRef<
       align={align}
       sideOffset={sideOffset}
       className={cn(
-        'z-[120] overflow-hidden rounded-[var(--ui-radius)] p-1',
+        // Capa de lo FLOTANTE (popovers y listas): 1050. Va en un portal a
+        // <body>, así que ninguna tarjeta con overflow lo recorta, y queda sobre
+        // las ventanas (Modal 1000) y bajo avisos (1100) y confirmaciones (1200).
+        'z-[1050] overflow-hidden rounded-[var(--ui-radius)] p-1',
         'border border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)]',
         // Sombra más honda que la del cromo: el panel flota sobre el contenido
         // y sin separarlo se leía como parte del formulario.

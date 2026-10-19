@@ -6,7 +6,7 @@ import {
 } from '@maqserv/config';
 import { lista } from '../common/json-list';
 import { imageUrl } from '../catalog/images';
-import { disponibilidadDe } from '../catalog/availability';
+import { disponibilidadDe, ocupaUnaUnidad } from '../catalog/availability';
 import { FreightService } from '../freight/freight.service';
 import { coberturaDe, distanciaKm } from './matching';
 
@@ -187,7 +187,7 @@ export class RecomendadorService {
           starts_on: { lte: finD },
           OR: [{ ends_on: null }, { ends_on: { gte: inicio } }],
         },
-        select: { product_id: true, state: true, starts_on: true, ends_on: true },
+        select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
       }),
       this.freight.config(),
     ]);
@@ -225,9 +225,11 @@ export class RecomendadorService {
 
       // 3. Puede: fechas y horario
       const suyos = bloqueosDe.get(p.id) ?? [];
-      const bloqueado = suyos.some((b) => b.state !== 'reservado');
+      // Un servicio o una reserva aparta piezas; mantenimiento o inactivo paran
+      // el equipo entero (catalog/availability.ts, ocupaUnaUnidad).
+      const bloqueado = suyos.some((b) => !ocupaUnaUnidad(b));
       if (bloqueado) { descartadas.ocupadas += 1; continue; }
-      const reservas = suyos.filter((b) => b.state === 'reservado').length;
+      const reservas = suyos.filter(ocupaUnaUnidad).length;
       const unidadesTotales = p.stock ?? 1;
       if (reservas + equipos > unidadesTotales) { descartadas.ocupadas += 1; continue; }
       const horario = p.horario ? horarioDe(p.horario) : null;

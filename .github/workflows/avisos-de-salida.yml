@@ -1,0 +1,44 @@
+# AVISOS DE HORA DE SALIDA A LOS ALIADOS (2026-10-15).
+#
+# Cada 15 minutos llama POST /tareas/salidas: la API avisa por correo al
+# aliado cuando ya casi es hora de que su unidad salga a la obra, y otra vez
+# (más una campana en el panel) si pasó la hora y no marcó la salida. Ver
+# apps/api/src/notifications/aviso-salida.service.ts.
+#
+# Va aparte de "Tareas programadas" (diaria) porque necesita correr seguido, y
+# de paso despierta la API: en cPanel se duerme sin visitas y con ella su
+# reloj interno. Usa los mismos API_URL y TASKS_SECRET.
+#
+# GitHub puede retrasar unos minutos un cron muy frecuente; el aviso sale
+# 30 min antes de la hora de salida justamente para tener ese margen.
+
+name: Avisos de salida
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  salidas:
+    runs-on: ubuntu-latest
+    env:
+      API_URL: ${{ vars.API_URL || 'https://api.maqserv24.com' }}
+      TASKS_SECRET: ${{ secrets.TASKS_SECRET }}
+    steps:
+      - name: Avisar a los aliados que es hora de salir
+        run: |
+          if [ -z "$TASKS_SECRET" ]; then
+            echo "::error::Falta el secreto TASKS_SECRET del repositorio."
+            exit 1
+          fi
+          respuesta=$(curl -s -w '\n%{http_code}' --max-time 180 -X POST \
+            "$API_URL/tareas/salidas" \
+            -H "x-tasks-secret: $TASKS_SECRET")
+          codigo=$(echo "$respuesta" | tail -n1)
+          cuerpo=$(echo "$respuesta" | sed '$d')
+          echo "HTTP $codigo — $cuerpo"
+          if [ "$codigo" != "200" ] && [ "$codigo" != "201" ]; then
+            echo "::error::La tarea de avisos de salida respondió $codigo."
+            exit 1
+          fi

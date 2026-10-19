@@ -2,11 +2,11 @@ import { redirect } from 'next/navigation';
 import { CATALOGO_MAQUINARIA_DEFAULT, COTIZADORES_META, type CatalogoCotizador } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { CotizadorPanel } from '../CotizadorPanel';
+import { CotizadorPanel, type SolicitudACotizar } from '../CotizadorPanel';
 
 export const metadata = { title: 'Cotizador de maquinaria' };
 
-export default async function CotizadorMaquinaria() {
+export default async function CotizadorMaquinaria({ searchParams }: { searchParams: Promise<{ solicitud?: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'cotizador');
@@ -16,9 +16,16 @@ export default async function CotizadorMaquinaria() {
   // así que un precio viejo aquí nunca se convierte en un precio guardado.
   const catalogo = (await adminFetch<CatalogoCotizador>('/admin/quoter/catalog/maquinaria')) ?? CATALOGO_MAQUINARIA_DEFAULT;
 
+  // ?solicitud=ID: cotizar una solicitud del sitio con el tabulador (2026-10-15).
+  const solicitudId = Number((await searchParams).solicitud) || null;
+  const solicitud = solicitudId ? await adminFetch<SolicitudACotizar>(`/admin/quoter/solicitud/${solicitudId}`) : null;
+
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <CotizadorPanel catalogo={catalogo} titulo="Cotizador de maquinaria" resumen={COTIZADORES_META.maquinaria.resumen} />
+      <CotizadorPanel catalogo={catalogo} titulo="Cotizador de maquinaria" resumen={COTIZADORES_META.maquinaria.resumen}
+        solicitud={solicitud}
+        solicitudFallida={!!solicitudId && !solicitud}
+      />
     </AdminShell>
   );
 }

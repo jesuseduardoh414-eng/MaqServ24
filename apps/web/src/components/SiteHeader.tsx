@@ -1,12 +1,11 @@
 import Link from 'next/link';
-import { MARKETPLACE_ACTIVO, NEWSLETTER_ACTIVO, defaultTheme, type Theme } from '@maqserv/config';
+import { defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { getSiteSettings } from '@/lib/api';
 import { HeaderActions } from '@/components/HeaderActions';
 import { MainNav } from '@/components/MainNav';
 import { MobileNav } from '@/components/MobileNav';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { FooterNewsletter } from '@/components/FooterNewsletter';
 import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
 import { LANDINGS } from '@/lib/landings';
@@ -95,14 +94,8 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
             <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="user" size={14} /></span>{t(theme, 'nav.providerSignup')}
           </Link>
           <div className="tb-right" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            {/* «Rastrear pedido» se fue con las compras en línea (2026-10-08). */}
-            {/* "Vender" es del marketplace heredado; apagado no se ofrece. */}
-            {MARKETPLACE_ACTIVO ? (
-              <>
-                <Link href="/vendedor" style={{ color: 'rgba(255,255,255,.66)' }}>{t(theme, 'topbar.sell')}</Link>
-                <span style={{ opacity: 0.25 }}>|</span>
-              </>
-            ) : null}
+            {/* «Rastrear pedido» se fue con las compras en línea (2026-10-08) y
+                «Vender» con el marketplace heredado (2026-10-15). */}
             <span style={{ opacity: 0.7 }}>{t(theme, 'topbar.locale')}</span>
           </div>
         </div>
@@ -207,7 +200,6 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
               logout: t(theme, 'auth.logout'),
               wishlist: t(theme, 'nav.wishlist'),
               quoteList: 'Tu lista para cotizar',
-              sell: t(theme, 'topbar.sell'),
               menu: t(theme, 'nav.menu'),
               groupQuick: t(theme, 'nav.group.quick'),
               groupAccount: t(theme, 'nav.group.account'),
@@ -270,21 +262,6 @@ export function SiteFooter({ theme }: { theme: Theme }) {
         }
       `}</style>
       <div style={{ ...CONTAINER, paddingTop: 56 }}>
-        {/* El boletín no está en el modelo MAQSER24: apagado por código aunque
-            el tema lo tenga encendido (ver newsletter.ts en @maqserv/config). */}
-        {f.showNewsletter && NEWSLETTER_ACTIVO ? (
-          <FooterNewsletter
-            labels={{
-              title: f.newsletterTitle,
-              subtitle: f.newsletterSubtitle,
-              placeholder: t(theme, 'newsletter.placeholder'),
-              submit: t(theme, 'newsletter.submit'),
-              success: t(theme, 'newsletter.success'),
-              error: t(theme, 'newsletter.error'),
-            }}
-          />
-        ) : null}
-
         {/* Franja superior (2026-10-05): la marca con su descripción a lo ancho y,
             a la derecha, el contacto directo. Antes la marca era una columna
             angosta y la descripción se partía en cuatro renglones. */}

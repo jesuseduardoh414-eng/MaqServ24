@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ServicesBoard, type ServicioRow } from './ServicesBoard';
+import { UnidadesEnCamino, type UnidadEnCamino } from './UnidadesEnCamino';
 
 /**
  * TABLERO DE OPERACIONES (documento institucional, secciones 16 y 17).
@@ -21,11 +22,21 @@ export default async function AdminServicios({ searchParams }: { searchParams: P
   exigirModulo(admin, 'servicios');
   // ?historial=1 trae también cerrados y cancelados (la API ya lo sabía hacer con ?todos=1).
   const historial = (await searchParams).historial === '1';
-  const servicios = (await adminFetch<ServicioRow[]>(`/admin/services${historial ? '?todos=1' : ''}`)) ?? [];
+  const [servicios, rastreo] = await Promise.all([
+    adminFetch<ServicioRow[]>(`/admin/services${historial ? '?todos=1' : ''}`).then((r) => r ?? []),
+    // Las unidades en traslado y dónde van (2026-10-14). Solo se pinta si hay alguna.
+    historial ? Promise.resolve(null) : adminFetch<{ unidades: UnidadEnCamino[] }>('/admin/rastreo'),
+  ]);
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <ServicesBoard initial={servicios} historial={historial} />
+      <ServicesBoard
+        initial={servicios}
+        historial={historial}
+        // Con `key`: un elemento armado en el servidor y pintado dentro de un componente
+        // del cliente la pide (aviso de React 19 en desarrollo), aunque no esté en una lista.
+        enCamino={rastreo?.unidades.length ? <UnidadesEnCamino key="en-camino" inicial={rastreo.unidades} ahora={Date.now()} /> : null}
+      />
     </AdminShell>
   );
 }

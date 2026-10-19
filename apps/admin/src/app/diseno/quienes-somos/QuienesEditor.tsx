@@ -650,7 +650,7 @@ function QsSections({ qs, setQs }: { qs: QuienesSomos; setQs: (patch: Partial<Qu
         </div>
         {qs.timeline.map((m, i) => (
           <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr auto', gap: 10, alignItems: 'start', paddingTop: 12, borderTop: '1px solid var(--adm-border)' }}>
-            <Field label="Año"><input value={m.year} onChange={(e) => setTimeline(qs.timeline.map((x, j) => (j === i ? { ...x, year: e.target.value } : x)))} placeholder="2020" style={inputStyle} /></Field>
+            <Field label="Año"><input inputMode="numeric" maxLength={4} value={m.year} onChange={(e) => setTimeline(qs.timeline.map((x, j) => (j === i ? { ...x, year: e.target.value } : x)))} placeholder="2020" style={inputStyle} /></Field>
             <div style={{ display: 'grid', gap: 8 }}>
               <input value={m.title} onChange={(e) => setTimeline(qs.timeline.map((x, j) => (j === i ? { ...x, title: e.target.value } : x)))} placeholder="Título del hito" style={inputStyle} />
               <textarea value={m.desc} onChange={(e) => setTimeline(qs.timeline.map((x, j) => (j === i ? { ...x, desc: e.target.value } : x)))} rows={2} placeholder="Descripción" style={textareaStyle} />

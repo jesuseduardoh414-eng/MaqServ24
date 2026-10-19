@@ -7,6 +7,7 @@ import {
   Bar, Btn, Chip, EmptyState, FormField, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toolbar, type Tone,
 } from '@/components/ui';
 import { Incidencias, VentanaFormulario } from './Incidencias';
+import { OperadorServicio } from './OperadorServicio';
 import { useRouter } from 'next/navigation';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 import { pedirTexto } from '@/components/Dialogos';
@@ -41,6 +42,8 @@ export interface ServicioRow {
   suggested?: string | null;
   startedAt: string | null;
   closedAt: string | null;
+  /** Quién maneja la unidad (2026-10-15): su enlace comparte la ubicación. */
+  operator?: { name: string; phone: string | null } | null;
   assignments: Array<{
     id: number;
     providerId: number;
@@ -70,6 +73,8 @@ const ESTADO_ASIGNACION: Record<string, { texto: string; tono: Tone }> = {
   aceptado: { texto: 'Aceptó', tono: 'ok' },
   rechazado: { texto: 'Rechazó', tono: 'bad' },
   retirado: { texto: 'Se retiró', tono: 'muted' },
+  // Oferta automática (2026-10-15): otro aliado aceptó primero.
+  tomado: { texto: 'Lo tomó otro', tono: 'muted' },
 };
 
 /** Estados en los que ya hay aliado trabajando (o a punto de salir). */
@@ -82,7 +87,7 @@ function fecha(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export function ServicesBoard({ initial, historial = false }: { initial: ServicioRow[]; historial?: boolean }) {
+export function ServicesBoard({ initial, historial = false, enCamino }: { initial: ServicioRow[]; historial?: boolean; /** Las unidades en traslado y dónde van (2026-10-14), arriba de todo. */ enCamino?: React.ReactNode }) {
   const router = useRouter();
   const [filtro, setFiltro] = useState('');
   const [ocupado, setOcupado] = useState<number | null>(null);
@@ -205,6 +210,8 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
           </>
         }
       />
+
+      {enCamino}
 
       <Stats>
         <Stat label="Servicios" icon="ph-truck" tone="accent" value={cuenta.total} hint={historial ? 'con cerrados y cancelados' : 'en curso'} />
@@ -348,6 +355,11 @@ export function ServicesBoard({ initial, historial = false }: { initial: Servici
                 <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
                   Sugeridos (tienen el equipo publicado): <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{s.suggested}</span>
                 </div>
+              ) : null}
+
+              {/* El operador: ya con aliado y mientras la unidad no termina (2026-10-15). */}
+              {aceptado.length > 0 && ['asignado', 'en_traslado', 'en_sitio', 'en_curso'].includes(s.state) ? (
+                <div style={{ marginTop: 10 }}><OperadorServicio servicioId={s.id} operador={s.operator ?? null} /></div>
               ) : null}
 
               {s.closed ? (

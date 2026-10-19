@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { Chip, EmptyState, Note, PageHeader, Panel, Stat, Stats, StatusText, type Tone } from '@/components/ui';
+import { Chip, Note, PageHeader, Panel, Stat, Stats, StatusText, type Tone } from '@/components/ui';
 import type { RolAdmin } from '@maqserv/config';
 import { AdminCreate } from './AdminCreate';
 import { AdminRowActions } from './AdminRowActions';
+import { BITACORA_POR_PAGINA, Bitacora, type FilaBitacora } from './Bitacora';
 
 interface AdminRow {
   id: number;
@@ -22,17 +23,6 @@ interface AdminRow {
   createdAt: string | null;
 }
 
-interface Bitacora {
-  id: number;
-  quien: string;
-  rol: string;
-  modulo: string;
-  accion: string;
-  objetivo: string | null;
-  detalle: string | null;
-  cuando: string;
-}
-
 const GRID = 'minmax(0,1.5fr) minmax(0,1.6fr) 130px minmax(0,2fr)';
 
 /** Quién puede entrar al panel y hasta dónde llega cada quien. */
@@ -40,10 +30,17 @@ export default async function AdminAdmins() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'admins');
-  const [admins, bitacora] = await Promise.all([
+  const [admins, bitacora, reparto] = await Promise.all([
     adminFetch<AdminRow[]>('/admin/admins').then((r) => r ?? []),
-    adminFetch<Bitacora[]>('/admin/admins/bitacora').then((r) => r ?? []),
+    // La API anterior devolvía la lista sola (sin `hayMas`): si el panel se
+    // despliega antes que la API, se sigue viendo, solo que sin "Ver más".
+    adminFetch<{ filas: FilaBitacora[]; hayMas: boolean } | FilaBitacora[]>(`/admin/admins/bitacora?limite=${BITACORA_POR_PAGINA}`).then(
+      (r) => (Array.isArray(r) ? { filas: r, hayMas: false } : r ?? { filas: [], hayMas: false }),
+    ),
+    // Lo que cada rol ve hoy (Permisos lo reajusta): el alta lo muestra al elegir rol.
+    adminFetch<{ roles: { clave: string; modulos: string[] }[] }>('/admin/roles'),
   ]);
+  const permisos = Object.fromEntries((reparto?.roles ?? []).map((r) => [r.clave, r.modulos]));
 
   const activos = admins.filter((a) => a.status === 1).length;
   const rotos = admins.filter((a) => !a.canLogin);
@@ -65,6 +62,10 @@ export default async function AdminAdmins() {
             .am-row { grid-template-columns: minmax(0,1fr); }
           }
           .am-log { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+          .am-log-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; padding: 12px 20px; border-bottom: 1px solid var(--adm-border); }
+          .am-log-hint { font-size: 12.5px; color: var(--adm-faint); }
+          .am-log-detalle { font-size: 12.5px; color: var(--adm-muted); max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          @media (max-width: 760px) { .am-log-bar { padding: 12px 16px; } }
         `}</style>
 
         <PageHeader
@@ -72,7 +73,7 @@ export default async function AdminAdmins() {
           title="Administradores"
           count={admins.length}
           subtitle="Quién puede entrar a este panel y qué parte le toca. El rol decide qué secciones ve: lo que no le toca, ni le aparece en el menú ni lo puede pedir por su cuenta."
-          actions={<AdminCreate soyPrincipal={soyPrincipal} />}
+          actions={<AdminCreate soyPrincipal={soyPrincipal} permisos={permisos} />}
         />
 
         <Stats>
@@ -134,36 +135,8 @@ export default async function AdminAdmins() {
           })}
         </Panel>
 
-        {/* Sección 30 · Riesgos y controles: quién hizo qué, con fecha. */}
-        <Panel
-          flush
-          clip
-          title="Actividad reciente"
-          icon="ph-clock-counter-clockwise"
-          desc="Las acciones que cambian permisos, dinero o lo que ve el público. No se puede borrar desde el panel."
-          style={{ marginTop: 28 }}
-        >
-          {bitacora.length === 0 ? (
-            <EmptyState
-              icon="ph-notebook"
-              title="Todavía no hay nada anotado"
-              sub="Aquí irán apareciendo las altas y bajas de cuentas, los cambios de rol, los métodos de pago, los retiros pagados y las publicaciones de diseño."
-            />
-          ) : (
-            bitacora.map((b) => (
-              <div key={b.id} className="adm-trow am-log">
-                <span className="adm-mono adm-num" style={{ fontSize: 12, color: 'var(--adm-faint)', whiteSpace: 'nowrap' }}>
-                  {new Date(b.cuando).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
-                </span>
-                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>{b.accion}</span>
-                {b.objetivo ? <span style={{ fontSize: 13.5, color: 'var(--adm-text-2)' }}>{b.objetivo}</span> : null}
-                <span style={{ fontSize: 12.5, color: 'var(--adm-muted)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
-                  {b.quien} · {b.rol}
-                </span>
-              </div>
-            ))
-          )}
-        </Panel>
+        {/* Sección 30 · Riesgos y controles: quién hizo qué, con fecha. Con buscador y "Ver más". */}
+        <Bitacora inicial={bitacora.filas} hayMasInicial={bitacora.hayMas} />
 
         <p style={{ margin: '16px 0 0', fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.6, maxWidth: '80ch' }}>
           Desactivar corta el acceso de inmediato, incluso si la persona tiene la sesión abierta. No puedes desactivar tu propia cuenta ni cambiarte el rol a ti mismo: esta pantalla solo la ve Dirección, y quien se la quita no tiene cómo devolvérsela. La cuenta principal es la del dueño: solo ella da o quita Dirección General y modifica a las otras cuentas de Dirección, y nadie más puede tocarla. Se puede transferir a otra cuenta de Dirección.

@@ -237,7 +237,7 @@ export class AdminAuthController {
     const correoListo = correoRestablecerContrasena({
       nombre: a.name, url: `${base}/restablecer?token=${token}`, minutos: RESTABLECER_ADMIN_MINUTOS,
     });
-    await this.mailer.enviar({ kind: 'password_reset', to: a.email, toName: a.name, ...correoListo });
+    await this.mailer.enviar({ kind: 'admin_password_reset', to: a.email, toName: a.name, ...correoListo });
     return { ok: true };
   }
 

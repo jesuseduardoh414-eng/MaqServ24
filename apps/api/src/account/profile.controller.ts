@@ -4,13 +4,14 @@ import * as bcrypt from 'bcryptjs';
 import { prisma } from '@maqserv/db';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { problemaContrasena } from '@maqserv/config';
+import { zCp, zTelefono } from '../common/campos';
 
 const profileSchema = z.object({
   name: z.string().min(2).max(100).optional(),
-  phone: z.string().max(30).optional(),
+  phone: zTelefono().optional(),
   address: z.string().max(250).optional(),
   city: z.string().max(100).optional(),
-  zip: z.string().max(12).optional(),
+  zip: zCp().optional(),
   /** Estado/región: columna legacy `residency`, hasta ahora sin usar. */
   residency: z.string().max(100).optional(),
 });

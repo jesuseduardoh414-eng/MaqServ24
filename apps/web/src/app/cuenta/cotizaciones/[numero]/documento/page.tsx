@@ -23,6 +23,8 @@ interface Documento {
   atencion: string | null;
   municipio: string | null;
   notas: string | null;
+  /** La solicitud sin precio todavía (2026-10-15): mismo formato, sin importes. */
+  sinPrecios?: boolean;
   documento: {
     calc: CalculoCotizacion;
     empresa: EmpresaCotizador;
@@ -69,13 +71,16 @@ export default async function DocumentoCotizacion({ params }: { params: Promise<
           </Link>
           <header className="ms-head" style={{ marginBottom: 22 }}>
             <div className="ms-head-txt">
-              <h1 className="ms-title">Cotización {d.folio}</h1>
-              <p className="ms-desc">Imprímela o guárdala en PDF con el botón de arriba del documento.</p>
+              <h1 className="ms-title">{d.sinPrecios ? `Solicitud ${d.folio}` : `Cotización ${d.folio}`}</h1>
+              <p className="ms-desc">
+                {d.sinPrecios ? 'Lo que nos pediste, sin precios: te mandamos la cotización en cuanto la revisemos. ' : ''}
+                Imprímela o guárdala en PDF con el botón de arriba del documento.
+              </p>
             </div>
           </header>
           <DocumentoCliente
             datos={{
-              titulo: 'Cotización de servicio',
+              titulo: d.sinPrecios ? 'Solicitud de cotización' : 'Cotización de servicio',
               folio: d.folio,
               fecha: d.documento.emitida,
               cliente: d.cliente,
@@ -87,7 +92,7 @@ export default async function DocumentoCotizacion({ params }: { params: Promise<
               firma: d.documento.firma,
               saludo: d.documento.saludo,
               calc: d.documento.calc,
-              mostrarPrecios: true,
+              mostrarPrecios: !d.sinPrecios,
               logo,
             }}
           />

@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { VENDOR_STATES, type VendorState } from '@maqserv/types';
-import { MARKETPLACE_ACTIVO } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { Chip, EmptyState, PageHeader, Panel, Segmented, Stat, Stats, Toolbar, type Tone } from '@/components/ui';
+import { EmptyState, PageHeader, Panel, Segmented, Stat, Stats, Toolbar } from '@/components/ui';
 import { CustomersSearch } from './CustomersSearch';
 
 interface UserRow {
@@ -12,7 +10,6 @@ interface UserRow {
   name: string;
   email: string;
   phone: string | null;
-  vendorState: VendorState | null;
   orders: number;
   spent: number;
   createdAt: string | null;
@@ -31,11 +28,8 @@ const GRID = 'minmax(0,1.7fr) minmax(0,1.8fr) minmax(0,0.8fr) minmax(0,1fr) minm
 const TABS: Array<{ key: string; label: string }> = [
   { key: '', label: 'Todos' },
   { key: 'compradores', label: 'Han comprado' },
-  // Marketplace heredado: apagado, no hay vendedores que filtrar.
-  ...(MARKETPLACE_ACTIVO ? [{ key: 'vendedores', label: 'Vendedores' }] : []),
 ];
 
-const VENDOR_TONE: Record<'warn' | 'ok' | 'bad', Tone> = { warn: 'warn', ok: 'info', bad: 'bad' };
 const money = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
 
 /** Clientes → la gente registrada. Solo lectura: el cliente edita su perfil en /cuenta. */
@@ -152,20 +146,12 @@ export default async function AdminUsers({
           </div>
 
           {items.map((u) => {
-            const vs = u.vendorState ? VENDOR_STATES[u.vendorState] : null;
             return (
               <div key={u.id} className="adm-trow cu-row">
                 <div style={{ minWidth: 0 }}>
                   <Link href={`/usuarios/${u.id}`} className="adm-cell-title adm-link">
                     {u.name}
                   </Link>
-                  {/* El estado real del vendedor, no solo "es vendedor": un solicitante
-                      pendiente también hay que verlo. */}
-                  {MARKETPLACE_ACTIVO && vs ? (
-                    <div style={{ marginTop: 5 }}>
-                      <Chip tone={VENDOR_TONE[vs.tone]}>Vendedor · {vs.label.toLowerCase()}</Chip>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div style={{ minWidth: 0 }}>

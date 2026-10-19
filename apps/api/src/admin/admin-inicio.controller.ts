@@ -53,7 +53,11 @@ export class AdminInicioController {
       // (El "solicitada" del cotizador no se cuenta: es el mismo pedido que ya
       // aparece por asignar, y contarlo dos veces confundía.)
       prisma.quotes.count({ where: { status: 'completed', accepted_at: null, OR: [{ valid_until: null }, { valid_until: { gte: hoy } }] } }),
-      prisma.contact_messages.count({ where: { state: 'nuevo' } }),
+      // Una sola bandeja (2026-10-14): lo de Contacto más las preguntas sin contestar.
+      Promise.all([
+        prisma.contact_messages.count({ where: { state: 'nuevo' } }),
+        prisma.product_questions.count({ where: { answer: null, status: 1, source: { not: 'contacto' } } }),
+      ]).then(([a, b]) => a + b),
       prisma.quotes.groupBy({ by: ['service_state'], where: { service_state: { not: null } }, _count: { _all: true } }),
       // Ofrecidos a un aliado que no ha contestado. Pasadas 24 h es un servicio
       // detenido: el cliente ya aceptó y nadie le ha dicho quién va.
@@ -96,7 +100,11 @@ export class AdminInicioController {
       prisma.providers.count({
         where: { status: 1, provider_documents: { some: { expires_at: { gte: ahora, lte: new Date(ahora.getTime() + DIAS_AVISO * DIA) } } } },
       }),
-      prisma.site_reviews.count({ where: { status: 0 } }),
+      // Más las de servicio por revisar (sin su tabla todavía, solo las del sitio).
+      Promise.all([
+        prisma.site_reviews.count({ where: { status: 0 } }),
+        prisma.service_reviews.count({ where: { status: 0 } }).catch(() => 0),
+      ]).then(([a, b]) => a + b),
       prisma.product_questions.count({ where: { answer: null, status: 1 } }),
       prisma.categories.findMany({ select: { cat_slug: true, cat_name: true } }),
     ]);

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ProviderPortalController } from './provider-portal.controller';
+import { OperadorController } from './operador.controller';
 import { ServiceService } from '../quotes/service.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -12,7 +13,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
  */
 @Module({
   imports: [NotificationsModule],
-  controllers: [ProviderPortalController],
+  // El enlace del operador de la unidad (2026-10-15): un servicio, sin lo del aliado.
+  controllers: [ProviderPortalController, OperadorController],
   providers: [ServiceService],
 })
 export class ProvidersModule {}

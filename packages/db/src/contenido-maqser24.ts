@@ -53,7 +53,7 @@ const RAZONES: Record<string, [string, string]> = {
   ],
   'Procesos Seguros y Eficientes': [
     'Un solo proceso',
-    'La misma solicitud, cotización y seguimiento sirven para las cinco categorías de servicio.',
+    'La misma solicitud, cotización y seguimiento sirven para las seis categorías.',
   ],
   'Entrega en obra': [
     'Entrega en obra',

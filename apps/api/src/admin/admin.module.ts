@@ -19,10 +19,10 @@ import { AdminInicioController } from './admin-inicio.controller';
 import { AdminThemesController } from './admin-themes.controller';
 import { AdminCmsController } from './admin-cms.controller';
 import { AdminCommunityController } from './admin-community.controller';
-import { AdminVendorsController } from './admin-vendors.controller';
-import { AdminWithdrawsController } from './admin-withdraws.controller';
+import { AdminBandejaController } from './admin-bandeja.controller';
+import { AdminCoberturaController } from './admin-cobertura.controller';
+import { AdminRastreoController } from './admin-rastreo.controller';
 import { AdminCustomersController } from './admin-customers.controller';
-import { AdminSubscribersController } from './admin-subscribers.controller';
 import { AdminContactController } from './admin-contact.controller';
 import { AdminAdminsController } from './admin-admins.controller';
 import { AdminRolesController } from './admin-roles.controller';
@@ -33,12 +33,12 @@ import { IntegrationsModule } from '../integrations/integrations.module';
 import { QuoterModule } from '../quoter/quoter.module';
 
 @Module({
-  // IntegrationsModule: los suscriptores y los mensajes de contacto se empujan a
-  // Perfex CRM con el mismo PerfexService que usa el alta pública del footer.
+  // IntegrationsModule: los mensajes de contacto se empujan a Perfex CRM con el
+  // mismo PerfexService que usa el sitio (apagado: ver CRM_ACTIVO).
   // QuoterModule: el cotizador interno del panel corre con el MISMO servicio
   // (tabulador + motor) que sirve al sitio publico.
   imports: [FreightModule, NotificationsModule, IntegrationsModule, QuoterModule],
-  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminInicioController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminVendorsController, AdminWithdrawsController, AdminCustomersController, AdminSubscribersController, AdminContactController, AdminAdminsController, AdminRolesController, AdminQuoterController, AdminProvidersController, AdminProviderCrmController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController, AdminAgendaController, AdminAvisosController],
+  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminInicioController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminBandejaController, AdminCoberturaController, AdminRastreoController, AdminCustomersController, AdminContactController, AdminAdminsController, AdminRolesController, AdminQuoterController, AdminProvidersController, AdminProviderCrmController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController, AdminAgendaController, AdminAvisosController],
   providers: [AdminGuard, ServiceService, MatchingService],
 })
 export class AdminModule {}

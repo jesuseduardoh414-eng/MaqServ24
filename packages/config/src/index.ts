@@ -63,8 +63,7 @@ export {
   rutaPanelDeCatalogo,
   type TipoCatalogo,
 } from './catalogo-tipos';
-export { MARKETPLACE_ACTIVO } from './marketplace';
-export { NEWSLETTER_ACTIVO, CRM_ACTIVO } from './newsletter';
+export { CRM_ACTIVO } from './crm';
 export {
   MODULOS_ADMIN,
   MODULOS_VISIBLES,
@@ -72,7 +71,6 @@ export {
   ROLES_ADMIN,
   ROL_POR_DEFECTO,
   rolDeAdmin,
-  esModuloOculto,
   puedeVer,
   modulosDe,
   // Permisos editables desde el panel (overrides guardados en BD).
@@ -163,6 +161,28 @@ export {
   type RadioCalculado,
 } from './cobertura';
 export {
+  ESTADOS_DISPONIBILIDAD,
+  cssEstados,
+  presentacionEstado,
+  type EstadoDisponibilidad,
+  type PresentacionEstado,
+} from './estados-disponibilidad';
+export {
+  PISTA_CAMPO,
+  RE_EMAIL,
+  TELEFONO_MAX_DIGITOS,
+  limpiarPara,
+  problemaCp,
+  problemaEmail,
+  problemaNombre,
+  problemaNumero,
+  problemaRfc,
+  problemaTelefono,
+  soloDigitos,
+  telefonoMx,
+  type TipoCampo,
+} from './campos';
+export {
   REGLAS_CONTRASENA,
   CONTRASENA_MIN,
   CONTRASENA_MAX,
@@ -195,3 +215,4 @@ export {
   type TipoAliado,
   type DefinicionTipoAliado,
 } from './tipos-aliado';
+export { MODULO_DE_CORREO, moduloDeCorreo, MODULOS_CON_CORREO, tiposDeCorreoDe } from './correo';

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, esLineaServicio, textoHorario, unidadesDeTarifa, type Horario } from '@maqserv/config';
-import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '@maqserv/ui';
+import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue, ShTimePicker } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
 
 /**
@@ -337,14 +337,15 @@ export function OfrecerEquipo({
                 })}
               </div>
               <div className="of-dos" style={{ marginTop: 6 }}>
-                <label className="ms-field">
+                {/* div y no label: el desplegable de Radix es un botón y la etiqueta lo abriría dos veces. */}
+                <div className="ms-field">
                   <span className="ms-label">Desde</span>
-                  <input type="time" value={horario.desde} onChange={(e) => setHorario((h) => ({ ...h, desde: e.target.value }))} className="ms-input" />
-                </label>
-                <label className="ms-field">
+                  <ShTimePicker value={horario.desde} onChange={(v) => setHorario((h) => ({ ...h, desde: v }))} aria-label="Desde" />
+                </div>
+                <div className="ms-field">
                   <span className="ms-label">Hasta</span>
-                  <input type="time" value={horario.hasta} onChange={(e) => setHorario((h) => ({ ...h, hasta: e.target.value }))} className="ms-input" />
-                </label>
+                  <ShTimePicker value={horario.hasta} onChange={(v) => setHorario((h) => ({ ...h, hasta: v }))} aria-label="Hasta" min={horario.desde} />
+                </div>
               </div>
               <span className="ms-hint">Solo te proponemos trabajos que caigan en este horario.</span>
             </div>}
@@ -375,7 +376,7 @@ export function OfrecerEquipo({
                   <div className="of-pesos">
                     <span aria-hidden>$</span>
                     <input
-                      type="number" min={0} step="1" inputMode="decimal"
+                      type="number" min={0} step="0.01" inputMode="decimal"
                       value={costos[u.clave] ?? ''}
                       onChange={(e) => setCostos((c) => ({ ...c, [u.clave]: e.target.value }))}
                       placeholder="0"

@@ -1,7 +1,7 @@
 import { Controller, Get, NotFoundException, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
-import { toFulfillment, toVendorState } from '@maqserv/types';
+import { toFulfillment } from '@maqserv/types';
 import { AdminGuard, Modulo } from './admin-auth';
 import { parseCart } from '../orders/cart.util';
 
@@ -15,9 +15,7 @@ import { parseCart } from '../orders/cart.util';
 const PAGE_SIZE = 20;
 
 /** Segmentos útiles: la lista completa mezcla compradores con basura del sistema viejo. */
-type Segment = 'compradores' | 'vendedores';
-
-const VENDORS_WHERE = { is_vendor: { gt: 0 } };
+type Segment = 'compradores';
 
 /**
  * Ids de quienes han comprado.
@@ -42,12 +40,10 @@ export class AdminCustomersController {
     @Query('segment') segment?: string,
   ) {
     const p = Math.max(1, Number(page ?? 1) || 1);
-    const seg: Segment | null = segment === 'compradores' || segment === 'vendedores' ? segment : null;
+    const seg: Segment | null = segment === 'compradores' ? segment : null;
     const buyers = await buyerIds();
     const where: Record<string, unknown> =
-      seg === 'compradores' ? { id: { in: buyers } }
-        : seg === 'vendedores' ? { ...VENDORS_WHERE }
-          : {};
+      seg === 'compradores' ? { id: { in: buyers } } : {};
 
     // Sin `mode`: la colación utf8mb4_unicode_ci de MySQL ya ignora mayúsculas y acentos (Postgres necesitaba `mode: 'insensitive'`, que MySQL no admite).
     // Sin esto, buscar "prueba" no encontraba a "Cliente Prueba" y "PRUEBA" no
@@ -64,16 +60,15 @@ export class AdminCustomersController {
     // Todo lo que no dependa de nada más va JUNTO: cada consulta a Supabase cuesta un
     // viaje de red (~100 ms), así que lo que importa es cuántas van en serie, no cuántas
     // hay. `compradores` estaba suelto en su propio `await` y sumaba un viaje entero.
-    const [total, rows, vendedores, all, compradores] = await Promise.all([
+    const [total, rows, all, compradores] = await Promise.all([
       prisma.users.count({ where }),
       prisma.users.findMany({
         where,
         orderBy: { id: 'desc' },
         skip: (p - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
-        select: { id: true, name: true, email: true, phone: true, is_vendor: true, created_at: true },
+        select: { id: true, name: true, email: true, phone: true, created_at: true },
       }),
-      prisma.users.count({ where: VENDORS_WHERE }),
       prisma.users.count(),
       // Un `user_id` de una orden puede apuntar a un usuario borrado (pasa con la data
       // de 2021): se cuentan los que existen, no los ids sueltos.
@@ -97,7 +92,7 @@ export class AdminCustomersController {
       total,
       page: p,
       pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-      counts: { all, compradores, vendedores },
+      counts: { all, compradores },
       items: rows.map((u) => {
         const a = byUser.get(u.id);
         return {
@@ -105,9 +100,6 @@ export class AdminCustomersController {
           name: u.name,
           email: u.email,
           phone: u.phone,
-          // El estado real, no solo "es vendedor aprobado": un solicitante pendiente
-          // también importa. `is_vendor` 0 sin tienda = cliente normal.
-          vendorState: u.is_vendor > 0 ? toVendorState(u.is_vendor) : null,
           orders: a?._count._all ?? 0,
           spent: a?._sum.pay_amount ?? 0,
           createdAt: u.created_at ? u.created_at.toISOString() : null,
@@ -129,7 +121,7 @@ export class AdminCustomersController {
       prisma.product_questions.findMany({ where: { user_id: id }, orderBy: { id: 'desc' }, take: 20 }),
     ]);
 
-    const productIds = [...new Set([...comments.map((c) => c.product_id), ...questions.map((q) => q.product_id)])];
+    const productIds = [...new Set([...comments.map((c) => c.product_id), ...questions.map((q) => q.product_id).filter((x): x is number => x != null)])];
     const products = productIds.length
       ? await prisma.products.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } })
       : [];
@@ -142,8 +134,6 @@ export class AdminCustomersController {
       email: u.email,
       phone: u.phone,
       createdAt: u.created_at ? u.created_at.toISOString() : null,
-      vendorState: u.is_vendor > 0 ? toVendorState(u.is_vendor) : null,
-      shopName: u.shop_name,
       profile: {
         address: u.address,
         city: u.city,
@@ -188,7 +178,8 @@ export class AdminCustomersController {
       questions: questions.map((q) => ({
         id: q.id,
         productId: q.product_id,
-        product: pName.get(q.product_id) ?? `#${q.product_id}`,
+        // Una pregunta general (del sitio) no tiene producto.
+        product: q.product_id ? pName.get(q.product_id) ?? `#${q.product_id}` : 'Pregunta general',
         question: q.question,
         answered: Boolean(q.answer),
         createdAt: q.created_at.toISOString(),

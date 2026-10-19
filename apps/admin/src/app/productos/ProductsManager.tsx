@@ -525,7 +525,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
           <div className="adm-form-grid">
             <div className="adm-field">
               <span className="adm-label">Precio (MXN)</span>
-              <input className="adm-input" value={form.price} onChange={(e) => setF('price', e.target.value)} type="number" placeholder="0" aria-label="Precio (MXN)" />
+              <input className="adm-input" value={form.price} onChange={(e) => setF('price', e.target.value)} type="number" min={0} step="0.01" placeholder="0" aria-label="Precio (MXN)" />
               {/*
                 En que unidad esta ese precio. Antes se asumia que toda renta
                 era mensual y el sitio pintaba "/mes" para todo — falso para
@@ -543,17 +543,17 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
               />
             </div>
             <FormField label="Precio anterior (opcional)">
-              <input className="adm-input" value={form.oldPrice} onChange={(e) => setF('oldPrice', e.target.value)} type="number" placeholder="Para mostrar descuento" />
+              <input className="adm-input" value={form.oldPrice} onChange={(e) => setF('oldPrice', e.target.value)} type="number" min={0} step="0.01" placeholder="Para mostrar descuento" />
             </FormField>
           </div>
           {/* Stock */}
           <div className="adm-form-grid">
             <FormField label="Stock">
-              <input className="adm-input" value={form.stock} onChange={(e) => setF('stock', e.target.value)} type="number" placeholder="0" />
+              <input className="adm-input" value={form.stock} onChange={(e) => setF('stock', e.target.value)} type="number" min={0} step={1} placeholder="0" />
             </FormField>
             {form.isRental ? (
               <FormField label="Flete de renta (opcional)">
-                <input className="adm-input" value={form.rentalFreight} onChange={(e) => setF('rentalFreight', e.target.value)} type="number" placeholder="0" />
+                <input className="adm-input" value={form.rentalFreight} onChange={(e) => setF('rentalFreight', e.target.value)} type="number" min={0} step="0.01" placeholder="0" />
               </FormField>
             ) : null}
           </div>

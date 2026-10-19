@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ShDatePicker } from '@maqserv/ui';
 import Link from 'next/link';
 import type { AuthUser, ProductCard, QuoteDetail } from '@maqserv/types';
 import type { RequestForm } from '@maqserv/config';
@@ -484,13 +485,12 @@ export function QuoteForm({
           <section className="ms-panel">
             <div className="ms-field">
               <label htmlFor="qf-fecha" className="ms-label">¿Para cuándo?</label>
-              <input
+              <ShDatePicker
                 id="qf-fecha"
-                className="ms-input"
-                type="date"
                 min={hoyLocal()}
                 value={reqs.fecha_inicio ?? ''}
-                onChange={(e) => setReqs((r) => ({ ...r, fecha_inicio: e.target.value }))}
+                onChange={(v) => setReqs((r) => ({ ...r, fecha_inicio: v }))}
+                placeholder="Elige el día de inicio"
               />
             </div>
           </section>
@@ -541,7 +541,7 @@ export function QuoteForm({
               </div>
               <div className="ms-field">
                 <label htmlFor="qf-phone" className="ms-label">{labels.phone}<span className="ms-req" aria-hidden>*</span></label>
-                <input id="qf-phone" className="ms-input" name="phone" type="tel" required minLength={7} defaultValue={user.phone ?? ''} />
+                <input id="qf-phone" className="ms-input" name="phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="81 1234 5678" required maxLength={20} defaultValue={user.phone ?? ''} />
               </div>
               <p className="ms-hint ms-span">
                 {labels.emailLocked}{!user.phone ? ` ${labels.phoneSaved}` : ''}

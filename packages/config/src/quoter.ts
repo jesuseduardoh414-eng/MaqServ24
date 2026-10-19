@@ -674,11 +674,11 @@ export const PASOS_MAQUINARIA: PasoCotizador[] = [
 ];
 
 export const PASOS_TRITURADOS: PasoCotizador[] = [
+  // Tres pasos (2026-10-15): antes eran cinco, con una "Modalidad" abstracta
+  // al frente y el flete por tonelada en un paso aparte. Ver pasos-triturados.tsx.
   { clave: 'obra', titulo: 'Datos de la obra', ayuda: 'Para quién es y dónde se entrega el material.' },
-  { clave: 'modalidad', titulo: 'Modalidad', ayuda: 'Por tonelada puesto en planta, o por viaje puesto en obra.' },
-  { clave: 'materiales', titulo: 'Materiales', ayuda: 'Qué material y cuánto. El precio sale del tabulador vigente.' },
-  { clave: 'entrega', titulo: 'Entrega y factura', ayuda: 'Flete por tonelada, zona de entrega y si lleva IVA.' },
-  { clave: 'resumen', titulo: 'Resumen', ayuda: 'Revisa el documento antes de guardarlo o enviarlo.' },
+  { clave: 'pedido', titulo: 'Material', ayuda: 'Qué material y cuánto. Puedes combinar las tres formas: en planta por tonelada, puesto en obra por viaje y material de banco.' },
+  { clave: 'resumen', titulo: 'Factura y resumen', ayuda: 'Con o sin factura, y el documento tal como sale.' },
 ];
 
 /**

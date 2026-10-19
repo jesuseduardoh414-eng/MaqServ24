@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { BadRequestException } from '@nestjs/common';
 import type { StorageEngine } from 'multer';
 import { resolveImageMime } from './image-sniff';
+import { resolveVideoMime, VIDEO_TYPES } from './video-sniff';
 import { mediaDir, sanitizeKey } from './media';
 
 /** Extensión con la que se guarda cada tipo REAL (ver `image-sniff`). */
@@ -14,6 +15,8 @@ const EXTENSION: Record<string, string> = {
   'image/gif': 'gif',
   'image/svg+xml': 'svg',
   'image/x-icon': 'ico',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
 };
 
 /** Lo que aceptan por defecto todas las subidas: imágenes de verdad, sin SVG. */
@@ -31,8 +34,10 @@ const RASTER = /^image\/(png|jpeg|webp|avif|gif)$/;
  *
  * @param allowed qué tipos REALES acepta este campo. Por defecto, imágenes sin
  *   SVG; el endpoint de favicon/logo pasa el suyo para permitir svg e ico.
+ * @param resolve cómo se reconoce el tipo real. Por defecto, imágenes; los
+ *   videos pasan `resolveVideoMime` (ver `videoStorage`).
  */
-export function mediaStorage(allowed: RegExp = RASTER): StorageEngine {
+export function mediaStorage(allowed: RegExp = RASTER, resolve = resolveImageMime): StorageEngine {
   const engine: StorageEngine = {
     _handleFile(_req, file, cb) {
       const chunks: Buffer[] = [];
@@ -40,7 +45,7 @@ export function mediaStorage(allowed: RegExp = RASTER): StorageEngine {
       file.stream.on('error', (e) => cb(e));
       file.stream.on('end', () => {
         const buf = Buffer.concat(chunks);
-        const resolved = resolveImageMime(buf, allowed);
+        const resolved = resolve(buf, allowed);
         if ('error' in resolved) {
           // Tiene que ser una HttpException: Nest reenvía tal cual las que ya lo
           // son, y cualquier otro Error acabaría como un 500 sin explicación.
@@ -76,3 +81,8 @@ export function mediaStorage(allowed: RegExp = RASTER): StorageEngine {
 
 /** Para el favicon/logo del sitio: además de imágenes, ahí sí tienen sentido SVG e ICO. */
 export const ICON_TYPES = /^image\/(png|jpeg|webp|avif|gif|svg\+xml|x-icon)$/;
+
+/** Videos de las tarjetas de categoría: MP4 o WebM reconocidos por sus bytes. */
+export function videoStorage(): StorageEngine {
+  return mediaStorage(VIDEO_TYPES, resolveVideoMime);
+}

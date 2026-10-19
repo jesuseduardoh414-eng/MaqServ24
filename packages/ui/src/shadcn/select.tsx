@@ -60,7 +60,8 @@ const ShSelectContent = React.forwardRef<
       style={{ maxHeight: 'min(320px, var(--radix-select-content-available-height))' }}
       collisionPadding={12}
       className={cn(
-        'relative z-[120] min-w-[8rem] overflow-hidden rounded-[var(--ui-radius)] p-1.5',
+        // Misma capa que el popover (1050): ver popover.tsx.
+        'relative z-[1050] min-w-[8rem] overflow-hidden rounded-[var(--ui-radius)] p-1.5',
         'border border-[var(--ui-border)] bg-[var(--ui-surface)] text-[var(--ui-text)]',
         'shadow-[0_18px_48px_-12px_rgba(0,0,0,.6)]',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',

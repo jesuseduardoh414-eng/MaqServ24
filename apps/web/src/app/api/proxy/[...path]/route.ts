@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE } from '@/lib/session';
-import { ALIADO_COOKIE } from '@/lib/cookies';
+import { ALIADO_COOKIE, OPERADOR_COOKIE } from '@/lib/cookies';
 import { clientIpHeaders } from '@/lib/client-ip';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -27,6 +27,8 @@ const ALLOWLIST = [
    * que le llegó por correo, que viaja en la cabecera desde el navegador.
    */
   /^aliado(\/|$)/,
+  // El enlace del operador de la unidad (2026-10-15): su servicio, avance y ubicación.
+  /^operador(\/|$)/,
   /^quotes\/mis-obras$/,
   // "Aceptar cotización" (QuoteAccept). La API filtra por el dueño y la vigencia.
   /^quotes\/[A-Za-z0-9_-]+\/accept$/,
@@ -42,7 +44,7 @@ const ALLOWLIST = [
 ];
 
 /** Rutas cuya credencial la manda el navegador, no la cookie de sesión. */
-const CON_TOKEN_PROPIO = /^aliado(\/|$)/;
+const CON_TOKEN_PROPIO = /^(aliado|operador)(\/|$)/;
 
 /**
  * Un segmento que, DECODIFICADO, trae '/', '\', '%', '.' o '..' (QA 2026-09-25):
@@ -91,7 +93,7 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
    */
   const propio = CON_TOKEN_PROPIO.test(joined);
   const credencial = propio
-    ? req.cookies.get(ALIADO_COOKIE)?.value
+    ? req.cookies.get(/^operador(\/|$)/.test(joined) ? OPERADOR_COOKIE : ALIADO_COOKIE)?.value
     : req.cookies.get(SESSION_COOKIE)?.value;
   const headers: Record<string, string> = {
     ...clientIpHeaders(req),

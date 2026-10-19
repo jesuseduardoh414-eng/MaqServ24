@@ -3,8 +3,10 @@
 import { evento } from '@/lib/analitica';
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/Icon';
+import { problemaEmail, problemaNombre, problemaTelefono } from '@maqserv/config';
 
-const emailOk = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+// Mismas reglas que la API (@maqserv/config): si aquí pasa, allá también.
+const emailOk = (v: string) => !!v && !problemaEmail(v);
 
 /**
  * Formulario de contacto. Usa las piezas comunes del sistema de diseño
@@ -33,14 +35,17 @@ export function ContactForm({ needs: deTema }: { needs: string[] }) {
     setNeed(pedida);
   }, [deTema]);
 
-  const nameErr = touched && !name.trim();
+  const nameProblema = name.trim() ? problemaNombre(name) : 'Escribe tu nombre.';
+  const phoneProblema = problemaTelefono(phone);
+  const nameErr = touched && !!nameProblema;
+  const phoneErr = touched && !!phoneProblema;
   const emailErr = touched && !emailOk(email.trim());
   const messageErr = touched && message.trim().length < 4;
 
   async function submit() {
     setTouched(true);
     setServerErr(null);
-    if (!name.trim() || !emailOk(email.trim()) || message.trim().length < 4) return;
+    if (nameProblema || !emailOk(email.trim()) || phoneProblema || message.trim().length < 4) return;
     setBusy(true);
     try {
       const res = await fetch('/api/contacto', {
@@ -87,8 +92,8 @@ export function ContactForm({ needs: deTema }: { needs: string[] }) {
       <div className="ms-grid2">
         <div className="ms-field">
           <label htmlFor="ct-name" className="ms-label">Nombre<span className="ms-req">*</span></label>
-          <input id="ct-name" className="ms-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" aria-invalid={nameErr} autoComplete="name" />
-          {nameErr ? <p className="ms-error">Ingresa tu nombre.</p> : null}
+          <input id="ct-name" className="ms-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Tu nombre" aria-invalid={nameErr} autoComplete="name" maxLength={120} />
+          {nameErr ? <p className="ms-error">{nameProblema}</p> : null}
         </div>
         <div className="ms-field">
           <label htmlFor="ct-company" className="ms-label">Empresa</label>
@@ -97,11 +102,12 @@ export function ContactForm({ needs: deTema }: { needs: string[] }) {
         <div className="ms-field">
           <label htmlFor="ct-email" className="ms-label">Correo<span className="ms-req">*</span></label>
           <input id="ct-email" type="email" className="ms-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" aria-invalid={emailErr} autoComplete="email" />
-          {emailErr ? <p className="ms-error">Correo no válido.</p> : null}
+          {emailErr ? <p className="ms-error">{problemaEmail(email) ?? 'Escribe tu correo.'}</p> : null}
         </div>
         <div className="ms-field">
           <label htmlFor="ct-phone" className="ms-label">Teléfono</label>
-          <input id="ct-phone" type="tel" className="ms-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="10 dígitos" autoComplete="tel" />
+          <input id="ct-phone" type="tel" className="ms-input" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="81 1234 5678" autoComplete="tel" inputMode="tel" maxLength={20} aria-invalid={phoneErr} />
+          {phoneErr ? <p className="ms-error">{phoneProblema}</p> : null}
         </div>
       </div>
 

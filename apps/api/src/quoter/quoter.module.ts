@@ -23,6 +23,7 @@ import { QuoterServicio } from './quoter-servicio';
   imports: [NotificationsModule],
   controllers: [QuoterController],
   providers: [QuoterService, ServiceService, QuoterServicio],
-  exports: [QuoterService],
+  // QuoterServicio también: al marcar "Aceptada" en el panel se abre el servicio.
+  exports: [QuoterService, QuoterServicio],
 })
 export class QuoterModule {}

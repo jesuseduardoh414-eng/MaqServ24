@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { QuotesService } from './quotes.service';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
+import { zTelefonoRequerido } from '../common/campos';
 
 const quoteSchema = z.object({
   // Sin `.min(1)`: transporte, triturados, materiales y asfalto se cotizan por
@@ -22,7 +23,7 @@ const quoteSchema = z.object({
   customer: z.object({
     name: z.string().min(2).max(190),
     email: z.string().email().max(190),
-    phone: z.string().min(7).max(30),
+    phone: zTelefonoRequerido(),
     company: z.string().max(190).optional(),
     region: z.string().max(190).optional(),
     industry: z.string().max(190).optional(),

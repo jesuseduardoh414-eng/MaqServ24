@@ -1,8 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
+import { kmRestantes, obraDe, ultimaUbicacion } from './rastreo';
 import type { QuoteDetail, QuoteItem, QuoteRequestInput, QuoteSummary } from '@maqserv/types';
-import { formatearCantidad } from '@maqserv/config';
+import { CATALOGOS_DEFAULT, centroDeMunicipio, formatearCantidad } from '@maqserv/config';
 import { imageUrl } from '../catalog/images';
 import { FreightService } from '../freight/freight.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -11,6 +12,18 @@ import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './s
 import { resolverClienteYObra } from './client-resolver';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { estadoSolicitud } from './estado-solicitud';
+import { sincronizarReserva } from './reservas';
+import { ServiceService } from './service.service';
+import { operadorDe } from '../providers/operador';
+
+/**
+ * EL PRECIO EN PREPARACIÓN NO SE ENSEÑA (2026-10-15). Mientras MAQSER24 no
+ * responde, lo que haya en importes o en el documento ligado es un borrador:
+ * el cliente ve su solicitud sin precios. La excepción es la del cotizador del
+ * sitio: ese precio el cliente ya lo vio al pedirla.
+ */
+const precioOculto = (q: { status: string; requirements?: unknown }) =>
+  q.status === 'pending' && (q.requirements as { origen?: unknown } | null)?.origen !== 'cotizador';
 
 /** Folio del documento del cotizador guardado en `requirements` (cotizador por tipo o por máquina). */
 function folioDocumento(requirements: unknown): string | null {
@@ -31,6 +44,7 @@ export class QuotesService {
   constructor(
     private readonly freight: FreightService,
     private readonly notifications: NotificationsService,
+    private readonly services: ServiceService,
   ) {}
 
   private toSummary(q: {
@@ -38,18 +52,20 @@ export class QuotesService {
     subtotal: unknown; freight_cost: unknown; freight_distance: string | null;
     tax: unknown; total: unknown; created_at: Date | null;
     valid_until?: Date | null; accepted_at?: Date | null; service_state?: string | null;
+    requirements?: unknown;
   }, asignaciones: Array<{ state: string }> = []): QuoteSummary {
+    const oculto = precioOculto(q);
     return {
       serviceState: q.service_state ?? null,
       request: estadoSolicitud(q.service_state, asignaciones),
       id: Number(q.id),
       quoteNumber: q.quote_number,
       status: q.status,
-      subtotal: Number(q.subtotal),
-      freightCost: Number(q.freight_cost),
+      subtotal: oculto ? 0 : Number(q.subtotal),
+      freightCost: oculto ? 0 : Number(q.freight_cost),
       freightDistance: q.freight_distance,
-      tax: Number(q.tax),
-      total: Number(q.total),
+      tax: oculto ? 0 : Number(q.tax),
+      total: oculto ? 0 : Number(q.total),
       createdAt: q.created_at ? q.created_at.toISOString() : null,
       state: estadoCotizacion({ status: q.status, validUntil: q.valid_until ?? null, acceptedAt: q.accepted_at ?? null }),
       validUntil: q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null,
@@ -281,18 +297,64 @@ export class QuotesService {
     if (estado === 'rechazada') throw new BadRequestException('Esta cotizacion fue descartada');
 
     const ahora = new Date();
-    await prisma.quotes.update({
-      where: { id: q.id },
-      data: {
-        accepted_at: ahora,
-        updated_at: ahora,
-        // Aceptar es lo que mete la operación al tablero. Antes el rastro
-        // terminaba aquí: lo que pasaba después vivía en llamadas.
-        service_state: estadoInicial(),
-      },
-    });
-    await prisma.service_events.create({
-      data: { quote_id: q.id, to_state: estadoInicial(), note: 'El cliente aceptó la cotización' },
+    const req = (q.requirements ?? {}) as { quoterId?: unknown; origen?: unknown; folio?: unknown };
+
+    /**
+     * Las demás partes del MISMO documento (2026-10-15). El cotizador del sitio
+     * parte una cotización por línea (la excavadora por un lado, la pipa por
+     * otro); el cliente aceptó UN documento, así que se aceptan juntas las que
+     * ya tienen precio y siguen vigentes.
+     */
+    const hermanas = typeof req.folio === 'string' && req.folio
+      ? (await prisma.quotes.findMany({
+          where: { user_id: userId, id: { not: q.id }, accepted_at: null, requirements: { path: '$.folio', equals: req.folio } },
+        })).filter((h) => estadoCotizacion({ status: h.status, validUntil: h.valid_until, acceptedAt: h.accepted_at }) === 'vigente')
+      : [];
+    const aceptadas = [q, ...hermanas];
+
+    for (const a of aceptadas) {
+      await prisma.quotes.update({
+        where: { id: a.id },
+        data: {
+          accepted_at: ahora,
+          updated_at: ahora,
+          // Aceptar es lo que mete la operación al tablero. Antes el rastro
+          // terminaba aquí: lo que pasaba después vivía en llamadas.
+          service_state: estadoInicial(),
+        },
+      });
+      await prisma.service_events.create({
+        data: { quote_id: a.id, to_state: estadoInicial(), note: 'El cliente aceptó la cotización' },
+      });
+      // Ya venía apartado desde la autorización; esto lo ata al servicio para
+      // que de aquí en adelante siga sus etapas.
+      await sincronizarReserva(Number(a.id));
+    }
+
+    // Su documento pasa a "Aceptada" en el historial del cotizador.
+    if (typeof req.quoterId === 'number' && req.origen !== 'maquina') {
+      await prisma.quoter_quotes.updateMany({
+        where: { id: req.quoterId, state: { in: ['borrador', 'solicitada', 'enviada'] } },
+        data: { state: 'aceptada', updated_at: ahora },
+      });
+    }
+
+    /**
+     * OFERTA AUTOMÁTICA (2026-10-15): al aceptar, cada servicio se le ofrece
+     * solo a los mejores aliados que llegan a la obra; el primero que acepta
+     * se la queda (ServiceService.ofrecerATodos). El cliente no recibe nada
+     * hasta que un aliado la toma: ese es el correo de "te atiende…".
+     */
+    const ofrecidos: string[] = [];
+    for (const a of aceptadas) ofrecidos.push(...(await this.services.ofrecerATodos(Number(a.id))).ofrecidos);
+    void avisarPanel({
+      modulo: 'servicios',
+      evento: 'solicitud',
+      titulo: `${q.company_name?.trim() || q.name} aceptó la cotización ${q.quote_number}`,
+      cuerpo: ofrecidos.length
+        ? `Se le ofreció sola a ${[...new Set(ofrecidos)].join(', ')}: el primero que acepte se la queda.`
+        : 'Ya está en Servicios por asignar: búscale aliado.',
+      link: '/servicios',
     });
     return this.byNumber(userId, quoteNumber);
   }
@@ -365,7 +427,7 @@ export class QuotesService {
         days: c.days ?? 1,
         isRental: (c.days ?? 1) > 1,
         freight: 0,
-        lineTotal: c.price,
+        lineTotal: precioOculto(q) ? 0 : c.price,
         image: c.item.photo,
       }));
     } catch {
@@ -385,19 +447,80 @@ export class QuotesService {
       },
       address: q.address,
       comments: q.comments,
-      conditions: q.conditions,
+      // En preparación, lo de una respuesta anterior (vigencia, incluye, condiciones) ya no vale: no se enseña.
+      conditions: precioOculto(q) ? null : q.conditions,
       state: estadoCotizacion({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
-      validUntil: q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null,
-      daysToExpire: diasParaVencer(q.valid_until),
-      included: q.included,
-      excluded: q.excluded,
-      respondedBy: q.responded_by,
+      validUntil: !precioOculto(q) && q.valid_until ? q.valid_until.toISOString().slice(0, 10) : null,
+      daysToExpire: precioOculto(q) ? null : diasParaVencer(q.valid_until),
+      included: precioOculto(q) ? null : q.included,
+      excluded: precioOculto(q) ? null : q.excluded,
+      respondedBy: precioOculto(q) ? null : q.responded_by,
       acceptedAt: q.accepted_at ? q.accepted_at.toISOString() : null,
       canAccept: sePuedeAceptar({ status: q.status, validUntil: q.valid_until, acceptedAt: q.accepted_at }),
-      documentFolio: folioDocumento(q.requirements),
+      documentFolio: precioOculto(q) ? null : folioDocumento(q.requirements),
       siblings: await this.hermanos(userId, q.id, folioDocumento(q.requirements)),
       service: await this.servicioDe(q),
+      tracking: await this.rastreoDe(q),
     };
+  }
+
+  /**
+   * Su obra en el mapa, y la unidad mientras va en camino (ver quotes/rastreo.ts).
+   *
+   * Desde que hay aliado hasta que la máquina está en la obra (2026-10-15):
+   * antes de salir, el cliente ve dónde la espera; en traslado, por dónde va y
+   * cuánto le falta. La ubicación del teléfono del aliado solo se enseña
+   * durante el traslado, y su patio nunca.
+   */
+  private async rastreoDe(q: { id: bigint; service_state: string | null; address: string | null; region: string | null; requirements: unknown; site_id: number | null }) {
+    const conMapa = ['asignado', 'en_traslado', 'en_sitio', 'en_curso'];
+    if (!conMapa.includes(q.service_state ?? '')) return null;
+    const enCamino = q.service_state === 'en_traslado';
+    const [ultima, sitio, puntos] = await Promise.all([
+      enCamino ? ultimaUbicacion(q.id) : null,
+      q.site_id ? prisma.client_sites.findUnique({ where: { id: q.site_id }, select: { id: true, name: true, address: true, municipality: true, state: true, lat: true, lng: true } }) : null,
+      enCamino
+        ? prisma.service_locations.findMany({ where: { quote_id: q.id }, orderBy: { id: 'desc' }, take: 60, select: { lat: true, lng: true } })
+        : [],
+    ]);
+    // La obra sin coordenadas se ubica con su dirección, una vez y sin esperar:
+    // esta carga enseña el centro del municipio y las siguientes, la obra.
+    if (sitio && (sitio.lat == null || sitio.lng == null)) void this.ubicarObra(sitio);
+    const obra = obraDe({ ...q, client_sites: sitio });
+    return {
+      km: enCamino ? kmRestantes(ultima, obra) : null,
+      updatedAt: ultima?.at ?? null,
+      approximate: obra?.aproximada ?? true,
+      site: obra ? { lat: obra.lat, lng: obra.lng, name: obra.nombre } : null,
+      unit: ultima ? { lat: ultima.lat, lng: ultima.lng, at: ultima.at } : null,
+      route: [...puntos].reverse().map((p) => ({ lat: Number(p.lat), lng: Number(p.lng) })),
+      moving: enCamino,
+    };
+  }
+
+  /** Obras que ya se intentaron ubicar en este proceso: Nominatim pide no repetir. */
+  private readonly obrasIntentadas = new Set<number>();
+
+  /**
+   * UBICAR LA OBRA CON SU DIRECCIÓN (2026-10-15). "No sale la ubicación": las
+   * obras que se crean solas desde una solicitud solo traen la dirección, y el
+   * mapa caía al centro del municipio. Se geocodifica con el mismo servicio que
+   * el cotizador de traslado y se guarda solo si quedó a nivel de calle o
+   * colonia: un punto de municipio no es "la obra".
+   */
+  private async ubicarObra(s: { id: number; address: string | null; municipality: string | null; state: string | null }) {
+    if (this.obrasIntentadas.has(s.id) || !s.address?.trim()) return;
+    this.obrasIntentadas.add(s.id);
+    try {
+      // El municipio solo si es uno de verdad (hay obras guardadas con el estado).
+      const municipio = s.municipality ? centroDeMunicipio(s.municipality)?.nombre ?? null : null;
+      const consulta = [s.address, municipio, s.state || 'Nuevo León'].filter(Boolean).join(', ');
+      const punto = await this.freight.geocode(consulta);
+      if (!punto || punto.precision === 'municipio') return;
+      await prisma.client_sites.update({ where: { id: s.id }, data: { lat: punto.lat, lng: punto.lon, updated_at: new Date() } });
+    } catch {
+      // Sin red o sin respuesta: el mapa sigue con el centro del municipio.
+    }
   }
 
   /** Los otros servicios del mismo documento, con su estado para el cliente. */
@@ -428,11 +551,14 @@ export class QuotesService {
   async documento(userId: number, quoteNumber: string) {
     const q = await prisma.quotes.findFirst({
       where: { quote_number: quoteNumber, user_id: userId },
-      select: { quote_number: true, requirements: true },
+      select: { quote_number: true, requirements: true, status: true },
     });
     if (!q) throw new NotFoundException('Cotización no encontrada');
-    const folio = folioDocumento(q.requirements);
-    if (!folio) throw new NotFoundException('Esta cotización no tiene documento');
+    // Precio en preparación: también aquí se enseña la solicitud, no el borrador.
+    const folio = precioOculto(q) ? null : folioDocumento(q.requirements);
+    // Sin documento del cotizador todavía (2026-10-15): la SOLICITUD, con el
+    // mismo formato y sin importes, para que el cliente la vea e imprima.
+    if (!folio) return this.solicitudComoDocumento(userId, quoteNumber);
     const d = await prisma.quoter_quotes.findUnique({ where: { folio } });
     if (!d) throw new NotFoundException('Documento no encontrado');
     return {
@@ -449,6 +575,53 @@ export class QuotesService {
   }
 
   /**
+   * LA SOLICITUD COMO DOCUMENTO (2026-10-15). "Aquí también debería ver el
+   * documento, solo que sin costo." Mientras no tiene precio, el cliente ve lo
+   * que pidió con el formato de siempre (empresa, folio, partidas, lo que
+   * respondió) y la nota de que un asesor le enviará los precios.
+   */
+  private async solicitudComoDocumento(userId: number, quoteNumber: string) {
+    const det = await this.byNumber(userId, quoteNumber);
+    const q = await prisma.quotes.findFirst({
+      where: { quote_number: quoteNumber, user_id: userId },
+      select: { service_category: true, requirements: true, created_at: true, product_interested: true, client_sites: { select: { name: true, municipality: true } } },
+    });
+    const tipo = (q?.service_category ?? '').includes('tritur') ? 'triturados' : 'maquinaria';
+    const fila = await prisma.quoter_catalogs.findUnique({ where: { kind: tipo } });
+    const cat = (fila?.data ?? CATALOGOS_DEFAULT[tipo]) as { empresa: unknown; firma: unknown; saludo: string; version: string };
+    const req = (q?.requirements ?? {}) as Record<string, unknown>;
+    const renglones = det.items.length
+      ? det.items.map((i) => ({
+          clase: 'equipo', id: String(i.productId), nombre: i.name, concepto: i.name,
+          unidad: i.isRental ? 'DÍAS' : 'PZA', cantidad: i.isRental ? i.days * i.qty : i.qty, pu: 0, importe: 0,
+        }))
+      : [{ clase: 'equipo', id: 'solicitud', nombre: q?.product_interested ?? 'Servicio', concepto: q?.product_interested ?? 'Servicio', unidad: 'SERV', cantidad: 1, pu: 0, importe: 0 }];
+    return {
+      folio: quoteNumber,
+      tipo: 'solicitud',
+      quoteNumber,
+      cliente: det.customer.company || det.customer.name,
+      obra: q?.client_sites?.name ?? det.address,
+      atencion: det.customer.company ? det.customer.name : null,
+      municipio: q?.client_sites?.municipality ?? (typeof req.obra_ubicacion === 'string' ? req.obra_ubicacion : det.customer.region),
+      notas: det.comments,
+      sinPrecios: true,
+      documento: {
+        calc: {
+          renglones,
+          desglose: { renta: 0, servicios: 0, fletes: 0, materiales: 0 },
+          subtotal: 0, iva: 0, iva_tasa: 0.16, con_iva: true, total: 0, condiciones: [],
+        },
+        empresa: cat.empresa,
+        firma: cat.firma,
+        saludo: 'Recibimos su solicitud con los siguientes datos. La estamos revisando y le enviaremos la cotización con precios y vigencia.',
+        version: cat.version,
+        emitida: (q?.created_at ?? new Date()).toISOString(),
+      },
+    };
+  }
+
+  /**
    * En qué va el servicio, contado para el cliente.
    *
    * Se muestran SOLO los aliados que aceptaron. A quién más se le ofreció y
@@ -457,7 +630,7 @@ export class QuotesService {
    * decisión que ya se resolvió.
    */
   private async servicioDe(q: {
-    id: bigint; service_state: string | null; service_unit: string | null;
+    id: bigint; service_state: string | null; service_unit: string | null; requirements: unknown;
     service_quantity: unknown; service_started_at: Date | null; service_closed_at: Date | null;
   }): Promise<QuoteDetail['service']> {
     if (!esEstado(q.service_state)) return null;
@@ -467,6 +640,7 @@ export class QuotesService {
       prisma.service_assignments.findMany({
         where: { quote_id: q.id, state: 'aceptado' },
         include: { providers: { select: { name: true } } },
+        orderBy: { id: 'asc' },
       }),
       prisma.service_events.findMany({
         where: { quote_id: q.id },
@@ -483,6 +657,8 @@ export class QuotesService {
       message: PASOS[estado].cliente,
       progress: avance(estado),
       providers: asignaciones.map((a) => a.providers.name),
+      arrival: asignaciones.find((a) => a.committed_at)?.committed_at?.toISOString() ?? null,
+      operator: operadorDe(q.requirements)?.nombre ?? null,
       startedAt: q.service_started_at ? q.service_started_at.toISOString() : null,
       closedAt: q.service_closed_at ? q.service_closed_at.toISOString() : null,
       closed: cantidad ? formatearCantidad(cantidad, q.service_unit) : null,

@@ -53,7 +53,7 @@ const fechaHora = (iso: string | null) =>
  * (llega sin precio) o del cotizador del sitio (llega con precio y aceptada).
  * La pantalla la sigue por etapas hasta que pasa a Servicios.
  */
-export default async function AdminQuotes() {
+export default async function AdminQuotes({ searchParams }: { searchParams: Promise<{ ver?: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'cotizaciones');
@@ -91,7 +91,8 @@ export default async function AdminQuotes() {
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <QuotesManager items={items} />
+      {/* ?ver=ID abre esa solicitud (de vuelta del cotizador, 2026-10-15). */}
+      <QuotesManager items={items} abrir={Number((await searchParams).ver) || null} />
     </AdminShell>
   );
 }

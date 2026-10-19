@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { mostrarResultado } from '@maqserv/ui';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -94,7 +95,11 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
     });
     if (res.status === 401) { router.push('/login'); return; }
     const d = await res.json().catch(() => null);
-    if (typeof d?.inWishlist === 'boolean') setFaved(d.inWishlist);
+    if (typeof d?.inWishlist === 'boolean') {
+      setFaved(d.inWishlist);
+      // Más preciso que el "Listo" automático.
+      mostrarResultado(d.inWishlist ? 'Agregado a tus favoritos' : 'Quitado de tus favoritos');
+    }
   }
 
   return (

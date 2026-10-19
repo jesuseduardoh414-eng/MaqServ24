@@ -332,9 +332,13 @@ export function Chip({ tone, children, title, style }: { tone?: Tone; children: 
   return <span className={`adm-chip${tc(tone)}`} title={title} style={style}>{children}</span>;
 }
 
-/** Estado en texto plano con punto de color: "● Activa". */
-export function StatusText({ tone, children, title }: { tone?: Tone; children: ReactNode; title?: string }) {
-  return <span className={`adm-status${tc(tone)}`} title={title}>{children}</span>;
+/**
+ * Estado en texto plano con punto de color: "● Activa". `color` (un valor CSS)
+ * gana sobre `tone` cuando el estado tiene color propio, como los de
+ * disponibilidad (ESTADOS_DISPONIBILIDAD).
+ */
+export function StatusText({ tone, color, children, title }: { tone?: Tone; color?: string; children: ReactNode; title?: string }) {
+  return <span className={`adm-status${tc(tone)}`} title={title} style={color ? { color } : undefined}>{children}</span>;
 }
 
 /** Interruptor. `label` va a la derecha y también es el nombre accesible. */
@@ -409,15 +413,8 @@ export function Bar({ pct, tone, width, label }: { pct: number; tone?: Tone; wid
 }
 
 /** Aviso flotante abajo al centro. `kind` decide icono y color. */
-export function Toast({ kind = 'ok', children }: { kind?: 'ok' | 'warn' | 'bad' | 'info'; children: ReactNode }) {
-  const ico = kind === 'ok' ? 'ph-check-circle' : kind === 'info' ? 'ph-info' : 'ph-warning-circle';
-  return (
-    <div className={`adm-toast t-${kind}`} role="status">
-      <i className={`ph-bold ${ico}`} aria-hidden />
-      {children}
-    </div>
-  );
-}
+// El aviso flotante vive con el resto del sistema de resultados (necesita hooks).
+export { Toast } from '@maqserv/ui';
 
 /** Etiqueta + control + ayuda. */
 export function FormField({ label, help, children, style }: { label: ReactNode; help?: ReactNode; children: ReactNode; style?: CSSProperties }) {

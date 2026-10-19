@@ -44,6 +44,10 @@ const ICONO: Record<string, string> = {
   mensaje: 'ph-envelope-simple',
   cotizacion: 'ph-file-text',
   registro_proveedor: 'ph-user-plus',
+  correo_fallido: 'ph-warning-circle',
+  resena: 'ph-star',
+  pregunta: 'ph-question',
+  choque_reserva: 'ph-calendar-x',
 };
 
 function hace(iso: string | null): string {

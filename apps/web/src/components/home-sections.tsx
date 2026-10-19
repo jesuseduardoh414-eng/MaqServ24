@@ -14,6 +14,7 @@ import {
   getWhyChooseUs,
 } from '@/lib/api';
 import { categoryHref, categoryCountLabel } from '@/lib/category-link';
+import { VideoCategoria } from './VideoCategoria';
 import { Carousel, Eyebrow } from '@/components/Carousel';
 import { Icon, Stars, type IconName } from '@/components/Icon';
 import { CategoryStrip } from '@/components/CategoryStrip';
@@ -219,8 +220,10 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             className="lift cat-card"
             style={{ scrollSnapAlign: 'start', position: 'relative', display: 'block', height: cs.imageHeight, borderRadius: cs.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)', background: 'var(--surface-2)', border: '1px solid var(--color-border)' }}
           >
-            {/* Imagen a sangre (cover) */}
-            {c.image ? (
+            {/* Video en bucle si la categoría tiene (la foto queda de portada); si no, imagen a sangre (cover) */}
+            {c.video ? (
+              <VideoCategoria src={c.video} poster={c.image} className="zoom" />
+            ) : c.image ? (
               <Image src={c.image} alt={c.name} fill sizes="280px" className="zoom" style={{ objectFit: 'cover' }} />
             ) : (
               <span className="ph zoom" style={{ position: 'absolute', inset: 0 }} />
@@ -589,14 +592,19 @@ export async function BrandsSection({ theme }: { theme: Theme }) {
 
 /* ============================= FAQ ============================= */
 
+/** Cuántas preguntas caben en el home; el resto va a /preguntas-frecuentes. */
+export const FAQ_EN_HOME = 6;
+
 export async function FaqSection({ theme }: { theme: Theme }) {
   const cfg = theme.tokens.faq;
   if (cfg && cfg.show === false) return null;
-  const faqs = await getFaqs();
-  if (faqs.length === 0) return null;
+  // Sin preguntas publicadas la sección sigue: es donde se pregunta (2026-10-12).
+  // Solo las 6 más recientes: las demás, en /preguntas-frecuentes (con buscador).
+  const todas = await getFaqs();
+  const faqs = todas.slice(0, FAQ_EN_HOME);
   const accent = cfg?.accentColor ?? 'var(--color-primary)';
   return (
-    // `id` para poder enlazar aquí desde Ayuda (/#faq); no hay página /faq propia.
+    // `id` para poder enlazar aquí desde Ayuda (/#faq). La lista completa vive en /preguntas-frecuentes.
     <section id="faq" style={{ maxWidth: 840, margin: '0 auto', padding: '80px clamp(16px, 4vw, 26px) 40px', scrollMarginTop: 90 }}>
       <div style={{ marginBottom: 32 }}>
         <CenterHead eyebrow={t(theme, 'home.faq.eyebrow')} title={t(theme, 'home.faq.title')} eyebrowColor={cfg?.eyebrowColor ?? undefined} titleColor={cfg?.titleColor ?? undefined} />
@@ -614,6 +622,18 @@ export async function FaqSection({ theme }: { theme: Theme }) {
             />
           </details>
         ))}
+      </div>
+      <div className="ms-panel" style={{ marginTop: faqs.length ? 18 : 0, display: 'flex', gap: '12px 20px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+        <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: '16.5px', color: 'var(--color-text)' }}>{faqs.length ? '¿No encuentras tu respuesta?' : '¿Tienes una pregunta?'}</p>
+          <p style={{ margin: '4px 0 0', fontSize: 14, color: 'var(--color-text-muted)', lineHeight: 1.5 }}>Pregúntanos. Te contestamos por correo y, si le sirve a más gente, la publicamos.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {todas.length > FAQ_EN_HOME ? (
+            <Link href="/preguntas-frecuentes" className="ms-btn ms-btn-sec">Ver todas ({todas.length})</Link>
+          ) : null}
+          <Link href="/preguntas-frecuentes?preguntar=1#preguntar" className="ms-btn">Hacer una pregunta</Link>
+        </div>
       </div>
     </section>
   );

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   calcularCotizacion,
   pasosDe,
+  problemaEmail,
+  problemaTelefono,
   type CatalogoCotizador,
   type CatalogoMaquinaria,
   type CatalogoTriturados,
@@ -25,9 +27,9 @@ import {
   aPartidas,
   lineaDeBanco,
   lineaDeEquipo,
-  lineaDeMaterial,
   lineaDeServicio,
   lineaDeZona,
+  nuevoUid,
   num,
   type ContextoCotizador,
   type LineaCotizador,
@@ -38,14 +40,20 @@ import {
   type LineaTriturados,
 } from './estado';
 import { PasoDuracion, PasoEquipos, PasoServicios } from './pasos-maquinaria';
-import {
-  AjustesDelTotal,
-  MODALIDADES,
-  PasoEntrega,
-  PasoMateriales,
-  PasoModalidad,
-  type Modalidad,
-} from './pasos-triturados';
+import { AjustesDelTotal, Facturacion, PasoPedido } from './pasos-triturados';
+
+/**
+ * Correo y teléfono del contacto, con las reglas de la API (@maqserv/config).
+ * Antes bastaban 7 caracteres para el teléfono. En el sitio son obligatorios;
+ * en el panel no, pero si se escriben tienen que estar bien.
+ */
+function errorContacto(campo: 'correo' | 'telefono', valor: string, obligatorio: boolean): string | null {
+  if (!valor.trim()) {
+    if (!obligatorio) return null;
+    return campo === 'correo' ? 'Necesitamos un correo para enviarte la cotización.' : 'Necesitamos un teléfono de contacto.';
+  }
+  return campo === 'correo' ? problemaEmail(valor) : problemaTelefono(valor);
+}
 
 export interface ResultadoEnvio {
   folio: string;
@@ -122,7 +130,8 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
   const [paso, setPaso] = useState(0);
   const [ctx, setCtx] = useState<ContextoCotizador>({ ...CONTEXTO_VACIO, ...inicial });
   const [lineas, setLineas] = useState<LineaCotizador[]>([]);
-  const [modalidades, setModalidades] = useState<Modalidad[]>([]);
+  /** El renglón de material recién agregado: su selector se abre solo. */
+  const [nuevo, setNuevo] = useState<number | null>(null);
   const [modoUnidad, setModoUnidad] = useState<'horas' | 'dias'>('horas');
   const [conIva, setConIva] = useState(tipo === 'triturados' ? (catalogo as CatalogoTriturados).iva_por_defecto : true);
   const [enviando, setEnviando] = useState(false);
@@ -178,21 +187,22 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
 
   const esEquipo = (id: string) => (l: LineaCotizador) => l.tipo === 'equipo' && l.id === id;
   const esServicio = (id: string) => (l: LineaCotizador) => l.tipo === 'servicio' && l.id === id;
-  const esMaterial = (id: string) => (l: LineaCotizador) => l.tipo === 'material' && l.id === id;
 
   /**
-   * Al deseleccionar una modalidad se tiran sus partidas.
-   *
-   * Conservarlas parece más amable, pero entonces el documento saldría con
-   * renglones de una modalidad que el usuario ya dijo que no quiere — y como
-   * el paso siguiente deja de mostrarlos, no tendría cómo quitarlos.
+   * Triturados: un material por tonelada nace sin elegir (su selector se abre
+   * solo) y hereda el flete que ya tenga la sección, que es uno por obra.
    */
-  const alternarModalidad = (m: Modalidad) => {
-    setModalidades((prev) => {
-      const fuera = prev.includes(m);
-      if (fuera) setLineas((ls) => ls.filter((l) => l.tipo !== m));
-      return fuera ? prev.filter((x) => x !== m) : [...prev, m];
+  const agregarMaterial = () => {
+    const uid = nuevoUid();
+    setLineas((prev) => {
+      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material');
+      const linea: LineaMaterial = {
+        uid, tipo: 'material', id: '', nombre: '', precio: '', toneladas: '',
+        fleteTon: otro?.fleteTon ?? 0, fleteZona: otro?.fleteZona ?? '',
+      };
+      return [...prev, linea];
     });
+    setNuevo(uid);
   };
 
   // ---- validación por paso ----
@@ -204,15 +214,15 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
    * resumen— y anunciarlos aquí mandaría a buscar algo que no está.
    */
   const ayuda =
-    preciosAlFinal && clave === 'entrega'
-      ? 'Dónde se entrega el material. El flete y la factura se eligen al final, junto con el costo.'
+    preciosAlFinal && clave === 'pedido'
+      ? 'Qué material y cuánto. El costo, la tarifa del flete y la factura se ven en el último paso.'
       : preciosAlFinal && clave === 'resumen'
         ? 'Aquí aparece el costo. Revísalo antes de solicitar el servicio.'
         : (pasos[paso]?.ayuda ?? '');
 
   /** El desglose lateral, solo cuando el costo ya está a la vista. */
   const importesALaVista = verPrecios && (preciosEnPasos || clave === 'resumen');
-  const faltante = useMemo(() => validar(clave, { ctx, lineas, modalidades, esPanel, calc }), [clave, ctx, lineas, modalidades, esPanel, calc]);
+  const faltante = useMemo(() => validar(clave, { ctx, lineas, esPanel, calc }), [clave, ctx, lineas, esPanel, calc]);
   const puedeAvanzar = faltante === null;
 
   const avanzar = () => {
@@ -269,7 +279,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
   function reiniciar() {
     setHecho(null);
     setLineas([]);
-    setModalidades([]);
+    setNuevo(null);
     setCtx({ ...CONTEXTO_VACIO, ...inicial });
     setPaso(0);
     setError(null);
@@ -282,11 +292,11 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
         <style>{COTIZADOR_CSS}</style>
         <div className="cz-card cz-done">
           <div className="mark"><Check className="size-8" /></div>
-          <h2>{esPanel ? 'Cotización guardada' : 'Servicio solicitado'}</h2>
+          <h2>{esPanel ? 'Cotización guardada' : 'Cotización enviada'}</h2>
           <p>
             {esPanel
               ? 'Ya está en el historial del cotizador. Imprímela o guárdala como PDF para enviársela al cliente.'
-              : 'Recibimos tu solicitud con esta cotización. MAQSER24 asigna el equipo y te avisamos por correo y en tu cuenta en cuanto quede confirmado. Guarda tu folio.'}
+              : 'Recibimos tu cotización. La revisamos y te la confirmamos con precio por correo; después la aceptas desde tu cuenta y asignamos al proveedor. Guarda tu folio.'}
           </p>
           <div className="cz-folio">{hecho.folio}</div>
           <div className="cz-done-acts">
@@ -386,34 +396,20 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
             />
           ) : null}
 
-          {tipo === 'triturados' && clave === 'modalidad' ? (
-            <PasoModalidad seleccion={modalidades} alternar={alternarModalidad} />
-          ) : null}
-
-          {tipo === 'triturados' && clave === 'materiales' ? (
-            <PasoMateriales
-              cat={catalogo as CatalogoTriturados}
-              lineas={lineas as LineaTriturados[]}
-              modalidades={modalidades}
-              mostrarPrecios={preciosEnPasos}
-              permitirOtro={esPanel}
-              alternarMaterial={(id) => alternar(esMaterial(id), () => lineaDeMaterial(catalogo as CatalogoTriturados, id))}
-              agregarZona={() => agregar(lineaDeZona(catalogo as CatalogoTriturados))}
-              agregarBanco={() => agregar(lineaDeBanco(catalogo as CatalogoTriturados))}
-              actualizar={actualizar}
-              quitar={quitar}
-            />
-          ) : null}
-
-          {tipo === 'triturados' && clave === 'entrega' ? (
-            <PasoEntrega
+          {tipo === 'triturados' && clave === 'pedido' ? (
+            <PasoPedido
               cat={catalogo as CatalogoTriturados}
               lineas={lineas as LineaTriturados[]}
               mostrarPrecios={preciosEnPasos}
               preciosAlFinal={preciosAlFinal}
-              actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaMaterial>)}
-              conIva={conIva}
-              setConIva={setConIva}
+              permitirOtro={esPanel}
+              agregarMaterial={agregarMaterial}
+              agregarZona={() => agregar(lineaDeZona(catalogo as CatalogoTriturados))}
+              agregarBanco={() => agregar(lineaDeBanco(catalogo as CatalogoTriturados))}
+              actualizar={actualizar}
+              quitar={quitar}
+              nuevo={nuevo}
+              tocado={tocado}
             />
           ) : null}
 
@@ -442,6 +438,13 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
                     </ShSelect>
                   )}
                 </Campo>
+              ) : null}
+
+              {tipo === 'triturados' && preciosEnPasos ? (
+                <div className="cz-qty wide" style={{ marginBottom: 14 }}>
+                  <span className="cz-lbl">Facturación · cambia el total y las condiciones del documento</span>
+                  <Facturacion cat={catalogo as CatalogoTriturados} conIva={conIva} setConIva={setConIva} />
+                </div>
               ) : null}
 
               {tipo === 'triturados' && preciosAlFinal ? (
@@ -539,7 +542,9 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
           tipo={tipo}
           importes={importesALaVista}
           pie={verPrecios ? 'El costo aparece en el último paso' : 'Un asesor te enviará el precio'}
-          partidas={partidas.length}
+          // Con precios, solo las partidas que ya cuentan (con material y
+          // cantidad): un renglón recién agregado y vacío no es una partida.
+          partidas={verPrecios ? calc.renglones.filter((r) => r.clase !== 'flete').length : partidas.length}
         />
       </div>
     </div>
@@ -563,7 +568,11 @@ function PasoObra({
   tocado: boolean;
 }) {
   const set = (patch: Partial<ContextoCotizador>) => setCtx({ ...ctx, ...patch });
-  const malCorreo = tocado && pideContacto && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ctx.correo.trim());
+  // Mismas reglas que la API (@maqserv/config). En el sitio son obligatorios;
+  // en el panel, opcionales, pero si se escriben tienen que estar bien.
+  const errCorreo = tocado ? errorContacto('correo', ctx.correo, pideContacto) : null;
+  const errTelefono = tocado ? errorContacto('telefono', ctx.telefono, pideContacto) : null;
+  const malCorreo = !!errCorreo;
   return (
     <div className="cz-card">
       <h2 className="cz-card-h">Datos de la obra</h2>
@@ -600,24 +609,24 @@ function PasoObra({
         </Campo>
         {pideContacto ? (
           <>
-            <Campo label="Correo" req error={malCorreo ? 'Escribe un correo válido para poder contestarte.' : null}>
+            <Campo label="Correo" req error={errCorreo}>
               {(id) => (
                 <ShInput id={id} type="email" value={ctx.correo} maxLength={190} placeholder="tu@empresa.com" aria-invalid={malCorreo} onChange={(e) => set({ correo: e.target.value })} />
               )}
             </Campo>
-            <Campo label="Teléfono" req error={tocado && ctx.telefono.trim().length < 7 ? 'Necesitamos un teléfono de contacto.' : null}>
+            <Campo label="Teléfono" req error={errTelefono}>
               {(id) => (
-                <ShInput id={id} type="tel" value={ctx.telefono} maxLength={40} placeholder="81 0000 0000" onChange={(e) => set({ telefono: e.target.value })} />
+                <ShInput id={id} type="tel" inputMode="tel" autoComplete="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />
               )}
             </Campo>
           </>
         ) : (
           <>
-            <Campo label="Correo del cliente (opcional)">
-              {(id) => <ShInput id={id} type="email" value={ctx.correo} maxLength={190} onChange={(e) => set({ correo: e.target.value })} />}
+            <Campo label="Correo del cliente (opcional)" error={errCorreo}>
+              {(id) => <ShInput id={id} type="email" value={ctx.correo} maxLength={190} aria-invalid={malCorreo} onChange={(e) => set({ correo: e.target.value })} />}
             </Campo>
-            <Campo label="Teléfono del cliente (opcional)">
-              {(id) => <ShInput id={id} type="tel" value={ctx.telefono} maxLength={40} onChange={(e) => set({ telefono: e.target.value })} />}
+            <Campo label="Teléfono del cliente (opcional)" error={errTelefono}>
+              {(id) => <ShInput id={id} type="tel" inputMode="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />}
             </Campo>
           </>
         )}
@@ -683,10 +692,23 @@ function ResumenLateral({
                   ) : null}
                 </>
               ) : (
-                <div className="cz-fr">
-                  <span>Materiales</span>
-                  <b>{money(calc.desglose.materiales)}</b>
-                </div>
+                // Triturados: por forma de venta, en el orden del paso "Material".
+                // Antes todo salía como "Materiales" (un viaje por zona también).
+                (
+                  [
+                    ['material', 'En planta, por tonelada'],
+                    ['zona', 'Puesto en obra, por viaje'],
+                    ['banco', 'Material de banco'],
+                  ] as const
+                ).map(([clase, texto]) => {
+                  const suma = calc.renglones.filter((r) => r.clase === clase).reduce((s, r) => s + r.importe, 0);
+                  return suma > 0 ? (
+                    <div className="cz-fr" key={clase}>
+                      <span>{texto}</span>
+                      <b>{money(suma)}</b>
+                    </div>
+                  ) : null;
+                })
               )}
               {calc.desglose.fletes > 0 ? (
                 <div className="cz-fr">
@@ -750,20 +772,15 @@ function validar(
   d: {
     ctx: ContextoCotizador;
     lineas: LineaCotizador[];
-    modalidades: Modalidad[];
     esPanel: boolean;
     calc: ReturnType<typeof calcularCotizacion>;
   },
 ): string | null {
-  const { ctx, lineas, modalidades, esPanel, calc } = d;
+  const { ctx, lineas, esPanel, calc } = d;
 
   if (clave === 'obra') {
     if (ctx.cliente.trim().length < 2) return 'Escribe a nombre de quién va la cotización.';
-    if (!esPanel) {
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ctx.correo.trim())) return 'Necesitamos un correo válido para enviarte la cotización.';
-      if (ctx.telefono.trim().length < 7) return 'Necesitamos un teléfono de contacto.';
-    }
-    return null;
+    return errorContacto('correo', ctx.correo, !esPanel) ?? errorContacto('telefono', ctx.telefono, !esPanel);
   }
 
   if (clave === 'equipos') {
@@ -775,20 +792,15 @@ function validar(
     return sinTiempo.length > 0 ? 'Hay equipos sin días ni horas: sin duración no se pueden cotizar.' : null;
   }
 
-  if (clave === 'modalidad') {
-    return modalidades.length > 0
-      ? null
-      : `Elige cómo se entrega: ${MODALIDADES.map((m) => m.titulo.toLowerCase()).join(', ')}.`;
-  }
-
-  if (clave === 'materiales') {
-    if (lineas.length === 0) return 'Agrega al menos un material.';
-    const sinNombre = lineas.some((l) => l.tipo === 'material' && l.id === 'custom' && !l.nombre.trim());
-    if (sinNombre) return 'Ponle nombre al material personalizado.';
-    const sinCantidad = lineas.some(
-      (l) => (l.tipo === 'material' && num(l.toneladas) <= 0) || (l.tipo === 'banco' && num(l.m3) <= 0),
-    );
-    if (sinCantidad) return 'Hay partidas sin cantidad: captura las toneladas o los m³.';
+  if (clave === 'pedido') {
+    if (lineas.length === 0) return 'Agrega al menos un material: en planta por tonelada, por viaje o de banco.';
+    // Cada renglón incompleto se marca en rojo ahí mismo; esto dice cuál falta.
+    if (lineas.some((l) => l.tipo === 'material' && !l.id)) return 'Elige qué material es cada partida por tonelada.';
+    if (lineas.some((l) => l.tipo === 'material' && l.id === 'custom' && !l.nombre.trim())) return 'Ponle nombre al material que escribiste a mano.';
+    if (esPanel && lineas.some((l) => l.tipo === 'material' && l.id === 'custom' && num(l.precio) <= 0)) return 'Captura el precio por tonelada del material que escribiste a mano.';
+    if (lineas.some((l) => l.tipo === 'material' && num(l.toneladas) <= 0)) return 'Captura las toneladas de cada material.';
+    if (lineas.some((l) => l.tipo === 'zona' && (!l.zonaId || !l.productoId))) return 'Elige la zona y el material de cada viaje.';
+    if (lineas.some((l) => l.tipo === 'banco' && num(l.m3) <= 0)) return 'Captura los m³ del material de banco.';
     return null;
   }
 

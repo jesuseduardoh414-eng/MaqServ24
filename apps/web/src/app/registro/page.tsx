@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { getTheme, t } from '@/lib/theme';
 import { getSessionUser } from '@/lib/session';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
+import { AuthLayout } from '@/components/AuthLayout';
 import { AuthCard } from '@/components/AuthCard';
 import { authLabels } from '@/lib/auth-labels';
 import { getAuthProviders } from '@/lib/auth-providers';
@@ -26,10 +27,10 @@ export default async function RegistroPage({ searchParams }: { searchParams: Pro
   return (
     <>
       <SiteHeader theme={theme} />
-      {/* Tarjeta centrada de ~440 px (la tarjeta fija su ancho). */}
-      <main className="ms-wrap">
+      {/* Panel de marca + formulario (ver AuthLayout). */}
+      <AuthLayout theme={theme}>
         <AuthCard initialView="register" redirectTo={next} labels={authLabels(theme)} googleActivo={proveedores.google} errorInicial={sp.error ?? null} />
-      </main>
+      </AuthLayout>
       <SiteFooter theme={theme} />
     </>
   );

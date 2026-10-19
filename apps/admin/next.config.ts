@@ -23,6 +23,15 @@ const standalone = process.env.BUILD_STANDALONE === '1';
 const nextConfig: NextConfig = {
   ...(standalone ? { output: 'standalone' as const, outputFileTracingRoot: repoRoot } : {}),
   transpilePackages: ['@maqserv/ui'],
+  experimental: {
+    /**
+     * Con middleware, Next guarda una copia del cuerpo de cada petición y
+     * CORTA lo que pase de 10 MB (solo avisa en consola). Los videos de las
+     * tarjetas de categoría (hasta 30 MB, VIDEO_MAX_MB en la API) llegaban
+     * mochos al proxy /api/admin. Margen para el multipart.
+     */
+    middlewareClientMaxBodySize: '35mb',
+  },
   images: {
     /**
      * 30 días de caché para cada imagen optimizada. El valor por defecto es 60 s:

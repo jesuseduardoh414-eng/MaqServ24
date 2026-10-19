@@ -1,6 +1,5 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { NEWSLETTER_ACTIVO } from '@maqserv/config';
 import { ContentService } from './content.service';
 
 @Controller('content')
@@ -50,24 +49,20 @@ export class ContentController {
     return this.content.contactMessage(body ?? {});
   }
 
+  // Pregunta desde Preguntas frecuentes (2026-10-12): sin cuenta, con nombre y
+  // correo. Llega al panel (Sitio web › Preguntas) por responder.
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Post('questions')
+  question(@Body() body: Record<string, unknown>) {
+    return this.content.siteQuestion(body ?? {});
+  }
+
   // "Regístrate como proveedor" (2026-10-06). Más estricto que contacto: cada
   // envío crea una ficha en el panel.
   @Throttle({ default: { ttl: 60_000, limit: 3 } })
   @Post('provider-signup')
   providerSignup(@Body() body: Record<string, unknown>) {
     return this.content.providerSignup(body ?? {});
-  }
-
-  @Throttle({ default: { ttl: 60_000, limit: 5 } })
-  @Post('subscribe')
-  subscribe(@Body() body: { email?: string }) {
-    // Boletín apagado (ver newsletter.ts en @maqserv/config): no existe.
-    if (!NEWSLETTER_ACTIVO) throw new NotFoundException('El boletín no está activo.');
-    const email = String(body?.email ?? '').trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 190) {
-      throw new BadRequestException('Correo inválido');
-    }
-    return this.content.subscribe(email);
   }
 
   @Get('faqs')
