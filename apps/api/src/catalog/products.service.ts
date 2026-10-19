@@ -4,6 +4,7 @@ import { sanitizeUserHtml } from '../common/sanitize';
 import { productSlug, LINEAS_SERVICIO, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario } from '@maqserv/config';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
+import { ordenDeCategorias } from './categories.service';
 import { lista } from '../common/json-list';
 import { estadoDocumentos, estaVerificado, mesesEnRed } from './provider-trust';
 import { disponibilidadDe } from './availability';
@@ -205,6 +206,34 @@ export class ProductsService {
     return cats.map((c) => c.id);
   }
 
+  /**
+   * "Relevancia" (el orden por defecto) = el orden de las categorías que fija
+   * el cliente (Catálogo → Categorías: Renta de maquinaria, Suministro de
+   * triturados, Materiales…) y, dentro de cada una, el orden en que se dieron
+   * de alta, que es como el cliente las lista (arena 4, arena 5, grava 1…).
+   * Antes era "lo más nuevo primero" y la maquinaria quedaba hasta el final.
+   *
+   * products no tiene relación declarada con categories, así que el orden se
+   * arma aquí: ids + categoría de todo lo que pasa el filtro (pocas filas,
+   * dos columnas) y luego solo la página que toca.
+   */
+  private async porRelevancia(where: Record<string, unknown>, page: number) {
+    const [todos, cats] = await Promise.all([
+      prisma.products.findMany({ where, select: { id: true, category_id: true } }),
+      prisma.categories.findMany({ orderBy: [{ sort_order: 'asc' }, { cat_name: 'asc' }], select: { id: true, sort_order: true } }),
+    ]);
+    const posicion = new Map(ordenDeCategorias(cats).map((c, i) => [c.id, i]));
+    const lejos = Number.MAX_SAFE_INTEGER;
+    todos.sort((a, b) => (posicion.get(a.category_id) ?? lejos) - (posicion.get(b.category_id) ?? lejos) || a.id - b.id);
+    const pagina = todos.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((r) => r.id);
+    const filas = pagina.length
+      ? await prisma.products.findMany({ where: { id: { in: pagina } }, select: CAMPOS_TARJETA })
+      : [];
+    const lugar = new Map(pagina.map((id, i) => [id, i]));
+    filas.sort((a, b) => (lugar.get(a.id) ?? 0) - (lugar.get(b.id) ?? 0));
+    return [todos.length, filas] as const;
+  }
+
   /** Cuántos servicios y cuántos productos hay publicados: decide qué pestañas enseña el sitio. */
   async resumen(): Promise<{ servicios: number; productos: number }> {
     const ids = await this.idsDeLineasServicio();
@@ -228,7 +257,7 @@ export class ProductsService {
     minRating?: number;
     /** `now` = con existencias · `rent` = en renta · `offer` = con precio anterior. */
     availability?: 'now' | 'rent' | 'offer';
-    /** `low`/`high` = precio · `new` = más recientes. Default: relevancia (id desc). */
+    /** `low`/`high` = precio · `new` = más recientes. Default: relevancia (orden de categorías; ver porRelevancia). */
     sort?: 'low' | 'high' | 'new';
     /** Servicios (las líneas de MAQSER24) o productos (lo demás). */
     kind?: 'servicio' | 'producto';
@@ -292,22 +321,21 @@ export class ProductsService {
       where.id = { in: ids };
     }
 
-    const orderBy: Prisma.productsOrderByWithRelationInput =
-      opts.sort === 'low' ? { cprice: 'asc' }
-        : opts.sort === 'high' ? { cprice: 'desc' }
-          : opts.sort === 'new' ? { created_at: 'desc' }
-            : { id: 'desc' }; // relevancia
-
-    const [total, rows] = await Promise.all([
-      prisma.products.count({ where }),
-      prisma.products.findMany({
-        where,
-        orderBy,
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
-        select: CAMPOS_TARJETA,
-      }),
-    ]);
+    const [total, rows] = opts.sort
+      ? await Promise.all([
+          prisma.products.count({ where }),
+          prisma.products.findMany({
+            where,
+            orderBy:
+              opts.sort === 'low' ? { cprice: 'asc' }
+                : opts.sort === 'high' ? { cprice: 'desc' }
+                  : { created_at: 'desc' },
+            skip: (page - 1) * PAGE_SIZE,
+            take: PAGE_SIZE,
+            select: CAMPOS_TARJETA,
+          }),
+        ])
+      : await this.porRelevancia(where, page);
 
     const [catSlugs, provs, bloqueos] = await Promise.all([
       this.categorySlugMap(),
