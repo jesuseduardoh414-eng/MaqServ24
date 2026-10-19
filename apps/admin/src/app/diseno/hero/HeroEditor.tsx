@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { HeroSettings, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
@@ -14,6 +15,8 @@ interface HeroDto { id?: number; badge: string | null; title: string | null; sub
 interface Config {
   showBadge: boolean; badge: string; title: string; accent: string; subtitle: string; image: string | null;
   primaryLabel: string; primaryLink: string; secondaryLabel: string; secondaryLink: string;
+  /** Texto del botón de WhatsApp (copy `home.hero.ctaWhatsapp`). */
+  whatsappLabel: string;
   accentColor: string; titleColor: string; subtitleColor: string;
   primaryBg: string; primaryText: string; secondaryBorder: string;
   overlay: number; showTrust: boolean; showStats: boolean;
@@ -108,6 +111,7 @@ function copysHero(c: Config): Record<string, string> {
     'home.hero.titleAccent': c.accent,
     'home.hero.ctaPrimary': c.primaryLabel,
     'home.hero.ctaSecondary': c.secondaryLabel,
+    'home.hero.ctaWhatsapp': c.whatsappLabel,
   };
   c.badges.forEach((b, i) => { es[`home.hero.trust${i + 1}.title`] = b.t; es[`home.hero.trust${i + 1}.text`] = b.d; });
   c.stats.forEach((s, i) => { es[`home.hero.stat${i + 1}.num`] = s.n; es[`home.hero.stat${i + 1}.label`] = s.l; });
@@ -125,6 +129,7 @@ export function HeroEditor({
       accent: es['home.hero.titleAccent'] ?? '', subtitle: hero?.subtitle ?? '', image: hero?.image ?? null,
       primaryLabel: es['home.hero.ctaPrimary'] ?? '', primaryLink: heroSettings.primaryLink,
       secondaryLabel: es['home.hero.ctaSecondary'] ?? '', secondaryLink: heroSettings.secondaryLink,
+      whatsappLabel: es['home.hero.ctaWhatsapp'] || 'Cotiza por WhatsApp',
       accentColor: heroSettings.accentColor, titleColor: heroSettings.titleColor, subtitleColor: heroSettings.subtitleColor,
       primaryBg: heroSettings.primaryBg, primaryText: heroSettings.primaryText, secondaryBorder: heroSettings.secondaryBorder,
       overlay: heroSettings.overlay, showTrust: heroSettings.showTrust, showStats: heroSettings.showStats,
@@ -340,11 +345,13 @@ export function HeroEditor({
                   <ColorField label="Color del texto" value={config.primaryText} presets={PRESETS.primaryText} onChange={(v) => set('primaryText', v)} />
                 </div>
                 <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
-                  <h3 style={{ ...h3Style, display: 'flex', alignItems: 'center', gap: 9 }}><span style={{ width: 9, height: 9, borderRadius: 999, border: '1px solid var(--adm-muted)' }} /> Botón secundario</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                    <Field label="Texto"><input value={config.secondaryLabel} onChange={(e) => set('secondaryLabel', e.target.value)} style={inputStyle} /></Field>
-                    <Field label="Enlace"><input value={config.secondaryLink} onChange={(e) => set('secondaryLink', e.target.value)} placeholder="/cotizar" style={inputStyle} /></Field>
-                  </div>
+                  {/* Desde el 2026-10-19 el segundo botón es "Cotiza por WhatsApp" (pedido
+                      del cliente); el enlace de antes solo se usa si no hay número. */}
+                  <h3 style={{ ...h3Style, display: 'flex', alignItems: 'center', gap: 9 }}><span style={{ width: 9, height: 9, borderRadius: 999, border: '1px solid var(--adm-muted)' }} /> Botón de WhatsApp</h3>
+                  <Field label="Texto"><input value={config.whatsappLabel} onChange={(e) => set('whatsappLabel', e.target.value)} placeholder="Cotiza por WhatsApp" style={inputStyle} /></Field>
+                  <p style={{ ...hint, margin: 0 }}>
+                    Abre WhatsApp con el número de <Link href="/diseno/contacto" style={{ color: 'var(--adm-accent)' }}>Diseño → Contacto</Link> y el mensaje «Hola, quiero una cotización.» ya escrito.
+                  </p>
                   <ColorField label="Color del borde" value={config.secondaryBorder} presets={PRESETS.secondaryBorder} onChange={(v) => set('secondaryBorder', v)} />
                 </div>
               </div>

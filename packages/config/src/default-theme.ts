@@ -489,6 +489,8 @@ export const defaultTheme: Theme = {
       'product.medical.dc3': 'Certificación DC-3',
       'home.categories.eyebrow': 'Ecosistema de servicios',
       'home.categories.title': 'Seis categorías. Una sola marca.',
+      // Segundo botón del hero desde el 2026-10-19 (antes "Ver disponibilidad").
+      'home.hero.ctaWhatsapp': 'Cotiza por WhatsApp',
       'home.categories.unit': 'equipos',
       // Singular aparte: "1 equipos" se leia en la tarjeta de Volteos.
       'home.categories.unit.one': 'equipo',

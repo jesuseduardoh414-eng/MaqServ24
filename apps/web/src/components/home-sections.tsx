@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import type { Theme } from '@maqserv/config';
+import { defaultTheme, type Theme } from '@maqserv/config';
+import { IconoRed } from '@/components/RedesSociales';
+import { whatsappHref } from '@/lib/telefono';
 import type { HomeHero, WhyChooseUsItem } from '@maqserv/types';
 import { t, CONTENT_CACHE } from '@/lib/theme';
 import {
@@ -70,6 +72,13 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
   const subtitle = hero?.subtitle ?? t(theme, 'home.hero.subtitle');
   const badge = (hero?.badge ?? '').trim();
   const showBadge = h.showBadge && badge;
+  const cval = (key: string, def: string) => {
+    const v = t(theme, key);
+    return v === key || !v.trim() ? def : v;
+  };
+  const contacto = theme.tokens.contact ?? defaultTheme.tokens.contact;
+  const numeroWa = contacto.whatsapp || contacto.phone;
+  const wa = numeroWa ? whatsappHref(numeroWa, 'Hola, quiero una cotización.') : null;
 
   const trust = [
     // Antes eran glifos del teclado. ⛟ y ▤ no existen en muchas fuentes: en
@@ -122,9 +131,19 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
             <Link href={h.primaryLink} data-evento="cta_hero_primario" className="ms-btn ms-btn-lg" style={{ background: h.primaryBg, color: h.primaryText }}>
               {t(theme, 'home.hero.ctaPrimary')} <Icon name="arrowRight" size={17} />
             </Link>
-            <Link href={h.secondaryLink} data-evento="cta_hero_secundario" className="ms-btn ms-btn-lg ms-btn-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
-              {t(theme, 'home.hero.ctaSecondary')}
-            </Link>
+            {/* "Cotiza por WhatsApp" en lugar de "Ver disponibilidad" (2026-10-19,
+                pedido del cliente): al número de Diseño → Contacto, con el
+                mensaje escrito. Sin número, vuelve el botón secundario de antes. */}
+            {wa ? (
+              <a href={wa} target="_blank" rel="noopener noreferrer" data-evento="cta_hero_whatsapp" className="ms-btn ms-btn-lg ms-btn-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
+                <span style={{ display: 'flex', color: '#25D366' }}><IconoRed red="whatsapp" /></span>
+                {cval('home.hero.ctaWhatsapp', 'Cotiza por WhatsApp')}
+              </a>
+            ) : (
+              <Link href={h.secondaryLink} data-evento="cta_hero_secundario" className="ms-btn ms-btn-lg ms-btn-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
+                {t(theme, 'home.hero.ctaSecondary')}
+              </Link>
+            )}
           </div>
 
           {h.showTrust ? (
