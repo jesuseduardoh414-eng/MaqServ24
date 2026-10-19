@@ -140,43 +140,44 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
         {p.provider ? <div style={{ marginTop: 8 }}><ProviderTrust p={p.provider} /></div> : null}
 
         <div className="pc-spacer" />
+        {quoteOnly ? (
+          // Servicio o sin precio (2026-10-19): con "Agregar a cotización" los dos
+          // botones apilados a la derecha dejaban ~60 px al texto y "Se cotiza
+          // por día" salía palabra por palabra. Ahora: texto + Cotizar en una
+          // línea y "Agregar a cotización" a todo el ancho debajo.
+          <div className="pc-foot">
+            <div className="pc-row">
+              {esServicio ? (
+                <span className="pc-unit">
+                  Se cotiza{p.priceUnit && UNIDADES[p.priceUnit] ? ` por ${UNIDADES[p.priceUnit].singular}` : ''}
+                </span>
+              ) : (
+                <span className="pc-unit" style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-text)' }}>{t(theme, 'product.price.onQuote')}</span>
+              )}
+              <Link href={quoteHref} data-evento="producto_cotizar" className="ms-btn ms-btn-sm">{t(theme, 'product.card.quote')}</Link>
+            </div>
+            {/* Para juntar varios en una sola solicitud (lista del encabezado). */}
+            <AgregarACotizacion item={{ id: p.id, slug: p.slug, name: p.name, image: p.image, isRental: p.isRental }} className="pc-wide" />
+          </div>
+        ) : (
         <div className="prod-card-foot" style={{ paddingTop: 14, borderTop: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          {/* Con precio (productos): importe a la izquierda, ficha y cotizar a la derecha. */}
           <div className="prod-card-price" style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
-            {esServicio ? (
-              // Un servicio no enseña importe: se cotiza con fechas y obra.
-              <div style={{ fontWeight: 500, fontSize: '13px', color: 'var(--color-text-muted)', lineHeight: 1.35 }}>
-                Se cotiza{p.priceUnit && UNIDADES[p.priceUnit] ? ` por ${UNIDADES[p.priceUnit].singular}` : ''}
-              </div>
-            ) : quoteMode || p.price === null ? (
-              <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--color-text)', lineHeight: 1.3 }}>{t(theme, 'product.price.onQuote')}</div>
-            ) : (
-              <>
-                <div className="ms-num" style={{ fontWeight: 700, fontSize: '19px', color: 'var(--color-text)', lineHeight: 1, letterSpacing: '-.01em' }}>
-                  {formatPrice(p.price)}{unidadCorta(p) ? <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 500 }}>/{unidadCorta(p)}</span> : null}
-                </div>
-                {p.oldPrice && p.oldPrice > (p.price ?? 0) ? (
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textDecoration: 'line-through', fontWeight: 500 }}>{formatPrice(p.oldPrice)}</span>
-                ) : null}
-              </>
-            )}
+            <div className="ms-num" style={{ fontWeight: 700, fontSize: '19px', color: 'var(--color-text)', lineHeight: 1, letterSpacing: '-.01em' }}>
+              {formatPrice(p.price ?? 0)}{unidadCorta(p) ? <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', fontWeight: 500 }}>/{unidadCorta(p)}</span> : null}
+            </div>
+            {p.oldPrice && p.oldPrice > (p.price ?? 0) ? (
+              <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', textDecoration: 'line-through', fontWeight: 500 }}>{formatPrice(p.oldPrice)}</span>
+            ) : null}
           </div>
           <div className="prod-card-actions" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-            {quoteOnly ? (
-              <>
-                <Link href={quoteHref} data-evento="producto_cotizar" className="ms-btn ms-btn-sm">{t(theme, 'product.card.quote')}</Link>
-                {/* Para juntar varios en una sola solicitud (lista del encabezado). */}
-                <AgregarACotizacion item={{ id: p.id, slug: p.slug, name: p.name, image: p.image, isRental: p.isRental }} />
-              </>
-            ) : (
-              <>
-                {/* Antes, un producto con precio y en existencia llevaba aquí
-                    "Agregar" al carrito. Sin compras en línea solo queda la ficha. */}
-                <Link href={ficha} className="ms-btn ms-btn-sm ms-btn-sec">{t(theme, 'product.card.view')}</Link>
-                <Link href={quoteHref} data-evento="producto_cotizar" className="ms-link" style={{ fontSize: 12.5 }}>{t(theme, 'product.card.quote')}<Icon name="arrowRight" size={12} /></Link>
-              </>
-            )}
+            {/* Antes, un producto con precio y en existencia llevaba aquí
+                "Agregar" al carrito. Sin compras en línea solo queda la ficha. */}
+            <Link href={ficha} className="ms-btn ms-btn-sm ms-btn-sec">{t(theme, 'product.card.view')}</Link>
+            <Link href={quoteHref} data-evento="producto_cotizar" className="ms-link" style={{ fontSize: 12.5 }}>{t(theme, 'product.card.quote')}<Icon name="arrowRight" size={12} /></Link>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
@@ -200,5 +201,16 @@ const CSS = `
 .pc-name{ display:block; margin:4px 0 10px; font-size:15.5px; font-weight:600; line-height:1.35; letter-spacing:-.005em; color:var(--color-text); text-decoration:none; min-height:42px; }
 .pc-name:hover{ color:var(--color-primary); }
 .pc-spacer{ flex:1; min-height:16px; }
+.pc-foot{ padding-top:14px; border-top:1px solid var(--color-border); display:grid; gap:10px; }
+.pc-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.pc-unit{ font-weight:500; font-size:13px; line-height:1.35; color:var(--color-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.pc-row > .ms-btn{ flex-shrink:0; }
+.pc-wide{ width:100%; justify-content:center; }
+/* Tarjeta muy angosta (rejillas de 2 en celular): todo apilado y a lo ancho. */
+@container (max-width: 230px){
+  .pc-row{ flex-direction:column; align-items:stretch; gap:8px; }
+  .pc-unit{ white-space:normal; }
+  .pc-row > .ms-btn{ justify-content:center; }
+}
 @media (prefers-reduced-motion: reduce){ .pc-img{ transition:none; } }
 `;
