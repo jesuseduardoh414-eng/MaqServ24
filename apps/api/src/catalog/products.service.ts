@@ -252,6 +252,7 @@ export class ProductsService {
     page?: number;
     search?: string;
     category?: string; // cat_slug
+    /** true = solo destacados · false = sin destacados · ausente = todos. */
     featured?: boolean;
     vendorId?: number; // tienda de un vendedor (products.user_id)
     subcategory?: string; // sub_slug
@@ -270,7 +271,8 @@ export class ProductsService {
 
     // Solo productos publicados (status=1, convención del Laravel viejo)
     const where: Record<string, unknown> = { status: 1 };
-    if (opts.featured) where.featured = 1;
+    if (opts.featured === true) where.featured = 1;
+    else if (opts.featured === false) where.featured = { not: 1 };
     if (opts.vendorId) where.user_id = opts.vendorId;
     // Los 4 lookups previos (subcategoría, categoría, búsqueda, calificación)
     // son independientes entre sí: en paralelo cuestan 1 RTT en vez de hasta 4

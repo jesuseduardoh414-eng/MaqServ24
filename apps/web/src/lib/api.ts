@@ -207,7 +207,8 @@ export function getProducts(opts: {
   if (opts.search) q.set('search', opts.search);
   if (opts.category) q.set('category', opts.category);
   if (opts.subcategory) q.set('subcategory', opts.subcategory);
-  if (opts.featured) q.set('featured', '1');
+  // true = solo destacados · false = sin ellos (el catálogo los pinta aparte, en su carrusel).
+  if (opts.featured !== undefined) q.set('featured', opts.featured ? '1' : '0');
   if (opts.minPrice !== undefined) q.set('minPrice', String(opts.minPrice));
   if (opts.maxPrice !== undefined) q.set('maxPrice', String(opts.maxPrice));
   if (opts.minRating !== undefined) q.set('minRating', String(opts.minRating));

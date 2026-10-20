@@ -45,7 +45,9 @@ export class CatalogController {
       search: search || undefined,
       category: category || undefined,
       subcategory: subcategory || undefined,
-      featured: featured === '1' || featured === 'true',
+      // 1 = solo destacados · 0 = sin destacados (la parrilla del catálogo, que
+      // los enseña aparte en su carrusel) · sin él = todos.
+      featured: featured === '1' || featured === 'true' ? true : featured === '0' || featured === 'false' ? false : undefined,
       minPrice: CatalogController.num(minPrice),
       maxPrice: CatalogController.num(maxPrice),
       minRating: CatalogController.num(minRating),

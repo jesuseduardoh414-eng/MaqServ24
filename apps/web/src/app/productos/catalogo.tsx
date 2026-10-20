@@ -8,6 +8,7 @@ import { getProducts, getCategories, getSubcategories } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 import { ProductCard } from '@/components/ProductCard';
+import { CategoryStrip } from '@/components/CategoryStrip';
 import { Pagination } from '@/components/Pagination';
 import { Band } from '@/components/Band';
 import { CatalogFilters } from '@/components/CatalogFilters';
@@ -32,6 +33,8 @@ const CSS = `
 .cl-count{ margin:0; font-size:14px; color:var(--color-text-muted); }
 .cl-count b{ color:var(--color-text); font-weight:600; }
 .cl-mid{ margin:48px 0; }
+.cl-feat{ margin:8px 0 44px; }
+.cl-feat .ms-title{ font-size:clamp(22px, 2.4vw, 26px); }
 @media (max-width: 640px){
   .cl-search{ width:100%; }
   .cl-bar{ flex-direction:column; align-items:stretch; }
@@ -63,25 +66,38 @@ export async function metadataCatalogo(kind: TipoCatalogo): Promise<Metadata> {
 export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Search; kind: TipoCatalogo; tema?: Theme; marco?: boolean }) {
   const base = rutaDeCatalogo(kind);
   const page = Number(sp.page ?? 1) || 1;
-  const [theme, todasCategorias, result, subcategories] = await Promise.all([
+  /*
+   * VITRINA (2026-10-20, pedido del cliente): sin búsqueda ni filtros, los
+   * destacados van arriba en el carrusel giratorio —caben los que sean, no
+   * solo los 4 de una fila— y la parrilla enseña los DEMÁS (8 → anuncio → 8 →
+   * paginación → promo), así ninguno sale dos veces. Con búsqueda, filtros u
+   * orden va todo junto en la parrilla: quien busca algo concreto no tiene que
+   * mirar también el carrusel para encontrarlo.
+   */
+  const vitrina = !sp.q && !hasFilters(sp);
+  const filtro = {
+    kind,
+    search: sp.q,
+    category: sp.categoria,
+    subcategory: sp.subcategoria,
+    // Precio / calificación / disponibilidad / orden: la barra los pone en la URL.
+    ...filtersToQuery(sp),
+  };
+  const [theme, todasCategorias, result, subcategories, destacados] = await Promise.all([
     tema ?? getTheme(),
     getCategories(),
     // El catálogo es la página más visitada: si la API no responde conviene
     // enseñar la página con la parrilla vacía antes que un 500.
-    getProducts({
-      page,
-      kind,
-      search: sp.q,
-      category: sp.categoria,
-      subcategory: sp.subcategoria,
-      // Precio / calificación / disponibilidad / orden: la barra los pone en la URL.
-      ...filtersToQuery(sp),
-    }).catch((err) => {
+    getProducts({ page, ...filtro, ...(vitrina ? { featured: false } : {}) }).catch((err) => {
       console.warn('[catalogo] la API no respondió; se pinta el catálogo vacío:', err);
       return { items: [], total: 0, page, pages: 1 };
     }),
     sp.categoria ? getSubcategories(sp.categoria).catch(() => []) : Promise.resolve([]),
+    vitrina ? getProducts({ ...filtro, featured: true }).catch(() => null) : Promise.resolve(null),
   ]);
+  const enCarrusel = destacados?.items ?? [];
+  // En las páginas 2, 3… la parrilla sigue sin destacados, pero el carrusel solo va en la primera.
+  const conCarrusel = vitrina && page === 1 && enCarrusel.length > 0;
   // Solo las categorías de este tipo: en /servicios no se ofrece filtrar por una de productos.
   const categories = todasCategorias.filter((c) => tipoDeCatalogo(c.slug) === kind);
 
@@ -177,13 +193,33 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
           {/* Barra: conteo (izq) + filtros/orden (der) */}
           <div className="cl-bar">
             <p className="cl-count">
-              Mostrando <b className="ms-num">{result.total}</b> {plural}
+              {/* El total cuenta también los del carrusel: son parte de lo que se ve. */}
+              Mostrando <b className="ms-num">{result.total + (vitrina ? (destacados?.total ?? 0) : 0)}</b> {plural}
               {sp.q ? <> para «<b>{sp.q}</b>»</> : null}
             </p>
             <CatalogFilters />
           </div>
 
-          {items.length === 0 ? (
+          {conCarrusel ? (
+            <div className="cl-feat">
+              <CategoryStrip
+                eyebrow=""
+                title={cval('catalog.featured.title', 'Destacados')}
+                eyebrowColor=""
+                titleColor=""
+                ancho="min(290px, 80cqw)"
+                siempre
+                etiquetaAnterior="Destacados anteriores"
+                etiquetaSiguiente="Destacados siguientes"
+              >
+                {enCarrusel.map((p) => (
+                  <ProductCard key={p.id} product={p} theme={theme} />
+                ))}
+              </CategoryStrip>
+            </div>
+          ) : null}
+
+          {items.length === 0 && conCarrusel ? null : items.length === 0 ? (
             <div className="ms-empty">
               <span className="ms-ico ms-ico-lg ms-ico-muted"><Icon name="search" size={22} /></span>
               <p className="ms-empty-t">{sp.q ? `Sin resultados para «${sp.q}»` : `Sin ${plural} con estos filtros`}</p>
