@@ -406,43 +406,26 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
   const verTodo = '/servicios';
   if (products.length === 0) return null;
 
-  const isCenter = f.align === 'center';
+  // Carrusel giratorio desde 2026-10-20: el encabezado (título, flechas y "Ver
+  // todo") lo pinta el carrusel, igual que en Categorías; `align` ya solo
+  // acomoda las pestañas.
   return (
     <section style={{ background: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
       <div style={{ ...CONTAINER, paddingTop: 80, paddingBottom: 80 }}>
-        {/* Encabezado (alineación configurable) + "Ver todo" */}
-        {isCenter ? (
-          <div style={{ textAlign: 'center', display: 'grid', justifyItems: 'center', marginBottom: 4 }}>
-            <Eyebrow color={f.eyebrowColor ?? undefined}>{t(theme, 'home.featured.eyebrow')}</Eyebrow>
-            <h2 style={{ ...H2, color: f.titleColor ?? undefined }}>{t(theme, 'home.featured.title')}</h2>
-            <p style={{ ...SUB, marginTop: 10, maxWidth: 560 }}>{t(theme, 'home.featured.subtitle')}</p>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
-            <div style={{ maxWidth: 620, minWidth: 0 }}>
-              <Eyebrow color={f.eyebrowColor ?? undefined}>{t(theme, 'home.featured.eyebrow')}</Eyebrow>
-              <h2 style={{ ...H2, color: f.titleColor ?? undefined }}>{t(theme, 'home.featured.title')}</h2>
-              <p style={{ ...SUB, marginTop: 10 }}>{t(theme, 'home.featured.subtitle')}</p>
-            </div>
-            <Link href={verTodo} className="ms-btn ms-btn-sec">
-              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={16} />
-            </Link>
-          </div>
-        )}
         <HomeProductGrid
           products={products}
           categories={categories.map((c) => ({ slug: c.slug, name: c.name }))}
           theme={theme}
           align={f.align}
           showTabs={f.showTabs}
+          eyebrow={t(theme, 'home.featured.eyebrow')}
+          title={t(theme, 'home.featured.title')}
+          subtitle={t(theme, 'home.featured.subtitle')}
+          viewAllLabel={t(theme, 'home.featured.viewAll')}
+          viewAllHref={verTodo}
+          eyebrowColor={f.eyebrowColor ?? ''}
+          titleColor={f.titleColor ?? ''}
         />
-        {isCenter ? (
-          <div style={{ textAlign: 'center', marginTop: 40 }}>
-            <Link href={verTodo} className="ms-btn ms-btn-sec">
-              {t(theme, 'home.featured.viewAll')} <Icon name="arrowRight" size={16} />
-            </Link>
-          </div>
-        ) : null}
       </div>
     </section>
   );

@@ -56,6 +56,63 @@ function problemaImagen(f: File): string | null {
   return null;
 }
 
+/** Igual que el tope de `POST admin/catalog/products/:id/video` en la API. */
+const VIDEO_MAX_MB = 30;
+
+/** XHR y no fetch: fetch no informa el avance de la subida. */
+function subirVideoPrincipal(id: number, archivo: File, onAvance: (pct: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/admin/catalog/products/${id}/video`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onAvance(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let d: { message?: string; video?: string } | null = null;
+      try { d = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300 && d?.video) resolve(d.video);
+      else if (xhr.status === 413) reject(new Error(`El video pesa más de ${VIDEO_MAX_MB} MB`));
+      else reject(new Error(d?.message ?? 'No se pudo subir el video'));
+    };
+    xhr.onerror = () => reject(new Error('Se cortó la conexión al subir el video'));
+    const fd = new FormData();
+    fd.set('video', archivo);
+    xhr.send(fd);
+  });
+}
+
+/**
+ * Un cuadro del video, en JPG, para usarlo de foto principal cuando el
+ * servicio no tiene: el carrito, las cotizaciones y lo que se comparte en
+ * redes solo saben de fotos, y sin esto saldrían en blanco.
+ */
+function cuadroDelVideo(archivo: File): Promise<File | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(archivo);
+    const v = document.createElement('video');
+    let listo = false;
+    const fin = (f: File | null) => { if (listo) return; listo = true; URL.revokeObjectURL(url); resolve(f); };
+    setTimeout(() => fin(null), 10_000); // un códec que el navegador no abre no debe colgar la subida
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    // Un poco adentro: el primer cuadro suele ser negro o un fundido.
+    v.onloadeddata = () => { v.currentTime = Math.min(1, (v.duration || 3) / 3); };
+    v.onseeked = () => {
+      const lado = Math.max(v.videoWidth, v.videoHeight);
+      if (!lado) return fin(null);
+      const k = Math.min(1, 1600 / lado);
+      const c = document.createElement('canvas');
+      c.width = Math.round(v.videoWidth * k);
+      c.height = Math.round(v.videoHeight * k);
+      const ctx = c.getContext('2d');
+      if (!ctx) return fin(null);
+      ctx.drawImage(v, 0, 0, c.width, c.height);
+      c.toBlob((b) => fin(b ? new File([b], 'portada-del-video.jpg', { type: 'image/jpeg' }) : null), 'image/jpeg', 0.86);
+    };
+    v.onerror = () => fin(null);
+    v.src = url;
+  });
+}
+
 const POR_REVISAR = 2;
 
 /**
@@ -196,6 +253,57 @@ export function ProductForm({
       // Ya está arriba: que "Guardar cambios" no la vuelva a mandar.
       input.value = '';
     }
+  }
+
+  // ---- Video principal (2026-10-20; solo al editar: necesita el id) ----
+  /*
+   * La principal puede ser foto o video. Con video, la tarjeta y la ficha lo
+   * enseñan en lugar de la foto, que se queda de portada; si el equipo no
+   * tiene foto, se toma un cuadro del video y se sube como foto principal.
+   * La galería sigue siendo solo de fotos.
+   */
+  const [video, setVideo] = useState<string | null>(null);
+  const [subiendoVideo, setSubiendoVideo] = useState<number | null>(null);
+  useEffect(() => {
+    if (!initial.id) return;
+    void fetch(`/api/admin/catalog/products/${initial.id}/video`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { video?: string | null } | null) => setVideo(d?.video ?? null))
+      .catch(() => undefined);
+  }, [initial.id]);
+
+  async function elegirVideo(input: HTMLInputElement) {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !initial.id) return;
+    // El tipo lo revisa la API por los bytes (y explica qué hacer con un .mov de iPhone).
+    if (file.size > VIDEO_MAX_MB * 1024 * 1024) { mostrarResultado(`El video pesa más de ${VIDEO_MAX_MB} MB.`, 'bad'); return; }
+    const sinFoto = !principal;
+    setSubiendoVideo(0);
+    try {
+      const url = await subirVideoPrincipal(initial.id, file, setSubiendoVideo);
+      setVideo(url);
+      let nota = '';
+      if (sinFoto) {
+        const cuadro = await cuadroDelVideo(file);
+        if (cuadro) {
+          const fd = new FormData();
+          fd.set('photo', cuadro);
+          const r = await fetch(`/api/admin/catalog/products/${initial.id}`, { method: 'PATCH', body: fd }).catch(() => null);
+          if (r?.ok) { setPrincipal(URL.createObjectURL(cuadro)); nota = ' Tomamos un cuadro del video como foto de portada.'; }
+        }
+      }
+      mostrarResultado(`Video principal listo: ya se ve en la tarjeta y en la ficha.${nota}`);
+    } catch (e) {
+      mostrarResultado((e as Error).message, 'bad');
+    } finally {
+      setSubiendoVideo(null);
+    }
+  }
+  async function quitarVideo() {
+    if (!initial.id) return;
+    const r = await fetch(`/api/admin/catalog/products/${initial.id}/video`, { method: 'DELETE' });
+    if (r.ok) { setVideo(null); mostrarResultado('Video quitado: vuelve a verse la foto principal.'); }
   }
 
   // ---- Galería (solo al editar: necesita el id) ----
@@ -615,23 +723,42 @@ export function ProductForm({
 
           <Tarjeta titulo="Fotos" icono="ph-images">
             <div style={{ display: 'grid', gap: 8 }}>
-              <span className="adm-label">Principal</span>
-              {principal ? (
+              <span className="adm-label">Principal <span style={{ color: 'var(--adm-faint)', fontWeight: 400 }}>· foto o video</span></span>
+              {video ? (
+                <video src={video} poster={principal ?? undefined} muted loop autoPlay playsInline style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 8, background: '#000', border: '1px solid var(--adm-border)', display: 'block' }} />
+              ) : principal ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={principal} alt="" style={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 8, background: 'var(--adm-raised)', border: '1px solid var(--adm-border)', opacity: subiendoPrincipal ? 0.5 : 1 }} />
               ) : (
-                <div style={{ aspectRatio: '4 / 3', borderRadius: 8, border: '1px dashed var(--adm-border-strong)', display: 'grid', placeItems: 'center', color: 'var(--adm-muted)', fontSize: 13 }}>Sin foto</div>
+                <div style={{ aspectRatio: '4 / 3', borderRadius: 8, border: '1px dashed var(--adm-border-strong)', display: 'grid', placeItems: 'center', color: 'var(--adm-muted)', fontSize: 13 }}>Sin foto ni video</div>
               )}
-              <label className={btnClass('secondary')} aria-disabled={subiendoPrincipal}>
-                <i className="ph ph-upload-simple" aria-hidden />
-                {subiendoPrincipal ? 'Subiendo…' : principal ? 'Cambiar foto principal' : 'Subir foto principal'}
-                {/* `name="photo"`: al CREAR viaja con el alta. Al editar se sube sola al elegirla. */}
-                <input type="file" name="photo" accept={TIPOS_IMAGEN} style={{ display: 'none' }} disabled={subiendoPrincipal}
-                  onChange={(e) => void elegirPrincipal(e.currentTarget)} />
-              </label>
-              {!initial.id && principal ? (
-                <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>Se sube al crear el equipo.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: initial.id ? '1fr 1fr' : '1fr', gap: 6 }}>
+                <label className={btnClass('secondary')} aria-disabled={subiendoPrincipal}>
+                  <i className="ph ph-image" aria-hidden />
+                  {subiendoPrincipal ? 'Subiendo…' : principal ? (video ? 'Cambiar portada' : 'Cambiar foto') : 'Subir foto'}
+                  {/* `name="photo"`: al CREAR viaja con el alta. Al editar se sube sola al elegirla. */}
+                  <input type="file" name="photo" accept={TIPOS_IMAGEN} style={{ display: 'none' }} disabled={subiendoPrincipal}
+                    onChange={(e) => void elegirPrincipal(e.currentTarget)} />
+                </label>
+                {initial.id ? (
+                  <label className={btnClass('secondary')} aria-disabled={subiendoVideo !== null}>
+                    <i className="ph ph-video-camera" aria-hidden />
+                    {subiendoVideo !== null ? `Subiendo… ${subiendoVideo}%` : video ? 'Cambiar video' : 'Subir video'}
+                    <input type="file" accept="video/mp4,video/webm" style={{ display: 'none' }} disabled={subiendoVideo !== null}
+                      onChange={(e) => void elegirVideo(e.currentTarget)} />
+                  </label>
+                ) : null}
+              </div>
+              {video && subiendoVideo === null ? (
+                <Btn size="sm" variant="ghost" icon="ph-trash" onClick={() => void quitarVideo()}>Quitar video (vuelve la foto)</Btn>
               ) : null}
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)' }}>
+                {!initial.id
+                  ? principal ? 'La foto se sube al crear el equipo; el video, si quieres, después de crearlo.' : 'El video se puede subir después de crear el equipo.'
+                  : video
+                    ? 'El video se ve en la tarjeta y en la ficha; la foto queda de portada.'
+                    : `Si subes video (MP4 o WebM, hasta ${VIDEO_MAX_MB} MB), se ve en lugar de la foto.`}
+              </p>
             </div>
             {initial.id ? (
               <div style={{ display: 'grid', gap: 8 }}>

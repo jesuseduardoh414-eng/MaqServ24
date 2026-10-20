@@ -66,7 +66,8 @@ function tarjetaDe(el: HTMLElement | null, set: HTMLElement): HTMLElement | null
 }
 
 /**
- * Carrusel giratorio del inicio: lo usan Categorías y Promociones del mes.
+ * Carrusel giratorio del inicio: lo usan Categorías, Promociones del mes y
+ * los servicios destacados (2026-10-20, este con pestañas por categoría).
  *
  * GIRA SOLO Y NO REGRESA (2026-10-19, pedido del cliente). Las tarjetas van
  * varias veces seguidas en la pista: cuando la primera tanda termina de pasar
@@ -95,7 +96,7 @@ function tarjetaDe(el: HTMLElement | null, set: HTMLElement): HTMLElement | null
 export function CategoryStrip({
   eyebrow, title, subtitle = '', viewAllLabel = '', viewAllHref = '/',
   eyebrowColor, titleColor, accentColor, perView = 4, ancho, siempre = false,
-  etiquetaAnterior = 'Categorías anteriores', etiquetaSiguiente = 'Categorías siguientes', children,
+  etiquetaAnterior = 'Categorías anteriores', etiquetaSiguiente = 'Categorías siguientes', debajoDelTitulo, children,
 }: {
   eyebrow: string; title: string; subtitle?: string; viewAllLabel?: string; viewAllHref?: string;
   eyebrowColor: string; titleColor: string; accentColor?: string;
@@ -105,6 +106,8 @@ export function CategoryStrip({
   /** Girar aunque quepan todas (si hay al menos dos). */
   siempre?: boolean;
   etiquetaAnterior?: string; etiquetaSiguiente?: string;
+  /** Entre el encabezado y las tarjetas (las pestañas de los destacados). */
+  debajoDelTitulo?: ReactNode;
   children: ReactNode;
 }) {
   const vp = useRef<HTMLDivElement>(null);
@@ -312,6 +315,7 @@ export function CategoryStrip({
           ) : null}
         </div>
       </div>
+      {debajoDelTitulo}
       <div
         ref={vp}
         className="cs-vp no-sb"

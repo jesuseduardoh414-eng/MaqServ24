@@ -16,6 +16,7 @@ import { ProviderTrust } from '@/components/ProviderBadge';
 import { Icon, Stars } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
 import { AgregarACotizacion } from '@/components/AgregarACotizacion';
+import { VideoCategoria } from '@/components/VideoCategoria';
 
 // Mismo panel que la tarjeta del catálogo (ver ProductCard): grafito, no blanco.
 const PANEL =
@@ -169,7 +170,11 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
       .catch(() => setFav(false));
   }, [product.id]);
 
-  const images = [product.image, ...product.gallery].filter((x): x is string => Boolean(x));
+  // Con video principal (2026-10-20), el video abre la galería y la foto
+  // principal es su portada; sin video, la foto principal va primero como antes.
+  // Las de la galería son siempre fotos.
+  const images = [...(product.video ? [product.video] : [product.image]), ...product.gallery].filter((x): x is string => Boolean(x));
+  const esVideo = (src: string | null) => src !== null && src === product.video;
   const [active, setActive] = useState(0);
   const mainImg = images[active] ?? null;
   const nImg = Math.max(1, images.length);
@@ -234,7 +239,10 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
           {/* Galería */}
           <div style={{ minWidth: 0 }}>
             <div className="pd-gal">
-              {mainImg && !rotas[mainImg] ? (
+              {esVideo(mainImg) ? (
+                // Entero (contain): los videos suelen ser de celular, en vertical.
+                <VideoCategoria key={mainImg} src={mainImg!} poster={product.image} sonido style={{ objectFit: 'contain' }} />
+              ) : mainImg && !rotas[mainImg] ? (
                 // next/image: es el LCP de la ficha — antes el <img> crudo
                 // servía el original de Storage sin resize ni webp.
                 <Image src={mainImg} alt={product.name} fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', padding: 28 }} onError={() => setRotas((r) => ({ ...r, [mainImg]: true }))} />
@@ -251,8 +259,16 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
             {images.length > 1 ? (
               <div className="pd-thumbs">
                 {images.slice(0, 8).map((src, i) => (
-                  <button key={i} type="button" onClick={() => setActive(i)} className="pd-thumb" aria-current={i === active ? 'true' : undefined} aria-label={`Foto ${i + 1}`}>
-                    {rotas[src] ? <span className="ph" style={{ position: 'absolute', inset: 0 }} /> : (
+                  <button key={i} type="button" onClick={() => setActive(i)} className="pd-thumb" aria-current={i === active ? 'true' : undefined} aria-label={esVideo(src) ? 'Video' : `Foto ${i + 1}`}>
+                    {esVideo(src) ? (
+                      // Miniatura del video: su portada con el triángulo de "reproducir" encima.
+                      <>
+                        {product.image ? <Image src={product.image} alt="" fill sizes="120px" style={{ objectFit: 'cover' }} /> : <span className="ph" style={{ position: 'absolute', inset: 0 }} />}
+                        <span aria-hidden style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(6,6,8,.35)', color: '#fff' }}>
+                          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z" /></svg>
+                        </span>
+                      </>
+                    ) : rotas[src] ? <span className="ph" style={{ position: 'absolute', inset: 0 }} /> : (
                       <Image src={src} alt="" fill sizes="120px" style={{ objectFit: 'contain', padding: 6 }} onError={() => setRotas((r) => ({ ...r, [src]: true }))} />
                     )}
                   </button>

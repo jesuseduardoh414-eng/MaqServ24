@@ -17,6 +17,12 @@ export interface ProductCard {
   /** Precio anterior/tachado (legacy pprice). */
   oldPrice: number | null;
   image: string | null;
+  /**
+   * Video principal (MP4/WebM, 2026-10-20): si lo hay, la tarjeta y la ficha
+   * lo enseñan en lugar de la foto, que queda de portada. Solo lo llenan el
+   * catálogo y los destacados; favoritos y cotizaciones siguen con la foto.
+   */
+  video?: string | null;
   isRental: boolean;
   /**
    * Unidad en la que esta el precio: mes, dia, viaje, tonelada...

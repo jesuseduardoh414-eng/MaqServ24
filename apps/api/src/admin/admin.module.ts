@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminAuthController, AdminGuard } from './admin-auth';
 import { AdminCatalogController } from './admin-catalog.controller';
+import { AdminProductVideoController } from './admin-product-video.controller';
 import { AdminProvidersController } from './admin-providers.controller';
 import { AdminProviderCrmController } from './admin-provider-crm.controller';
 import { AdminAvailabilityController } from './admin-availability.controller';
@@ -38,7 +39,7 @@ import { QuoterModule } from '../quoter/quoter.module';
   // QuoterModule: el cotizador interno del panel corre con el MISMO servicio
   // (tabulador + motor) que sirve al sitio publico.
   imports: [FreightModule, NotificationsModule, IntegrationsModule, QuoterModule],
-  controllers: [AdminAuthController, AdminCatalogController, AdminOpsController, AdminInicioController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminBandejaController, AdminCoberturaController, AdminRastreoController, AdminCustomersController, AdminContactController, AdminAdminsController, AdminRolesController, AdminQuoterController, AdminProvidersController, AdminProviderCrmController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController, AdminAgendaController, AdminAvisosController],
+  controllers: [AdminAuthController, AdminCatalogController, AdminProductVideoController, AdminOpsController, AdminInicioController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminBandejaController, AdminCoberturaController, AdminRastreoController, AdminCustomersController, AdminContactController, AdminAdminsController, AdminRolesController, AdminQuoterController, AdminProvidersController, AdminProviderCrmController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController, AdminAgendaController, AdminAvisosController],
   providers: [AdminGuard, ServiceService, MatchingService],
 })
 export class AdminModule {}

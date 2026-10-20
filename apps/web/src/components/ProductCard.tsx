@@ -14,6 +14,7 @@ import { estadoDeProducto } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
 import { Icon } from '@/components/Icon';
 import { AgregarACotizacion } from '@/components/AgregarACotizacion';
+import { VideoCategoria } from '@/components/VideoCategoria';
 
 // Panel radial de la foto del producto. Era claro (#ffffff -> #e9ebef) del
 // diseño anterior; en una identidad dark-first un recuadro blanco por tarjeta
@@ -111,7 +112,10 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
       <style>{CSS}</style>
       {/* Panel de imagen (grafito, foto contenida sin recortar) */}
       <Link href={ficha} className="pc-media" tabIndex={-1}>
-        {p.image && !imgFail ? (
+        {/* Video principal (si lo hay) en lugar de la foto, que queda de portada mientras carga. */}
+        {p.video ? (
+          <VideoCategoria src={p.video} poster={p.image && !imgFail ? p.image : null} className="pc-img" />
+        ) : p.image && !imgFail ? (
           <Image src={p.image} alt={p.name} fill sizes="(max-width:640px) 100vw, (max-width:1024px) 33vw, 25vw" className="pc-img" style={{ objectFit: 'contain', padding: 16 }} onError={() => setImgFail(true)} />
         ) : (
           // Mismo lenguaje que el resto del sitio para "sin imagen": rayas

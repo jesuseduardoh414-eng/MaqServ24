@@ -4,6 +4,7 @@ import { sanitizeUserHtml } from '../common/sanitize';
 import { productSlug, LINEAS_SERVICIO, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario } from '@maqserv/config';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
+import { videoDeServicio } from './video-servicio';
 import { ordenDeCategorias } from './categories.service';
 import { lista } from '../common/json-list';
 import { estadoDocumentos, estaVerificado, mesesEnRed } from './provider-trust';
@@ -36,6 +37,8 @@ type ProductRow = {
   cprice: number;
   pprice: number | null;
   photo: string | null;
+  /** Legacy reusada: video principal (ver `video-servicio.ts`). */
+  youtube: string | null;
   is_rental: boolean;
   price_unit: string | null;
   featured: number;
@@ -49,7 +52,7 @@ type ProductRow = {
 /** Campos que se piden para armar una tarjeta. Uno solo, para no desincronizar consultas. */
 const CAMPOS_TARJETA = {
   id: true, name: true, Marca: true, cprice: true, pprice: true,
-  photo: true, is_rental: true, featured: true, stock: true, price_unit: true,
+  photo: true, youtube: true, is_rental: true, featured: true, stock: true, price_unit: true,
   category_id: true, provider_id: true, location: true, availability_confirmed_at: true,
 } as const;
 
@@ -69,6 +72,7 @@ export class ProductsService {
       price: p.cprice > 0 ? p.cprice : null,
       oldPrice: p.pprice && p.pprice > 0 ? p.pprice : null,
       image: imageUrl(p.photo),
+      video: videoDeServicio(p.youtube),
       isRental: p.is_rental,
       priceUnit: p.price_unit,
       featured: p.featured === 1,
