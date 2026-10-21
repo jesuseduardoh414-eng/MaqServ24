@@ -1,6 +1,6 @@
 # Disparador de las TAREAS PROGRAMADAS de la API.
 #
-# La API (cPanel, api.maqserv24.com) no trae programador de tareas, así que
+# La API (cPanel, api.maqser24.com) no trae programador de tareas, así que
 # el disparo viene de fuera. `apps/api/src/notifications/tasks.controller.ts` ya
 # lo anticipaba: "un cron gratuito (cron-job.org, GitHub Actions, Vercel Cron)
 # que llama esta ruta una vez al día". Esto es ese cron.
@@ -31,7 +31,7 @@ jobs:
   tareas:
     runs-on: ubuntu-latest
     env:
-      API_URL: ${{ vars.API_URL || 'https://api.maqserv24.com' }}
+      API_URL: ${{ vars.API_URL || 'https://api.maqser24.com' }}
       TASKS_SECRET: ${{ secrets.TASKS_SECRET }}
     steps:
       - name: Comprobar que el secreto está puesto

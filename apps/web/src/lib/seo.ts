@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import type { Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 
-/** Origen público sin barra final (`https://maqserv24.com`). En local, el dev server. */
+/** Origen público sin barra final (`https://maqser24.com`). En local, el dev server. */
 export const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:3000').trim().replace(/\/+$/, '');
 
 /** Imagen para compartir cuando la página no tiene una propia (scripts/generar-imagen-og.cjs). */

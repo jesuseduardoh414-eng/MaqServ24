@@ -15,9 +15,9 @@ const arg = (n, d) => {
   const i = process.argv.indexOf(`--${n}`);
   return i > -1 ? process.argv[i + 1] : d;
 };
-const WEB = arg('web', 'https://maqserv24.com');
-const API = arg('api', 'https://api.maqserv24.com');
-const ADMIN = arg('admin', 'https://admin.maqserv24.com');
+const WEB = arg('web', 'https://maqser24.com');
+const API = arg('api', 'https://api.maqser24.com');
+const ADMIN = arg('admin', 'https://admin.maqser24.com');
 const TIMEOUT = 30_000;
 
 const resultados = [];

@@ -134,7 +134,7 @@ export const LANDINGS: Landing[] = [
       },
       {
         pregunta: '¿Puedo vender mi maquinaria a través de MAQSER24?',
-        respuesta: 'Sí. Regístrate como proveedor en maqserv24.com/proveedores y nuestro equipo revisará tu información para incorporarte a la red.',
+        respuesta: 'Sí. Regístrate como proveedor en maqser24.com/proveedores y nuestro equipo revisará tu información para incorporarte a la red.',
       },
     ],
     cotizar: { href: '/contacto?necesidad=Comprar%20maquinaria', texto: 'Quiero comprar maquinaria' },

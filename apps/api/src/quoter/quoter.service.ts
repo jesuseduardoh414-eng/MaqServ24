@@ -601,7 +601,7 @@ export class QuoterService {
 
       // 3. Al cliente: qué pasó con su solicitud y dónde seguirla.
       if (q.email) {
-        const sitio = (process.env.SITE_URL ?? 'https://maqserv24.com').replace(/\/+$/, '');
+        const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
         await this.mailer.enviar({
           kind: 'quoter_request_ack',
           to: q.email,

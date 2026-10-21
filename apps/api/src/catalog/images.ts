@@ -2,7 +2,7 @@ import { mediaBaseUrl, sanitizeKey } from '../common/media';
 
 /**
  * Resolución de fotos. Los archivos viven en disco (MEDIA_DIR) y se sirven
- * desde IMAGE_BASE_URL (en cPanel, https://media.maqserv24.com por Apache; en
+ * desde IMAGE_BASE_URL (en cPanel, https://media.maqser24.com por Apache; en
  * local, la propia API en /media/). Las rutas guardadas en la BD no cambiaron
  * con la salida de Supabase Storage:
  * - filename legacy (ej. "1772826218retoexcava.png") → <base>/<name>

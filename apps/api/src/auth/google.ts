@@ -13,7 +13,7 @@
  *
  * El canje lo hace la API y NO la web porque ahí vive el `client_secret`, que
  * no puede salir del servidor. Y la cookie la pone la WEB y no la API porque
- * son dominios distintos (maqserv24.com y api.maqserv24.com): una cookie puesta
+ * son dominios distintos (maqser24.com y api.maqser24.com): una cookie puesta
  * por la API no la manda el navegador a la web.
  *
  * SIN VARIABLES NO SE ROMPE NADA: si faltan las credenciales, `googleActivo()`

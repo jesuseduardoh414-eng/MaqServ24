@@ -25,8 +25,8 @@ const EMPRESA: EmpresaCotizador = {
   rfc: '',
   direccion: '',
   telefono: '+52 1 81 4021 3277',
-  correo: 'info@maqserv24.com',
-  web: 'maqserv24.com',
+  correo: 'info@maqser24.com',
+  web: 'maqser24.com',
 };
 
 /** Quién firma. Sin nombre, el documento omite el bloque en vez de inventarlo. */

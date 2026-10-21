@@ -23,7 +23,7 @@ jobs:
   salidas:
     runs-on: ubuntu-latest
     env:
-      API_URL: ${{ vars.API_URL || 'https://api.maqserv24.com' }}
+      API_URL: ${{ vars.API_URL || 'https://api.maqser24.com' }}
       TASKS_SECRET: ${{ secrets.TASKS_SECRET }}
     steps:
       - name: Avisar a los aliados que es hora de salir

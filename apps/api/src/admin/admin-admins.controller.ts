@@ -34,15 +34,16 @@ const ROLES_VALIDOS = Object.keys(ROLES_ADMIN) as [RolAdmin, ...RolAdmin[]];
  * contraseña. Sin esto, cualquier Dirección podía dejar fuera al dueño.
  *
  * Vive en `platform_settings` (id de la cuenta) y se puede transferir. Hasta
- * que alguien la transfiera, es la del correo de abajo.
+ * que alguien la transfiera, es la del correo de abajo: con el dominio nuevo
+ * (oct-2026) o, si la cuenta aún no se cambia de correo, con el anterior.
  */
 const AJUSTE_PRINCIPAL = 'admin_principal_id';
-const PRINCIPAL_INICIAL = 'ventas@maqserv24.com';
+const PRINCIPAL_INICIAL = ['ventas@maqser24.com', 'ventas@maqserv24.com'];
 
 async function principalId(): Promise<number | null> {
   const v = Number(await leerAjuste<unknown>(AJUSTE_PRINCIPAL, null));
   if (Number.isInteger(v) && v > 0 && (await prisma.admins.findUnique({ where: { id: v }, select: { id: true } }))) return v;
-  const a = await prisma.admins.findUnique({ where: { email: PRINCIPAL_INICIAL }, select: { id: true } });
+  const a = await prisma.admins.findFirst({ where: { email: { in: PRINCIPAL_INICIAL } }, orderBy: { id: 'asc' }, select: { id: true } });
   return a?.id ?? null;
 }
 

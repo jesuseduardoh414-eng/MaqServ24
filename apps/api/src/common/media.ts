@@ -5,8 +5,8 @@ import { join } from 'node:path';
  * documentos de aliados). Antes: bucket `media` de Supabase Storage. Ahora: una
  * carpeta en disco que Apache sirve como sitio estático.
  *
- * En cPanel: MEDIA_DIR=/home/maqserv24/media y el subdominio media.maqserv24.com
- * apunta a esa carpeta, así que IMAGE_BASE_URL=https://media.maqserv24.com y las
+ * En cPanel: MEDIA_DIR=/home/maqserv24/media y el subdominio media.maqser24.com
+ * apunta a esa carpeta, así que IMAGE_BASE_URL=https://media.maqser24.com y las
  * imágenes ni pasan por Node. En local, sin variables, es `apps/api/media` y la
  * propia API la sirve en /media/ (ver main.ts).
  *

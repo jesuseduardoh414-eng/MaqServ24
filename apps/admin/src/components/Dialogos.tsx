@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom';
  *
  * "En ningún momento deben aparecer las alertas de Google": los `confirm`,
  * `alert` y `prompt` del navegador salían con la marca del dominio
- * ("admin.maqserv24.com dice"), con los colores del navegador y encima del
+ * ("admin.maqser24.com dice"), con los colores del navegador y encima del
  * panel. Estos tres los sustituyen con el diseño del panel y se usan igual de
  * fácil, con `await`:
  *

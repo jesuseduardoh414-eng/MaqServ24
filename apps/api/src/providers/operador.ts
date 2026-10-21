@@ -69,7 +69,7 @@ export async function validarOperador(token: string | null | undefined): Promise
 }
 
 export function urlDeOperador(token: string): string {
-  const base = process.env.SITE_URL ?? 'https://maqserv24.com';
+  const base = process.env.SITE_URL ?? 'https://maqser24.com';
   return `${base}/operador?t=${encodeURIComponent(token)}`;
 }
 

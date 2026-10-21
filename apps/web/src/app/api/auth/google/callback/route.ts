@@ -22,7 +22,7 @@ function sinEstado(res: NextResponse): NextResponse {
  *
  * El canje lo hace la API, que es donde vive el `client_secret`; esta ruta solo
  * comprueba el `state`, pide la sesión y guarda las cookies. Van aquí y no en
- * la API porque son dominios distintos (maqserv24.com / api.maqserv24.com) y
+ * la API porque son dominios distintos (maqser24.com / api.maqser24.com) y
  * una cookie de la API no viaja a la web.
  *
  * Siempre se termina en una redirección, nunca en JSON: quien llega a esta URL

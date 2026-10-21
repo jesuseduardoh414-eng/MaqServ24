@@ -97,7 +97,7 @@ export function ContactEditor({ themeId, copys, tokens, contact }: {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <Field label="Teléfono"><input type="tel" inputMode="tel" maxLength={20} value={config.phone} onChange={(e) => setC({ phone: e.target.value })} style={inputStyle} placeholder="833 224 56 78" /></Field>
             <Field label="WhatsApp"><input type="tel" inputMode="tel" maxLength={20} value={config.whatsapp} onChange={(e) => setC({ whatsapp: e.target.value })} style={inputStyle} placeholder="833 224 56 78" /></Field>
-            <Field label="Correo"><input type="email" maxLength={190} value={config.email} onChange={(e) => setC({ email: e.target.value })} style={inputStyle} placeholder="info@maqserv24.com" /></Field>
+            <Field label="Correo"><input type="email" maxLength={190} value={config.email} onChange={(e) => setC({ email: e.target.value })} style={inputStyle} placeholder="info@maqser24.com" /></Field>
             <Field label="Horario"><input value={config.hours} onChange={(e) => setC({ hours: e.target.value })} style={inputStyle} placeholder="Lun–Sáb · 8:00–18:00" /></Field>
           </div>
           <Field label="Dirección (origen del cálculo de fletes)"><input value={config.address} onChange={(e) => setC({ address: e.target.value })} style={inputStyle} placeholder="Calle, número, colonia, ciudad, estado" /></Field>

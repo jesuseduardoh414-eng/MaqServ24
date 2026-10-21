@@ -3,7 +3,7 @@
  *
  * El tema publicado guardaba 11 imágenes (logos, foto de la oferta, secciones)
  * con la dirección del bucket de Supabase. Los mismos archivos, con la misma
- * ruta, ya viven en nuestro servidor (media.maqserv24.com/uploads/…): se
+ * ruta, ya viven en nuestro servidor (media.maqser24.com/uploads/…): se
  * comprobó uno por uno. Mientras esas direcciones sigan en la base, el sitio
  * depende de que Supabase siga encendido.
  *

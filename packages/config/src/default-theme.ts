@@ -4,7 +4,7 @@ import type { Theme } from './schema';
  * Carpeta pública donde viven los activos de marca: nuestro servidor de fotos
  * (antes el bucket `media` de Supabase; mismos archivos, misma ruta).
  */
-const STORAGE = 'https://media.maqserv24.com/uploads';
+const STORAGE = 'https://media.maqser24.com/uploads';
 
 /**
  * Tema por defecto: "maquinaria" (el sector activo del sitio actual).
@@ -360,7 +360,7 @@ export const defaultTheme: Theme = {
       ],
       phone: '+52 1 81 4021 3277',
       whatsapp: '+52 1 81 4021 3277',
-      email: 'info@maqserv24.com',
+      email: 'info@maqser24.com',
       hours: 'Lun–Sáb · 8:00–18:00',
       address: '',
       urgent: { show: true, eyebrow: 'Renta urgente', title: '¿Necesitas equipo hoy mismo?', ctaLabel: 'Llamar ahora' },

@@ -9,6 +9,17 @@ dominio que está en **GoDaddy**.
 > arregla con configuración. Si tu servidor no trae Node, la fase 0 te lo dice en
 > 5 minutos y te ahorra el resto.
 
+> **Cambio de dominio (oct-2026): `maqserv24.com` → `maqser24.com`** (registrado
+> en Namecheap, con los DNS del hosting: `ns1–ns4.mysecurecloudhost.com`). Esta
+> guía se escribió con el dominio anterior; donde diga `maqserv24.com` en una
+> URL, una variable o un correo, hoy es `maqser24.com`. **No cambian**: el
+> usuario de cPanel `maqserv24`, las carpetas `/home/maqserv24/…` (incluidas
+> `admin.maqserv24.com` y `api.maqserv24.com`, que son solo nombres de carpeta)
+> ni la base `maqserv24_db`. El dominio anterior se queda redirigiendo al nuevo,
+> y `media.maqserv24.com` sigue sirviendo la misma carpeta para los correos y
+> cotizaciones viejas. Lo que el panel guardó con el dominio escrito se cambia
+> con `packages/db/sql/dominio-maqser24.sql`.
+
 ## Lo que hay que montar
 
 | App | Qué es | Subdominio | Arranque | Carpeta en el servidor |

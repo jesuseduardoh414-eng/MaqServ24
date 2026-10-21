@@ -36,7 +36,7 @@ const dominioPublico = (() => {
     return null;
   }
 })();
-const origenesAcciones = [...new Set([dominioPublico ?? 'maqserv24.com', 'maqserv24.com'])].flatMap((d) => [d, `www.${d}`]);
+const origenesAcciones = [...new Set([dominioPublico ?? 'maqser24.com', 'maqser24.com'])].flatMap((d) => [d, `www.${d}`]);
 
 const nextConfig: NextConfig = {
   ...(standalone ? { output: 'standalone' as const, outputFileTracingRoot: repoRoot } : {}),
@@ -80,6 +80,9 @@ const nextConfig: NextConfig = {
       // Legacy (por si queda alguna URL de scava.website sin migrar).
       { protocol: 'https', hostname: 'scava.website' },
       // Archivos en disco: en cPanel los sirve Apache desde media.*; en local, la API en /media/.
+      { protocol: 'https', hostname: 'media.maqser24.com' },
+      { protocol: 'https', hostname: 'api.maqser24.com', pathname: '/media/**' },
+      // Legacy: el dominio anterior (hasta oct-2026). Cotizaciones y correos viejos guardan esas URLs.
       { protocol: 'https', hostname: 'media.maqserv24.com' },
       { protocol: 'https', hostname: 'api.maqserv24.com', pathname: '/media/**' },
       { protocol: 'http', hostname: 'localhost', port: '4000', pathname: '/media/**' },

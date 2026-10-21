@@ -6,7 +6,7 @@ import { Icon } from '@/components/Icon';
 
 /**
  * DIÁLOGOS DEL SITIO (2026-10-09). Los del navegador (`confirm`, `prompt`)
- * salían con "maqserv24.com dice" y los colores del navegador, en medio del
+ * salían con "maqser24.com dice" y los colores del navegador, en medio del
  * portal del aliado. Mismo contrato que los del panel (apps/admin/…/Dialogos)
  * con las piezas del sitio (`ms-*`), así siguen el tema claro u oscuro:
  *

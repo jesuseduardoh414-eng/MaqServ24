@@ -18,7 +18,18 @@ const GRIS = '#6B7683';
 const BORDE = '#DCE3EA';
 const FONDO = '#F4F7FA';
 
-const SITIO = process.env.SITE_URL ?? 'https://servmaq24-web.vercel.app';
+const SITIO = process.env.SITE_URL ?? 'https://maqser24.com';
+/**
+ * `https://maqser24.com` → `maqser24.com`: el dominio que se nombra en los pies.
+ * Con try: una SITE_URL mal escrita no debe tumbar la API al arrancar.
+ */
+const DOMINIO = (() => {
+  try {
+    return new URL(SITIO).hostname.replace(/^www\./, '');
+  } catch {
+    return 'maqser24.com';
+  }
+})();
 
 /** Escapa lo que viene del usuario. Un nombre con `<` rompería el HTML. */
 export function esc(s: string | null | undefined): string {
@@ -634,7 +645,7 @@ export function correoAcuseProveedor(d: { nombre: string }): { subject: string; 
       <p style="margin:0 0 12px;">Recibimos tu registro para formar parte de la red MAQSER24. Nuestro equipo revisará la información.</p>
       <p style="margin:0 0 12px;">Si te aceptamos en la red, te llega a este correo el enlace a tu portal de aliado: ahí subes tus papeles, ofreces tus equipos y contestas las solicitudes de obra.</p>
       <p style="margin:0;">Si quieres agregar algo, responde a este correo.</p>`,
-      'Si no te registraste en maqserv24.com, ignora este correo.',
+      `Si no te registraste en ${DOMINIO}, ignora este correo.`,
     ),
   };
 }
@@ -649,7 +660,7 @@ export function correoAcuseContacto(d: { nombre: string; mensaje: string; telefo
       <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Esto fue lo que nos escribiste:</p>
       <div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${BORDE};background:${FONDO};color:${TINTA2};white-space:pre-wrap;">${esc(d.mensaje)}</div>
       ${d.telefono ? '' : `<p style="margin:14px 0 0;">Si nos dejas un teléfono respondiendo a este correo, podemos llamarte.</p>`}`,
-      'Si no escribiste en maqserv24.com, ignora este correo.',
+      `Si no escribiste en ${DOMINIO}, ignora este correo.`,
     ),
   };
 }
@@ -669,7 +680,7 @@ export function correoPreguntaRespondida(d: { nombre: string | null; pregunta: s
       <div style="margin:0;padding:12px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.respuesta)}</div>
       ${boton('Ver más preguntas frecuentes', `${SITIO}${d.url}`)}
       <p style="margin:10px 0 0;">Si te queda alguna duda, responde a este correo.</p>`,
-      'Recibes este correo porque hiciste una pregunta en maqserv24.com.',
+      `Recibes este correo porque hiciste una pregunta en ${DOMINIO}.`,
     ),
   };
 }
@@ -685,7 +696,7 @@ export function correoMensajeRespondido(d: { nombre: string | null; mensaje: str
       <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Nuestra respuesta:</p>
       <div style="margin:0;padding:12px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.respuesta)}</div>
       <p style="margin:16px 0 0;">Si te queda alguna duda, responde a este correo.</p>`,
-      'Recibes este correo porque nos escribiste desde maqserv24.com.',
+      `Recibes este correo porque nos escribiste desde ${DOMINIO}.`,
     ),
   };
 }

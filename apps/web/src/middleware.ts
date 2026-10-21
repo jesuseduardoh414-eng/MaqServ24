@@ -32,7 +32,7 @@ export async function middleware(req: NextRequest) {
   /**
    * UN SOLO HOST: `www.` va al dominio de SITE_URL.
    *
-   * El hosting sirve el sitio igual en `maqserv24.com` y en `www.maqserv24.com`,
+   * El hosting sirve el sitio igual en `maqser24.com` y en `www.maqser24.com`,
    * y las cookies son por host: quien entra en `www` no tiene sesión en el
    * dominio principal, y al revés. Con "entrar con Google" era peor: la cookie
    * de estado se ponía en `www`, Google regresaba al dominio registrado (sin

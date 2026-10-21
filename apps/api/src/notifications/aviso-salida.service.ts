@@ -30,7 +30,7 @@ const DIA = new Intl.DateTimeFormat('en-CA', { timeZone: ZONA, year: 'numeric', 
 const HORA_24 = new Intl.DateTimeFormat('en-US', { timeZone: ZONA, hour: 'numeric', hourCycle: 'h23' });
 /** A esta hora (Monterrey) del día anterior sale el recordatorio. */
 const HORA_RECORDATORIO = 18;
-const SITIO = process.env.SITE_URL ?? 'https://maqserv24.com';
+const SITIO = process.env.SITE_URL ?? 'https://maqser24.com';
 
 /**
  * AVISO DE HORA DE SALIDA (2026-10-15).

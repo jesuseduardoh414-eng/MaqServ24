@@ -20,7 +20,7 @@ export class ThemeService {
     ]);
     if (!row) throw new NotFoundException('No hay tema activo configurado');
 
-    // Imágenes que aún apuntan a Supabase → media.maqserv24.com (ver sin-supabase.ts).
+    // Imágenes que aún apuntan a Supabase → media.maqser24.com (ver sin-supabase.ts).
     // Sin productos publicados, los enlaces a /productos van a /servicios (ver enlaces-catalogo.ts).
     const limpiar = <T>(v: T): T => (hayProductos ? sinSupabase(v) : enlacesDeCatalogo(sinSupabase(v)));
 

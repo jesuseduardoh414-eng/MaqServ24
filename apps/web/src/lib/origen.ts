@@ -28,7 +28,7 @@ export function origenPublico(req: { nextUrl: URL; headers: Headers }): string {
   return req.nextUrl.origin;
 }
 
-/** `https://maqserv24.com` → `maqserv24.com`; vacío en local o sin SITE_URL. */
+/** `https://maqser24.com` → `maqser24.com`; vacío en local o sin SITE_URL. */
 export function hostPublico(): string | null {
   const site = process.env.SITE_URL?.trim();
   if (!site) return null;

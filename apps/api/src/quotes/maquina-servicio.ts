@@ -394,7 +394,7 @@ export class MaquinaServicio {
           }),
         });
       }
-      const sitio = (process.env.SITE_URL ?? 'https://maqserv24.com').replace(/\/+$/, '');
+      const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
       await this.mailer.enviar({
         kind: 'quoter_request_ack',
         to: d.correo,

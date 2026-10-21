@@ -27,7 +27,7 @@ export function redirectUriGoogle(origenPeticion: string): string {
  * A dónde se vuelve tras entrar.
  *
  * Solo rutas internas. Un `?next=https://otro-sitio` convertiría el login en
- * un redirector abierto: se manda un enlace de maqserv24.com que acaba en
+ * un redirector abierto: se manda un enlace de maqser24.com que acaba en
  * cualquier parte, que es justo lo que usan las campañas de phishing.
  */
 export function destinoSeguro(valor: string | null | undefined): string {
