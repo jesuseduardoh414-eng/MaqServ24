@@ -83,13 +83,11 @@ jobs:
       # Variables PROPIAS del despliegue (DEPLOY_*), no las API_URL/SITE_URL del
       # repo: ésas las usa la compilación y pueden apuntar a otra cosa (venían
       # de la época de Render). Sin ellas, los dominios de producción.
-      # OJO cambio de dominio (oct-2026): siguen en maqserv24.com mientras las
-      # apps vivan ahí. Pasan a maqser24.com en el mismo commit del cambio: si
-      # se comprueba en un dominio donde la app aún no está, el despliegue se
-      # detiene después de la API.
-      API_URL: ${{ vars.DEPLOY_API_URL || 'https://api.maqserv24.com' }}
-      SITE_URL: ${{ vars.DEPLOY_SITE_URL || 'https://maqserv24.com' }}
-      ADMIN_URL: ${{ vars.DEPLOY_ADMIN_URL || 'https://admin.maqserv24.com' }}
+      # Desde el cambio de dominio (oct-2026) las apps viven en maqser24.com; el
+      # anterior solo redirige, y una comprobación contra él recibiría un 301.
+      API_URL: ${{ vars.DEPLOY_API_URL || 'https://api.maqser24.com' }}
+      SITE_URL: ${{ vars.DEPLOY_SITE_URL || 'https://maqser24.com' }}
+      ADMIN_URL: ${{ vars.DEPLOY_ADMIN_URL || 'https://admin.maqser24.com' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
