@@ -67,14 +67,20 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
   const base = rutaDeCatalogo(kind);
   const page = Number(sp.page ?? 1) || 1;
   /*
-   * VITRINA (2026-10-20, pedido del cliente): sin búsqueda ni filtros, los
-   * destacados van arriba en el carrusel giratorio —caben los que sean, no
-   * solo los 4 de una fila— y la parrilla enseña los DEMÁS (8 → anuncio → 8 →
-   * paginación → promo), así ninguno sale dos veces. Con búsqueda, filtros u
-   * orden va todo junto en la parrilla: quien busca algo concreto no tiene que
-   * mirar también el carrusel para encontrarlo.
+   * VITRINA (2026-10-20, pedido del cliente): en "Todos", sin búsqueda ni
+   * filtros, los destacados van arriba en el carrusel giratorio —caben los que
+   * sean, no solo los 4 de una fila— y la parrilla enseña los DEMÁS (8 →
+   * anuncio → 8 → paginación → promo), así ninguno sale dos veces. Con
+   * búsqueda, filtros u orden va todo junto en la parrilla: quien busca algo
+   * concreto no tiene que mirar también el carrusel para encontrarlo.
+   *
+   * POR CATEGORÍA (2026-10-21, pedido del cliente): con una categoría elegida
+   * va TODO en un renglón, en el mismo carrusel de los destacados, en vez de
+   * bajar a una segunda fila. Sus destacados van en esa misma tira (la
+   * relevancia los pone primero), así que ahí no hay carrusel aparte.
    */
-  const vitrina = !sp.q && !hasFilters(sp);
+  const porCategoria = !!sp.categoria;
+  const vitrina = !porCategoria && !sp.q && !hasFilters(sp);
   const filtro = {
     kind,
     search: sp.q,
@@ -107,12 +113,17 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
   const navLabel = t(theme, kind === 'servicio' ? 'nav.services' : 'nav.products');
   const descripcion = t(theme, kind === 'servicio' ? 'seo.services.description' : 'seo.catalog.description');
   const plural = kind === 'servicio' ? 'servicios' : 'productos';
+  // Título de la tira por categoría: la subcategoría si hay una elegida.
+  const nombreTira =
+    subcategories.find((s) => s.slug === sp.subcategoria)?.name ??
+    categories.find((c) => c.slug === sp.categoria)?.name ??
+    navLabel;
 
   // Grupos: 8 fichas → anuncio intermedio → resto → promo. Solo se parte si el
-  // anuncio está activo y hay más de 8.
+  // anuncio está activo y hay más de 8 en la parrilla (la tira no se parte).
   const items = result.items;
   const CHUNK = 8;
-  const split = !!catalog?.mid?.enabled && items.length > CHUNK;
+  const split = !porCategoria && !!catalog?.mid?.enabled && items.length > CHUNK;
   const firstGroup = split ? items.slice(0, CHUNK) : items;
   const restGroup = split ? items.slice(CHUNK) : [];
   const cval = (key: string, def: string) => {
@@ -237,6 +248,23 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
                   </Link>
                 ) : null}
               </div>
+            </div>
+          ) : porCategoria ? (
+            <div className="cl-feat">
+              <CategoryStrip
+                eyebrow=""
+                title={nombreTira}
+                eyebrowColor=""
+                titleColor=""
+                ancho="min(290px, 80cqw)"
+                siempre
+                etiquetaAnterior={`${nombreTira}: anteriores`}
+                etiquetaSiguiente={`${nombreTira}: siguientes`}
+              >
+                {items.map((p) => (
+                  <ProductCard key={p.id} product={p} theme={theme} />
+                ))}
+              </CategoryStrip>
             </div>
           ) : (
             <div className="ms-cards">
