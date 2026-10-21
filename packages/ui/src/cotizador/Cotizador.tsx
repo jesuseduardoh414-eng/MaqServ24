@@ -40,7 +40,7 @@ import {
   type LineaTriturados,
 } from './estado';
 import { PasoDuracion, PasoEquipos, PasoServicios } from './pasos-maquinaria';
-import { AjustesDelTotal, Facturacion, PasoPedido } from './pasos-triturados';
+import { AjustesDelTotal, Facturacion, PasoPedido, entregaDecidida } from './pasos-triturados';
 
 /**
  * Correo y teléfono del contacto, con las reglas de la API (@maqserv/config).
@@ -410,6 +410,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
               quitar={quitar}
               nuevo={nuevo}
               tocado={tocado}
+              municipio={ctx.municipio}
             />
           ) : null}
 
@@ -793,12 +794,15 @@ function validar(
   }
 
   if (clave === 'pedido') {
-    if (lineas.length === 0) return 'Agrega al menos un material: en planta por tonelada, por viaje o de banco.';
+    if (lineas.length === 0) return 'Agrega al menos un material: en planta por tonelada o puesto en obra por viaje.';
     // Cada renglón incompleto se marca en rojo ahí mismo; esto dice cuál falta.
     if (lineas.some((l) => l.tipo === 'material' && !l.id)) return 'Elige qué material es cada partida por tonelada.';
     if (lineas.some((l) => l.tipo === 'material' && l.id === 'custom' && !l.nombre.trim())) return 'Ponle nombre al material que escribiste a mano.';
     if (esPanel && lineas.some((l) => l.tipo === 'material' && l.id === 'custom' && num(l.precio) <= 0)) return 'Captura el precio por tonelada del material que escribiste a mano.';
     if (lineas.some((l) => l.tipo === 'material' && num(l.toneladas) <= 0)) return 'Captura las toneladas de cada material.';
+    // Sin esto el flete se quedaba en cero sin que nadie lo decidiera (2026-10-21).
+    const material = lineas.find((l) => l.tipo === 'material');
+    if (material && material.tipo === 'material' && !entregaDecidida(material)) return 'Dinos si llevamos el material a obra (elige la zona) o si lo recogen en planta.';
     if (lineas.some((l) => l.tipo === 'zona' && (!l.zonaId || !l.productoId))) return 'Elige la zona y el material de cada viaje.';
     if (lineas.some((l) => l.tipo === 'banco' && num(l.m3) <= 0)) return 'Captura los m³ del material de banco.';
     return null;

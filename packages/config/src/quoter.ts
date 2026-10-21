@@ -864,7 +864,8 @@ export const COTIZADORES_META: Record<CotizadorTipo, { titulo: string; resumen: 
   },
   triturados: {
     titulo: 'Triturados',
-    resumen: 'Grava, arena, base y material de banco. Por tonelada en planta o por viaje puesto en obra.',
+    // Sin "material de banco" desde 2026-10-21: ya no se cotiza aquí (va por viaje, en maquinaria).
+    resumen: 'Grava, arena, base hidráulica y CNC. Por tonelada en planta o por viaje puesto en obra.',
     icono: 'material',
     ruta: '/cotizador/triturados',
   },

@@ -748,7 +748,7 @@ export const defaultTheme: Theme = {
       'seo.quoter.machinery.title': 'Cotizador de renta de maquinaria con operador',
       'seo.quoter.machinery.description': 'Cotiza la renta de maquinaria pesada con operador y diésel: elige el equipo, los días de trabajo y el municipio de entrega, y recibe tu propuesta al instante.',
       'seo.quoter.aggregates.title': 'Cotizador de triturados: grava, arena y base',
-      'seo.quoter.aggregates.description': 'Cotiza grava, arena, base y material de banco: por tonelada en planta o por viaje puesto en obra. Precio claro y documento listo para compartir con tu equipo.',
+      'seo.quoter.aggregates.description': 'Cotiza grava, arena, base hidráulica y CNC: por tonelada en planta o por viaje puesto en obra. Precio claro y documento listo para compartir con tu equipo.',
       'seo.about.title': 'Quiénes somos: maquinaria y servicios de obra',
       'seo.about.description': 'Conoce MAQSER24: la plataforma que conecta tu obra con proveedores de maquinaria pesada, triturados, transporte y materiales, con cotización y seguimiento.',
       'seo.contact.title': 'Contacto para renta de maquinaria y materiales',
