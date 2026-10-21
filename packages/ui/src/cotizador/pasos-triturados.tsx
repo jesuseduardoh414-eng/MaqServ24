@@ -182,7 +182,7 @@ export function PasoPedido({
         <Bloque
           icono="banco"
           titulo={`${b.nombre}, por m³`}
-          desc="Ya no se cotiza aquí: el material de banco va por viaje, en Transporte y servicios de obra. Este renglón viene de una cotización anterior."
+          desc="El material de banco ya no se cotiza. Este renglón viene de una cotización anterior."
           vacio={false}
         >
           {bancos.map((l) => (

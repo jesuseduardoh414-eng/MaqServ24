@@ -765,7 +765,7 @@ export const defaultTheme: Theme = {
       'seo.landing.machinerySale.title': 'Venta de maquinaria pesada en Monterrey',
       'seo.landing.machinerySale.description': 'Compra excavadoras, retroexcavadoras, motoconformadoras, vibrocompactadores, Bobcat, volteos y pipas con la red de proveedores MAQSER24 en Monterrey y todo Nuevo León.',
       'seo.landing.transport.title': 'Pipas de agua y camiones de volteo en Monterrey',
-      'seo.landing.transport.description': 'Agua en pipas de 10 y 20 m³, entregas de material de banco y retiros de material en 14 y 28 m³ en Monterrey y todo Nuevo León. Solicita tu cotización.',
+      'seo.landing.transport.description': 'Agua en pipas de 10 y 20 m³ y retiros de material en 14 y 28 m³ en Monterrey y todo Nuevo León. Solicita tu cotización.',
       'seo.landing.aggregates.title': 'Grava, arena y base hidráulica en Monterrey',
       'seo.landing.aggregates.description': 'Compra arena 4 y 5, grava 1 y 2, base hidráulica y CNC por tonelada o por viaje puesto en obra en Monterrey y todo Nuevo León. Cotiza en línea.',
       'seo.landing.materials.title': 'Block de concreto de 6" en Monterrey',

@@ -150,11 +150,11 @@ export const LANDINGS: Landing[] = [
     clave: 'transport',
     categoria: 'transporte-y-servicios-de-obra',
     nombre: 'Pipas de agua y volteos',
-    resumen: 'Agua en pipa, material de banco y retiros de material',
+    resumen: 'Agua en pipa y retiros de material',
     eyebrow: 'Transporte y servicios de obra',
     h1: 'Pipas de agua y camiones de volteo para tu obra',
     intro: [
-      'Solicita agua en pipas de 10 o 20 m³, entregas de material de banco y retiros de material en camiones de 14 o 28 m³.',
+      'Solicita agua en pipas de 10 o 20 m³ y retiros de material en camiones de 14 o 28 m³.',
       `Operamos en ${ZONA}. Nos dices cuántos viajes necesitas y a dónde, y coordinamos al proveedor para que llegue a tu obra.`,
     ],
     incluye: {
@@ -162,8 +162,6 @@ export const LANDINGS: Landing[] = [
       items: [
         'Entrega de agua en pipa de 10 m³',
         'Entrega de agua en pipa de 20 m³',
-        'Entrega de material de banco en 14 m³',
-        'Entrega de material de banco en 28 m³',
         'Retiro de material en 14 m³',
         'Retiro de material en 28 m³',
       ],
@@ -176,15 +174,16 @@ export const LANDINGS: Landing[] = [
       },
       {
         pregunta: '¿De qué tamaño son los viajes de material?',
-        respuesta: 'Las entregas de material de banco y los retiros de material se hacen en camiones de 14 m³ o de 28 m³.',
+        respuesta: 'Los retiros de material se hacen en camiones de 14 m³ o de 28 m³.',
       },
       {
         pregunta: '¿En qué zonas dan servicio?',
         respuesta: `En ${ZONA}.`,
       },
     ],
-    // Pipas, material de banco y retiros tienen precio en el cotizador de
-    // maquinaria (2026-10-08): el botón lleva ahí y no al formulario sin precio.
+    // Pipas y retiros tienen precio en el cotizador de maquinaria (2026-10-08):
+    // el botón lleva ahí y no al formulario sin precio. El material de banco
+    // salió del cotizador el 2026-10-21 (pedido del cliente).
     cotizar: { href: '/cotizador/maquinaria', texto: 'Cotizar en línea' },
   },
   {

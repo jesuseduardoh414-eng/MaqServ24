@@ -677,7 +677,7 @@ export const PASOS_TRITURADOS: PasoCotizador[] = [
   // Tres pasos (2026-10-15): antes eran cinco, con una "Modalidad" abstracta
   // al frente y el flete por tonelada en un paso aparte. Ver pasos-triturados.tsx.
   { clave: 'obra', titulo: 'Datos de la obra', ayuda: 'Para quién es y dónde se entrega el material.' },
-  { clave: 'pedido', titulo: 'Material', ayuda: 'Qué material y cuánto. Puedes combinar las tres formas: en planta por tonelada, puesto en obra por viaje y material de banco.' },
+  { clave: 'pedido', titulo: 'Material', ayuda: 'Qué material y cuánto. Puedes combinar las dos formas: en planta por tonelada y puesto en obra por viaje.' },
   { clave: 'resumen', titulo: 'Factura y resumen', ayuda: 'Con o sin factura, y el documento tal como sale.' },
 ];
 
