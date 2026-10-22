@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo, tieneModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ProductForm, type ProductFormData } from '@/components/ProductForm';
 
@@ -17,7 +17,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <ProductForm initial={product} categories={categories ?? []} providers={providers ?? []} />
+      <ProductForm initial={product} categories={categories ?? []} providers={providers ?? []} puedeTarifas={tieneModulo(admin, 'tarifas')} />
     </AdminShell>
   );
 }

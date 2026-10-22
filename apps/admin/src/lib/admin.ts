@@ -95,8 +95,12 @@ export async function getAdmin(): Promise<{ id: number; name: string; email: str
  * que la mentira no se vea como un módulo vacío.
  */
 export function exigirModulo(admin: { rol: RolAdmin; modulos?: ModuloAdmin[] }, modulo: ModuloAdmin): void {
+  if (!tieneModulo(admin, modulo)) redirect('/');
+}
+
+/** ¿Tiene este módulo? Para enseñar o esconder una parte de una pantalla. */
+export function tieneModulo(admin: { rol: RolAdmin; modulos?: ModuloAdmin[] }, modulo: ModuloAdmin): boolean {
   // Los módulos efectivos (con lo editado en Permisos) mandan; la matriz de
   // fábrica queda solo para una API vieja que todavía no los manda.
-  const ok = admin.modulos?.length ? admin.modulos.includes(modulo) : puedeVer(admin.rol, modulo);
-  if (!ok) redirect('/');
+  return admin.modulos?.length ? admin.modulos.includes(modulo) : puedeVer(admin.rol, modulo);
 }

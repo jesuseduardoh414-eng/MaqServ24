@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { tipoDeCatalogo } from '@maqserv/config';
-import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo, tieneModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { ProductForm } from '@/components/ProductForm';
 import { Note, PageHeader, Panel } from '@/components/ui';
@@ -91,7 +91,7 @@ export default async function NewProductPage({ searchParams }: { searchParams: P
           </Note>
         </div>
       ) : null}
-      <ProductForm initial={proveedor ? { providerId: proveedor.id } : {}} categories={categories} providers={providers} tipo={tipo} />
+      <ProductForm initial={proveedor ? { providerId: proveedor.id } : {}} categories={categories} providers={providers} tipo={tipo} puedeTarifas={tieneModulo(admin, 'tarifas')} />
     </AdminShell>
   );
 }

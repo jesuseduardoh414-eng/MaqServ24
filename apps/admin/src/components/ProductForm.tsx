@@ -141,12 +141,15 @@ export function ProductForm({
   categories,
   providers = [],
   tipo,
+  puedeTarifas = true,
 }: {
   initial: ProductFormData;
   categories: Categoria[];
   providers?: Proveedor[];
   /** Servicio (se cotiza) o producto (precio fijo). Al editar sale de la categoría de la ficha. */
   tipo?: TipoCatalogo;
+  /** Puede cambiar el precio en el cotizador (módulo Tarifas, de fábrica solo Dirección). */
+  puedeTarifas?: boolean;
 }) {
   const router = useRouter();
   const form = useRef<HTMLFormElement>(null);
@@ -592,7 +595,7 @@ export function ProductForm({
 
           {esTipo ? (
             <Tarjeta titulo="Precio en el cotizador" icono="ph-calculator" ayuda="Lo que se cobra al cotizarlo, en el sitio y en el panel. Un solo precio de MAQSER24 para todos los aliados que lo tengan.">
-              <PrecioEnCotizador productId={initial.id} linea={slug} controlRef={precioCotizador} />
+              <PrecioEnCotizador productId={initial.id} linea={slug} controlRef={precioCotizador} puedeEditar={puedeTarifas} />
             </Tarjeta>
           ) : null}
 

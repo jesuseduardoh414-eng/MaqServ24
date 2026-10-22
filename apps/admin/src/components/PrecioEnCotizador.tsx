@@ -80,12 +80,15 @@ export function PrecioEnCotizador({
   productId,
   linea,
   controlRef,
+  puedeEditar = true,
 }: {
   /** Ausente: la ficha se está creando. */
   productId?: number;
   /** La línea elegida en la ficha (puede cambiar mientras se edita). */
   linea: string | null;
   controlRef: MutableRefObject<PrecioEnCotizadorControl | null>;
+  /** Sin el módulo Tarifas no se carga ni se guarda: el precio lo pone Dirección. */
+  puedeEditar?: boolean;
 }) {
   const [ficha, setFicha] = useState<Ficha | null>(null);
   const [estado, setEstado] = useState<'cargando' | 'listo' | 'sin-permiso' | 'error'>('cargando');
@@ -100,6 +103,7 @@ export function PrecioEnCotizador({
   useEffect(() => {
     let vivo = true;
     async function cargar() {
+      if (!puedeEditar) { setEstado('sin-permiso'); return; }
       setEstado('cargando');
       try {
         let f: Ficha | null = null;
@@ -130,7 +134,7 @@ export function PrecioEnCotizador({
     return () => { vivo = false; };
     // Una ficha guardada no cambia de sección hasta que se guarda; una nueva sí.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId, productId ? null : linea]);
+  }, [productId, productId ? null : linea, puedeEditar]);
 
   const seccion = ficha?.seccion ?? null;
   const cambioDeLinea = !!productId && !!ficha && ficha.linea !== linea;
@@ -220,7 +224,7 @@ export function PrecioEnCotizador({
   }
   if (estado === 'cargando') return <p className="adm-help" style={{ margin: 0 }}>Cargando el precio del cotizador…</p>;
   if (estado === 'sin-permiso') {
-    return <Note tone="info" icon="ph-lock-key">El precio en el cotizador lo pone quien tiene permiso de Tarifas y condiciones.</Note>;
+    return <Note tone="info" icon="ph-lock-key">El precio en el cotizador lo pone Dirección (permiso de Tarifas).</Note>;
   }
   if (estado === 'error' || !seccion) {
     return <Note tone="bad" icon="ph-warning-circle">No se pudo leer el precio del cotizador. Recarga la página antes de guardar.</Note>;

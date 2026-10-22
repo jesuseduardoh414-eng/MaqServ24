@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { COTIZADORES_META, COTIZADORES_ACTIVOS } from '@maqserv/config';
-import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo, tieneModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { PageHeader, Panel, btnClass } from '@/components/ui';
 import { IconoCotizador } from '@maqserv/ui';
@@ -72,6 +72,8 @@ export default async function CotizadorHome() {
           </span>
           <i className="ph ph-caret-right" aria-hidden style={{ color: 'var(--adm-faint)' }} />
         </Link>
+        {/* Solo quien puede cambiar precios (módulo Tarifas, 2026-10-22). */}
+        {tieneModulo(admin, 'tarifas') ? (
         <Link href="/cotizador/tarifas" className="adm-trow" style={fila}>
           <i className="ph ph-sliders-horizontal" aria-hidden style={atajoIco} />
           <span style={{ minWidth: 0, flex: 1 }}>
@@ -80,6 +82,7 @@ export default async function CotizadorHome() {
           </span>
           <i className="ph ph-caret-right" aria-hidden style={{ color: 'var(--adm-faint)' }} />
         </Link>
+        ) : null}
       </Panel>
     </AdminShell>
   );

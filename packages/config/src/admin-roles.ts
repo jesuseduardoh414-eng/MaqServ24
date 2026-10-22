@@ -48,6 +48,10 @@ export const MODULOS_ADMIN = [
   // tabulador de tarifas. Quien atiende la bandeja no tiene por qué poder
   // mover el precio de una excavadora.
   'cotizador',
+  // Cambiar precios (2026-10-22, decisión del cliente: "solo Dirección puede
+  // cambiar las tarifas"). Antes iba dentro de 'cotizador' y Operaciones, que
+  // necesita el cotizador para atender por teléfono, podía mover el tabulador.
+  'tarifas',
   'servicios',
   'agenda',
   'clientes',
@@ -83,7 +87,8 @@ export const MODULOS_META: Record<ModuloAdmin, { nombre: string; detalle: string
   catalogo: { nombre: 'Catálogo', detalle: 'Inventario y categorías.' },
   disponibilidad: { nombre: 'Disponibilidad', detalle: 'Qué equipo está libre y cuándo.' },
   cotizaciones: { nombre: 'Cotizaciones', detalle: 'La bandeja de lo que pide el cliente.' },
-  cotizador: { nombre: 'Cotizador', detalle: 'La herramienta de precio y el tabulador de tarifas.' },
+  cotizador: { nombre: 'Cotizador', detalle: 'Armar cotizaciones con el tabulador (sin cambiar precios).' },
+  tarifas: { nombre: 'Tarifas', detalle: 'Cambiar los precios: el tabulador y el precio de cada ficha. De fábrica, solo Dirección.' },
   servicios: { nombre: 'Servicios', detalle: 'Lo que está en curso, asignaciones e incidencias.' },
   agenda: { nombre: 'Agenda', detalle: 'Lo que viene en los próximos días.' },
   clientes: { nombre: 'Clientes y obras', detalle: 'Las empresas que contratan y sus frentes abiertos.' },

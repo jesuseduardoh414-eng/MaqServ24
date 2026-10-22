@@ -85,6 +85,7 @@ export class AdminQuoterController {
    * editando a la vez producirían un tabulador que ninguna de las dos escribió.
    * Enviando el objeto completo, la última en guardar gana y se ve qué guardó.
    */
+  @Modulo('tarifas') // cambiar precios: solo Dirección de fábrica (2026-10-22)
   @Patch('catalog/:kind')
   async guardarCatalogo(@Param('kind') kind: string, @Body() body: unknown, @Req() req: AdminRequest) {
     const tipo = tipoDe(kind);
@@ -106,6 +107,7 @@ export class AdminQuoterController {
     return cat;
   }
 
+  @Modulo('tarifas') // cambiar precios: solo Dirección de fábrica (2026-10-22)
   @Post('catalog/:kind/reset')
   async restaurarCatalogo(@Param('kind') kind: string, @Req() req: AdminRequest) {
     const tipo = tipoDe(kind);
@@ -127,6 +129,7 @@ export class AdminQuoterController {
     return this.quoter.fichaEnCotizador(productId);
   }
 
+  @Modulo('tarifas') // cambiar precios: solo Dirección de fábrica (2026-10-22)
   @Put('ficha/:productId')
   async guardarFicha(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
     const parsed = fichaSchema.safeParse(body);

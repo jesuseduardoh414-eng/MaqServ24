@@ -15,7 +15,7 @@ export const metadata = { title: 'Tarifas del cotizador' };
 export default async function TarifasCotizador() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
-  exigirModulo(admin, 'cotizador');
+  exigirModulo(admin, 'tarifas');
 
   // Los renglones ya no se ligan a mano (2026-10-19): son de su ficha.
   const [maquinaria, triturados] = await Promise.all([
