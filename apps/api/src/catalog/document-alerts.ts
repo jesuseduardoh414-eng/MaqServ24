@@ -1,4 +1,4 @@
-import { DIAS_AVISO } from './provider-trust';
+import { DIAS_AVISO, papelesVigentes } from './provider-trust';
 
 /**
  * AVISOS DE EXPEDIENTE (documento institucional, sección 23).
@@ -76,7 +76,8 @@ export function documentosQueAvisan(
   docs: DocumentoConVigencia[],
   hoy: Date = new Date(),
 ): AvisoDocumento[] {
-  return docs
+  // Un papel ya renovado no avisa: el aviso es para que lo renueve, y ya lo hizo.
+  return papelesVigentes(docs)
     .filter((d): d is DocumentoConVigencia & { expires_at: Date } => d.expires_at !== null)
     .map((d) => {
       const dias = diasHasta(d.expires_at, hoy);

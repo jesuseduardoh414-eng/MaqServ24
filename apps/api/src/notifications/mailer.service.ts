@@ -40,8 +40,17 @@ export type TipoCorreo =
   | 'quote_answered'      // ya tiene precio
   | 'quote_expiring'      // se le va a vencer
   | 'service_status'      // avanzó su servicio
+  | 'quote_request_ack'      // al cliente: recibimos tu solicitud a la medida (/cotizar)
+  | 'quote_request_internal' // a MAQSER24: entró una solicitud a la medida
   | 'provider_offer'      // al aliado: te ofrecemos esta solicitud
+  | 'provider_offer_reminder' // al aliado: no has contestado la oferta
+  // Cobros y pagos (2026-10-22, money/).
+  | 'cobro_recordatorio'      // al cliente: tu pago vence / venció
+  | 'factura_aliado_pendiente' // al aliado: sube tu factura para pagarte
+  | 'pago_aliado'             // al aliado: ya te pagamos
+  | 'cierre_mes'              // a Dirección: el mes que cerró
   | 'provider_assigned'   // al aliado: quedó tuya
+  | 'provider_cancelled'  // al aliado: se canceló un servicio que era suyo
   | 'provider_departure'      // al aliado: ya casi es hora de salir a la obra
   | 'provider_day_before'     // al aliado: mañana tienes servicio
   | 'service_day_before'      // al cliente: mañana llega tu servicio

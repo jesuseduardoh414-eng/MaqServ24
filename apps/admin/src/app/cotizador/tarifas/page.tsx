@@ -8,7 +8,7 @@ import {
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { Note, PageHeader } from '@/components/ui';
-import { TarifasEditor, type EquipoLigable, type ProveedorOpcion } from './TarifasEditor';
+import { TarifasEditor } from './TarifasEditor';
 
 export const metadata = { title: 'Tarifas del cotizador' };
 
@@ -17,14 +17,10 @@ export default async function TarifasCotizador() {
   if (!admin) redirect('/login');
   exigirModulo(admin, 'cotizador');
 
-  const [maquinaria, triturados, proveedores, ligables] = await Promise.all([
+  // Los renglones ya no se ligan a mano (2026-10-19): son de su ficha.
+  const [maquinaria, triturados] = await Promise.all([
     adminFetch<CatalogoCotizador>('/admin/quoter/catalog/maquinaria'),
     adminFetch<CatalogoCotizador>('/admin/quoter/catalog/triturados'),
-    // Para poner dueño a cada partida: es quien recibe el aviso cuando alguien
-    // cotiza eso desde el sitio.
-    adminFetch<ProveedorOpcion[]>('/admin/quoter/providers'),
-    // Los equipos publicados de los aliados: cada renglón se liga a los suyos.
-    adminFetch<EquipoLigable[]>('/admin/quoter/ligables'),
   ]);
 
   const inicial: Record<CotizadorTipo, CatalogoCotizador> = {
@@ -52,7 +48,7 @@ export default async function TarifasCotizador() {
         </Note>
       ) : null}
 
-      <TarifasEditor inicial={inicial} proveedores={proveedores ?? []} ligables={ligables ?? []} />
+      <TarifasEditor inicial={inicial} />
     </AdminShell>
   );
 }

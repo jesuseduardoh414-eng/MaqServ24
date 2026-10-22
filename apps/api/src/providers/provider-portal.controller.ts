@@ -1,10 +1,14 @@
 import {
-  BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Put,
+  BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Put,
   Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { asignarOperador, operadorDe } from './operador';
 import { guardarUbicacion } from '../quotes/rastreo';
-import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { MoneyService } from '../money/money.service';
+import { aFacturarPorAliado, parteDelAliado } from '../money/cuentas';
+import { reglasDinero } from '../money/reglas';
+import { facturaStorage } from '../common/archivos-privados';
 import { atributosDe, esLineaServicio, horarioSchema, requestFormFor, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
 
 import { MailerService } from '../notifications/mailer.service';
@@ -18,13 +22,14 @@ import { zCorreo, zTelefono } from '../common/campos';
 import { mediaStorage } from '../common/media-multer';
 import { imageUrl } from '../catalog/images';
 import {
-  estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, DOC_LABEL, TIPOS_DOC, type TipoDoc,
+  estadoDocumentos, estaVerificado, mesesEnRed, papelesQueFaltan, papelesVigentes, DIAS_AVISO, DOC_LABEL, TIPOS_DOC, type TipoDoc,
 } from '../catalog/provider-trust';
 import { disponibilidadDe, DIAS_FRESCURA } from '../catalog/availability';
 import { documentosQueAvisan, textoAviso } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial } from '../catalog/provider-history';
 import { ServiceService } from '../quotes/service.service';
 import { PASOS, avance, esEstado } from '../quotes/service-flow';
+import { parteDelDocumento, partidasParaAliado } from '../quoter/parte-del-documento';
 import { lista } from '../common/json-list';
 import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
@@ -99,6 +104,8 @@ const ofertaSchema = z.object({
   unidades: z.coerce.number().int().min(1).max(999).optional(),
   /** JSON {"dias":[1,2,3,4,5,6],"desde":"08:00","hasta":"18:00"}. */
   horario: z.string().max(400).optional(),
+  /** La ficha del tipo que eligió de la lista (2026-10-22). Vacío = "Otro, no está en la lista". */
+  tipoId: z.preprocess((v) => (v === '' || v == null ? undefined : v), z.coerce.number().int().positive().optional()),
 });
 const MAX_FOTOS_OFERTA = 6;
 
@@ -112,7 +119,26 @@ export class ProviderPortalController {
   constructor(
     private readonly services: ServiceService,
     private readonly mailer: MailerService,
+    private readonly money: MoneyService,
   ) {}
+
+  /**
+   * SUBIR SU FACTURA de un servicio cerrado (2026-10-22, Fase A). PDF y/o
+   * XML, reconocidos por sus bytes y guardados fuera de lo público. En cuanto
+   * el cliente pagó y está la factura, el pago se programa solo.
+   */
+  @Post('facturas/:quoteNumber')
+  @UseInterceptors(FileFieldsInterceptor([{ name: 'pdf', maxCount: 1 }, { name: 'xml', maxCount: 1 }], { storage: facturaStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
+  async subirFactura(
+    @Req() req: AliadoRequest,
+    @Param('quoteNumber') quoteNumber: string,
+    @UploadedFiles() archivos?: { pdf?: Express.Multer.File[]; xml?: Express.Multer.File[] },
+  ) {
+    return this.money.recibirFactura(req.providerId, quoteNumber, {
+      pdf: archivos?.pdf?.[0]?.filename,
+      xml: archivos?.xml?.[0]?.filename,
+    });
+  }
 
   /** Todo lo que el aliado ve al abrir su enlace. */
   @Get()
@@ -136,6 +162,8 @@ export class ProviderPortalController {
             select: {
               quote_number: true, service_category: true, address: true, comments: true, requirements: true,
               service_state: true, total: true, created_at: true,
+              // Para recortarle su parte del documento del cotizador.
+              subtotal: true, freight_cost: true, tax: true, conditions: true,
               client_sites: {
                 select: { name: true, address: true, contact_name: true, contact_phone: true, requirements: true },
               },
@@ -187,20 +215,21 @@ export class ProviderPortalController {
     const enCurso = ['cerrado', 'cancelado'];
 
     /**
-     * La cotización completa de lo que espera respuesta (2026-10-15): el
-     * aliado ve las mismas partidas e importes que el cliente aceptó.
+     * La cotización de lo que espera respuesta (2026-10-15): el aliado ve las
+     * partidas e importes que el cliente aceptó. Lo que ya trae en curso lleva
+     * el folio para abrir el documento (2026-10-19). Solo SU parte
+     * (2026-10-19): si el documento traía servicios de otros aliados, esos no
+     * se le enseñan.
      */
-    const quoterIdDe = (r: unknown) => {
-      const id = (r as { quoterId?: unknown } | null)?.quoterId;
-      return typeof id === 'number' ? id : null;
-    };
-    const idsCotizacion = [...new Set(
-      asignaciones.filter((a) => a.state === 'propuesto').map((a) => quoterIdDe(a.quotes.requirements)).filter((x): x is number => x !== null),
-    )];
-    const cotizaciones = idsCotizacion.length
-      ? await prisma.quoter_quotes.findMany({ where: { id: { in: idsCotizacion } }, select: { id: true, folio: true, snapshot: true } })
-      : [];
-    const cotizacionDe = new Map(cotizaciones.map((c) => [c.id, { folio: c.folio, partidas: renglonesDe(c.snapshot) }]));
+    const vivas = asignaciones.filter((a) => a.state === 'propuesto' || a.state === 'aceptado');
+    const partes = await Promise.all(vivas.map((a) => parteDelDocumento(a.quotes)));
+    const reglas = await reglasDinero();
+    const cotizacionDe = new Map(
+      vivas.map((a, i) => {
+        const p = partes[i];
+        return [a.id, p ? { folio: p.doc.folio, partidas: partidasParaAliado(p.snapshot.calc) } : null] as const;
+      }),
+    );
 
     /**
      * Nombres legibles de sus líneas de servicio: el aliado no tiene por qué
@@ -217,6 +246,51 @@ export class ProviderPortalController {
       : [];
     const nombreCat = new Map(cats.map((c) => [c.cat_slug, c.cat_name]));
     const cat = (slug: string | null) => (slug ? nombreCat.get(slug) ?? slug : null);
+
+    /**
+     * Los TIPOS de cada una de sus líneas (2026-10-22): las fichas sin aliado
+     * que llevan el precio. Al ofrecer un equipo el aliado elige de aquí, y así
+     * las ofertas le llegan solo de lo que sí tiene.
+     */
+    const lineasSuyas = await prisma.categories.findMany({
+      where: { cat_slug: { in: lista(p.categories) } },
+      select: { id: true, cat_slug: true },
+    });
+    const fichas = lineasSuyas.length
+      ? await prisma.products.findMany({
+          where: { provider_id: null, status: 1, category_id: { in: lineasSuyas.map((l) => l.id) } },
+          select: { id: true, name: true, category_id: true },
+          orderBy: { name: 'asc' },
+        })
+      : [];
+    const tipos: Record<string, Array<{ id: number; nombre: string }>> = Object.fromEntries(
+      lineasSuyas.map((l) => [l.cat_slug, fichas.filter((f) => f.category_id === l.id).map((f) => ({ id: f.id, nombre: f.name }))]),
+    );
+
+    /**
+     * SUS COBROS (2026-10-22, Fase A): lo que tiene por facturarle a MAQSER24
+     * y cuándo se le paga. Solo lo pendiente y lo pagado en los últimos 60 días.
+     */
+    const cuentas = await prisma.service_money.findMany({
+      where: { provider_id: id, OR: [{ pagado_at: null }, { pagado_at: { gte: new Date(Date.now() - 60 * 86_400_000) } }] },
+      orderBy: { created_at: 'desc' },
+    });
+    const foliosCuentas = cuentas.length
+      ? await prisma.quotes.findMany({ where: { id: { in: cuentas.map((c) => c.quote_id) } }, select: { id: true, quote_number: true, product_interested: true } })
+      : [];
+    const folioDe = new Map(foliosCuentas.map((f) => [String(f.id), f]));
+    const cobros = cuentas.map((c) => {
+      const factura = !!(c.factura_aliado || c.factura_aliado_xml);
+      return {
+        folio: folioDe.get(String(c.quote_id))?.quote_number ?? '',
+        servicio: folioDe.get(String(c.quote_id))?.product_interested ?? null,
+        monto: aFacturarPorAliado(c),
+        conIva: Number(c.iva) > 0,
+        estado: c.pagado_at ? 'pagado' : !factura ? 'falta-factura' : c.pagar_el ? 'programado' : 'esperando-cliente',
+        pagarEl: c.pagar_el ? c.pagar_el.toISOString().slice(0, 10) : null,
+        pagadoAt: c.pagado_at,
+      };
+    });
     const estadoServicio = (s: string | null) =>
       esEstado(s) ? { stateLabel: PASOS[s].label, progress: avance(s) } : { stateLabel: 'Por asignar', progress: 0 };
 
@@ -263,23 +337,25 @@ export class ProviderPortalController {
           requirements: a.quotes.client_sites?.requirements ?? [],
           pedido: pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments),
           offeredAt: a.offered_at,
-          // Lo que el cliente ya aceptó pagar: es lo primero que el aliado
-          // pregunta antes de decir que sí.
-          total: Number(a.quotes.total) || null,
-          documento: cotizacionDe.get(quoterIdDe(a.quotes.requirements) ?? -1)?.folio ?? null,
-          partidas: cotizacionDe.get(quoterIdDe(a.quotes.requirements) ?? -1)?.partidas ?? [],
+          // Lo que se le paga (2026-10-22): es lo primero que pregunta antes de
+          // decir que sí. Su parte, ya sin la comisión; no el precio al cliente.
+          pago: parteDelAliado(a.quotes, reglas),
+          documento: cotizacionDe.get(a.id)?.folio ?? null,
+          partidas: cotizacionDe.get(a.id)?.partidas ?? [],
         })),
 
       /** Lo que ya es suyo y sigue corriendo, con los datos de la obra. */
       enCurso: asignaciones
         .filter((a) => a.state === 'aceptado' && !enCurso.includes(a.quotes.service_state ?? ''))
         .map((a) => ({
+          assignmentId: a.id,
           quoteNumber: a.quotes.quote_number,
           category: cat(a.quotes.service_category),
           state: a.quotes.service_state,
           ...estadoServicio(a.quotes.service_state),
+          documento: cotizacionDe.get(a.id)?.folio ?? null,
           committedAt: a.committed_at,
-          total: Number(a.quotes.total) || null,
+          pago: parteDelAliado(a.quotes, reglas),
           site: a.quotes.client_sites?.name ?? null,
           address: a.quotes.client_sites?.address ?? a.quotes.address,
           contactName: a.quotes.client_sites?.contact_name ?? null,
@@ -306,6 +382,12 @@ export class ProviderPortalController {
           orderBy: { id: 'desc' },
         })
       ).map((e) => ({ id: e.id, name: e.name, brand: e.Marca, image: imageUrl(e.photo), createdAt: e.created_at })),
+
+      /** Los tipos que puede elegir al ofrecer un equipo, por línea (slug). */
+      tipos,
+
+      /** Lo que tiene por facturar y cuándo se le paga (2026-10-22). */
+      cobros,
 
       equipos: equipos.map((e) => {
         const d = disponibilidadDe(
@@ -337,11 +419,15 @@ export class ProviderPortalController {
       /** Sus papeles, con los que urgen arriba. */
       documentos: {
         estado: docs,
+        // Los obligatorios que le faltan (2026-10-22): el portal se los pide por nombre.
+        faltan: papelesQueFaltan(p.provider_documents, hoy).map((k) => DOC_LABEL[k]),
         avisos: avisos.map((a) => ({ ...a, expiresAt: a.expiresAt.toISOString().slice(0, 10), texto: textoAviso(a) })),
         diasAviso: DIAS_AVISO,
         // El expediente COMPLETO, no solo lo que urge: para renovar hay que ver
-        // qué se entregó y cuándo vence, incluido lo que está en regla.
-        lista: p.provider_documents
+        // qué se entregó y cuándo vence, incluido lo que está en regla. Sin lo
+        // que ya renovó (2026-10-19): la constancia vieja junto a la nueva
+        // parecía que la renovación no había servido de nada.
+        lista: papelesVigentes(p.provider_documents)
           .map((d) => ({
             id: d.id,
             kind: d.kind,
@@ -374,7 +460,7 @@ export class ProviderPortalController {
           reason: a.reason,
           respondedAt: a.responded_at,
           ...estadoServicio(a.quotes.service_state),
-          total: Number(a.quotes.total) || null,
+          pago: parteDelAliado(a.quotes, reglas),
         })),
       cumplimiento: {
         resumen: resumenHistorial(hist),
@@ -433,6 +519,39 @@ export class ProviderPortalController {
       // historial tiene que poder distinguirlo.
       adminId: null,
     });
+  }
+
+  /**
+   * EL DOCUMENTO DE LA COTIZACIÓN, para el aliado (2026-10-19): el que
+   * imprime el cliente (folio, partidas, condiciones, firma), pero solo con SU
+   * parte: si el documento traía servicios de otros aliados, esos renglones e
+   * importes no salen. Solo el de SUS solicitudes y mientras le tocan —por
+   * contestar o aceptadas—: lo que rechazó o se le dio a otro ya no es asunto suyo.
+   */
+  @Get('solicitudes/:assignmentId/documento')
+  async documento(@Req() req: AliadoRequest, @Param('assignmentId', ParseIntPipe) assignmentId: number) {
+    const a = await prisma.service_assignments.findFirst({
+      where: { id: assignmentId, provider_id: req.providerId, state: { in: ['propuesto', 'aceptado'] } },
+      select: {
+        quotes: {
+          select: { quote_number: true, requirements: true, subtotal: true, freight_cost: true, tax: true, total: true, conditions: true },
+        },
+      },
+    });
+    const p = a ? await parteDelDocumento(a.quotes) : null;
+    if (!a || !p) throw new NotFoundException('Esta solicitud no tiene documento de cotización.');
+    return {
+      folio: p.doc.folio,
+      tipo: p.doc.kind,
+      quoteNumber: a.quotes.quote_number,
+      cliente: p.doc.client_name,
+      obra: p.doc.work,
+      atencion: p.doc.attention,
+      municipio: p.doc.municipality,
+      notas: p.doc.notes,
+      parcial: p.parcial,
+      documento: p.snapshot,
+    };
   }
 
   /**
@@ -616,6 +735,11 @@ export class ProviderPortalController {
     }
     const categoria = await prisma.categories.findUnique({ where: { cat_slug: d.categoria }, select: { id: true, cat_name: true } });
     if (!categoria) throw new BadRequestException(esProducto ? 'Categoría desconocida.' : 'Línea de servicio desconocida.');
+    // El tipo tiene que ser una ficha viva de ESA línea; si no, cuenta como "Otro"
+    // y MAQSER24 lo clasifica al revisar.
+    const tipo = d.tipoId && !esProducto
+      ? await prisma.products.findFirst({ where: { id: d.tipoId, provider_id: null, status: 1, category_id: categoria.id }, select: { id: true } })
+      : null;
     if (esProducto) { d.modalidad = 'venta'; d.horario = undefined; d.minimo = undefined; }
     // PRECIO ÚNICO (2026-09-28): un SERVICIO no lleva precio del aliado; se cotiza
     // con el tabulador. Aunque el cliente de la API mande costos o mínimo, se tiran
@@ -665,6 +789,7 @@ export class ProviderPortalController {
         user_id: 0,
         provider_id: p.id,
         category_id: categoria.id,
+        tipo_id: tipo?.id ?? null,
         name: d.nombre,
         Marca: d.marca || null,
         // Limpia HTML: la ficha pública la pinta como HTML (QA 2026-09-25: XSS confirmado).
@@ -753,7 +878,7 @@ export class ProviderPortalController {
     // un papel para recuperar el sello y tiene que ver si lo consiguió.
     const todos = await prisma.provider_documents.findMany({
       where: { provider_id: req.providerId },
-      select: { expires_at: true },
+      select: { id: true, kind: true, name: true, expires_at: true },
     });
 
     return {
@@ -769,12 +894,4 @@ export class ProviderPortalController {
       estadoDocumentos: estadoDocumentos(todos),
     };
   }
-}
-
-/** Los renglones del documento congelado, como se le enseñan al aliado. */
-function renglonesDe(snapshot: unknown): Array<{ concepto: string; cantidad: string; importe: number }> {
-  const renglones = (snapshot as { calc?: { renglones?: Array<{ concepto?: string; cantidad?: number; unidad?: string; importe?: number }> } } | null)?.calc?.renglones ?? [];
-  return renglones
-    .filter((r) => r.concepto)
-    .map((r) => ({ concepto: String(r.concepto), cantidad: `${r.cantidad ?? ''} ${r.unidad ?? ''}`.trim(), importe: Number(r.importe ?? 0) }));
 }

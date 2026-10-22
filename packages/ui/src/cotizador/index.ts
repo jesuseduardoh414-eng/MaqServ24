@@ -10,4 +10,4 @@ export {
   type DatosDocumento,
 } from './documento';
 export { money, money2, cantidad, fechaCorta, fechaLarga } from './formato';
-export { aLineas, aPartidas, type ContextoCotizador, type LineaCotizador } from './estado';
+export { aLineas, aPartidas, lineasDeFicha, type ContextoCotizador, type LineaCotizador } from './estado';

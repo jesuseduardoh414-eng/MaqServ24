@@ -35,7 +35,8 @@ export interface ProviderDocument {
  * advierte justamente de eso — no se puede tratar como verificado un expediente
  * desactualizado.
  */
-export type DocsStatus = 'al-dia' | 'por-vencer' | 'vencido' | 'sin-documentos';
+/** `incompleto` (2026-10-22): le faltan papeles obligatorios (catalog/provider-trust.ts). */
+export type DocsStatus = 'al-dia' | 'por-vencer' | 'vencido' | 'incompleto' | 'sin-documentos';
 
 export interface Provider {
   id: number;

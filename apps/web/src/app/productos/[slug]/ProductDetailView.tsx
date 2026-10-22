@@ -373,7 +373,8 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                 vende en el sitio; todo se cotiza y se paga por fuera, así que la
                 única acción es cotizar, igual para servicios y productos. */}
             <div className="pd-buy">
-              <Link href={`/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" className="ms-btn ms-btn-lg">{esServicio ? 'Cotizar este servicio' : 'Solicitar cotización'}<Icon name="arrowRight" size={16} /></Link>
+              {/* Con tabulador (2026-10-22): al cotizador con este tipo ya elegido. */}
+              <Link href={product.quoter ? `/cotizador/${product.quoter}?tipo=${product.id}` : `/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" className="ms-btn ms-btn-lg">{esServicio ? 'Cotizar este servicio' : 'Solicitar cotización'}<Icon name="arrowRight" size={16} /></Link>
               {/* O juntarlo con otros y mandar una sola solicitud desde /cotizar. */}
               <AgregarACotizacion size="lg" item={{ id: product.id, slug: product.slug, name: product.name, image: product.image, isRental: product.isRental }} />
               {favBtn}

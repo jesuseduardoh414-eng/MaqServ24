@@ -47,6 +47,8 @@ export class AdminAgendaController {
         where: {
           state: 'aceptado',
           committed_at: { gte: desde, lte: new Date(hasta.getTime() + 86400000) },
+          // Un servicio cancelado ya no compromete a nadie (2026-10-22).
+          quotes: { service_state: { not: 'cancelado' } },
         },
         include: {
           providers: { select: { name: true } },
@@ -81,6 +83,9 @@ export class AdminAgendaController {
         : [],
     );
 
+    // El nombre de la línea, no su clave ("maquinaria-pesada"), 2026-10-22.
+    const lineas = new Map((await prisma.categories.findMany({ select: { cat_slug: true, cat_name: true } })).map((c) => [c.cat_slug, c.cat_name]));
+
     const compromisos: Compromiso[] = [
       ...bloques.map((b) => ({
         id: `bloqueo:${b.id}`,
@@ -98,7 +103,7 @@ export class AdminAgendaController {
         // El servicio no apunta todavía a una unidad concreta: eso llega con
         // el inventario por unidad. Se muestra igual, sin equipo.
         productId: null,
-        titulo: a.quotes.client_sites?.name ?? a.quotes.service_category ?? a.quotes.quote_number,
+        titulo: a.quotes.client_sites?.name ?? (a.quotes.service_category ? lineas.get(a.quotes.service_category) ?? a.quotes.service_category : a.quotes.quote_number),
         detalle: `${a.quotes.company_name || a.quotes.name} · ${a.providers.name}`,
         desde: a.committed_at!,
         hasta: a.committed_at!,

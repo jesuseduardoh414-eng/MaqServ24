@@ -86,8 +86,10 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
   // (21 / ESTADOS DE DISPONIBILIDAD).
   const modo = esServicio ? t(theme, 'product.mode.service') : p.isRental ? t(theme, 'product.mode.rental') : t(theme, 'product.mode.sale');
   const disp = estadoDeProducto(p);
-  // Cotizar SIEMPRE es posible desde la card: lleva al cotizador con este equipo cargado.
-  const quoteHref = `/cotizar?producto=${p.slug}`;
+  // Cotizar SIEMPRE es posible desde la card. Si el tipo está en un tabulador
+  // (2026-10-22), abre ese cotizador con él ya elegido y con precio; si no, el
+  // formulario a la medida con este equipo cargado.
+  const quoteHref = p.quoter ? `/cotizador/${p.quoter}?tipo=${p.id}` : `/cotizar?producto=${p.slug}`;
   const quoteOnly = quoteMode || esServicio || p.price === null; // servicio o sin precio: cotizar es la acción
 
   async function toggleFav() {

@@ -59,6 +59,10 @@ export function ShSelectCampo({
   const valorRadix = actual === '' && !hayVacia ? '' : aRadix(actual);
 
   function cambiar(v: string) {
+    // Un item de Radix nunca vale '': ese '' es el <select> oculto de Radix
+    // vaciándose cuando el valor cambia por código (2026-10-22: el tipo recién
+    // creado y el material que se elige solo se borraban). No es del usuario.
+    if (v === '') return;
     const real = v === VACIO ? '' : v;
     if (!controlado) setInterno(real);
     onChange?.(real);

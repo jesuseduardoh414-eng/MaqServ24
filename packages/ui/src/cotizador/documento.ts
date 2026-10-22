@@ -24,6 +24,12 @@ export interface DatosDocumento {
   atencion?: string;
   municipio?: string;
   notas?: string;
+  /**
+   * Lo que contestó el cliente en el formulario de su línea (tipo de equipo,
+   * capacidad, fechas…), renglón por renglón. Solo lo traen las solicitudes de
+   * /cotizar: en el cotizador eso ya son las partidas.
+   */
+  detalle?: Array<{ label: string; valor: string }>;
   empresa: EmpresaCotizador;
   firma: FirmaCotizador;
   saludo: string;
@@ -68,6 +74,15 @@ export const DOCUMENTO_CSS = `
   font-size:15px; font-weight:800; }
 .czdoc .czdoc-note{ margin:14px 0 0; padding:9px 12px; border-left:3px solid var(--czdoc-accent);
   background:#f5f8fb; font-size:11px; color:#3d444c; }
+.czdoc .czdoc-notas{ white-space:pre-line; }
+.czdoc .czdoc-det{ margin:0 0 14px; break-inside:avoid; }
+.czdoc .czdoc-det h4{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--czdoc-accent); }
+.czdoc .czdoc-det dl{ display:grid; grid-template-columns:minmax(150px,36%) 1fr; margin:0;
+  border:1px solid #e3e7eb; border-radius:6px; overflow:hidden; }
+.czdoc .czdoc-det dt, .czdoc .czdoc-det dd{ margin:0; padding:6px 10px; font-size:11px; border-bottom:1px solid #eef1f4; }
+.czdoc .czdoc-det dt{ background:#f7f9fb; color:#5a626b; }
+.czdoc .czdoc-det dd{ font-weight:600; overflow-wrap:anywhere; }
+.czdoc .czdoc-det dl > :nth-last-child(-n+2){ border-bottom:0; }
 .czdoc .czdoc-cond{ margin-top:16px; break-inside:avoid; }
 .czdoc .czdoc-cond h4{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
   color:var(--czdoc-accent); }
@@ -154,7 +169,13 @@ export function documentoCuerpo(d: DatosDocumento): string {
     )
     .join('');
 
-  const notas = d.notas?.trim() ? `<div class="czdoc-note"><b>Notas:</b> ${esc(d.notas)}</div>` : '';
+  const notas = d.notas?.trim() ? `<div class="czdoc-note czdoc-notas"><b>Notas:</b> ${esc(d.notas.trim())}</div>` : '';
+
+  const detalle = d.detalle?.length
+    ? `<div class="czdoc-det"><h4>Detalle de la solicitud</h4><dl>${d.detalle
+        .map((r) => `<dt>${esc(r.label)}</dt><dd>${esc(r.valor)}</dd>`)
+        .join('')}</dl></div>`
+    : '';
 
   const firmaHtml = firma.nombre?.trim()
     ? `<div class="czdoc-sign"><b>${esc(firma.nombre)}</b>
@@ -169,6 +190,7 @@ export function documentoCuerpo(d: DatosDocumento): string {
     <div class="czdoc-meta">${meta}</div>
     <p class="czdoc-greet">${esc(d.saludo)}</p>
     <table><thead><tr>${encabezados}</tr></thead><tbody>${filas}</tbody></table>
+    ${detalle}
     ${totales}
     ${notas}
     ${condiciones}

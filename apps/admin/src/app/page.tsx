@@ -37,7 +37,9 @@ interface Inicio {
     medir: { cerradosMes: number; valorMes: number; conversionMes: number | null };
   };
   mes: { solicitudes: number; solicitudesAnterior: number; aceptadas: number; cerrados: number };
-  red: { aliados: number; fichas: number; fichasConfirmadas: number; ofertas: number; papelesVencidos: number; papelesPorVencer: number; diasFrescura: number };
+  red: { aliados: number; fichas: number; fichasConfirmadas: number; ofertas: number; papelesVencidos: number; papelesPorVencer: number; papelesFaltan?: number; diasFrescura: number };
+  /** Dinero que pide una acción hoy (2026-10-22). */
+  dinero?: { cobrosVencidos: number; pagosHoy: number };
   sitio: { resenas: number; preguntas: number };
   proximos: Array<{ id: number; fecha: string; folio: string; obra: string | null; municipio: string | null; cliente: string; categoria: string | null; aliado: string; estado: string }>;
   recientes: Array<{ id: number; folio: string; cliente: string; categoria: string | null; estado: string; tono: 'atiende' | 'bien' | 'mal' | 'neutro'; fecha: string | null; total: number }>;
@@ -151,13 +153,16 @@ export default async function AdminHome() {
       { n: d.flujo.ejecutar.incidencias, nivel: 'urgente', label: 'Incidencias abiertas', sub: 'Servicios con un problema en obra', href: '/servicios', icon: 'ph-warning-octagon', modulo: 'servicios' },
       { n: d.flujo.asignar.propuestasViejas, nivel: 'urgente', label: 'Aliados sin contestar', sub: 'Ofrecidos hace más de 24 h; el cliente ya aceptó', href: '/servicios', icon: 'ph-hourglass-high', modulo: 'servicios' },
       { n: d.red.papelesVencidos, nivel: 'urgente', label: 'Aliados con papeles vencidos', sub: 'Perdieron el sello de verificado', href: '/proveedores', icon: 'ph-warning-circle', modulo: 'proveedores' },
+      { n: d.dinero?.cobrosVencidos ?? 0, nivel: 'urgente', label: 'Cobros vencidos', sub: 'Clientes que no han pagado; ya se les recordó por correo', href: '/administracion/cobranza', icon: 'ph-invoice', modulo: 'administracion' },
+      { n: d.dinero?.pagosHoy ?? 0, nivel: 'pendiente', label: 'Aliados por pagar hoy', sub: 'El cliente pagó y el aliado subió su factura', href: '/administracion/pagos', icon: 'ph-hand-coins', modulo: 'administracion' },
       { n: d.flujo.recibir.sinResponder, nivel: 'pendiente', label: 'Solicitudes por cotizar', sub: 'Llegaron sin precio; el cliente espera respuesta', href: '/cotizaciones', icon: 'ph-tray', modulo: 'cotizaciones' },
       { n: d.flujo.asignar.porAsignar, nivel: 'pendiente', label: 'Servicios por asignar', sub: 'El cliente aceptó; falta el aliado', href: '/servicios', icon: 'ph-user-switch', modulo: 'servicios' },
       { n: d.flujo.ejecutar.terminados, nivel: 'pendiente', label: 'Terminados sin cerrar', sub: 'Falta registrar cantidades y cierre', href: '/servicios', icon: 'ph-flag-checkered', modulo: 'servicios' },
       { n: d.flujo.recibir.mensajes, nivel: 'pendiente', label: 'Mensajes sin responder', sub: 'Dudas de clientes: Contacto, Preguntas frecuentes y productos', href: '/mensajes', icon: 'ph-chat-centered-text', modulo: 'comunidad' },
       { n: d.red.ofertas, nivel: 'pendiente', label: 'Equipos por revisar', sub: 'Los ofrecieron aliados desde su portal', href: '/proveedores', icon: 'ph-package', modulo: 'proveedores' },
+      { n: d.red.papelesFaltan ?? 0, nivel: 'pendiente', label: 'Aliados sin constancia fiscal o póliza', sub: 'No tienen sello hasta subirlas; su portal les dice qué falta', href: '/proveedores', icon: 'ph-file-x', modulo: 'proveedores' },
       { n: d.red.papelesPorVencer, nivel: 'aviso', label: 'Papeles por vencer', sub: 'Dentro de los próximos 30 días', href: '/proveedores', icon: 'ph-clock-countdown', modulo: 'proveedores' },
-      { n: d.red.fichas - d.red.fichasConfirmadas, nivel: 'aviso', label: 'Disponibilidad por confirmar', sub: `Fichas sin confirmar en ${d.red.diasFrescura} días`, href: '/disponibilidad', icon: 'ph-calendar-x', modulo: 'disponibilidad' },
+      { n: d.red.fichas - d.red.fichasConfirmadas, nivel: 'aviso', label: 'Disponibilidad por confirmar', sub: `Equipos de aliados sin confirmar en ${d.red.diasFrescura} días`, href: '/disponibilidad', icon: 'ph-calendar-x', modulo: 'disponibilidad' },
       { n: d.sitio.resenas, nivel: 'aviso', label: 'Reseñas por moderar', sub: 'Esperan aprobación para publicarse', href: '/resenas', icon: 'ph-star', modulo: 'comunidad' },
     ] satisfies Pendiente[]).filter((p) => p.n > 0 && puede(p.modulo))
     : [];
@@ -375,7 +380,7 @@ export default async function AdminHome() {
                 <div style={{ display: 'grid', gap: 18 }}>
                   <div className="in-red">
                     <div><b>{d.red.aliados}</b><span>Aliados activos</span></div>
-                    <div><b>{d.red.fichas}</b><span>Fichas publicadas</span></div>
+                    <div><b>{d.red.fichas}</b><span>Equipos de aliados</span></div>
                     <div><b style={d.red.ofertas > 0 ? { color: 'var(--adm-accent)' } : { color: 'var(--adm-faint)' }}>{d.red.ofertas}</b><span>Por revisar</span></div>
                   </div>
                   <div>

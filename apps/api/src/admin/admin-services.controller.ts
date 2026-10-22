@@ -30,6 +30,8 @@ const moverSchema = z.object({
   quantity: z.number().positive().max(1_000_000).optional().nullable(),
   // Solo unidades conocidas (QA 2026-09-28: 'horas' se guardaba y el cliente veía el número sin unidad).
   unit: z.string().max(20).refine((u) => u in UNIDADES, 'Unidad desconocida').optional().nullable(),
+  /** Al cancelar: quién lo canceló. Solo "aliado" le cuenta en contra. */
+  causa: z.enum(['cliente', 'aliado', 'plataforma']).optional().nullable(),
 });
 
 const ofrecerSchema = z.object({
@@ -92,6 +94,13 @@ export class AdminServicesController {
         ])
       : [[], []];
     const sugeridosDe = new Map(notasSugeridos.map((e) => [String(e.quote_id), (e.note ?? '').slice(SUGERIDOS.length).trim()]));
+    // El nombre de la línea: "a 4 aliados de Materiales para construcción" se
+    // lee; "materiales-para-construccion" no.
+    const slugs = [...new Set(rows.map((r) => r.service_category).filter((c): c is string => !!c))];
+    const nombreLinea = new Map(
+      (slugs.length ? await prisma.categories.findMany({ where: { cat_slug: { in: slugs } }, select: { cat_slug: true, cat_name: true } }) : [])
+        .map((c) => [c.cat_slug, c.cat_name]),
+    );
     const porServicio = new Map<string, typeof asignaciones>();
     for (const a of asignaciones) {
       const k = String(a.quote_id);
@@ -107,6 +116,10 @@ export class AdminServicesController {
         client: q.company_name || q.name,
         phone: q.phone,
         category: q.service_category,
+        categoryName: q.service_category ? nombreLinea.get(q.service_category) ?? q.service_category : null,
+        // El documento del que salió (2026-10-19): una cotización con varias
+        // líneas abre un servicio por línea, y el tablero los junta por esto.
+        folio: (() => { const f = (q.requirements as { folio?: unknown } | null)?.folio; return typeof f === 'string' && f ? f : null; })(),
         address: q.address,
         state: st,
         stateLabel: PASOS[st].label,
@@ -115,6 +128,8 @@ export class AdminServicesController {
         next: siguientes(st).map((s) => ({ state: s, label: PASOS[s].label })),
         units: unidadesDe(q.service_category).map((u) => ({ clave: u.clave, label: u.plural })),
         defaultUnit: q.service_unit ?? unidadPorDefectoDe(q.service_category),
+        // Los días que se cotizaron ("3 días"): el cierre sale con eso ya puesto (2026-10-22).
+        quotedDays: (() => { const d = parseInt(String((q.requirements as { duracion?: unknown } | null)?.duracion ?? ''), 10); return d > 0 ? d : null; })(),
         closed: q.service_quantity
           ? formatearCantidad(Number(q.service_quantity), q.service_unit)
           : null,
@@ -158,6 +173,7 @@ export class AdminServicesController {
       note: b.note,
       quantity: b.quantity,
       unit: b.unit,
+      causa: b.causa,
     });
   }
 

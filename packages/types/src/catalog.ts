@@ -58,6 +58,12 @@ export interface ProductCard {
    * precio fijo, al carrito). Sale de la categoría; ver `tipoDeCatalogo`.
    */
   kind: 'servicio' | 'producto';
+  /**
+   * El cotizador que tiene este tipo en su tabulador (2026-10-22, Fase 4):
+   * "Cotizar" abre ese cotizador con el tipo ya elegido. Null = se cotiza a la
+   * medida (/cotizar).
+   */
+  quoter?: 'maquinaria' | 'triturados' | null;
 }
 
 export interface MedicalInfo {

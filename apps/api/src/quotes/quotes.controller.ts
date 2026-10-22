@@ -63,6 +63,22 @@ export class QuotesController {
     return this.quotes.create(parsed.data, req.userId);
   }
 
+  /**
+   * La solicitud como documento ANTES de enviarla (2026-10-19): el paso de
+   * Confirmación de /cotizar la enseña con el formato de siempre, sin precios.
+   * Mismo esquema que `create` y no guarda nada.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Post('vista-previa')
+  @UseGuards(JwtGuard)
+  vistaPrevia(@Req() req: AuthedRequest, @Body() body: unknown) {
+    const parsed = quoteSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
+    }
+    return this.quotes.vistaPrevia(parsed.data, req.userId);
+  }
+
   @Get('mine')
   @UseGuards(JwtGuard)
   mine(@Req() req: AuthedRequest) {

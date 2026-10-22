@@ -28,6 +28,13 @@
  *    como no medible hasta que exista el dato.
  */
 
+/**
+ * Lo que queda en su asignación cuando el servicio se canceló porque ÉL se
+ * bajó (2026-10-22). Un servicio que canceló el cliente o MAQSER24 no cuenta en
+ * su contra: antes cualquier cancelación le restaba como si se hubiera bajado.
+ */
+export const MOTIVO_SE_BAJO = 'Se bajó del servicio';
+
 /** Debajo de esto no se calculan porcentajes. */
 export const MINIMO_CONFIABLE = 5;
 
@@ -49,7 +56,7 @@ export interface HistorialAliado {
   sinContestar: number;
   /** Servicios que aceptó y llegaron a cerrarse. */
   completados: number;
-  /** Aceptados que terminaron cancelados. Es el dato que más pesa. */
+  /** Aceptados que se cancelaron porque él se bajó. Es el dato que más pesa. */
   cancelados: number;
   /** Aceptados que siguen corriendo. */
   enCurso: number;
@@ -94,8 +101,9 @@ export function historialDe(todas: AsignacionHistorica[]): HistorialAliado {
   const sinContestar = asignaciones.filter((a) => a.state === 'propuesto').length;
 
   const completados = aceptadas.filter((a) => a.serviceState === CERRADO).length;
-  const cancelados = aceptadas.filter((a) => a.serviceState === CANCELADO).length;
-  const enCurso = aceptadas.length - completados - cancelados;
+  const cancelados = aceptadas.filter((a) => a.serviceState === CANCELADO && a.reason === MOTIVO_SE_BAJO).length;
+  // Los que canceló otro no son ni suyos ni siguen corriendo: no cuentan.
+  const enCurso = aceptadas.length - completados - aceptadas.filter((a) => a.serviceState === CANCELADO).length;
 
   // Solo cuentan las que ya tuvieron respuesta: las que siguen esperando no
   // dicen "tardó mucho", dicen "todavía no". Meterlas como un tiempo enorme

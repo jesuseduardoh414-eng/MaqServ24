@@ -23,6 +23,8 @@ interface Documento {
   atencion: string | null;
   municipio: string | null;
   notas: string | null;
+  /** Lo que contestó del formulario de su línea (solicitudes de /cotizar). */
+  detalle?: Array<{ label: string; valor: string }>;
   /** La solicitud sin precio todavía (2026-10-15): mismo formato, sin importes. */
   sinPrecios?: boolean;
   documento: {
@@ -88,6 +90,7 @@ export default async function DocumentoCotizacion({ params }: { params: Promise<
               atencion: d.atencion ?? '',
               municipio: d.municipio ?? '',
               notas: d.notas ?? '',
+              detalle: d.detalle ?? [],
               empresa: d.documento.empresa,
               firma: d.documento.firma,
               saludo: d.documento.saludo,

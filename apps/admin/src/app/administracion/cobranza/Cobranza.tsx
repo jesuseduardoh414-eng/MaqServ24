@@ -1,237 +1,188 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { mostrarResultado } from '@maqserv/ui';
 import { Modal } from '@/components/Modal';
-import { Btn, Chip, EmptyState, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toolbar, type Tone } from '@/components/ui';
-import { AvisoDiseno, accionDeDiseno as diseno } from '@/components/Diseno';
-import {
-  COBROS, HOY, IVA, cobradoDe, conIva, diasEntre, dinero, fechaCorta, servicioDe, type Cobro, type EstadoCobro,
-} from '../datos-ejemplo';
+import { Btn, EmptyState, FormField, Note, PageHeader, Panel, Stat, Stats, StatusText } from '@/components/ui';
+import { CREDITOS, FORMAS, cuando, dinero, enviar, fechaCorta, hoyLocal } from '../formato';
 
-const MOTIVO = 'Se conecta cuando se defina cómo gana dinero MAQSER24 (quién factura, márgenes por línea y plazos de cobro y pago).';
-const accionDeDiseno = (nombre: string) => diseno(nombre, MOTIVO);
+export interface CuentaCobro {
+  quoteId: number;
+  folio: string;
+  cliente: string;
+  contacto: { nombre: string | null; telefono: string | null; correo: string | null };
+  clienteId: number | null;
+  creditoDias: number;
+  servicio: string | null;
+  obra: string | null;
+  cerrado: string | null;
+  vence: string;
+  diasVencida: number;
+  total: number;
+  cobrado: number;
+  saldo: number;
+  facturaCliente: string | null;
+  cobradoAt: string | null;
+  movimientos: Array<{ fecha: string; monto: number; forma: string | null; referencia: string | null }>;
+}
 
 /**
- * COBRANZA A CLIENTES — diseño (2026-10-09).
- *
- * Lo que cada cliente debe por sus servicios cerrados: factura, anticipo,
- * vencimiento y lo que ya pagó. Montos CON IVA, porque es el dinero que se
- * mueve. Datos de ejemplo: ver datos-ejemplo.ts.
+ * COBRANZA (2026-10-22, Fase A). Solo lo que falta cobrar, lo vencido arriba.
+ * La cuenta nace sola al cerrar el servicio y el cliente recibe sus
+ * recordatorios solo; aquí lo único que se hace es marcar "Cobrado".
  */
-
-type Filtro = 'todas' | 'por-cobrar' | 'vencidas' | 'cobradas';
-
-const ESTADO: Record<EstadoCobro, { texto: string; tono: Tone }> = {
-  'sin-factura': { texto: 'Falta factura', tono: 'warn' },
-  'por-cobrar': { texto: 'Por cobrar', tono: 'info' },
-  vencida: { texto: 'Vencida', tono: 'bad' },
-  cobrada: { texto: 'Cobrada', tono: 'ok' },
-};
-
-const GRID = 'minmax(0,1.25fr) minmax(0,1.45fr) 118px 118px 128px 120px';
-
-interface Fila extends Cobro { total: number; cobrado: number; saldo: number }
-
-export function Cobranza() {
-  const [filtro, setFiltro] = useState<Filtro>('todas');
-  const [q, setQ] = useState('');
-  const [viendo, setViendo] = useState<Fila | null>(null);
-
-  const filas: Fila[] = useMemo(() => COBROS.map((c) => {
-    const total = conIva(servicioDe(c.folio).precioCliente);
-    const cobrado = cobradoDe(c);
-    return { ...c, total, cobrado, saldo: Math.max(0, total - cobrado) };
-  }), []);
-
-  const abiertas = filas.filter((f) => f.estado !== 'cobrada');
-  const vencidas = filas.filter((f) => f.estado === 'vencida');
-  const cobradoMes = filas.flatMap((f) => f.movimientos).filter((m) => m.fecha.startsWith(HOY.slice(0, 7))).reduce((a, m) => a + m.monto, 0);
-  const cobradas = filas.filter((f) => f.estado === 'cobrada');
-  const diasCobro = Math.round(
-    cobradas.reduce((a, f) => a + diasEntre(servicioDe(f.folio).cerrado, f.movimientos[f.movimientos.length - 1].fecha), 0) / Math.max(1, cobradas.length),
-  );
-
-  const enFiltro = (f: Fila) =>
-    filtro === 'todas' ? true
-      : filtro === 'por-cobrar' ? f.estado === 'por-cobrar' || f.estado === 'sin-factura'
-        : filtro === 'vencidas' ? f.estado === 'vencida'
-          : f.estado === 'cobrada';
-  const visibles = filas.filter((f) => {
-    if (!enFiltro(f)) return false;
-    const s = servicioDe(f.folio);
-    const t = q.trim().toLowerCase();
-    return !t || [f.folio, s.cliente, s.obra, s.municipio, f.factura ?? ''].some((x) => x.toLowerCase().includes(t));
-  });
+export function Cobranza({ datos, cobradas }: { datos: { porCobrar: number; vencido: number; cuentas: CuentaCobro[] }; cobradas: boolean }) {
+  const [abierta, setAbierta] = useState<CuentaCobro | null>(null);
+  const vencidas = datos.cuentas.filter((c) => c.diasVencida > 0 && !c.cobradoAt);
 
   return (
     <div>
       <style>{`
-        .cb-row { display: grid; grid-template-columns: ${GRID}; gap: 16px; align-items: center; }
-        .cb-row.adm-trow { cursor: pointer; }
+        .cb-row { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(0,1.3fr) 120px 130px 112px; gap: 16px; align-items: center; }
         .cb-num { text-align: right; font-variant-numeric: tabular-nums; }
-        @media (max-width: 1000px) {
+        @media (max-width: 900px) {
           .cb-thead { display: none !important; }
           .cb-row { display: flex; flex-wrap: wrap; gap: 6px 16px; }
           .cb-row > :nth-child(1), .cb-row > :nth-child(2) { flex: 1 1 100%; }
           .cb-num { text-align: left; }
         }
       `}</style>
-
       <PageHeader
         eyebrow={['4 · Cobrar y medir', 'Administración']}
-        title="Cobranza a clientes"
-        subtitle="Lo que cada cliente debe por sus servicios cerrados: factura, anticipo, vencimiento y lo que ya pagó. Montos con IVA."
-        actions={
-          <>
-            <Btn icon="ph-download-simple" onClick={() => accionDeDiseno('Exportar a Excel')}>Exportar</Btn>
-            <Btn variant="primary" icon="ph-plus" onClick={() => accionDeDiseno('Registrar cobro')}>Registrar cobro</Btn>
-          </>
-        }
+        title="Cobranza"
+        subtitle={cobradas ? 'Lo cobrado en los últimos 60 días.' : 'Lo que falta cobrar, lo vencido arriba. Montos con IVA. Los recordatorios al cliente salen solos.'}
+        actions={<Btn href={cobradas ? '/administracion/cobranza' : '/administracion/cobranza?cobradas=1'} variant="ghost">{cobradas ? 'Ver lo pendiente' : 'Ver cobradas'}</Btn>}
       />
 
-      <AvisoDiseno falta="Para construirla falta decidir cómo gana dinero MAQSER24." />
-
-      <Stats>
-        <Stat label="Por cobrar" icon="ph-hourglass-medium" tone="info" value={dinero(abiertas.reduce((a, f) => a + f.saldo, 0))} hint={`en ${abiertas.length} servicios`} />
-        <Stat label="Vencido" icon="ph-warning-circle" tone="bad" value={dinero(vencidas.reduce((a, f) => a + f.saldo, 0))} valueTone="bad" hint={`${vencidas.length} clientes con atraso`} />
-        <Stat label="Cobrado este mes" icon="ph-check-circle" tone="ok" value={dinero(cobradoMes)} hint="octubre" />
-        <Stat label="Tiempo de cobro" icon="ph-clock" tone="muted" value={`${diasCobro} días`} hint="del cierre al pago, en promedio" />
-      </Stats>
-
-      <Toolbar end={`${visibles.length} de ${filas.length}`}>
-        <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar cliente, folio, obra o factura…" aria-label="Buscar cobro" />
-        <Segmented<Filtro>
-          value={filtro}
-          onChange={setFiltro}
-          ariaLabel="Filtrar por estado"
-          items={[
-            { key: 'todas', label: 'Todas', count: filas.length },
-            { key: 'por-cobrar', label: 'Por cobrar', count: filas.filter((f) => f.estado === 'por-cobrar' || f.estado === 'sin-factura').length },
-            { key: 'vencidas', label: 'Vencidas', count: vencidas.length },
-            { key: 'cobradas', label: 'Cobradas', count: cobradas.length },
-          ]}
-        />
-      </Toolbar>
+      {!cobradas ? (
+        <Stats>
+          <Stat label="Por cobrar" icon="ph-hourglass-medium" tone="info" value={dinero(datos.porCobrar)} hint={`${datos.cuentas.length} servicio${datos.cuentas.length === 1 ? '' : 's'}`} />
+          <Stat label="Vencido" icon="ph-warning-circle" tone={datos.vencido > 0 ? 'bad' : 'muted'} valueTone={datos.vencido > 0 ? 'bad' : undefined} value={dinero(datos.vencido)} hint={vencidas.length ? `${vencidas.length} con atraso` : 'nadie atrasado'} />
+        </Stats>
+      ) : null}
 
       <Panel flush clip>
         <div className="adm-thead cb-row cb-thead">
-          <div>Servicio</div><div>Cliente</div><div className="cb-num">Total</div><div className="cb-num">Saldo</div><div>Vence</div><div>Estado</div>
+          <div>Servicio</div><div>Cliente</div><div className="cb-num">{cobradas ? 'Total' : 'Saldo'}</div><div>{cobradas ? 'Pagó' : 'Vence'}</div><div />
         </div>
-        {visibles.length === 0 ? (
-          <EmptyState icon="ph-receipt" title="Nada por aquí" sub="Prueba con otro filtro o búsqueda." />
-        ) : visibles.map((f) => {
-          const s = servicioDe(f.folio);
-          const dias = diasEntre(HOY, f.vence);
-          const e = ESTADO[f.estado];
-          return (
-            <div
-              key={f.folio}
-              className="adm-trow cb-row"
-              role="button"
-              tabIndex={0}
-              onClick={() => setViendo(f)}
-              onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); setViendo(f); } }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div className="adm-mono" style={{ fontSize: 13, fontWeight: 600 }}>{f.folio}</div>
-                <div className="adm-cell-sub adm-ellipsis">{s.detalle}</div>
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div className="adm-cell-title adm-ellipsis">{s.cliente}</div>
-                <div className="adm-cell-sub adm-ellipsis">{s.obra} · {s.municipio}</div>
-              </div>
-              <div className="cb-num" style={{ fontSize: 13.5 }}>{dinero(f.total)}</div>
-              <div className="cb-num" style={{ fontSize: 13.5, fontWeight: 600, color: f.saldo === 0 ? 'var(--adm-faint)' : f.estado === 'vencida' ? 'var(--adm-bad)' : 'var(--adm-text)' }}>
-                {f.saldo === 0 ? '—' : dinero(f.saldo)}
-              </div>
-              <div style={{ fontSize: 13 }}>
-                {f.estado === 'cobrada' ? (
-                  <span style={{ color: 'var(--adm-faint)' }}>Pagó el {fechaCorta(f.movimientos[f.movimientos.length - 1].fecha)}</span>
-                ) : (
-                  <>
-                    <div>{fechaCorta(f.vence)}</div>
-                    <div className="adm-cell-sub" style={dias < 0 ? { color: 'var(--adm-bad)' } : undefined}>
-                      {dias < 0 ? `hace ${-dias} ${-dias === 1 ? 'día' : 'días'}` : dias === 0 ? 'vence hoy' : `en ${dias} días`}
-                    </div>
-                  </>
-                )}
-              </div>
-              <div><StatusText tone={e.tono}>{e.texto}</StatusText></div>
+        {datos.cuentas.length === 0 ? (
+          <EmptyState icon="ph-check-circle" title={cobradas ? 'Nada cobrado en 60 días' : 'No hay nada por cobrar'} sub={cobradas ? undefined : 'Cuando se cierre un servicio, su cobro aparece aquí solo.'} />
+        ) : datos.cuentas.map((c) => (
+          <div key={c.quoteId} className="adm-trow cb-row" role="button" tabIndex={0} onClick={() => setAbierta(c)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setAbierta(c); } }} style={{ cursor: 'pointer' }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="adm-mono" style={{ fontSize: 13, fontWeight: 600 }}>{c.folio}</div>
+              <div className="adm-cell-sub adm-ellipsis">{c.servicio ?? '—'}</div>
             </div>
-          );
-        })}
+            <div style={{ minWidth: 0 }}>
+              <div className="adm-cell-title adm-ellipsis">{c.cliente}</div>
+              <div className="adm-cell-sub adm-ellipsis">{c.creditoDias ? `Crédito a ${c.creditoDias} días` : 'Paga al cerrar'}{c.facturaCliente ? ` · Factura ${c.facturaCliente}` : ''}</div>
+            </div>
+            <div className="cb-num" style={{ fontSize: 13.5, fontWeight: 600, color: !cobradas && c.diasVencida > 0 ? 'var(--adm-bad)' : 'var(--adm-text)' }}>{dinero(cobradas ? c.total : c.saldo)}</div>
+            <div style={{ fontSize: 13 }}>
+              {cobradas ? (
+                <span style={{ color: 'var(--adm-muted)' }}>{c.movimientos.length ? fechaCorta(c.movimientos[c.movimientos.length - 1].fecha) : '—'}</span>
+              ) : (
+                <>
+                  <div>{fechaCorta(c.vence)}</div>
+                  <div className="adm-cell-sub" style={c.diasVencida > 0 ? { color: 'var(--adm-bad)' } : undefined}>{c.diasVencida > 0 ? `vencida ${cuando(c.diasVencida)}` : `vence ${cuando(c.diasVencida)}`}</div>
+                </>
+              )}
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              {cobradas ? <StatusText tone="ok">Cobrada</StatusText> : <Btn size="sm" variant="primary" onClick={(e) => { e.stopPropagation(); setAbierta(c); }}>Cobrado</Btn>}
+            </div>
+          </div>
+        ))}
       </Panel>
 
-      {viendo ? <DetalleCobro f={viendo} onCerrar={() => setViendo(null)} /> : null}
+      {abierta ? <Cuenta c={abierta} onCerrar={() => setAbierta(null)} /> : null}
     </div>
   );
 }
 
-function DetalleCobro({ f, onCerrar }: { f: Fila; onCerrar: () => void }) {
-  const s = servicioDe(f.folio);
-  const subtotal = s.precioCliente;
-  const e = ESTADO[f.estado];
-  const fila = (t: string, v: ReactNode, fuerte?: boolean) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '7px 0', borderTop: '1px solid var(--adm-border)', fontSize: 13.5 }}>
-      <span style={{ color: 'var(--adm-muted)' }}>{t}</span>
-      <span className="adm-num" style={fuerte ? { fontWeight: 600, color: 'var(--adm-text)' } : { color: 'var(--adm-text-2)' }}>{v}</span>
+function Cuenta({ c, onCerrar }: { c: CuentaCobro; onCerrar: () => void }) {
+  const router = useRouter();
+  const [monto, setMonto] = useState(String(c.saldo));
+  const [forma, setForma] = useState(FORMAS[0]);
+  const [fecha, setFecha] = useState(hoyLocal());
+  const [referencia, setReferencia] = useState('');
+  const [factura, setFactura] = useState(c.facturaCliente ?? '');
+  const [credito, setCredito] = useState(c.creditoDias);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function guardar(conCobro: boolean) {
+    setBusy(true); setError(null);
+    const cambios: Record<string, unknown> = {};
+    if (factura.trim() !== (c.facturaCliente ?? '')) cambios.facturaCliente = factura.trim();
+    if (credito !== c.creditoDias && c.clienteId) cambios.creditoDias = credito;
+    let fallo = Object.keys(cambios).length ? await enviar(`/api/admin/dinero/cobranza/${c.quoteId}`, 'PATCH', cambios) : null;
+    if (!fallo && conCobro) {
+      const n = Number(monto);
+      fallo = await enviar(`/api/admin/dinero/cobranza/${c.quoteId}/cobro`, 'POST', {
+        ...(Number.isFinite(n) && n > 0 ? { monto: n } : {}), forma, fecha, ...(referencia.trim() ? { referencia: referencia.trim() } : {}),
+      });
+    }
+    setBusy(false);
+    if (fallo) { setError(fallo); return; }
+    mostrarResultado(conCobro ? (Number(monto) >= c.saldo ? `${c.folio} quedó cobrado` : `Se registró el pago de ${c.folio}`) : 'Guardado', 'ok');
+    onCerrar();
+    router.refresh();
+  }
+
+  const fila = (t: string, v: string) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '6px 0', borderTop: '1px solid var(--adm-border)', fontSize: 13.5 }}>
+      <span style={{ color: 'var(--adm-muted)' }}>{t}</span><span className="adm-num" style={{ color: 'var(--adm-text)' }}>{v}</span>
     </div>
   );
+
   return (
     <Modal
       abierto
-      titulo={`${f.folio} · ${s.cliente}`}
-      subtitulo={s.detalle}
+      titulo={`${c.folio} · ${c.cliente}`}
+      subtitulo={c.servicio ?? undefined}
       onCerrar={onCerrar}
-      ancho={680}
+      ancho={560}
       pie={
         <>
-          {f.estado !== 'cobrada' ? <Btn variant="ghost" icon="ph-paper-plane-tilt" onClick={() => accionDeDiseno('Enviar recordatorio de pago')}>Enviar recordatorio</Btn> : null}
-          {f.factura ? <Btn icon="ph-file-pdf" onClick={() => accionDeDiseno(`Ver factura ${f.factura}`)}>Ver factura</Btn> : <Btn icon="ph-upload-simple" onClick={() => accionDeDiseno('Subir factura')}>Subir factura</Btn>}
-          {f.saldo > 0 ? <Btn variant="primary" icon="ph-plus" onClick={() => accionDeDiseno('Registrar cobro')}>Registrar cobro</Btn> : null}
+          <Btn variant="ghost" onClick={onCerrar}>Cancelar</Btn>
+          {c.cobradoAt ? <Btn disabled={busy} onClick={() => void guardar(false)}>Guardar</Btn> : (
+            <>
+              <Btn disabled={busy} onClick={() => void guardar(false)}>Solo guardar</Btn>
+              <Btn variant="primary" disabled={busy} onClick={() => void guardar(true)}>{busy ? 'Guardando…' : 'Registrar cobro'}</Btn>
+            </>
+          )}
         </>
       }
     >
-      <div style={{ display: 'grid', gap: 22 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <StatusText tone={e.tono}>{e.texto}</StatusText>
-          {f.factura ? <Chip>Factura {f.factura}</Chip> : <Chip tone="warn">Sin factura</Chip>}
-          <Chip>{s.linea}</Chip>
+      <div style={{ display: 'grid', gap: 18 }}>
+        {error ? <Note tone="bad">{error}</Note> : null}
+        {!c.cobradoAt ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <FormField label="Cuánto pagó"><input className="adm-input" inputMode="decimal" value={monto} onChange={(e) => setMonto(e.target.value)} aria-label="Monto cobrado" /></FormField>
+            <FormField label="Cómo"><select className="adm-input" value={forma} onChange={(e) => setForma(e.target.value)} aria-label="Forma de pago">{FORMAS.map((f) => <option key={f}>{f}</option>)}</select></FormField>
+            <FormField label="Cuándo"><input className="adm-input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} aria-label="Fecha del pago" /></FormField>
+            <FormField label="Referencia" help="Opcional"><input className="adm-input" value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="SPEI, cheque…" aria-label="Referencia" /></FormField>
+          </div>
+        ) : null}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+          <FormField label="Folio de la factura" help="La hace el contador; aquí solo se anota."><input className="adm-input" value={factura} onChange={(e) => setFactura(e.target.value)} placeholder="A-1047" aria-label="Folio de la factura" /></FormField>
+          {c.clienteId ? (
+            <FormField label="Cómo paga este cliente" help="Vale para sus demás servicios.">
+              <select className="adm-input" value={credito} onChange={(e) => setCredito(Number(e.target.value))} aria-label="Crédito del cliente">{CREDITOS.map((x) => <option key={x.dias} value={x.dias}>{x.texto}</option>)}</select>
+            </FormField>
+          ) : null}
         </div>
-
         <section>
-          <h3 style={H3}>Servicio</h3>
-          {fila('Obra', `${s.obra}, ${s.municipio}`)}
-          {fila('Lo hizo', s.aliado)}
-          {fila('Cerrado el', fechaCorta(s.cerrado))}
-          {fila('Condiciones', f.condiciones)}
-          {fila('Vence', fechaCorta(f.vence))}
-        </section>
-
-        <section>
-          <h3 style={H3}>Montos</h3>
-          {fila('Subtotal', dinero(subtotal))}
-          {fila(`IVA ${Math.round(IVA * 100)}%`, dinero(f.total - subtotal))}
-          {fila('Total', dinero(f.total), true)}
-          {fila('Cobrado', dinero(f.cobrado))}
-          {fila('Saldo', f.saldo === 0 ? 'Liquidado' : dinero(f.saldo), true)}
-        </section>
-
-        <section>
-          <h3 style={H3}>Pagos recibidos</h3>
-          {f.movimientos.length === 0 ? (
-            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--adm-faint)' }}>Todavía no hay pagos registrados.</p>
-          ) : f.movimientos.map((m) => (
-            <div key={m.fecha + m.concepto} style={{ display: 'grid', gridTemplateColumns: '70px minmax(0,1fr) auto', gap: 12, alignItems: 'center', padding: '8px 0', borderTop: '1px solid var(--adm-border)', fontSize: 13.5 }}>
-              <span style={{ color: 'var(--adm-muted)' }}>{fechaCorta(m.fecha)}</span>
-              <span>{m.concepto} <span style={{ color: 'var(--adm-faint)' }}>· {m.forma}</span></span>
-              <span className="adm-num" style={{ fontWeight: 600 }}>{dinero(m.monto)}</span>
-            </div>
-          ))}
+          {fila('Total con IVA', dinero(c.total))}
+          {fila('Ya pagó', dinero(c.cobrado))}
+          {fila('Saldo', c.saldo > 0 ? dinero(c.saldo) : 'Liquidado')}
+          {fila('Vence', fechaCorta(c.vence))}
+          {c.contacto.telefono || c.contacto.correo ? fila('Contacto', [c.contacto.nombre, c.contacto.telefono, c.contacto.correo].filter(Boolean).join(' · ')) : null}
+          {c.movimientos.map((m, i) => <div key={i}>{fila(`Pago ${fechaCorta(m.fecha)}`, `${dinero(m.monto)} · ${m.forma ?? ''}${m.referencia ? ` · ${m.referencia}` : ''}`)}</div>)}
         </section>
       </div>
     </Modal>
   );
 }
-
-const H3 = { margin: '0 0 6px', fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' } as const;

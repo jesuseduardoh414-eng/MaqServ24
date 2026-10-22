@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ShDatePicker } from '@maqserv/ui';
+import { ShDatePicker, VistaDocumento, type DatosDocumento } from '@maqserv/ui';
 import Link from 'next/link';
 import type { AuthUser, ProductCard, QuoteDetail } from '@maqserv/types';
 import type { RequestForm } from '@maqserv/config';
@@ -91,6 +91,7 @@ export function QuoteForm({
   formulario,
   categoriaServicio,
   user,
+  logoDocumento,
   labels,
 }: {
   product: ProductCard | null;
@@ -104,6 +105,8 @@ export function QuoteForm({
   formulario?: RequestForm | null;
   categoriaServicio?: string | null;
   user: AuthUser;
+  /** Logo para fondo claro: el documento de la vista previa va en papel blanco. */
+  logoDocumento?: string | null;
   labels: {
     name: string;
     email: string;
@@ -136,6 +139,23 @@ export function QuoteForm({
    */
   const [obra, setObra] = useState<ObraCliente | null>(null);
   const [direccion, setDireccion] = useState(user?.address ?? '');
+
+  /*
+   * LO QUE YA SE SABE NO SE VUELVE A PREGUNTAR (2026-10-22). Si viene de un
+   * producto (Block de concreto 6"), su opción en las preguntas de la línea
+   * (Material: Block 6") se elige sola; y si la línea pregunta su propia
+   * cantidad (piezas, m³…), no se pide además la del paso 1, que no lleva unidad.
+   */
+  const cantidadAparte = Boolean(product && formulario?.fields.some((c) => c.key === 'cantidad'));
+  useEffect(() => {
+    if (!product || !formulario) return;
+    const palabras = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    const delProducto = new Set(palabras(product.name));
+    for (const campo of formulario.fields) {
+      const opcion = campo.type === 'opcion' ? campo.options?.find((o) => palabras(o).every((w) => delProducto.has(w))) : undefined;
+      if (opcion) setReqs((r) => (r[campo.key] ? r : { ...r, [campo.key]: opcion }));
+    }
+  }, [product, formulario]);
 
   /**
    * ASISTENTE POR ETAPAS (manual, 23 / COTIZACIÓN).
@@ -251,6 +271,93 @@ export function QuoteForm({
 
   const anyRental = product ? product.isRental : picked.some((i) => i.isRental);
 
+  /*
+   * "Destino de obra" y "Dirección de entrega" eran la misma pregunta dos veces
+   * (2026-10-22): ahora la contesta la dirección, que se llena sola al elegir
+   * la obra. Solo se pregunta aparte cuando son dos lugares (origen y destino).
+   */
+  const pideUbicacion = Boolean(formulario?.fields.some((c) => c.key === 'obra_ubicacion' && c.required));
+  const conUbicacion = (r: Record<string, string>) =>
+    pideUbicacion && !r.obra_ubicacion?.trim() && direccion.trim() ? { ...r, obra_ubicacion: direccion.trim() } : r;
+
+  /** Lo que se manda a la API: igual para la vista previa y para el envío. */
+  function cuerpoSolicitud(form: FormData) {
+    const respuestas = conUbicacion(reqs);
+    return {
+      items,
+      ...(servicio ? { service: servicio } : {}),
+      customer: {
+        name: String(form.get('name') ?? ''),
+        email: String(form.get('email') ?? ''),
+        phone: String(form.get('phone') ?? ''),
+        company: String(form.get('company') ?? '') || undefined,
+        region: String(form.get('region') ?? '') || undefined,
+        industry: String(form.get('industry') ?? '') || undefined,
+      },
+      address: String(form.get('address') ?? '') || undefined,
+      ...(obra ? { siteId: obra.id } : {}),
+      // El resumen legible se antepone a los comentarios para que quien
+      // cotiza lo lea sin depender de una pantalla nueva; el JSON va aparte.
+      comments: [
+        formulario ? requestAnswersToText(formulario, respuestas) : '',
+        String(form.get('comments') ?? ''),
+      ].filter(Boolean).join('\n\n') || undefined,
+      ...(categoriaServicio ? { serviceCategory: categoriaServicio } : {}),
+      ...(Object.keys(respuestas).length ? { requirements: respuestas } : {}),
+      acquisitionOption: anyRental ? 'renta' : 'compra',
+    };
+  }
+
+  /**
+   * LA SOLICITUD COMO DOCUMENTO (2026-10-19). "En lugar de ese resumen debe
+   * aparecer el resumen en el documento; ya después en el admin se agrega lo
+   * demás." Al llegar a Confirmación se le pide a la API el mismo documento
+   * que verá en Mis cotizaciones, sin precios. Si no llega, queda la lista de
+   * siempre: la vista previa no puede impedir que envíe.
+   */
+  const [vista, setVista] = useState<{ estado: 'cargando' | 'listo' | 'error'; datos?: DatosDocumento }>({ estado: 'cargando' });
+  const enConfirmacion = claveDe(paso) === 'confirmar';
+  useEffect(() => {
+    if (!enConfirmacion || !formRef.current) return;
+    let vivo = true;
+    setVista({ estado: 'cargando' });
+    fetch('/api/cotizar/vista-previa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpoSolicitud(new FormData(formRef.current))),
+    })
+      .then(async (r) => {
+        const d = await r.json().catch(() => null);
+        if (!vivo) return;
+        if (!r.ok || !d?.documento) { setVista({ estado: 'error' }); return; }
+        setVista({
+          estado: 'listo',
+          datos: {
+            titulo: 'Solicitud de cotización',
+            folio: d.folio,
+            fecha: d.documento.emitida,
+            cliente: d.cliente,
+            obra: d.obra ?? '',
+            atencion: d.atencion ?? '',
+            municipio: d.municipio ?? '',
+            notas: d.notas ?? '',
+            detalle: d.detalle ?? [],
+            empresa: d.documento.empresa,
+            firma: d.documento.firma,
+            saludo: d.documento.saludo,
+            calc: d.documento.calc,
+            mostrarPrecios: false,
+            logo: logoDocumento ?? null,
+          },
+        });
+      })
+      .catch(() => { if (vivo) setVista({ estado: 'error' }); });
+    return () => { vivo = false; };
+    // Se pide al ENTRAR a Confirmación: ahí los campos ya no cambian (están
+    // ocultos), y volver a un paso para corregir y regresar la vuelve a pedir.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enConfirmacion]);
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     // Con `servicio` (pipas, triturados) no hay equipo que agregar: lo que
@@ -262,29 +369,7 @@ export function QuoteForm({
     const res = await fetch('/api/cotizar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items,
-        ...(servicio ? { service: servicio } : {}),
-        customer: {
-          name: String(form.get('name') ?? ''),
-          email: String(form.get('email') ?? ''),
-          phone: String(form.get('phone') ?? ''),
-          company: String(form.get('company') ?? '') || undefined,
-          region: String(form.get('region') ?? '') || undefined,
-          industry: String(form.get('industry') ?? '') || undefined,
-        },
-        address: String(form.get('address') ?? '') || undefined,
-        ...(obra ? { siteId: obra.id } : {}),
-        // El resumen legible se antepone a los comentarios para que quien
-        // cotiza lo lea sin depender de una pantalla nueva; el JSON va aparte.
-        comments: [
-          formulario ? requestAnswersToText(formulario, reqs) : '',
-          String(form.get('comments') ?? ''),
-        ].filter(Boolean).join('\n\n') || undefined,
-        ...(categoriaServicio ? { serviceCategory: categoriaServicio } : {}),
-        ...(Object.keys(reqs).length ? { requirements: reqs } : {}),
-        acquisitionOption: anyRental ? 'renta' : 'compra',
-      }),
+      body: JSON.stringify(cuerpoSolicitud(form)),
     });
     const data = await res.json().catch(() => null);
     setLoading(false);
@@ -339,14 +424,16 @@ export function QuoteForm({
               <img src={product.image} alt="" className="qf-thumb" />
             ) : <span className="qf-thumb" aria-hidden />}
             <strong className="qf-prod-nom">{product.name}</strong>
-            <label className="qf-num">
-              {labels.qty}
-              <input className="ms-input" type="number" min={1} max={999} value={qty} onChange={(e) => setQty(Number(e.target.value) || 1)} />
-            </label>
+            {cantidadAparte ? null : (
+              <label className="qf-num">
+                {labels.qty}
+                <CampoNumero valor={qty} max={999} onCambio={setQty} />
+              </label>
+            )}
             {product.isRental ? (
               <label className="qf-num">
                 {labels.days}
-                <input className="ms-input" type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value) || 1)} />
+                <CampoNumero valor={days} max={365} onCambio={setDays} />
               </label>
             ) : null}
           </div>
@@ -388,12 +475,12 @@ export function QuoteForm({
                   </span>
                   <label className="qf-num">
                     {labels.qty}
-                    <input className="ms-input" type="number" min={1} max={999} value={i.qty} onChange={(e) => patchPicked(i.productId, { qty: Number(e.target.value) || 1 })} />
+                    <CampoNumero valor={i.qty} max={999} onCambio={(n) => patchPicked(i.productId, { qty: n })} />
                   </label>
                   {i.isRental ? (
                     <label className="qf-num">
                       {labels.days}
-                      <input className="ms-input" type="number" min={1} max={365} value={i.days} onChange={(e) => patchPicked(i.productId, { days: Number(e.target.value) || 1 })} />
+                      <CampoNumero valor={i.days} max={365} onCambio={(n) => patchPicked(i.productId, { days: n })} />
                     </label>
                   ) : null}
                   <button type="button" onClick={() => removePicked(i.productId)} aria-label={`Quitar ${i.name}`} className="qf-quitar"><Icon name="x" size={16} /></button>
@@ -447,7 +534,7 @@ export function QuoteForm({
             form={formulario}
             values={reqs}
             onChange={(k, v) => setReqs((r) => ({ ...r, [k]: v }))}
-            only={CLAVES_UBICACION}
+            only={CLAVES_UBICACION.filter((k) => k !== 'obra_ubicacion')}
             titulo="¿Dónde se necesita?"
             intro="Con esto calculamos el traslado y vemos qué aliados cubren esa zona."
           />
@@ -464,7 +551,7 @@ export function QuoteForm({
         />
         <section className="ms-panel">
           <div className="ms-field">
-            <label htmlFor="qf-address" className="ms-label">Dirección de entrega</label>
+            <label htmlFor="qf-address" className="ms-label">Dirección de entrega{pideUbicacion ? <span className="ms-req" aria-hidden>*</span> : null}</label>
             {/* Controlado SOLO este campo: elegir una obra tiene que poder
                 rellenarlo, y un defaultValue no se vuelve a leer despues del
                 primer render. Los demas siguen saliendo de FormData. */}
@@ -473,6 +560,7 @@ export function QuoteForm({
               className="ms-input"
               name="address"
               value={direccion}
+              required={pideUbicacion}
               onChange={(e) => setDireccion(e.target.value)}
               placeholder={labels.address}
             />
@@ -573,16 +661,24 @@ export function QuoteForm({
         <section className="ms-panel">
           <div className="qf-panel-h">
             <h2 className="ms-h2">Revisa antes de enviar</h2>
-            <p className="ms-h2-desc">Si algo no cuadra, toca cualquier paso de arriba para corregirlo.</p>
+            <p className="ms-h2-desc">
+              Así nos llega tu solicitud. Los precios los agregamos al revisarla. Si algo no cuadra, toca cualquier paso de arriba para corregirlo.
+            </p>
           </div>
-          <dl className="qf-kv">
-            <Resumen etiqueta="Servicio" valor={servicio ?? (product ? product.name : `${picked.length} equipo(s)`)} />
-            {formulario
-              ? formulario.fields
-                  .filter((f) => (reqs[f.key] ?? '').trim())
-                  .map((f) => <Resumen key={f.key} etiqueta={f.label} valor={reqs[f.key]} />)
-              : null}
-          </dl>
+          {vista.estado === 'listo' && vista.datos ? (
+            <VistaDocumento datos={vista.datos} />
+          ) : vista.estado === 'cargando' ? (
+            <p className="ms-hint" role="status">Armando el documento…</p>
+          ) : (
+            <dl className="qf-kv">
+              <Resumen etiqueta="Servicio" valor={servicio ?? (product ? product.name : `${picked.length} equipo(s)`)} />
+              {formulario
+                ? formulario.fields
+                    .filter((f) => (reqs[f.key] ?? '').trim())
+                    .map((f) => <Resumen key={f.key} etiqueta={f.label} valor={reqs[f.key]} />)
+                : null}
+            </dl>
+          )}
         </section>
 
         {error ? (
@@ -618,6 +714,39 @@ export function QuoteForm({
         </button>
       )}
     </form>
+  );
+}
+
+/**
+ * CANTIDAD Y DÍAS (2026-10-19). Antes eran `type="number"` controlados y lo
+ * borrado se volvía 1 al instante: no había forma de borrar y escribir otro
+ * número. Además las flechas de subir y bajar solo estorbaban (y la rueda del
+ * ratón cambiaba la cantidad sin querer al recorrer la página).
+ *
+ * Ahora es texto numérico: se puede dejar vacío mientras se escribe, solo
+ * acepta dígitos, y cada número válido (1 a `max`) se pasa de inmediato. Si
+ * sale del campo vacío o en 0, regresa al último número válido.
+ */
+function CampoNumero({ valor, max, onCambio }: { valor: number; max: number; onCambio: (n: number) => void }) {
+  const [texto, setTexto] = useState(String(valor));
+  // Si el número cambia desde fuera (agregar otra vez el mismo equipo suma 1).
+  useEffect(() => setTexto(String(valor)), [valor]);
+  return (
+    <input
+      className="ms-input"
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      maxLength={String(max).length}
+      value={texto}
+      onChange={(e) => {
+        const limpio = e.target.value.replace(/\D/g, '');
+        setTexto(limpio);
+        const n = Number(limpio);
+        if (limpio && n >= 1) onCambio(Math.min(max, n));
+      }}
+      onBlur={() => setTexto(String(valor))}
+    />
   );
 }
 

@@ -20,7 +20,7 @@ export interface OpcionSelect {
  *
  *  - `value` + `onChange(valor)` para el uso controlado (filtros, formularios
  *    en estado), o `defaultValue` + `name` para formularios que leen FormData.
- *  - `''` es un valor válido ("Todos", "Sin asignar", "equipo propio"). Radix
+ *  - `''` es un valor válido ("Todos", "Sin asignar", "Sin aliado"). Radix
  *    no admite `value=""` en un item, así que se traduce a un centinela al
  *    entrar y se destraduce al salir; hacia afuera siempre viaja `''`.
  *  - `size="sm"` para filtros y celdas de tabla; el normal es de formulario.
@@ -88,6 +88,10 @@ export function AdminSelect({
   const valorRadix = actual === '' && !hayOpcionVacia ? '' : aRadix(actual);
 
   function cambiar(v: string) {
+    // Un item de Radix nunca vale '': ese '' es el <select> oculto de Radix
+    // vaciándose cuando el valor cambia por código (2026-10-22: el tipo recién
+    // creado y el material que se elige solo se borraban). No es del usuario.
+    if (v === '') return;
     const real = v === VACIO ? '' : v;
     if (!controlado) setInterno(real);
     onChange?.(real);

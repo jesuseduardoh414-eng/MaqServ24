@@ -41,6 +41,10 @@ import { diasQueOcupa } from './recomendador.service';
  *     único equipo de esa línea).
  *   · Si un aliado rechaza, sus equipos se sueltan. Si acepta OTRO aliado, se
  *     aparta lo de quien aceptó y se suelta lo del que no fue.
+ *   · Lo que no tiene aliado no se aparta nunca (2026-10-21): es la ficha del
+ *     TIPO, la que lleva el precio, no una máquina. MAQSER24 es solo la
+ *     plataforma; las máquinas del grupo del dueño van a nombre de su aliado
+ *     como las de cualquier otro.
  *
  * Se aparta desde la autorización y no desde la aceptación, a propósito: entre
  * una y otra pueden pasar días, y dos clientes con el mismo precio en la mano
@@ -118,6 +122,33 @@ function renglonesDelCarrito(cartData: string | null): Renglon[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * LAS FICHAS DE TIPO QUE PIDE UNA SOLICITUD (2026-10-22, Fase 3).
+ *
+ * Salen de lo que haya: los renglones del cotizador (`requirements.productos`),
+ * lo que eligió en /cotizar (el carrito) o la máquina pedida. Una ficha cuenta
+ * tal cual; una máquina de aliado, por su tipo. Vacío = no se sabe el tipo, y
+ * todo sigue por línea como antes.
+ */
+export async function tiposDeLaSolicitud(q: { requirements: unknown; cart_data: string | null }): Promise<number[]> {
+  const req = (q.requirements ?? {}) as Record<string, unknown>;
+  const ids = new Set<number>();
+  if (Array.isArray(req.productos)) for (const x of req.productos) if (typeof x === 'number') ids.add(x);
+  if (typeof req.productId === 'number') ids.add(req.productId);
+  for (const r of renglonesDelCarrito(q.cart_data)) ids.add(r.productId);
+  if (ids.size === 0) return [];
+  const productos = await prisma.products.findMany({
+    where: { id: { in: [...ids] } },
+    select: { id: true, provider_id: true, tipo_id: true },
+  });
+  const tipos = new Set<number>();
+  for (const p of productos) {
+    if (p.provider_id === null) tipos.add(p.id);
+    else if (p.tipo_id) tipos.add(p.tipo_id);
+  }
+  return [...tipos];
 }
 
 interface CotizacionReserva {
@@ -232,25 +263,38 @@ async function piezasDe(q: CotizacionReserva, asignaciones: Asignacion[]): Promi
   const vivos = new Set(asignaciones.filter((a) => a.state === 'propuesto' || a.state === 'aceptado').map((a) => a.provider_id));
   const descartados = new Set(asignaciones.map((a) => a.provider_id).filter((p) => !vivos.has(p)));
 
-  // Equipo propio de MAQSER24 (sin aliado): no depende de que nadie acepte.
-  const propias = pedidas.filter((p) => dueno(p.productId) === null);
+  // Sin aliado es la ficha del tipo, no una máquina: no se aparta (ver arriba).
   const deAliado = pedidas.filter((p) => dueno(p.productId) !== null);
 
   if (aceptados.length === 0) {
-    return [...propias, ...deAliado.filter((p) => !descartados.has(dueno(p.productId) as number))];
+    return deAliado.filter((p) => !descartados.has(dueno(p.productId) as number));
   }
 
   // Ya hay quien atiende: se aparta lo SUYO.
-  const piezas = [...propias, ...deAliado.filter((p) => aceptados.includes(dueno(p.productId) as number))];
+  const piezas = deAliado.filter((p) => aceptados.includes(dueno(p.productId) as number));
   const totalPedido = deAliado.reduce((s, p) => s + p.unidades, 0);
   const sinPieza = aceptados.filter((aliado) => !piezas.some((p) => dueno(p.productId) === aliado));
   const linea = sinPieza.length && q.service_category
     ? await prisma.categories.findUnique({ where: { cat_slug: q.service_category }, select: { id: true } })
     : null;
+  const tipos = sinPieza.length ? await tiposDeLaSolicitud(q) : [];
   for (const aliado of sinPieza) {
-    // Lo que trae ese aliado: el equipo suyo ligado al renglón del tabulador o,
-    // si no, su único equipo publicado en esa línea. Con varios no se adivina.
-    let elegido = ligados.find((id) => dueno(id) === aliado && prod.get(id)?.status === 1) ?? null;
+    // Lo que trae ese aliado: su máquina del TIPO pedido (2026-10-22); si no,
+    // la suya ligada al renglón del tabulador; si no, su único equipo
+    // publicado en esa línea. Con varios sin tipo no se adivina.
+    let elegido: number | null = null;
+    if (tipos.length) {
+      const delTipo = await prisma.products.findFirst({
+        where: { provider_id: aliado, status: 1, tipo_id: { in: tipos } },
+        select: { id: true, provider_id: true, is_rental: true, status: true },
+        orderBy: { id: 'asc' },
+      });
+      if (delTipo) {
+        elegido = delTipo.id;
+        prod.set(delTipo.id, delTipo);
+      }
+    }
+    elegido = elegido ?? ligados.find((id) => dueno(id) === aliado && prod.get(id)?.status === 1) ?? null;
     if (!elegido && linea) {
       const suyos = await prisma.products.findMany({
         where: { provider_id: aliado, status: 1, category_id: linea.id },

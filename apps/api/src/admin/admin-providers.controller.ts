@@ -25,7 +25,7 @@ import { zCorreo, zTelefono } from '../common/campos';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { QuoterService } from '../quoter/quoter.service';
 import { registrarAccion } from './audit';
-import { estadoDocumentos, estaVerificado, mesesEnRed, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
+import { estadoDocumentos, estaVerificado, mesesEnRed, reemplazados, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
@@ -220,6 +220,8 @@ export class AdminProvidersController {
     });
 
     return avisos
+      // Si lo que vencía ya se renovó, no queda nada que avisar de ese aliado.
+      .filter((a) => a.documentos.length > 0)
       .sort((a, b) => urgencia(b) - urgencia(a))
       .map((a) => ({
         ...a,
@@ -235,7 +237,7 @@ export class AdminProvidersController {
   async list() {
     const provs = await prisma.providers.findMany({
       orderBy: [{ status: 'desc' }, { name: 'asc' }],
-      include: { provider_documents: { select: { expires_at: true } } },
+      include: { provider_documents: { select: { id: true, kind: true, name: true, expires_at: true } } },
     });
 
     /**
@@ -251,12 +253,17 @@ export class AdminProvidersController {
         select: {
           id: true, name: true, Marca: true, category_id: true, attributes: true, photo: true, status: true,
           stock: true, location: true, availability_confirmed_at: true, provider_id: true,
-          is_rental: true, price_unit: true,
+          is_rental: true, price_unit: true, tipo_id: true,
         },
         orderBy: { name: 'asc' },
       }),
       prisma.categories.findMany({ select: { id: true, cat_slug: true, cat_name: true } }),
     ]);
+    // El nombre del tipo de cada máquina (2026-10-22): se ve en el expediente.
+    const idsTipo = [...new Set(productos.map((e) => e.tipo_id).filter((t): t is number => t != null))];
+    const tipoPorId = new Map(
+      idsTipo.length ? (await prisma.products.findMany({ where: { id: { in: idsTipo } }, select: { id: true, name: true } })).map((t) => [t.id, t.name]) : [],
+    );
     const catPorId = new Map(categorias.map((c) => [c.id, c]));
     const nombreDeSlug = new Map(categorias.map((c) => [c.cat_slug, c.cat_name]));
     const hoy = new Date();
@@ -273,6 +280,7 @@ export class AdminProvidersController {
         brand: e.Marca?.trim() || null,
         category: c?.cat_name ?? null,
         categorySlug: c?.cat_slug ?? null,
+        tipo: e.tipo_id != null ? tipoPorId.get(e.tipo_id) ?? null : null,
         rental: e.is_rental,
         // Capacidad, modelo, implementos… lo que la ficha técnica tenga lleno.
         specs: fichaDe(c?.cat_slug, (e.attributes ?? null) as Record<string, unknown> | null),
@@ -528,10 +536,14 @@ export class AdminProvidersController {
       where: { provider_id: id },
       orderBy: [{ expires_at: 'asc' }, { id: 'asc' }],
     });
+    // Los que ya se renovaron se quedan en el expediente (con su foto), pero
+    // marcados: ya no cuentan para el sello (ver `reemplazados`).
+    const fuera = reemplazados(docs);
     return docs.map((d) => ({
       id: d.id,
       kind: d.kind,
       name: d.name,
+      reemplazado: fuera.has(d),
       file: d.file,
       // La foto que subió el aliado desde su portal, lista para abrirse: es lo
       // que se revisa antes de subirlo a "validado".

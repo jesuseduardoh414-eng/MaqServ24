@@ -346,8 +346,9 @@ Ya no existen `SUPABASE_*` ni `DIRECT_URL`: si las ves en Render, no las copies.
 Cuatro cosas que, si faltan, rompen de formas que cuesta diagnosticar:
 
 - **`CORS_ORIGINS`** — la API **no arranca** sin esto en producción. Es a propósito.
-- **`TASKS_SECRET`** — sin él las rutas `/tareas/*` **no existen** (403). Las tareas
-  diarias no corren y quedan pedidos apartando equipo sin pagar.
+- **`TASKS_SECRET`** — sin él las rutas `/tareas/*` **no existen** (403). Tiene que
+  ser **el mismo valor** que el secreto `TASKS_SECRET` del repositorio en GitHub
+  (ver fase 9); si no coinciden, ninguna tarea automática corre.
 - **`PROVIDER_LINK_SECRET`** — sin él, el portal del aliado devuelve 500 disfrazado
   de "este enlace ya no sirve".
 - **`REVALIDATE_SECRET`** — sin él, la web puede quedarse servida desde caché
@@ -369,33 +370,33 @@ Si AutoSSL falla, casi siempre es que el DNS todavía no propagó. Espera y repi
 
 ---
 
-## Fase 9 — Tareas programadas (el cron)
+## Fase 9 — Tareas programadas
 
-Sustituyen al workflow de GitHub que hoy dispara contra Render.
+**Las dispara GitHub, no cPanel** (actualizado 2026-10-22). Dos workflows del
+repositorio llaman a la API con la cabecera `x-tasks-secret`:
 
-cPanel → **Cron Jobs** → **Add New Cron Job**. Dos entradas:
+| Workflow | Cuándo | Ruta | Qué hace |
+|---|---|---|---|
+| *Tareas programadas* (`tareas-programadas.yml`) | Diario, 14:00 UTC (8:00 Monterrey) | `POST /tareas/recordatorios` | Revisa reservas, recordatorios a aliados (equipos sin confirmar, papeles por vencer) y "tu cotización está por vencer" al cliente |
+| *Avisos de salida* (`avisos-de-salida.yml`) | Cada 15 min | `POST /tareas/salidas` | Recordatorio del día anterior, hora de salir y retraso; seguimiento de ofertas sin contestar (recordatorio al aliado y oferta a los siguientes) |
 
-```
-0 8 * * * curl -s -X POST -H "x-tasks-secret: TU_TASKS_SECRET" https://api.maqserv24.com/tareas/ordenes-vencidas > /dev/null 2>&1
-5 8 * * * curl -s -X POST -H "x-tasks-secret: TU_TASKS_SECRET" https://api.maqserv24.com/tareas/recordatorios > /dev/null 2>&1
-```
+No hace falta ningún Cron Job en cPanel (la ruta `/tareas/ordenes-vencidas`
+ya no existe: el carrito se retiró el 2026-10-08).
 
-- La hora es la **del servidor**, no la tuya. Compruébala con `date` por SSH y
-  ajusta para que caiga a las 08:00 de Ciudad de México.
-- **Apaga el workflow viejo** (`.github/workflows/tareas-programadas.yml`,
-  Actions → *Tareas programadas* → `···` → *Disable workflow*) o las tareas
-  correrán dos veces al día.
+Lo único que hay que cuidar: el secreto **`TASKS_SECRET` del repositorio**
+(GitHub → Settings → Secrets and variables → Actions) y la variable
+**`TASKS_SECRET` de la app `api`** en cPanel tienen que ser **idénticos**.
 
-Para probar sin esperar: pega el mismo `curl` en SSH. Un `403 "Secreto inválido"`
-significa que el valor del cron y el de la app no coinciden; un `403 "no están
-habilitadas"` es que falta `TASKS_SECRET` en la app.
+Para comprobarlo: GitHub → Actions → *Avisos de salida* → **Run workflow**. Si
+falla con `403 "Secreto inválido"`, los dos valores no coinciden; un `403 "no
+están habilitadas"` es que falta `TASKS_SECRET` en la app. GitHub apaga solo
+los workflows programados si el repositorio pasa 60 días sin cambios.
 
 ---
 
 ## Fase 10 — Cerrar
 
-1. **MercadoPago** → panel → Webhooks: apunta la notificación a
-   `https://api.maqserv24.com/payments/mercadopago/webhook`.
+1. ~~MercadoPago~~: el pago en línea se retiró el 2026-10-08; no hay webhook que apuntar.
 2. Deja Vercel y Render encendidos unos días por si hay que volver atrás. Cuando
    todo esté probado, bórralos.
 

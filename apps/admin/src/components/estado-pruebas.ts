@@ -12,7 +12,7 @@
 export type EstadoPrueba = 'probado' | 'probando' | 'falta' | 'diseno';
 
 /** La ronda que se está probando ahora. */
-export const RONDA_ACTUAL: number | null = 5;
+export const RONDA_ACTUAL: number | null = 8;
 
 /**
  * En qué ronda se prueba cada pantalla, por su ruta (también vale para sus
@@ -52,8 +52,10 @@ const RONDA: Record<string, number | 'diseno' | 'probado'> = {
   '/blog': 'probado',
   '/temas': 'probado',
   '/resenas': 'probado',
-  '/administracion': 'diseno',
-  '/zonas': 'diseno',
+  // Cobranza, Pagos y Margen funcionan desde el 2026-10-22 (Fase A).
+  '/administracion': 7,
+  // Zonas funciona desde el 2026-10-22 (Fase B).
+  '/zonas': 7,
 };
 
 export const MARCAR_PRUEBAS = process.env.NODE_ENV === 'development' && RONDA_ACTUAL !== null;

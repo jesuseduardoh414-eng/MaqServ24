@@ -4,7 +4,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { mediaStorage, videoStorage } from '../common/media-multer';
-import { borrarSubidas } from '../common/media';
+import { borrarSubidas, copiarSubida } from '../common/media';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
@@ -28,6 +28,7 @@ function leerAtributos(v: string | undefined): object | null {
   }
 }
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
+import { QuoterService } from '../quoter/quoter.service';
 import { horarioSchema, tarifasDe } from '@maqserv/config';
 import { ESTADO_ELIMINADO } from '../catalog/ofertas';
 import { AJUSTE_MARGEN, guardarAjuste, margenAliadoPct } from '../common/platform-settings';
@@ -73,11 +74,16 @@ const productSchema = z.object({
   specs: z.string().max(20000).optional(), // JSON [{label,value}]
   /**
    * De qué proveedor (aliado) es el equipo. Llega como texto porque el alta es
-   * multipart: '' = sin proveedor (equipo propio de MAQSER24). Es lo que usa
+   * multipart: '' = sin proveedor (la ficha del tipo, no una máquina). Es lo que usa
    * el emparejamiento para saber qué equipos tiene cada aliado; antes solo se
    * podía poner por SQL (2026-09-23).
    */
   providerId: z.string().max(20).optional(),
+  /**
+   * La ficha del TIPO de esta máquina de aliado (2026-10-22). Texto por lo
+   * mismo que providerId: '' = sin tipo. Una ficha no lleva tipo.
+   */
+  tipoId: z.string().max(20).optional(),
   /** Dónde está el equipo (patio, ciudad). Lo captura el aliado al ofrecerlo. */
   location: z.string().max(160).optional(),
   /** Precio al público por unidad, JSON {"dia": 6500}. Al guardarlo, `cprice` = la tarifa de `priceUnit`. */
@@ -105,13 +111,28 @@ function leerHorario(v: string | undefined): object | null | undefined {
   } catch { throw new BadRequestException('Horario inválido'); }
 }
 
-/** '' → null (equipo propio); '12' → 12; cualquier otra cosa → error. */
+/** '' → null (ficha del tipo); '12' → 12; cualquier otra cosa → error. */
 function leerProveedor(v: string | undefined): number | null | undefined {
   if (v === undefined) return undefined;
   const t = v.trim();
   if (!t) return null;
   const n = Number(t);
   if (!Number.isInteger(n) || n <= 0) throw new BadRequestException('Proveedor inválido');
+  return n;
+}
+
+/**
+ * '' → null (sin tipo); '12' → 12. Tiene que ser una ficha (sin aliado) de la
+ * MISMA línea: una retro no puede ser "del tipo" de una pipa.
+ */
+async function leerTipo(v: string | undefined, categoriaId: number): Promise<number | null | undefined> {
+  if (v === undefined) return undefined;
+  const t = v.trim();
+  if (!t) return null;
+  const n = Number(t);
+  if (!Number.isInteger(n) || n <= 0) throw new BadRequestException('Tipo inválido');
+  const f = await prisma.products.findFirst({ where: { id: n, provider_id: null, category_id: categoriaId }, select: { id: true } });
+  if (!f) throw new BadRequestException('Ese tipo no es de la misma línea que el equipo.');
   return n;
 }
 
@@ -134,6 +155,8 @@ const categorySchema = z.object({
 @Controller('admin/catalog')
 @UseGuards(AdminGuard)
 export class AdminCatalogController {
+  constructor(private readonly quoter: QuoterService) {}
+
   // ---- Productos ----
 
   @Get('products')
@@ -209,6 +232,7 @@ export class AdminCatalogController {
       specs: (() => { try { const a = JSON.parse(p.specs ?? '[]'); return Array.isArray(a) ? a : []; } catch { return []; } })(),
       image: imageUrl(p.photo),
       providerId: p.provider_id ?? null,
+      tipoId: p.tipo_id ?? null,
       location: p.location ?? null,
       tarifas: tarifasDe(p.tarifas),
       costoAliado: tarifasDe(p.costo_aliado),
@@ -240,6 +264,64 @@ export class AdminCatalogController {
    * Va en el módulo de catálogo (y no en el de proveedores) para que quien
    * puede editar la ficha pueda asignarla sin tener el módulo entero de la red.
    */
+  /**
+   * Las fichas de TIPO (sin aliado) de todas las líneas, para el selector
+   * "Tipo" de una máquina de aliado (2026-10-22). El formulario filtra por la
+   * línea del equipo.
+   */
+  @Get('tipos')
+  async tipos() {
+    return prisma.products.findMany({
+      where: { provider_id: null, status: { in: [0, 1] } },
+      select: { id: true, name: true, category_id: true, status: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * CREAR UN TIPO desde la máquina de un aliado (2026-10-22): cuando el aliado
+   * eligió "Otro" porque su equipo no estaba en la lista. Nace la ficha sin
+   * aliado en la misma línea, sin precio y sin foto (la foto es del aliado: si
+   * su equipo se borra, se borraría con él), y la máquina queda ligada a ella.
+   * El precio se le pone después en la ficha ("Precio en el cotizador").
+   */
+  @Post('products/:id/crear-tipo')
+  async crearTipo(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+    const nombre = z.object({ nombre: z.string().trim().min(3, 'Escribe el nombre del tipo').max(190) }).safeParse(body ?? {});
+    if (!nombre.success) throw new BadRequestException(nombre.error.issues[0]?.message ?? 'Nombre inválido');
+    const u = await prisma.products.findUnique({
+      where: { id },
+      select: { id: true, provider_id: true, category_id: true, is_rental: true, price_unit: true, photo: true },
+    });
+    if (!u) throw new NotFoundException();
+    if (!u.provider_id) throw new BadRequestException('Solo una máquina de aliado se clasifica en un tipo.');
+    const repetido = await prisma.products.findFirst({
+      where: { provider_id: null, category_id: u.category_id, name: nombre.data.nombre, status: { in: [0, 1] } },
+      select: { id: true },
+    });
+    const ahora = new Date();
+    const ficha = repetido ?? await prisma.products.create({
+      data: {
+        user_id: 0,
+        provider_id: null,
+        category_id: u.category_id,
+        name: nombre.data.nombre,
+        description: nombre.data.nombre,
+        // La ficha nueva sale en el catálogo: que no salga sin foto (2026-10-22).
+        photo: await copiarSubida(u.photo, 'tipo'),
+        cprice: 0,
+        is_rental: u.is_rental,
+        price_unit: u.price_unit,
+        status: 1,
+        created_at: ahora,
+        updated_at: ahora,
+      },
+      select: { id: true },
+    });
+    await prisma.products.update({ where: { id }, data: { tipo_id: ficha.id, updated_at: ahora } });
+    return { id: ficha.id, nombre: nombre.data.nombre, yaExistia: !!repetido };
+  }
+
   @Get('providers')
   async providersForSelect() {
     return prisma.providers.findMany({
@@ -258,6 +340,8 @@ export class AdminCatalogController {
     const d = parsed.data;
     const providerId = leerProveedor(d.providerId) ?? null;
     await exigirProveedor(providerId);
+    // Solo una máquina de aliado lleva tipo; la ficha ES el tipo.
+    const tipoId = providerId ? (await leerTipo(d.tipoId, d.categoryId)) ?? null : null;
     const tarifas = leerTarifas(d.tarifas);
     const costo = leerTarifas(d.costoAliado);
     const horario = leerHorario(d.horario);
@@ -265,6 +349,7 @@ export class AdminCatalogController {
       data: {
         user_id: 0, // producto de la casa
         provider_id: providerId,
+        tipo_id: tipoId,
         category_id: d.categoryId,
         name: d.name,
         description: d.description,
@@ -311,6 +396,12 @@ export class AdminCatalogController {
     const d = parsed.data;
     const providerId = leerProveedor(d.providerId);
     await exigirProveedor(providerId);
+    // El tipo (2026-10-22): sin aliado no lleva; si cambia de línea y no
+    // mandaron otro, se suelta (sería de otra línea).
+    const proveedorFinal = providerId !== undefined ? providerId : exists.provider_id;
+    const lineaFinal = d.categoryId ?? exists.category_id;
+    let tipoId = proveedorFinal ? await leerTipo(d.tipoId, lineaFinal) : (exists.tipo_id !== null ? null : undefined);
+    if (tipoId === undefined && proveedorFinal && d.categoryId !== undefined && d.categoryId !== exists.category_id) tipoId = null;
     const tarifas = leerTarifas(d.tarifas);
     const costo = leerTarifas(d.costoAliado);
     const horario = leerHorario(d.horario);
@@ -320,6 +411,7 @@ export class AdminCatalogController {
       where: { id },
       data: {
         ...(providerId !== undefined ? { provider_id: providerId } : {}),
+        ...(tipoId !== undefined ? { tipo_id: tipoId } : {}),
         ...(d.name !== undefined ? { name: d.name } : {}),
         ...(d.categoryId !== undefined ? { category_id: d.categoryId } : {}),
         ...(tarifas !== undefined
@@ -354,11 +446,12 @@ export class AdminCatalogController {
   }
 
   @Delete('products/:id')
-  async deleteProduct(@Param('id', ParseIntPipe) id: number) {
+  async deleteProduct(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
     // Antes era solo baja lógica (status 0 = "Inactivo") y la ficha seguía en
     // la lista. Órdenes y cotizaciones guardan copia del carrito, no dependen
     // de la fila; solo las rentas apuntan al equipo. Con rentas se oculta
     // (ESTADO_ELIMINADO) para no romper el historial; sin ellas se borra.
+    const antes = await prisma.products.findUnique({ where: { id }, select: { provider_id: true } });
     const rentas = await prisma.rental_periods.count({ where: { product_id: id } });
     if (rentas > 0) {
       await prisma.products.update({ where: { id }, data: { status: ESTADO_ELIMINADO, featured: 0, updated_at: new Date() } });
@@ -372,8 +465,13 @@ export class AdminCatalogController {
       prisma.comments.deleteMany({ where: { product_id: id } }),
       prisma.product_questions.deleteMany({ where: { product_id: id } }),
       prisma.reviews.deleteMany({ where: { product_id: id } }),
+      // Si era una ficha de tipo, sus máquinas quedan "sin tipo" (2026-10-22).
+      prisma.products.updateMany({ where: { tipo_id: id }, data: { tipo_id: null } }),
       prisma.products.delete({ where: { id } }),
     ]);
+    // Borrado de verdad: sale también del tabulador (2026-10-19). Archivado no
+    // hace falta: un renglón con su ficha de baja ya no se ofrece al cotizar.
+    if (antes) await this.quoter.quitarDelTabulador(id, antes.provider_id === null, req.adminEmail);
     return { ok: true, archived: false };
   }
 

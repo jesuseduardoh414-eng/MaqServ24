@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
-import { productSlug, slugify, problemaEmail, problemaTelefono, ESTADO_SOLICITUD_PROVEEDOR, OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR } from '@maqserv/config';
+import { CRM_ACTIVO, productSlug, slugify, problemaEmail, problemaTelefono, ESTADO_SOLICITUD_PROVEEDOR, OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR } from '@maqserv/config';
 import type {
   BlogCard,
   BlogDetail,
@@ -265,7 +265,9 @@ export class ContentService {
 
     // `crm_pushed` se sella solo si Perfex confirmó. Los que queden en false son
     // exactamente el atraso que hay que subir cuando el CRM se configure.
-    void this.perfex
+    // Con el CRM apagado (CRM_ACTIVO) no sale nada (2026-10-22): antes bastaba
+    // con que quedaran las variables de Perfex para mandarle cada contacto.
+    if (CRM_ACTIVO) void this.perfex
       .pushLead({ name, email, source: `Contacto web${need ? ` · ${need}` : ''}` })
       .then((sent) =>
         sent ? prisma.contact_messages.update({ where: { id: saved.id }, data: { crm_pushed: true } }) : null,

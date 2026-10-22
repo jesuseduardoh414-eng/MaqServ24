@@ -1,7 +1,7 @@
 import { Controller, Get, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { AdminGuard, Modulo } from './admin-auth';
-import { DIAS_AVISO } from '../catalog/provider-trust';
+import { estadoDocumentos } from '../catalog/provider-trust';
 import { DIAS_FRESCURA } from '../catalog/availability';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { PASOS, esEstado } from '../quotes/service-flow';
@@ -45,7 +45,7 @@ export class AdminInicioController {
       propuestas, propuestasViejas, incidencias,
       proximos, recientes,
       solicitudesMes, solicitudesMesAnterior, aceptadasMes, cerradosMes, valorMes,
-      aliados, fichas, fichasConfirmadas, ofertas, papelesVencidos, papelesPorVencer,
+      aliados, fichas, fichasConfirmadas, ofertas, estadosDePapeles,
       resenas, preguntas, categorias,
     ] = await Promise.all([
       prisma.quotes.count({ where: { status: 'pending' } }),
@@ -65,7 +65,8 @@ export class AdminInicioController {
       prisma.service_assignments.count({ where: { state: 'propuesto', offered_at: { lt: hace24h } } }),
       prisma.service_incidents.count({ where: { state: 'abierta' } }),
       prisma.service_assignments.findMany({
-        where: { state: 'aceptado', committed_at: { gte: hoy, lt: en7 } },
+        // Un servicio cancelado ya no viene (2026-10-22).
+        where: { state: 'aceptado', committed_at: { gte: hoy, lt: en7 }, quotes: { service_state: { not: 'cancelado' } } },
         orderBy: { committed_at: 'asc' },
         take: 8,
         include: {
@@ -88,18 +89,21 @@ export class AdminInicioController {
       }),
       prisma.quotes.count({ where: { created_at: { gte: inicioMes } } }),
       prisma.quotes.count({ where: { created_at: { gte: inicioMesAnterior, lt: mismaAlturaAnterior } } }),
-      prisma.quotes.count({ where: { accepted_at: { gte: inicioMes } } }),
+      // Lo cancelado no cuenta como aceptado (2026-10-22: inflaba el mes).
+      prisma.quotes.count({ where: { accepted_at: { gte: inicioMes }, OR: [{ service_state: null }, { service_state: { not: 'cancelado' } }] } }),
       prisma.quotes.count({ where: { service_closed_at: { gte: inicioMes } } }),
-      prisma.quotes.aggregate({ where: { accepted_at: { gte: inicioMes } }, _sum: { total: true } }),
+      prisma.quotes.aggregate({ where: { accepted_at: { gte: inicioMes }, OR: [{ service_state: null }, { service_state: { not: 'cancelado' } }] }, _sum: { total: true } }),
       prisma.providers.count({ where: { status: 1 } }),
-      prisma.products.count({ where: { status: 1 } }),
-      prisma.products.count({ where: { status: 1, availability_confirmed_at: { gte: new Date(ahora.getTime() - DIAS_FRESCURA * DIA) } } }),
+      // Solo las máquinas de aliados se confirman; la ficha del tipo no (2026-10-22).
+      prisma.products.count({ where: { status: 1, provider_id: { not: null } } }),
+      prisma.products.count({ where: { status: 1, provider_id: { not: null }, availability_confirmed_at: { gte: new Date(ahora.getTime() - DIAS_FRESCURA * DIA) } } }),
       prisma.products.count({ where: { status: ESTADO_POR_REVISAR } }),
       // Se cuentan ALIADOS, no papeles: tres vencidos del mismo son una llamada.
-      prisma.providers.count({ where: { status: 1, provider_documents: { some: { expires_at: { not: null, lt: ahora } } } } }),
-      prisma.providers.count({
-        where: { status: 1, provider_documents: { some: { expires_at: { gte: ahora, lte: new Date(ahora.getTime() + DIAS_AVISO * DIA) } } } },
-      }),
+      // Con la misma regla que Proveedores (2026-10-22): un papel renovado deja
+      // de contar el viejo, y sin constancia fiscal o póliza no hay sello.
+      prisma.providers
+        .findMany({ where: { status: 1 }, select: { provider_documents: { select: { id: true, kind: true, name: true, expires_at: true } } } })
+        .then((ps) => ps.map((p) => estadoDocumentos(p.provider_documents, ahora))),
       // Más las de servicio por revisar (sin su tabla todavía, solo las del sitio).
       Promise.all([
         prisma.site_reviews.count({ where: { status: 0 } }),
@@ -110,6 +114,16 @@ export class AdminInicioController {
     ]);
 
     const nombreCat = new Map(categorias.map((c) => [c.cat_slug, c.cat_name]));
+
+    // Dinero que pide una acción hoy (2026-10-22, Fase A/C): cobros vencidos y
+    // aliados a los que ya toca pagar. Con catch: sin las tablas (SQL aún no
+    // corrido) el inicio sigue cargando.
+    const hoyMty = new Date(`${new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(ahora)}T00:00:00Z`);
+    const [cobrosVencidos, pagosHoy] = await Promise.all([
+      prisma.service_money.count({ where: { cobrado_at: null, vence: { lt: hoyMty } } }).catch(() => 0),
+      prisma.service_money.findMany({ where: { pagado_at: null, pagar_el: { lte: hoyMty } }, select: { provider_id: true }, distinct: ['provider_id'] })
+        .then((r) => r.length).catch(() => 0),
+    ]);
     const estados: Record<string, number> = {};
     for (const r of porEstado) if (r.service_state) estados[r.service_state] = r._count._all;
     const enCurso = EN_CURSO.reduce((n, s) => n + (estados[s] ?? 0), 0);
@@ -132,8 +146,15 @@ export class AdminInicioController {
         },
       },
       mes: { solicitudes: solicitudesMes, solicitudesAnterior: solicitudesMesAnterior, aceptadas: aceptadasMes, cerrados: cerradosMes },
-      red: { aliados, fichas, fichasConfirmadas, ofertas, papelesVencidos, papelesPorVencer, diasFrescura: DIAS_FRESCURA },
+      red: {
+        aliados, fichas, fichasConfirmadas, ofertas,
+        papelesVencidos: estadosDePapeles.filter((e) => e === 'vencido').length,
+        papelesPorVencer: estadosDePapeles.filter((e) => e === 'por-vencer').length,
+        papelesFaltan: estadosDePapeles.filter((e) => e === 'incompleto').length,
+        diasFrescura: DIAS_FRESCURA,
+      },
       sitio: { resenas, preguntas },
+      dinero: { cobrosVencidos, pagosHoy },
       proximos: proximos.map((a) => ({
         id: a.id,
         fecha: a.committed_at!.toISOString(),

@@ -1,6 +1,10 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Logger, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Logger, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { CatalogoCotizador } from '@maqserv/config';
+import { esCotizadorTipo, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
+import { avisarPanel } from '../notifications/panel';
+import { leerAceptacion } from './aceptar-link';
+import { leerZonas, municipiosDe } from '../common/zonas';
+import { ServiceService } from '../quotes/service.service';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { QuoterService } from './quoter.service';
@@ -32,6 +36,7 @@ export class QuoterController {
   constructor(
     private readonly quoter: QuoterService,
     private readonly servicio: QuoterServicio,
+    private readonly services: ServiceService,
   ) {}
 
   /**
@@ -50,7 +55,10 @@ export class QuoterController {
     // `sinDueños` SIEMPRE, con precios o sin ellos: de qué proveedor es cada
     // equipo es información de la operación, no del catálogo. Publicarla
     // entrega la red de aliados a cualquiera que abra la pestaña de red.
-    return sinDueños(cat.publico.mostrarPrecios ? cat : sinPrecios(cat));
+    // El sitio solo ofrece los municipios de las zonas que se anuncian (2026-10-22).
+    const anunciados = municipiosDe(await leerZonas(), ['sitio']);
+    const publico = anunciados.length ? { ...cat, municipios: anunciados } : cat;
+    return sinDueños(publico.publico.mostrarPrecios ? publico : sinPrecios(publico));
   }
 
   /** Vista previa de totales. Solo si el tabulador es público. */
@@ -156,6 +164,11 @@ export class QuoterController {
       this.log.error(`No se pudo abrir el servicio de ${cot.folio}: ${(e as Error).message}`);
     }
 
+    // Si todo está en orden se aprueba sola y sale a los aliados; si no, se
+    // queda en "Por cotizar" y la campana dice qué revisar (2026-10-22).
+    // Sin esperar: el cliente ya tiene su folio.
+    if (servicio) void this.services.aprobarSiTodoEnOrden(servicio.servicios.map((s) => s.quoteId));
+
     /**
      * Los avisos salen SIN esperar a propósito.
      *
@@ -173,6 +186,69 @@ export class QuoterController {
       ...(cat.publico.mostrarPrecios ? { total: Number(cot.total) } : {}),
       ...(servicio ? { quoteNumber: servicio.quoteNumber, url: servicio.url } : {}),
     };
+    });
+  }
+
+  /**
+   * ACEPTAR DESDE EL CORREO (2026-10-22, ver aceptar-link.ts).
+   *
+   * El enlace viaja en la cabecera, como el de la reseña. GET enseña la
+   * cotización; solo POST la acepta.
+   */
+  private async documentoDelEnlace(auth: string | undefined) {
+    const id = await leerAceptacion(auth?.replace(/^Bearer\s+/i, '').trim());
+    if (!id) throw new BadRequestException('Este enlace ya no sirve: caducó o está incompleto. Escríbenos y te mandamos la cotización de nuevo.');
+    const doc = await prisma.quoter_quotes.findUnique({ where: { id } });
+    if (!doc || doc.origin !== 'panel' || !esCotizadorTipo(doc.kind)) throw new NotFoundException('No encontramos esta cotización.');
+    const ligada = await prisma.quotes.findFirst({
+      where: { requirements: { path: '$.folio', equals: doc.folio } },
+      select: { quote_number: true },
+      orderBy: { id: 'asc' },
+    });
+    return { doc, ligada };
+  }
+
+  @Throttle({ default: { ttl: 60_000, limit: 30 } })
+  @Get('aceptar')
+  async verParaAceptar(@Headers('authorization') auth?: string) {
+    const { doc, ligada } = await this.documentoDelEnlace(auth);
+    const calc = (doc.snapshot as unknown as { calc?: CalculoCotizacion } | null)?.calc;
+    return {
+      folio: doc.folio,
+      cliente: doc.client_name,
+      obra: doc.work,
+      municipio: doc.municipality,
+      renglones: (calc?.renglones ?? []).map((r) => ({ concepto: r.concepto, cantidad: `${r.cantidad} ${r.unidad}`, importe: Number(r.importe) })),
+      subtotal: Number(doc.subtotal),
+      iva: Number(doc.tax),
+      total: Number(doc.total),
+      // 'aceptada' también cuando ya tiene servicio: lo aceptó por otro lado.
+      estado: doc.state === 'aceptada' || ligada ? 'aceptada' : doc.state === 'cancelada' ? 'cancelada' : 'pendiente',
+    };
+  }
+
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Post('aceptar')
+  async aceptarDesdeCorreo(@Headers('authorization') auth?: string) {
+    const { doc } = await this.documentoDelEnlace(auth);
+    // Bajo candado: dos clics seguidos abrían dos servicios.
+    return conCandado([`aceptar:${doc.id}`], async () => {
+      const { doc: d, ligada } = await this.documentoDelEnlace(auth);
+      if (d.state === 'cancelada') throw new BadRequestException('Esta cotización se canceló. Escríbenos y la actualizamos.');
+      if (d.state === 'aceptada' || ligada) return { ok: true, yaEstaba: true, folio: d.folio };
+
+      await this.quoter.cambiarEstado(d.id, 'aceptada');
+      const abierto = await this.servicio.abrirDesdePanel(d.id, await this.quoter.catalogo(d.kind as CotizadorTipo), null);
+      void avisarPanel({
+        modulo: 'servicios',
+        evento: 'solicitud',
+        titulo: `${d.client_name} aceptó ${d.folio} desde el correo`,
+        cuerpo: abierto?.proveedores.length
+          ? `Se le ofreció sola a ${abierto.proveedores.join(', ')}: el primero que acepte se la queda.`
+          : 'Ya está en Servicios por asignar: búscale aliado.',
+        link: '/servicios',
+      });
+      return { ok: true, yaEstaba: false, folio: d.folio };
     });
   }
 }

@@ -36,7 +36,7 @@ export interface ProviderRow {
   coverageRadiusKm: number | null;
   notes: string | null;
   status: number;
-  docsStatus: 'al-dia' | 'por-vencer' | 'vencido' | 'sin-documentos';
+  docsStatus: 'al-dia' | 'por-vencer' | 'vencido' | 'incompleto' | 'sin-documentos';
   verified: boolean;
   monthsInNetwork: number | null;
   documentCount: number;
@@ -56,6 +56,8 @@ interface EquipoRow {
   category: string | null;
   /** Slug de su línea: decide qué renglones del cotizador se le ofrecen. */
   categorySlug?: string | null;
+  /** La ficha del tipo a la que pertenece (null = sin clasificar). */
+  tipo?: string | null;
   rental: boolean;
   specs: Array<{ label: string; valor: string }>;
   image: string | null;
@@ -89,6 +91,8 @@ interface DocRow {
   expiresAt: string | null;
   /** Foto del papel que subió el aliado (null si lo registró la oficina sin foto). */
   fileUrl?: string | null;
+  /** Ya se renovó: queda en el expediente pero no cuenta para el sello. */
+  reemplazado?: boolean;
 }
 
 /** Los cuatro niveles del documento, en orden de escalera. */
@@ -136,6 +140,7 @@ const ETIQUETA_DOCS: Record<ProviderRow['docsStatus'], { texto: string; tono: To
   'al-dia': { texto: 'Al día', tono: 'ok' },
   'por-vencer': { texto: 'Por vencer', tono: 'warn' },
   vencido: { texto: 'Vencido', tono: 'bad' },
+  incompleto: { texto: 'Faltan papeles', tono: 'warn' },
   'sin-documentos': { texto: 'Sin documentos', tono: 'muted' },
 };
 
@@ -725,10 +730,13 @@ function ExpedienteModal({
                   </div>
                 ) : (
                   <>
-                    {/* Precio único (2026-09-28): el servicio se cotiza con el tabulador y MAQSER24 asigna. */}
+                    {/* El cliente ve la ficha del tipo, no la máquina (2026-10-22, Fase 4): al
+                        publicarla, a este aliado le llegan las solicitudes de ese tipo. */}
                     <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>
                       {esLineaServicio(e.categorySlug)
-                        ? <>Al publicarlo queda en el catálogo de {e.category ?? 'su línea'}. Se cotiza con el <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>tabulador único</strong> (Cotizador → Tarifas) y, cuando llegue una solicitud, podrás asignársela a este aliado desde Servicios.</>
+                        ? e.tipo
+                          ? <>Tipo: <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{e.tipo}</strong>. Al publicarla, a este aliado le llegan las solicitudes de ese tipo y, cuando acepte una, se aparta esta máquina.</>
+                          : <>Todavía <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>sin tipo</strong>: en «Revisar y corregir» elige de qué tipo es, para que le lleguen las solicitudes de ese tipo.</>
                         : <>Al publicarlo aparece en la tienda como producto. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>}
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
@@ -788,14 +796,19 @@ function ExpedienteModal({
           <p style={VACIO}>Sin documentos cargados.</p>
         ) : (
           <Panel flush clip>
-            {docs.map((d) => {
-              const vencido = d.expiresAt !== null && d.expiresAt < hoy;
+            {/* Los reemplazados al final y en gris: siguen ahí (con su foto),
+                pero ya no cuentan. Antes la constancia vieja seguía en rojo
+                junto a la renovada y parecía que nada había cambiado. */}
+            {[...docs].sort((a, b) => Number(!!a.reemplazado) - Number(!!b.reemplazado)).map((d) => {
+              const vencido = !d.reemplazado && d.expiresAt !== null && d.expiresAt < hoy;
               return (
-                <div key={d.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px' }}>
+                <div key={d.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', opacity: d.reemplazado ? 0.6 : 1 }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--adm-text)' }}>{d.name || TIPOS_DOC.find(([k]) => k === d.kind)?.[1] || d.kind}</div>
                     <div className="adm-num" style={{ fontSize: 12, color: vencido ? 'var(--adm-bad)' : 'var(--adm-muted)', marginTop: 2 }}>
-                      {d.expiresAt ? (vencido ? `Venció el ${d.expiresAt}` : `Vigente hasta ${d.expiresAt}`) : 'Sin vencimiento'}
+                      {d.reemplazado
+                        ? `Reemplazado por su renovación${d.expiresAt ? ` · vencía el ${d.expiresAt}` : ''}`
+                        : d.expiresAt ? (vencido ? `Venció el ${d.expiresAt}` : `Vigente hasta ${d.expiresAt}`) : 'Sin vencimiento'}
                       {d.fileUrl ? '' : ' · sin foto'}
                     </div>
                   </div>

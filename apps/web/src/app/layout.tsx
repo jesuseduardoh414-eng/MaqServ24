@@ -109,8 +109,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <DialogosHost />
         {/* "Sí se hizo / no se hizo" tras cada cambio de la persona (perfil, favoritos, portal de aliado, formularios). Entrar/salir y marcar avisos leídos no avisan: ya tienen su propia respuesta. */}
         <ResultadosHost
-          observar={['/api/proxy/', '/api/contacto', '/api/cotizar', '/api/proveedores', '/api/preguntas', '/api/resena', '/api/suscribir']}
-          silencio={['/api/proxy/notifications/']}
+          observar={['/api/proxy/', '/api/contacto', '/api/cotizar', '/api/proveedores', '/api/preguntas', '/api/resena', '/api/cotizacion/aceptar']}
+          // La vista previa de /cotizar es un POST que no guarda nada: ni
+          // "Guardado" ni "No se guardó" (si falla, la pantalla enseña la lista).
+          silencio={['/api/proxy/notifications/', '/api/cotizar/vista-previa']}
           callar401
           colores={{
             fondo: 'var(--color-surface)', texto: 'var(--color-text)', borde: 'var(--color-border)', tenue: 'var(--color-text-muted)',

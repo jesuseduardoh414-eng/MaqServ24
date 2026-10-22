@@ -1,6 +1,7 @@
 'use client';
 
-import { Cotizador, type DatosEnvio, type ResultadoEnvio } from '@maqserv/ui';
+import { useState } from 'react';
+import { Cotizador, lineasDeFicha, type DatosEnvio, type ResultadoEnvio } from '@maqserv/ui';
 import type { CatalogoCotizador } from '@maqserv/config';
 import { evento } from '@/lib/analitica';
 
@@ -22,11 +23,16 @@ export function CotizadorPublico({
   catalogo,
   logo,
   inicial,
+  fichaId,
 }: {
   catalogo: CatalogoCotizador;
   logo: string | null;
   inicial?: { cliente?: string; correo?: string; telefono?: string; municipio?: string };
+  /** Se llegó desde "Cotizar" en una ficha del catálogo (2026-10-22): abre con ese tipo elegido. */
+  fichaId?: number | null;
 }) {
+  // Una sola vez al montar: si el cliente quita la partida, no vuelve sola.
+  const [lineasIniciales] = useState(() => (fichaId ? lineasDeFicha(catalogo, fichaId) : []));
   async function enviar(datos: DatosEnvio): Promise<ResultadoEnvio> {
     const res = await fetch(`/api/proxy/quoter/request/${catalogo.tipo}`, {
       method: 'POST',
@@ -55,5 +61,5 @@ export function CotizadorPublico({
     };
   }
 
-  return <Cotizador catalogo={catalogo} variante="sitio" logo={logo} inicial={inicial} onEnviar={enviar} />;
+  return <Cotizador catalogo={catalogo} variante="sitio" logo={logo} inicial={inicial} lineasIniciales={lineasIniciales} onEnviar={enviar} />;
 }

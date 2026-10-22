@@ -1019,6 +1019,10 @@ model products {
   certificacion_dc3         String? @db.Text
   specs                     String? @db.Text
   provider_id               Int?
+  /// Ficha del TIPO (producto sin aliado que lleva el precio) a la que pertenece
+  /// esta máquina de aliado. Null en las fichas y en lo que aún no se clasifica
+  /// (2026-10-22, sql/tipo-de-cada-equipo.sql).
+  tipo_id                   Int?
   location                  String? @db.Text
   availability_confirmed_at DateTime? @db.DateTime(6)
   price_unit                String?   @db.VarChar(20)
@@ -1034,6 +1038,7 @@ model products {
 
   @@index([provider_id], map: "products_provider_idx")
   @@index([status, category_id], map: "products_status_category_idx")
+  @@index([tipo_id], map: "products_tipo_id_index")
 }
 
 model quote_emails {
@@ -1715,6 +1720,8 @@ model clients {
   email        String?        @db.VarChar(190)
   phone        String?        @db.VarChar(40)
   rfc          String?        @db.VarChar(20)
+  /// Días de crédito para pagar sus servicios. Null = paga al cerrar (sql/cobros-y-pagos.sql).
+  credito_dias Int?
   industry     String?        @db.VarChar(120)
   notes        String? @db.Text
   status       Int            @default(1) @db.SmallInt
@@ -1927,4 +1934,50 @@ model admin_role_modules {
   updated_by Int?
 
   @@map("admin_role_modules")
+}
+
+/// La cuenta de un servicio cerrado (2026-10-22, sql/cobros-y-pagos.sql): lo
+/// que debe el cliente, lo que se le paga al aliado y, por diferencia, el
+/// margen. Nace sola al cerrar el servicio (apps/api/src/money/cuentas.ts).
+model service_money {
+  quote_id           BigInt    @id
+  client_id          Int?
+  provider_id        Int?
+  subtotal           Decimal   @db.Decimal(12, 2)
+  iva                Decimal   @db.Decimal(12, 2)
+  total              Decimal   @db.Decimal(12, 2)
+  comision_pct       Decimal   @db.Decimal(5, 2)
+  pago_aliado        Decimal   @db.Decimal(12, 2)
+  vence              DateTime  @db.Date
+  factura_cliente    String?   @db.VarChar(60)
+  cobrado            Decimal   @default(0) @db.Decimal(12, 2)
+  cobrado_at         DateTime? @db.DateTime(0)
+  factura_aliado     String?   @db.VarChar(255)
+  factura_aliado_xml String?   @db.VarChar(255)
+  factura_aliado_at  DateTime? @db.DateTime(0)
+  pagar_el           DateTime? @db.Date
+  pagado_at          DateTime? @db.DateTime(0)
+  pago_ref           String?   @db.VarChar(120)
+  created_at         DateTime  @default(now()) @db.DateTime(0)
+  updated_at         DateTime  @default(now()) @db.DateTime(0)
+
+  @@index([cobrado_at, vence], map: "service_money_cobro_idx")
+  @@index([pagado_at, provider_id], map: "service_money_pago_idx")
+  @@index([client_id], map: "service_money_client_idx")
+}
+
+/// Cada dinero que entra (`cobro`) o sale (`pago`) de un servicio (2026-10-22).
+model money_moves {
+  id         Int      @id @default(autoincrement())
+  quote_id   BigInt
+  tipo       String   @db.VarChar(10)
+  monto      Decimal  @db.Decimal(12, 2)
+  forma      String?  @db.VarChar(40)
+  referencia String?  @db.VarChar(120)
+  fecha      DateTime @db.Date
+  admin_id   Int?
+  created_at DateTime @default(now()) @db.DateTime(0)
+
+  @@index([quote_id], map: "money_moves_quote_idx")
+  @@index([tipo, fecha], map: "money_moves_fecha_idx")
 }

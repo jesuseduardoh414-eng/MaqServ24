@@ -6,9 +6,17 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
 import { avisarPanel } from '../notifications/panel';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
-import { correoServicioAvanzo, correoOfertaAAliado, correoAsignacionAAliado } from '../notifications/email-templates';
+import { correoServicioAvanzo, correoOfertaAAliado, correoAsignacionAAliado, correoServicioCanceladoAliado } from '../notifications/email-templates';
 import { confirmarEquipos, sincronizarReserva } from './reservas';
+import { abrirCuenta, parteDelAliado } from '../money/cuentas';
+import { reglasDinero } from '../money/reglas';
+import { MOTIVO_SE_BAJO } from '../catalog/provider-history';
 import { MatchingService } from './matching.service';
+import { normalizarZona } from './matching';
+import { vigenciaPorDefecto } from './quote-validity';
+import { guardarAjuste, leerAjuste } from '../common/platform-settings';
+import { leerZonas, municipiosDe } from '../common/zonas';
+import { parteDelDocumento, partidasParaAliado } from '../quoter/parte-del-documento';
 import { firmarResena, rutaResena } from '../reviews/resena-link';
 import {
   PASOS, esEstado, estadoInicial, puedeCerrar, sePuedeMover,
@@ -57,6 +65,8 @@ export class ServiceService {
       unit?: string | null;
       /** Nombre del aliado cuando lo reporta él desde su portal: avisa al panel. */
       porAliado?: string | null;
+      /** Al cancelar: quién lo canceló (2026-10-22). */
+      causa?: 'cliente' | 'aliado' | 'plataforma' | null;
     } = {},
   ) {
     const q = await prisma.quotes.findUnique({ where: { id: quoteId } });
@@ -130,6 +140,17 @@ export class ServiceService {
      */
     const reserva = await sincronizarReserva(quoteId);
     if (hacia === 'terminado' || hacia === 'cerrado') await confirmarEquipos(reserva.antes);
+    // Cerrar abre la cuenta: lo que debe el cliente y lo que se le paga al aliado (2026-10-22).
+    if (hacia === 'cerrado') await abrirCuenta(quoteId);
+    if (hacia === 'cancelado') {
+      // Se bajó el aliado: le queda en su historial. Si fue el cliente o
+      // MAQSER24, no; y a él se le avisa que no salga.
+      if (opts.causa === 'aliado') {
+        await prisma.service_assignments.updateMany({ where: { quote_id: quoteId, state: 'aceptado' }, data: { reason: MOTIVO_SE_BAJO } });
+      } else {
+        await this.avisarCancelacionAAliados(quoteId, opts.note ?? null);
+      }
+    }
 
     // Lo reportó el aliado: MAQSER24 se entera en la campana del panel.
     if (opts.porAliado) {
@@ -211,6 +232,45 @@ export class ServiceService {
   }
 
   /**
+   * Se canceló: el aliado que lo tenía se entera por correo, y las ofertas que
+   * nadie había contestado se retiran (2026-10-22). Nunca lanza.
+   */
+  private async avisarCancelacionAAliados(quoteId: number, motivo: string | null) {
+    try {
+      await prisma.service_assignments.updateMany({
+        where: { quote_id: quoteId, state: 'propuesto' },
+        data: { state: 'tomado', reason: 'Se canceló el servicio' },
+      });
+      const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true, address: true, service_category: true } });
+      const suyos = await prisma.service_assignments.findMany({
+        where: { quote_id: quoteId, state: 'aceptado' },
+        select: { provider_id: true, providers: { select: { email: true, contact_name: true } } },
+      });
+      if (!q) return;
+      const linea = q.service_category ? await prisma.categories.findUnique({ where: { cat_slug: q.service_category }, select: { cat_name: true } }) : null;
+      for (const a of suyos) {
+        if (!a.providers.email) continue;
+        await this.mailer.enviar({
+          kind: 'provider_cancelled',
+          to: a.providers.email,
+          toName: a.providers.contact_name,
+          quoteId,
+          providerId: a.provider_id,
+          ...correoServicioCanceladoAliado({
+            contacto: a.providers.contact_name,
+            folio: q.quote_number,
+            categoria: linea?.cat_name ?? q.service_category,
+            direccion: q.address,
+            motivo: motivo?.trim() || null,
+          }),
+        });
+      }
+    } catch (e) {
+      this.log.warn(`Aviso de cancelación a los aliados de #${quoteId}: ${(e as Error).message}`);
+    }
+  }
+
+  /**
    * OFERTA AUTOMÁTICA (2026-10-15).
    *
    * "Cuando el cliente la acepta se le debe mandar la cotización a los
@@ -224,13 +284,143 @@ export class ServiceService {
    * Operaciones haya movido a mano manda. Si nadie llega a la obra, suena la
    * campana para buscarlo a mano. Nunca lanza: aceptar no puede fallar por esto.
    */
+  /**
+   * APROBAR UNA SOLICITUD DEL COTIZADOR DEL SITIO (movido aquí el 2026-10-22
+   * desde admin-ops para que lo usen igual el botón y la aprobación
+   * automática). El cliente ya vio el precio: queda en servicio y se le ofrece
+   * sola a los aliados. `por` null = la aprobó el sistema.
+   */
+  async aprobarDelCotizador(quoteId: number, por: { adminId: number | null; adminNombre: string | null } | null) {
+    const q = await prisma.quotes.findUnique({ where: { id: quoteId } });
+    if (!q) throw new NotFoundException();
+    const r = (q.requirements ?? {}) as { origen?: unknown; folio?: unknown; precioAjustado?: unknown };
+    if (r.origen !== 'cotizador') throw new BadRequestException('Solo las del cotizador del sitio se aprueban así; las demás se responden.');
+    if (r.precioAjustado) throw new BadRequestException('Le cambiaste el precio: respóndele para que el cliente la acepte.');
+    if (q.accepted_at || q.status !== 'pending') throw new BadRequestException('Esta cotización ya se había aprobado o respondido.');
+
+    // Todas las partes del mismo documento (el cotizador parte por línea).
+    const folio = typeof r.folio === 'string' && r.folio ? r.folio : null;
+    const partes = folio
+      ? await prisma.quotes.findMany({ where: { status: 'pending', accepted_at: null, requirements: { path: '$.folio', equals: folio } } })
+      : [q];
+    const ahora = new Date();
+    const vence = new Date(`${vigenciaPorDefecto()}T00:00:00Z`);
+    for (const p of partes) {
+      await prisma.quotes.update({
+        where: { id: p.id },
+        data: {
+          status: 'completed',
+          responded_at: ahora,
+          responded_by: por ? por.adminNombre : 'Aprobación automática',
+          valid_until: vence,
+          accepted_at: ahora,
+          service_state: estadoInicial(),
+          ...(p.first_contact_at ? {} : { first_contact_at: ahora, first_contact_via: 'cotizacion' }),
+          updated_at: ahora,
+        },
+      });
+      await prisma.service_events.create({
+        data: {
+          quote_id: p.id,
+          admin_id: por?.adminId ?? null,
+          to_state: estadoInicial(),
+          note: por
+            ? `MAQSER24 revisó la cotización${folio ? ` ${folio}` : ''} y la mandó a los aliados`
+            : `Se aprobó sola${folio ? ` (${folio})` : ''}: precio del tabulador, zona con servicio y aliados que llegan a la obra`,
+        },
+      });
+      await sincronizarReserva(Number(p.id));
+    }
+
+    const ofrecidos: string[] = [];
+    for (const p of partes) ofrecidos.push(...(await this.ofrecerATodos(Number(p.id))).ofrecidos);
+    // Aprobada sola, segundos después del "Recibimos…": otro aviso diría lo mismo.
+    if (q.user_id && por) {
+      await this.notifications.push({
+        userId: Number(q.user_id),
+        type: 'service_status',
+        title: `Revisamos tu cotización ${folio ?? q.quote_number}`,
+        body: 'Todo en orden: ya la estamos asignando a un proveedor. Te avisamos en cuanto quede autorizada.',
+        link: `/cuenta/cotizaciones/${q.quote_number}`,
+      });
+    }
+    return { partes: partes.length, ofrecidos: [...new Set(ofrecidos)], quoteNumber: q.quote_number, folio };
+  }
+
+  /**
+   * APROBACIÓN AUTOMÁTICA (2026-10-22, Fase C). Lo que llega del cotizador del
+   * sitio se aprueba solo si todo está en orden; si algo no, se queda en "Por
+   * cotizar" y la campana dice qué revisar. Nunca lanza.
+   *
+   * En orden = aprobación automática encendida, total hasta el tope, la obra en
+   * una zona que se anuncia, el cliente sin pagos vencidos de más de 15 días y
+   * al menos un aliado que llega a la obra.
+   */
+  async aprobarSiTodoEnOrden(quoteIds: number[]): Promise<void> {
+    try {
+      if (!quoteIds.length) return;
+      const ajuste = await reglaAprobacion();
+      const quotes = await prisma.quotes.findMany({
+        where: { id: { in: quoteIds.map((id) => BigInt(id)) } },
+        select: { id: true, quote_number: true, total: true, region: true, client_id: true, requirements: true },
+        orderBy: { id: 'asc' },
+      });
+      const principal = quotes[0];
+      if (!principal) return;
+      const folio = ((principal.requirements ?? {}) as { folio?: string }).folio ?? principal.quote_number;
+      const motivos: string[] = [];
+      if (!ajuste.activa) motivos.push('la aprobación automática está apagada');
+      const total = quotes.reduce((a, q) => a + Number(q.total ?? 0), 0);
+      if (ajuste.montoMaximo > 0 && total > ajuste.montoMaximo) {
+        motivos.push(`el total pasa de ${ajuste.montoMaximo.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 })}`);
+      }
+      const anunciados = municipiosDe(await leerZonas(), ['sitio']).map((m) => normalizarZona(m.replace(/,\s*(Coah|Chih)\.?$/i, '')));
+      const muni = normalizarZona(principal.region ?? '');
+      if (anunciados.length && muni && !anunciados.some((a) => a === muni || muni.includes(a) || a.includes(muni))) {
+        motivos.push(`${principal.region} no está en una zona que se anuncia`);
+      }
+      if (principal.client_id) {
+        const vencidos = await prisma.service_money.count({
+          where: { client_id: principal.client_id, cobrado_at: null, vence: { lt: new Date(Date.now() - 15 * 86_400_000) } },
+        });
+        if (vencidos) motivos.push('el cliente tiene pagos vencidos de más de 15 días');
+      }
+      if (!motivos.length) {
+        for (const q of quotes) {
+          const r = await this.matching.paraCotizacion(Number(q.id));
+          if (!r.coincidencias.some((c) => c.cubre)) { motivos.push('ningún aliado llega a la obra'); break; }
+        }
+      }
+      if (motivos.length) {
+        void avisarPanel({
+          modulo: 'cotizaciones',
+          evento: 'cotizacion',
+          titulo: `Revisa ${folio}: ${motivos[0]}`,
+          cuerpo: `${motivos.join(' · ').replace(/^./, (c) => c.toUpperCase())}. Apruébala o respóndela en Solicitudes.`,
+          link: '/cotizaciones',
+        });
+        return;
+      }
+      const r = await this.aprobarDelCotizador(Number(principal.id), null);
+      void avisarPanel({
+        modulo: 'servicios',
+        evento: 'solicitud',
+        titulo: `${folio} se aprobó sola`,
+        cuerpo: r.ofrecidos.length ? `Se ofreció a ${r.ofrecidos.join(', ')}: el primero que acepte se la queda.` : 'Ya está en Servicios por asignar.',
+        link: '/servicios',
+      });
+    } catch (e) {
+      this.log.warn(`Aprobación automática: ${(e as Error).message}`);
+    }
+  }
+
   async ofrecerATodos(quoteId: number, opts: { max?: number } = {}): Promise<{ ofrecidos: string[] }> {
     const max = opts.max ?? OFERTA_AUTOMATICA_MAX;
     try {
       const vivas = await prisma.service_assignments.count({ where: { quote_id: quoteId, state: { in: ['propuesto', 'aceptado'] } } });
       if (vivas > 0) return { ofrecidos: [] };
       const r = await this.matching.paraCotizacion(quoteId);
-      const elegidos = r.coincidencias.filter((c) => c.cubre).slice(0, max);
+      const elegidos = primeroLosDelTipo(r.coincidencias.filter((c) => c.cubre), r.conTipo).slice(0, max);
       const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true, total: true } });
       if (elegidos.length === 0) {
         void avisarPanel({
@@ -253,13 +443,104 @@ export class ServiceService {
       }
       if (ofrecidos.length) {
         await prisma.service_events.create({
-          data: { quote_id: quoteId, to_state: 'propuesto', note: `Oferta automática a ${ofrecidos.length} aliado(s): el primero que acepte se la queda` },
+          data: { quote_id: quoteId, to_state: 'propuesto', note: `${NOTA_OFERTA_AUTOMATICA} ${ofrecidos.length} aliado(s): el primero que acepte se la queda` },
+        });
+      }
+      // El hueco de la red (2026-10-22): se pidió un tipo que nadie tiene registrado.
+      if (r.tiposSinAliado.length) {
+        void avisarPanel({
+          modulo: 'proveedores',
+          evento: 'solicitud',
+          titulo: `Nadie de la red tiene registrado: ${r.tiposSinAliado.join(', ')}`,
+          cuerpo: `${q?.quote_number ?? 'Una solicitud'} lo pidió y se ofreció a toda la línea. Clasifica los equipos de los aliados o recluta a quien lo tenga.`,
+          link: '/proveedores',
+          unoCadaMinutos: 60,
         });
       }
       return { ofrecidos };
     } catch (e) {
       this.log.warn(`Oferta automática de #${quoteId}: ${(e as Error).message}`);
       return { ofrecidos: [] };
+    }
+  }
+
+  /**
+   * LOS SIGUIENTES (2026-10-21).
+   *
+   * Cuando los aliados a los que se les ofreció no contestan a tiempo
+   * (quotes/seguimiento-ofertas.ts) o todos dicen que no (`responder`), se le
+   * ofrece sola a los siguientes mejores que llegan a la obra, sin repetir a
+   * nadie. Las ofertas que siguen sin contestar no se retiran: el primero que
+   * acepte, de cualquiera de las tandas, se la queda.
+   *
+   * Solo en servicios que ya entraron a la oferta automática: si Operaciones
+   * se lo ofreció a mano a alguien, esa decisión manda y aquí no se toca. Si
+   * ya no queda nadie en la red, suena la campana una sola vez. Nunca lanza.
+   */
+  async ofrecerALosSiguientes(quoteId: number, porque: 'silencio' | 'rechazo'): Promise<{ ofrecidos: string[]; resuelta: boolean }> {
+    try {
+      const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true, total: true, service_state: true } });
+      // Explícito y no `estadoDe`: una cotización que aún espera al cliente
+      // tiene el estado vacío y no se le ofrece a nadie.
+      if (!q || q.service_state !== 'por_asignar') return { ofrecidos: [], resuelta: true };
+      const asignaciones = await prisma.service_assignments.findMany({ where: { quote_id: quoteId }, select: { provider_id: true, state: true } });
+      if (asignaciones.some((a) => a.state === 'aceptado')) return { ofrecidos: [], resuelta: true };
+      const automatica = await prisma.service_events.findFirst({
+        where: { quote_id: quoteId, note: { startsWith: NOTA_OFERTA_AUTOMATICA } },
+        select: { id: true },
+      });
+      if (!automatica) return { ofrecidos: [], resuelta: false };
+
+      const yaPasaron = new Set(asignaciones.map((a) => a.provider_id));
+      const r = await this.matching.paraCotizacion(quoteId);
+      const elegidos = primeroLosDelTipo(r.coincidencias.filter((c) => c.cubre && !yaPasaron.has(c.proveedor.id)), r.conTipo).slice(0, OFERTA_AUTOMATICA_MAX);
+      const motivo = porque === 'silencio' ? 'nadie contestó a tiempo' : 'los anteriores dijeron que no';
+
+      if (elegidos.length === 0) {
+        const avisado = await prisma.service_events.findFirst({
+          where: { quote_id: quoteId, note: { startsWith: NOTA_SIN_MAS_ALIADOS } },
+          select: { id: true },
+        });
+        if (!avisado) {
+          await prisma.service_events.create({
+            data: { quote_id: quoteId, to_state: 'por_asignar', note: `${NOTA_SIN_MAS_ALIADOS}: ${motivo} y ya se le ofreció a todos los que llegan a la obra` },
+          });
+          void avisarPanel({
+            modulo: 'servicios',
+            evento: 'solicitud',
+            titulo: `${q.quote_number}: ${motivo} y no queda nadie más en la red`,
+            cuerpo: r.motivo ?? 'Búscale un aliado a mano.',
+            link: '/servicios',
+          });
+        }
+        return { ofrecidos: [], resuelta: true };
+      }
+
+      const ofrecidos: string[] = [];
+      for (const c of elegidos) {
+        try {
+          await this.ofrecer(quoteId, c.proveedor.id, { total: Number(q.total) || null, automatica: true });
+          ofrecidos.push(c.proveedor.name);
+        } catch (e) {
+          this.log.warn(`No se pudo ofrecer ${q.quote_number} a ${c.proveedor.name}: ${(e as Error).message}`);
+        }
+      }
+      if (ofrecidos.length) {
+        await prisma.service_events.create({
+          data: { quote_id: quoteId, to_state: 'propuesto', note: `${NOTA_OFERTA_AUTOMATICA} ${ofrecidos.length} aliado(s) más porque ${motivo}: el primero que acepte se la queda` },
+        });
+        void avisarPanel({
+          modulo: 'servicios',
+          evento: 'solicitud',
+          titulo: `${q.quote_number}: ${motivo}, se le ofreció a ${ofrecidos.length} aliado(s) más`,
+          cuerpo: ofrecidos.join(', '),
+          link: '/servicios',
+        });
+      }
+      return { ofrecidos, resuelta: true };
+    } catch (e) {
+      this.log.warn(`Oferta a los siguientes de #${quoteId}: ${(e as Error).message}`);
+      return { ofrecidos: [], resuelta: false };
     }
   }
 
@@ -326,11 +607,15 @@ export class ServiceService {
      */
     const datos = await prisma.quotes.findUnique({
       where: { id: quoteId },
-      select: { quote_number: true, service_category: true, address: true, comments: true, total: true, requirements: true },
+      select: {
+        quote_number: true, service_category: true, address: true, comments: true, requirements: true,
+        subtotal: true, freight_cost: true, tax: true, total: true, conditions: true,
+      },
     });
-    // La cotización completa (2026-10-15): el aliado ve las partidas y el
-    // importe del documento, igual que el cliente.
-    const partidas = datos ? await partidasDelDocumento(datos.requirements) : [];
+    // Las partidas del documento (2026-10-15), pero solo las SUYAS
+    // (2026-10-19): el documento completo es del cliente y de MAQSER24.
+    const parte = datos ? await parteDelDocumento(datos) : null;
+    const partidas = parte ? partidasParaAliado(parte.snapshot.calc) : [];
     const contacto = await prisma.providers.findUnique({
       where: { id: providerId },
       select: { email: true, contact_name: true, access_version: true },
@@ -346,14 +631,19 @@ export class ServiceService {
       } catch (e) {
         this.log.warn(`Oferta ${datos.quote_number} sin enlace al portal: ${(e as Error).message}`);
       }
+      // El nombre de la línea, no su clave ("maquinaria-pesada"), 2026-10-21.
+      const linea = datos.service_category
+        ? await prisma.categories.findUnique({ where: { cat_slug: datos.service_category }, select: { cat_name: true } })
+        : null;
       const plantilla = correoOfertaAAliado({
         aliado: p.name,
         contacto: contacto.contact_name,
-        categoria: datos.service_category,
+        categoria: linea?.cat_name ?? datos.service_category,
         zona: datos.address,
         folio: datos.quote_number,
         detalle: opts.scope?.trim() || datos.comments,
         total: opts.total ?? (Number(datos.total) > 0 ? Number(datos.total) : null),
+        pago: parteDelAliado(datos, await reglasDinero()),
         partidas,
         documento: folioDe(datos.requirements),
         automatica: !!opts.automatica,
@@ -453,14 +743,15 @@ export class ServiceService {
     });
 
     // Campana del panel: solo cuando contesta el aliado (si fue un admin, ya lo sabe).
-    if (!opts.adminId) {
+    // El rechazo suena más abajo, y solo si alguien tiene que hacer algo.
+    if (!opts.adminId && estado !== 'rechazado') {
       const cot = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true, product_interested: true } });
       void avisarPanel({
         modulo: 'servicios',
         evento: 'respuesta_aliado',
         titulo: estado === 'aceptado'
           ? `${a.providers.name} aceptó ${cot?.quote_number ?? 'una solicitud'}`
-          : `${a.providers.name} ${estado === 'rechazado' ? 'rechazó' : 'se retiró de'} ${cot?.quote_number ?? 'una solicitud'}`,
+          : `${a.providers.name} se retiró de ${cot?.quote_number ?? 'una solicitud'}`,
         cuerpo: estado === 'aceptado'
           ? `${cot?.product_interested ?? 'Servicio'} · ya quedó asignado.`
           : `${cot?.product_interested ?? 'Servicio'}${opts.reason ? ` · ${opts.reason.trim()}` : ''} · busca otro aliado.`,
@@ -477,18 +768,50 @@ export class ServiceService {
     if (estado === 'aceptado') await confirmarEquipos(reserva.productos, a.provider_id);
 
     if (estado !== 'aceptado') {
+      const vivas = await prisma.service_assignments.count({ where: { quote_id: a.quote_id, state: { in: ['propuesto', 'aceptado'] } } });
+
+      // Si ya nadie tiene la oferta viva, se le ofrece sola a los siguientes
+      // (2026-10-21). Solo cuando rechaza el aliado: retirar es una decisión
+      // de Operaciones y no se le enmienda.
+      const siguientes = estado === 'rechazado' && vivas === 0
+        ? await this.ofrecerALosSiguientes(quoteId, 'rechazo')
+        : { ofrecidos: [], resuelta: false };
+
+      /*
+       * Campana del rechazo (2026-10-22): si otros aliados aún la revisan, no
+       * hay nada que hacer; si la oferta automática ya se la mandó a los
+       * siguientes (o avisó que no queda nadie), su campana ya lo dijo. Solo
+       * suena cuando hay que buscarle aliado a mano.
+       */
+      if (!opts.adminId && estado === 'rechazado' && vivas === 0 && !siguientes.resuelta) {
+        const cot = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true, product_interested: true } });
+        void avisarPanel({
+          modulo: 'servicios',
+          evento: 'respuesta_aliado',
+          titulo: `${a.providers.name} rechazó ${cot?.quote_number ?? 'una solicitud'}`,
+          cuerpo: `${cot?.product_interested ?? 'Servicio'}${opts.reason ? ` · ${opts.reason.trim()}` : ''} · busca otro aliado.`,
+          link: '/servicios',
+        });
+      }
+
       /**
        * El cliente se entera también de la negativa (2026-09-25): antes solo
-       * veía "esperando al aliado" para siempre. El mensaje dice que no es el
-       * final: MAQSER24 busca otra opción.
+       * veía "esperando al aliado" para siempre. Desde la oferta a varios
+       * (2026-10-22) solo cuando ya nadie la está revisando: con cinco
+       * aliados, cinco avisos de "rechazada" asustaban por algo que no había
+       * pasado todavía.
        */
-      const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { user_id: true, quote_number: true, product_interested: true } });
+      const q = vivas === 0
+        ? await prisma.quotes.findUnique({ where: { id: quoteId }, select: { user_id: true, quote_number: true, product_interested: true } })
+        : null;
       if (q?.user_id) {
         await this.notifications.push({
           userId: Number(q.user_id),
           type: 'service_status',
-          title: `Tu solicitud ${q.quote_number} fue rechazada por el aliado`,
-          body: `${q.product_interested ?? 'El servicio'}: el aliado no pudo atenderla. MAQSER24 está buscando otra opción para ti.`,
+          title: `Seguimos buscando proveedor para ${q.quote_number}`,
+          body: siguientes.ofrecidos.length
+            ? `${q.product_interested ?? 'El servicio'}: los proveedores que la revisaron no pudieron atenderla. Ya se la ofrecimos a otros; te avisamos en cuanto uno la tome.`
+            : `${q.product_interested ?? 'El servicio'}: los proveedores que la revisaron no pudieron atenderla. MAQSER24 está buscando otra opción para ti.`,
           link: `/cuenta/cotizaciones/${q.quote_number}`,
         });
       }
@@ -608,6 +931,40 @@ export class ServiceService {
 /** A cuántos aliados se les ofrece a la vez cuando el cliente acepta. */
 const OFERTA_AUTOMATICA_MAX = 5;
 
+/**
+ * Prefijo de la nota que deja la oferta automática en el historial. Es la
+ * marca de que el servicio entró al flujo automático (ver `ofrecerALosSiguientes`).
+ */
+export const NOTA_OFERTA_AUTOMATICA = 'Oferta automática a';
+/** Prefijo de la nota "ya no queda nadie": evita repetir la campana. */
+const NOTA_SIN_MAS_ALIADOS = 'Sin más aliados';
+
+/** La regla de la aprobación automática (platform_settings, 2026-10-22). Encendida por defecto. */
+export interface ReglaAprobacion { activa: boolean; montoMaximo: number }
+const REGLA_APROBACION_DEFAULT: ReglaAprobacion = { activa: true, montoMaximo: 300_000 };
+export async function reglaAprobacion(): Promise<ReglaAprobacion> {
+  const r = await leerAjuste<Partial<ReglaAprobacion>>('aprobacion_automatica', REGLA_APROBACION_DEFAULT);
+  return {
+    activa: r.activa !== false,
+    montoMaximo: Number.isFinite(Number(r.montoMaximo)) && Number(r.montoMaximo) >= 0 ? Number(r.montoMaximo) : REGLA_APROBACION_DEFAULT.montoMaximo,
+  };
+}
+export async function guardarReglaAprobacion(r: ReglaAprobacion, por: string): Promise<void> {
+  await guardarAjuste('aprobacion_automatica', r, por);
+}
+
+/**
+ * Si alguno de los que llegan tiene registrado el TIPO pedido, la oferta va
+ * solo a ellos (2026-10-22); si ninguno, a todos los que llegan, como antes.
+ * Así una solicitud de excavadora no le llega a quien solo tiene retros,
+ * pero tampoco se queda sin ofrecer mientras los equipos no tengan tipo.
+ */
+function primeroLosDelTipo<T extends { proveedor: { id: number } }>(cubren: T[], conTipo: Set<number> | null): T[] {
+  if (!conTipo?.size) return cubren;
+  const delTipo = cubren.filter((c) => conTipo.has(c.proveedor.id));
+  return delTipo.length ? delTipo : cubren;
+}
+
 const FECHA_HORA = new Intl.DateTimeFormat('es-MX', {
   weekday: 'long', day: 'numeric', month: 'long', hour: 'numeric', minute: '2-digit', timeZone: 'America/Monterrey',
 });
@@ -616,14 +973,3 @@ const folioDe = (requirements: unknown): string | null => {
   const f = (requirements as { folio?: unknown } | null)?.folio;
   return typeof f === 'string' && f.trim() ? f : null;
 };
-
-/** Las partidas del documento del cotizador ligado, para enseñárselas al aliado. */
-async function partidasDelDocumento(requirements: unknown): Promise<Array<{ concepto: string; cantidad: string; importe: number }>> {
-  const id = (requirements as { quoterId?: unknown } | null)?.quoterId;
-  if (typeof id !== 'number') return [];
-  const doc = await prisma.quoter_quotes.findUnique({ where: { id }, select: { snapshot: true } });
-  const renglones = (doc?.snapshot as { calc?: { renglones?: Array<{ concepto?: string; cantidad?: number; unidad?: string; importe?: number }> } } | null)?.calc?.renglones ?? [];
-  return renglones
-    .filter((r) => r.concepto)
-    .map((r) => ({ concepto: String(r.concepto), cantidad: `${r.cantidad ?? ''} ${r.unidad ?? ''}`.trim(), importe: Number(r.importe ?? 0) }));
-}

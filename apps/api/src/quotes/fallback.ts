@@ -9,12 +9,13 @@
  *
  * TRES DECISIONES QUE VALE LA PENA DEJAR ESCRITAS:
  *
- * 1. El sistema PREPARA al siguiente, no le habla solo. La actividad pide "que
- *    el sistema ya tenga a quién seguirle", y eso es tener listo al candidato,
- *    no ofrecer por su cuenta. Ofrecer automáticamente a dos aliados a la vez
- *    termina con dos unidades en la misma obra o con un aliado que aparta una
- *    máquina para nada — y el que paga esa cuenta es la relación con el
- *    proveedor, que es el activo del modelo.
+ * 1. CAMBIÓ el 2026-10-21. Antes el sistema solo PREPARABA al siguiente, por
+ *    miedo a dos unidades en la misma obra. Desde la oferta automática
+ *    (2026-10-15) el primero que acepta se la queda y a los demás se les
+ *    retira, así que ese riesgo ya no existe: cuando todos callan o todos
+ *    rechazan, se le ofrece solo a los siguientes (quotes/seguimiento-ofertas
+ *    .service.ts y ServiceService.ofrecerALosSiguientes). Lo de aquí sigue
+ *    midiendo el silencio para el panel y para ese seguimiento.
  *
  * 2. "No contesta" NO es un plazo fijo. Se mide contra lo que ESE aliado suele
  *    tardar (historial de cumplimiento): a uno que normalmente responde en 11

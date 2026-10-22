@@ -30,7 +30,7 @@ export class ServiceReviewsController {
       where: { id },
       select: {
         id: true, quote_number: true, name: true, product_interested: true, service_category: true,
-        service_state: true, service_closed_at: true, service_quantity: true, service_unit: true,
+        user_id: true, service_state: true, service_closed_at: true, service_quantity: true, service_unit: true,
       },
     });
     if (!q || q.service_state !== 'cerrado') throw new NotFoundException('Este servicio todavía no se puede calificar.');
@@ -46,9 +46,12 @@ export class ServiceReviewsController {
   async ver(@Headers('authorization') auth?: string) {
     const { q, aliados } = await this.servicio(auth);
     const r = await prisma.service_reviews.findUnique({ where: { quote_id: q.id }, select: { rating: true, comment: true } });
+    // A la persona de la cuenta por su nombre de pila; sin cuenta, el nombre
+    // completo: muchas veces es la empresa ("Gracias, Constructora" no).
+    const cuenta = q.user_id ? await prisma.users.findUnique({ where: { id: Number(q.user_id) }, select: { name: true } }) : null;
     return {
       folio: q.quote_number,
-      nombre: q.name.split(/\s+/)[0] ?? '',
+      nombre: cuenta?.name?.trim() ? cuenta.name.trim().split(/\s+/)[0] : q.name.trim(),
       // Solo la línea: lo que sigue a " · " es interno ("cotizador de maquinaria · MQ-…").
       servicio: q.product_interested?.split(' · ')[0] || q.service_category || 'Tu servicio',
       aliados: aliados.map((a) => a.providers.name),

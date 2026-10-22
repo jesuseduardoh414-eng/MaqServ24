@@ -7,7 +7,7 @@ import { requestFormFor } from '@maqserv/config';
  */
 
 /** Claves internas de `quotes.requirements` que no le dicen nada al aliado. */
-const INTERNAS = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'obra_ubicacion', 'productos', 'productId', 'precioAjustado', 'operadorAsignado']);
+const INTERNAS = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'obra_ubicacion', 'productos', 'productId', 'precioAjustado', 'operadorAsignado', 'renglones']);
 
 /**
  * LO QUE PIDE EL CLIENTE, para el aliado (2026-10-08).

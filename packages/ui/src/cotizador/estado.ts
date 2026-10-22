@@ -116,6 +116,24 @@ export const lineaDeZona = (cat: CatalogoTriturados): LineaZona => ({
   viajes: 1,
 });
 
+/**
+ * Con qué partida abre el cotizador cuando se llega desde una ficha del
+ * catálogo ("Cotizar" en un tipo, 2026-10-22, Fase 4): el primer renglón
+ * visible ligado a esa ficha. Vacío si el tabulador no la tiene; entonces
+ * abre como siempre.
+ */
+export function lineasDeFicha(cat: CatalogoMaquinaria | CatalogoTriturados, fichaId: number): LineaCotizador[] {
+  const liga = (r: { productos?: number[]; oculto?: boolean }) => !r.oculto && (r.productos ?? []).includes(fichaId);
+  if (cat.tipo === 'maquinaria') {
+    const e = cat.equipos.find(liga);
+    if (e) return [lineaDeEquipo(e.id)];
+    const s = cat.servicios.find(liga);
+    return s ? [lineaDeServicio(cat, s.id)] : [];
+  }
+  const m = cat.productos.find(liga);
+  return m ? [lineaDeMaterial(cat, m.id)] : [];
+}
+
 // ---- conversión ----
 
 /**

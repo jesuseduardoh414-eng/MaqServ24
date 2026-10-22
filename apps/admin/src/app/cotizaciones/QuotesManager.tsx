@@ -3,10 +3,11 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import {
-  Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toolbar, type Tone,
+  Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, SearchBox, Segmented, StatusText, Toolbar, type Tone,
 } from '@/components/ui';
 import { QuoteRespond } from './QuoteRespond';
 import { QuoteApprove } from './QuoteApprove';
+import { AprobacionAutomatica } from './AprobacionAutomatica';
 import { QuoteMatches } from './QuoteMatches';
 import { QuoteContact } from './QuoteContact';
 
@@ -179,7 +180,7 @@ function CotizarConTabulador({ q, principal }: { q: QuoteItem; principal?: boole
     </Btn>
   );
 }
-const REQ_NOMBRES: Record<string, string> = { obra: 'Obra', obra_ubicacion: 'Ubicación de la obra', fecha_inicio: 'Fecha de inicio' };
+const REQ_NOMBRES: Record<string, string> = { obra: 'Obra', obra_ubicacion: 'Ubicación de la obra', fecha_inicio: 'Fecha de inicio', duracion: 'Duración' };
 const humano = (k: string) => REQ_NOMBRES[k] ?? (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ');
 
 export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre esta solicitud al entrar (al volver del cotizador). */ abrir?: number | null }) {
@@ -241,7 +242,7 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
         .sl-h3{ margin:0 0 10px; font-family:inherit; font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--adm-faint); }
         .sl-tl{ list-style:none; margin:0; padding:0; display:grid; gap:0; }
         .sl-tl li{ display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:10px; align-items:start; padding:6px 0; font-size:13.5px; }
-        /* La fila tiene cinco columnas y la de acciones lleva hasta tres botones:
+        /* La fila tiene cinco columnas y la de acciones lleva hasta dos botones:
            bajo 1200px pasa a dos columnas y bajo 620px a una. */
         @media (max-width: 1200px){
           .sl-row{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); row-gap:12px; }
@@ -253,15 +254,10 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
       <PageHeader
         eyebrow="1 · Recibir"
         title="Solicitudes"
-        subtitle="Todo lo que piden los clientes, desde que llega hasta que pasa a servicio. Elige una etapa para ver lo que hay en ella; abre una solicitud para ver su historia completa."
+        subtitle="Lo que piden los clientes hasta que pasa a servicio. Lo del cotizador en orden se aprueba solo; aquí queda lo que necesita a alguien."
+        actions={<AprobacionAutomatica />}
       />
-
-      {/* ── El recorrido: cuántas hay en cada etapa ─────────────────── */}
-      <Stats>
-        {[...ETAPAS, PERDIDA].map((e) => (
-          <Stat key={e.key} label={e.label} icon={e.icon} tone={e.tone} value={cuenta(e.key)} hint={e.hint} />
-        ))}
-      </Stats>
+      {/* Sin los recuadros por etapa (2026-10-22): repetían los mismos números que las pestañas de abajo. */}
 
       {/* ── Filtro por etapa, búsqueda y orden ──────────────────────── */}
       <Toolbar end={`${filtered.length} de ${cuenta('todas')}`}>
@@ -350,7 +346,7 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
                 {q.total > 0 ? (
                   <>
                     <div className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>{money(q.total)}</div>
-                    {folioDe(q) ? <div className="adm-cell-sub adm-mono">{folioDe(q)}</div> : q.freightCost > 0 ? <div className="adm-cell-sub">incl. traslado</div> : null}
+                    {q.freightCost > 0 ? <div className="adm-cell-sub">incl. traslado</div> : null}
                   </>
                 ) : (
                   <div style={{ fontSize: 13, color: 'var(--adm-faint)' }}>Sin precio</div>
@@ -366,10 +362,9 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                 {e === 'por_cotizar' ? (
                   <>
-                    {/* Primero se registra el contacto, luego quién puede, luego el precio. */}
-                    <QuoteContact quoteId={q.id} firstContactAt={q.firstContactAt} firstContactVia={q.firstContactVia} />
-                    <QuoteMatches quoteId={q.id} />
-                    <CotizarConTabulador q={q} />
+                    {/* En la fila, solo la acción principal (2026-10-22); "Ya le hablé",
+                        "¿Quién puede?" y "Volver a cotizar" están en el detalle. */}
+                    <Btn size="sm" variant="ghost" onClick={() => setDetalleId(q.id)}>Detalle</Btn>
                     {seAprueba(q)
                       ? <QuoteApprove quoteId={q.id} folio={folioDe(q)} total={q.total} />
                       : <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} cotizarHref={cotizarHref(q)} />}

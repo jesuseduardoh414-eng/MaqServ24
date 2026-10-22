@@ -189,7 +189,7 @@ export function Incidencias({
     }
   }
 
-  async function cerrar(id: number) {
+  async function cerrar(id: number, responsable: string) {
     const resolution = await pedirTexto({
       titulo: '¿Cómo se resolvió?',
       mensaje: 'Queda en el historial del servicio.',
@@ -203,10 +203,12 @@ export function Incidencias({
       return;
     }
     // Al cerrar se puede corregir de quién fue: al abrir no siempre se sabe, y
-    // obligar a decidirlo en caliente produce culpables inventados.
+    // obligar a decidirlo en caliente produce culpables inventados. Sale
+    // marcado lo que se dijo al abrirla (2026-10-22): antes salía "De nadie" y
+    // un clic de más le borraba la responsabilidad al aliado.
     const quien = await pedirTexto({
       titulo: '¿De quién fue?',
-      valor: 'nadie',
+      valor: responsable || 'nadie',
       opciones: [
         { valor: 'cliente', texto: 'Del cliente' },
         { valor: 'aliado', texto: 'Del aliado' },
@@ -387,7 +389,7 @@ export function Incidencias({
 
               {i.state === 'abierta' ? (
                 <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Btn size="sm" icon="ph-check" onClick={() => cerrar(i.id)} disabled={ocupado}>
+                  <Btn size="sm" icon="ph-check" onClick={() => cerrar(i.id, i.responsible)} disabled={ocupado}>
                     Marcar resuelta
                   </Btn>
                   {/* La foto casi nunca llega con el aviso: llega después. */}

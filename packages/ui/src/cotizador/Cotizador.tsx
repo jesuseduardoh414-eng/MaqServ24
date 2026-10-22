@@ -6,6 +6,7 @@ import {
   pasosDe,
   problemaEmail,
   problemaTelefono,
+  soloVisibles,
   type CatalogoCotizador,
   type CatalogoMaquinaria,
   type CatalogoTriturados,
@@ -78,6 +79,8 @@ export interface CotizadorProps {
   variante: 'panel' | 'sitio';
   /** Datos que ya se saben (cliente con sesión, obra desde un enlace). */
   inicial?: Partial<ContextoCotizador>;
+  /** Partidas con las que abre (2026-10-22): el tipo desde el que se llegó del catálogo. */
+  lineasIniciales?: LineaCotizador[];
   /** Logo para el documento (fondo claro). */
   logo?: string | null;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
@@ -102,7 +105,7 @@ export interface CotizadorProps {
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
   const pasos = pasosDe(tipo);
   const esPanel = variante === 'panel';
@@ -129,7 +132,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
 
   const [paso, setPaso] = useState(0);
   const [ctx, setCtx] = useState<ContextoCotizador>({ ...CONTEXTO_VACIO, ...inicial });
-  const [lineas, setLineas] = useState<LineaCotizador[]>([]);
+  const [lineas, setLineas] = useState<LineaCotizador[]>(lineasIniciales ?? []);
   /** El renglón de material recién agregado: su selector se abre solo. */
   const [nuevo, setNuevo] = useState<number | null>(null);
   const [modoUnidad, setModoUnidad] = useState<'horas' | 'dias'>('horas');
@@ -163,6 +166,15 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
   const opciones: Partial<OpcionesCotizador> = tipo === 'maquinaria' ? { modo_unidad: modoUnidad } : { con_iva: conIva };
   const partidas = useMemo(() => aPartidas(lineas), [lineas]);
   const calc = useMemo(() => calcularCotizacion(catalogo, partidas, opciones), [catalogo, partidas, modoUnidad, conIva]);
+  /**
+   * Lo que se puede ELEGIR: sin lo que su ficha sacó del cotizador
+   * (2026-10-19). El cálculo sigue con el tabulador completo, y lo que ya trae
+   * la cotización se queda en la lista aunque esté oculto.
+   */
+  const paraElegir = useMemo(
+    () => soloVisibles(catalogo, lineas.map((l) => (l.tipo === 'zona' ? l.productoId : 'id' in l ? l.id : ''))),
+    [catalogo, lineas],
+  );
 
   // ---- edición de líneas ----
   const agregar = (l: LineaCotizador) => setLineas((prev) => [...prev, l]);
@@ -295,8 +307,8 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
           <h2>{esPanel ? 'Cotización guardada' : 'Cotización enviada'}</h2>
           <p>
             {esPanel
-              ? 'Ya está en el historial del cotizador. Imprímela o guárdala como PDF para enviársela al cliente.'
-              : 'Recibimos tu cotización. La revisamos y te la confirmamos con precio por correo; después la aceptas desde tu cuenta y asignamos al proveedor. Guarda tu folio.'}
+              ? 'Ya está en el historial del cotizador. Mándasela al cliente por correo (con el botón para aceptarla) o imprímela.'
+              : 'Recibimos tu solicitud. Se la mandamos a los proveedores de tu zona y te avisamos por correo en cuanto uno la tome; no tienes que hacer nada más. Guarda tu folio.'}
           </p>
           <div className="cz-folio">{hecho.folio}</div>
           <div className="cz-done-acts">
@@ -367,7 +379,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
 
           {tipo === 'maquinaria' && clave === 'equipos' ? (
             <PasoEquipos
-              cat={catalogo as CatalogoMaquinaria}
+              cat={paraElegir as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
               mostrarPrecios={preciosEnPasos}
               alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
@@ -387,7 +399,7 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
 
           {tipo === 'maquinaria' && clave === 'servicios' ? (
             <PasoServicios
-              cat={catalogo as CatalogoMaquinaria}
+              cat={paraElegir as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
               mostrarPrecios={preciosEnPasos}
               alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
@@ -398,13 +410,13 @@ export function Cotizador({ catalogo, variante, inicial, logo, onEnviar }: Cotiz
 
           {tipo === 'triturados' && clave === 'pedido' ? (
             <PasoPedido
-              cat={catalogo as CatalogoTriturados}
+              cat={paraElegir as CatalogoTriturados}
               lineas={lineas as LineaTriturados[]}
               mostrarPrecios={preciosEnPasos}
               preciosAlFinal={preciosAlFinal}
               permitirOtro={esPanel}
               agregarMaterial={agregarMaterial}
-              agregarZona={() => agregar(lineaDeZona(catalogo as CatalogoTriturados))}
+              agregarZona={() => agregar(lineaDeZona(paraElegir as CatalogoTriturados))}
               agregarBanco={() => agregar(lineaDeBanco(catalogo as CatalogoTriturados))}
               actualizar={actualizar}
               quitar={quitar}

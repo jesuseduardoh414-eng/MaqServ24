@@ -12,13 +12,13 @@ import {
   type PartidaCotizador,
 } from '@maqserv/config';
 import { NotificationsService } from '../notifications/notifications.service';
-import { avisarPanel } from '../notifications/panel';
 import { ServiceService } from '../quotes/service.service';
 import { newQuoteNumber } from '../quotes/quotes.service';
 import { estadoInicial } from '../quotes/service-flow';
 import { VIGENCIA_DEFAULT_DIAS } from '../quotes/quote-validity';
 import { resolverClienteYObra } from '../quotes/client-resolver';
 import type { DatosCuenta } from '../common/cuenta';
+import { claveDeRenglon } from './parte-del-documento';
 
 /**
  * DEL COTIZADOR AL SERVICIO (decisión del cliente, 2026-09-23; relación con
@@ -147,7 +147,7 @@ export class QuoterServicio {
     for (const [linea, grupo] of porLinea) {
       // Una sola línea: el cálculo congelado del documento es exactamente este.
       const calc = unaSola ? calcTotal : calcularCotizacion(catalogo, grupo.map((g) => g.partida), opciones);
-      const abierto = await this.crearServicio({ cot, tipo, nombreCotizador, linea, lineaNombre: nombresLinea.get(linea) ?? linea, calc, grupo, entrada, modo });
+      const abierto = await this.crearServicio({ cot, tipo, nombreCotizador, linea, lineaNombre: nombresLinea.get(linea) ?? linea, calc, grupo, entrada, modo, parte: !unaSola });
 
       /**
        * PRECIO ÚNICO Y ASIGNA MAQSER24 (decisión del cliente, 2026-09-28).
@@ -194,17 +194,12 @@ export class QuoterServicio {
       userId,
       type: 'service_status',
       title: `Recibimos tu cotización ${cot.folio}`,
-      body: 'La revisamos y te la confirmamos con precio. Después la aceptas desde tu cuenta.',
+      body: 'La revisamos y se la mandamos a los proveedores. Te avisamos en cuanto uno la tome.',
       link: principal.url,
     });
-    // Campana del panel: hay que confirmarla y responderle.
-    void avisarPanel({
-      modulo: 'cotizaciones',
-      evento: 'cotizacion',
-      titulo: `Cotización del sitio ${cot.folio} de ${entrada.cliente}: confírmala`,
-      cuerpo: `${servicios.map((s) => s.linea).length} servicio(s) · ${dinero(calcTotal.total)}${cot.municipality ? ` · ${cot.municipality}` : ''}`,
-      link: '/cotizaciones',
-    });
+    // La campana del panel ya no sale aquí (2026-10-22): la manda la aprobación
+    // automática, que dice si se aprobó sola o qué hay que revisar
+    // (ServiceService.aprobarSiTodoEnOrden, llamada desde quoter.controller).
     // El documento sigue "solicitada"; pasa a "enviada" al responderle y a
     // "aceptada" cuando el cliente la acepta.
 
@@ -251,6 +246,8 @@ export class QuoterServicio {
     grupo: PartidaAnalizada[];
     entrada: { cuenta: DatosCuenta; cliente: string; userId: number | null; adminNombre?: string | null };
     modo: 'por_confirmar' | 'aceptada';
+    /** El documento trae otras líneas: esta solicitud es solo una parte de él. */
+    parte: boolean;
   }): Promise<{ quoteId: number; quoteNumber: string; url: string }> {
     const { cot, calc, entrada } = d;
     const aceptada = d.modo === 'aceptada';
@@ -267,6 +264,11 @@ export class QuoterServicio {
     const condiciones = calc.condiciones.map((b) => [b.titulo, ...b.puntos.map((p) => `- ${p}`)].join('\n')).join('\n\n');
     const conceptos = d.grupo.map((g) => g.concepto);
     const ligados = [...new Set(d.grupo.flatMap((g) => g.productos))];
+    // Cuántos días de calendario ocupa el equipo (2026-10-19): sin esto la
+    // reserva no tenía de dónde sacarlo y apartaba un solo día aunque se
+    // cotizaran 3. Las horas extra ocupan un día más.
+    const diasEquipo = Math.max(0, ...d.grupo.map(({ partida: p }) =>
+      p.tipo === 'equipo' ? (p.dias ?? 0) + ((p.horas ?? 0) > 0 ? 1 : 0) : 0));
 
     const q = await prisma.quotes.create({
       data: {
@@ -319,8 +321,14 @@ export class QuoterServicio {
           // todavía (asigna MAQSER24); cuando un aliado acepta, se aparta el
           // suyo de esta lista (ver quotes/reservas.ts).
           ...(ligados.length ? { productos: ligados } : {}),
+          // Qué renglones del documento son de esta parte (2026-10-19): el
+          // aliado solo ve los suyos; el documento completo es del cliente y
+          // de MAQSER24 (ver parte-del-documento.ts).
+          ...(d.parte ? { renglones: [...new Set(calc.renglones.filter((r) => r.id !== undefined).map(claveDeRenglon))] } : {}),
           ...(cot.work ? { obra: cot.work } : {}),
           ...(cot.municipality ? { obra_ubicacion: cot.municipality } : {}),
+          // La misma llave que el formulario de /cotizar: la lee quotes/reservas.ts.
+          ...(diasEquipo > 0 ? { duracion: `${diasEquipo} ${diasEquipo === 1 ? 'día' : 'días'}` } : {}),
         } as Prisma.InputJsonValue,
         quote_number: newQuoteNumber(),
         created_at: ahora,
@@ -339,8 +347,11 @@ export class QuoterServicio {
       });
     }
 
-    // A qué cliente y obra pertenece. Nunca lanza.
+    // A qué cliente y obra pertenece. Nunca lanza. "Cliente o empresa" va como
+    // EMPRESA (2026-10-19): sin ella, la cuenta recién creada seguía con el
+    // nombre de la persona y el siguiente pedido por /cotizar abría otro cliente.
     const ligada = await resolverClienteYObra({
+      companyName: entrada.cliente || null,
       contactName: entrada.cliente || entrada.cuenta.name,
       email: entrada.cuenta.email,
       phone: cot.phone,

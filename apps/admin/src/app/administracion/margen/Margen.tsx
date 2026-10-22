@@ -1,322 +1,169 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bar, Btn, Chip, PageHeader, Panel, Segmented, Stat, Stats, StatusText, type Tone } from '@/components/ui';
-import { AvisoDiseno, accionDeDiseno as diseno } from '@/components/Diseno';
-import {
-  DIFERENCIAS, HISTORIAL_MESES, HOY, SERVICIOS, cobroDe, dinero, fechaCorta, mesCorto, mesLargo, mesTitulo, pagoDe, pct,
-  type EstadoConciliacion, type Linea,
-} from '../datos-ejemplo';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { mostrarResultado } from '@maqserv/ui';
+import { Btn, EmptyState, FormField, Note, PageHeader, Panel, Stat, Stats } from '@/components/ui';
+import { DIAS_SEMANA, dinero, enviar, mesCorto, mesTitulo, pct } from '../formato';
 
-const MOTIVO = 'Se conecta cuando se defina cómo gana dinero MAQSER24 (quién factura, márgenes por línea y plazos de cobro y pago).';
-const accionDeDiseno = (nombre: string) => diseno(nombre, MOTIVO);
-
-/**
- * MARGEN Y CONCILIACIÓN — diseño (2026-10-09).
- *
- * Cuánto gana MAQSER24: lo cobrado al cliente menos lo pagado al aliado, SIN
- * IVA (el IVA no es ingreso). Por mes, por línea y por servicio, y si cada
- * servicio cuadra (cobrado, pagado y con las dos facturas). Es la pantalla que
- * alimentará el indicador "Margen / contribución". Datos de ejemplo.
- */
-
-type Mes = '2026-10' | '2026-09';
-
-const CONCILIACION: Record<EstadoConciliacion, { texto: string; tono: Tone }> = {
-  cuadra: { texto: 'Cuadra', tono: 'ok' },
-  'falta-cobrar': { texto: 'Falta cobrar', tono: 'info' },
-  'falta-pagar': { texto: 'Falta pagar', tono: 'info' },
-  'falta-factura': { texto: 'Falta factura del aliado', tono: 'warn' },
-  diferencia: { texto: 'Diferencia', tono: 'bad' },
-};
-
-function conciliacionDe(folio: string): EstadoConciliacion {
-  if (DIFERENCIAS[folio]) return 'diferencia';
-  if (!pagoDe(folio).facturaAliado) return 'falta-factura';
-  if (cobroDe(folio).estado !== 'cobrada') return 'falta-cobrar';
-  if (pagoDe(folio).estado !== 'pagado') return 'falta-pagar';
-  return 'cuadra';
+export interface ReglasDinero {
+  comisionPct: number;
+  comisionPorLinea: Record<string, number>;
+  diaDePago: number;
+  datosPago: { banco: string; clabe: string; beneficiario: string } | null;
+}
+export interface DatosMargen {
+  mes: string;
+  servicios: number;
+  ventas: number;
+  pagoAliados: number;
+  margen: number;
+  porLinea: Array<{ linea: string; nombre: string; servicios: number; ventas: number; margen: number }>;
+  tendencia: Array<{ mes: string; ventas: number; margen: number }>;
+  porCobrar: number;
+  vencido: number;
+  porPagar: number;
+  reglas: ReglasDinero;
+  lineas: Array<{ slug: string; nombre: string }>;
 }
 
-const GRID_LINEA = 'minmax(0,1.6fr) 80px 118px 118px 110px minmax(0,1fr)';
-const GRID_SERV = 'minmax(0,1.3fr) minmax(0,1.1fr) 104px 104px 96px minmax(0,1.1fr)';
+const otroMes = (ym: string, d: number) => {
+  let [a, m] = ym.split('-').map(Number);
+  m += d; if (m === 0) { m = 12; a -= 1; } if (m === 13) { m = 1; a += 1; }
+  return `${a}-${String(m).padStart(2, '0')}`;
+};
 
-export function Margen() {
-  const [mes, setMes] = useState<Mes>(HOY.slice(0, 7) as Mes);
-  const [vista, setVista] = useState<'grafica' | 'tabla'>('grafica');
-
-  const delMes = SERVICIOS.filter((s) => s.cerrado.startsWith(mes));
-  const cobrado = delMes.reduce((a, s) => a + s.precioCliente, 0);
-  const pagado = delMes.reduce((a, s) => a + s.costoAliado, 0);
-  const margen = cobrado - pagado;
-  const cuadran = delMes.filter((s) => conciliacionDe(s.folio) === 'cuadra').length;
-
-  // Seis meses: los cuatro del historial + los dos que salen de los servicios.
-  const meses = useMemo(() => {
-    const calc = (m: string) => {
-      const ss = SERVICIOS.filter((s) => s.cerrado.startsWith(m));
-      return { mes: m, cobrado: ss.reduce((a, s) => a + s.precioCliente, 0), pagado: ss.reduce((a, s) => a + s.costoAliado, 0) };
-    };
-    return [...HISTORIAL_MESES, calc('2026-09'), calc('2026-10')].map((x) => ({
-      ...x, margen: x.cobrado - x.pagado, pct: ((x.cobrado - x.pagado) / x.cobrado) * 100, enCurso: x.mes === HOY.slice(0, 7),
-    }));
-  }, []);
-
-  const porLinea = useMemo(() => {
-    const m = new Map<Linea, { servicios: number; cobrado: number; pagado: number }>();
-    for (const s of delMes) {
-      const r = m.get(s.linea) ?? { servicios: 0, cobrado: 0, pagado: 0 };
-      r.servicios += 1; r.cobrado += s.precioCliente; r.pagado += s.costoAliado;
-      m.set(s.linea, r);
-    }
-    return [...m.entries()].map(([linea, r]) => ({ linea, ...r, margen: r.cobrado - r.pagado, pct: ((r.cobrado - r.pagado) / r.cobrado) * 100 }))
-      .sort((a, b) => b.margen - a.margen);
-  }, [delMes]);
+/**
+ * MARGEN (2026-10-22, Fase A). Lo que ganó MAQSER24 con los servicios cerrados
+ * del mes, sin IVA. No se captura nada: sale de cada servicio cerrado (lo
+ * cotizado menos la parte del aliado). Las reglas van abajo, plegadas.
+ */
+export function Margen({ d }: { d: DatosMargen }) {
+  const hoyMes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date()).slice(0, 7);
+  const maxVentas = Math.max(1, ...d.tendencia.map((t) => t.ventas));
+  const porcentaje = d.ventas > 0 ? (d.margen / d.ventas) * 100 : 0;
 
   return (
     <div>
-      <style>{`
-        .mg-linea { display: grid; grid-template-columns: ${GRID_LINEA}; gap: 16px; align-items: center; }
-        .mg-serv { display: grid; grid-template-columns: ${GRID_SERV}; gap: 16px; align-items: center; }
-        .mg-num { text-align: right; font-variant-numeric: tabular-nums; }
-        .mg-tabla { width: 100%; border-collapse: collapse; }
-        @media (max-width: 1000px) {
-          .mg-thead { display: none !important; }
-          .mg-linea, .mg-serv { display: flex; flex-wrap: wrap; gap: 6px 16px; }
-          .mg-linea > :first-child, .mg-serv > :first-child { flex: 1 1 100%; }
-          .mg-num { text-align: left; }
-        }
-      `}</style>
-
       <PageHeader
         eyebrow={['4 · Cobrar y medir', 'Administración']}
-        title="Margen y conciliación"
-        subtitle="Cuánto gana MAQSER24: lo cobrado al cliente menos lo pagado al aliado, sin IVA. Por mes, por línea y por servicio, y si cada servicio cuadra."
-        actions={<Btn icon="ph-download-simple" onClick={() => accionDeDiseno('Exportar a Excel')}>Exportar</Btn>}
+        title="Margen"
+        subtitle="Lo que gana MAQSER24 con los servicios cerrados en el mes, sin IVA. Se calcula solo."
+        actions={
+          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+            <Btn variant="ghost" icon="ph-caret-left" href={`/administracion/margen?mes=${otroMes(d.mes, -1)}`}>{mesCorto(otroMes(d.mes, -1))}</Btn>
+            <strong style={{ fontSize: 14 }}>{mesTitulo(d.mes)}</strong>
+            {d.mes < hoyMes ? <Btn variant="ghost" href={`/administracion/margen?mes=${otroMes(d.mes, 1)}`}>{mesCorto(otroMes(d.mes, 1))} ›</Btn> : null}
+          </span>
+        }
       />
 
-      <AvisoDiseno falta="Para construirla falta decidir cómo gana dinero MAQSER24." />
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 22 }}>
-        <Segmented<Mes>
-          value={mes}
-          onChange={setMes}
-          ariaLabel="Mes"
-          items={[
-            { key: '2026-10', label: 'Octubre · en curso' },
-            { key: '2026-09', label: 'Septiembre' },
-          ]}
-        />
-        <span style={{ fontSize: 13, color: 'var(--adm-muted)' }}>Servicios cerrados en {mesLargo(mes)}</span>
-      </div>
-
       <Stats>
-        <Stat label="Cobrado a clientes" icon="ph-arrow-down-left" tone="info" value={dinero(cobrado)} hint={`${delMes.length} servicios`} />
-        <Stat label="Pagado a aliados" icon="ph-arrow-up-right" tone="muted" value={dinero(pagado)} />
-        <Stat label="Margen" icon="ph-trend-up" tone="ok" value={dinero(margen)} hint={`${pct((margen / Math.max(1, cobrado)) * 100)} de lo cobrado`} />
-        <Stat label="Conciliados" icon="ph-scales" tone={cuadran === delMes.length ? 'ok' : 'warn'} value={`${cuadran} de ${delMes.length}`} hint="cobrados, pagados y con facturas" />
+        <Stat label="Margen" icon="ph-trend-up" tone="ok" value={dinero(d.margen)} hint={d.ventas > 0 ? `${pct(porcentaje)} de las ventas` : 'sin servicios cerrados'} />
+        <Stat label="Ventas" icon="ph-receipt" tone="info" value={dinero(d.ventas)} hint={`${d.servicios} servicio${d.servicios === 1 ? '' : 's'} cerrado${d.servicios === 1 ? '' : 's'}`} />
+        <Stat label="Pago a aliados" icon="ph-hand-coins" tone="muted" value={dinero(d.pagoAliados)} />
       </Stats>
 
-      <div style={{ display: 'grid', gap: 20 }}>
-        <Panel
-          title="Margen por mes"
-          icon="ph-chart-bar"
-          desc="Lo que quedó después de pagar a los aliados, sin IVA. Octubre va en curso."
-          action={
-            <Segmented<'grafica' | 'tabla'>
-              value={vista}
-              onChange={setVista}
-              ariaLabel="Ver como"
-              items={[{ key: 'grafica', label: 'Gráfica' }, { key: 'tabla', label: 'Tabla' }]}
-            />
-          }
-        >
-          {vista === 'grafica' ? <GraficaMargen datos={meses} /> : (
-            <table className="adm-tbl">
-              <thead><tr><th>Mes</th><th style={{ textAlign: 'right' }}>Cobrado</th><th style={{ textAlign: 'right' }}>Pagado</th><th style={{ textAlign: 'right' }}>Margen</th><th style={{ textAlign: 'right' }}>% del cobrado</th></tr></thead>
-              <tbody>
-                {meses.map((m) => (
-                  <tr key={m.mes}>
-                    <td>{mesTitulo(m.mes)}{m.enCurso ? <span style={{ color: 'var(--adm-faint)' }}> · en curso</span> : null}</td>
-                    <td className="mg-num">{dinero(m.cobrado)}</td>
-                    <td className="mg-num">{dinero(m.pagado)}</td>
-                    <td className="mg-num" style={{ fontWeight: 600 }}>{dinero(m.margen)}</td>
-                    <td className="mg-num">{pct(m.pct)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* En rejilla los paneles no llevan el margen de "uno debajo del otro". */}
+      <div className="mg-rejilla" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+        <style>{'.mg-rejilla > .adm-panel { margin-top: 0; }'}</style>
+        <Panel title="Por línea">
+          {d.porLinea.length === 0 ? <EmptyState icon="ph-chart-bar" title="Sin servicios cerrados este mes" /> : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {d.porLinea.map((l) => (
+                <div key={l.linea} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13.5, borderTop: '1px solid var(--adm-border)', paddingTop: 8 }}>
+                  <span>{l.nombre} <span style={{ color: 'var(--adm-faint)' }}>· {l.servicios}</span></span>
+                  <span className="adm-num"><strong>{dinero(l.margen)}</strong> <span style={{ color: 'var(--adm-muted)' }}>de {dinero(l.ventas)}</span></span>
+                </div>
+              ))}
+            </div>
           )}
         </Panel>
-
-        <Panel title="Por línea" icon="ph-squares-four" desc={`${mesTitulo(mes)} · el margen objetivo de cada línea todavía no se define.`} action={<Chip tone="warn">Meta por definir</Chip>} flush clip>
-          <div className="adm-thead mg-linea mg-thead">
-            <div>Línea</div><div className="mg-num">Servicios</div><div className="mg-num">Cobrado</div><div className="mg-num">Pagado</div><div className="mg-num">Margen</div><div>% del cobrado</div>
-          </div>
-          {porLinea.map((l) => (
-            <div key={l.linea} className="adm-trow mg-linea">
-              <div className="adm-cell-title">{l.linea}</div>
-              <div className="mg-num" style={{ fontSize: 13.5 }}>{l.servicios}</div>
-              <div className="mg-num" style={{ fontSize: 13.5 }}>{dinero(l.cobrado)}</div>
-              <div className="mg-num" style={{ fontSize: 13.5, color: 'var(--adm-text-2)' }}>{dinero(l.pagado)}</div>
-              <div className="mg-num" style={{ fontSize: 13.5, fontWeight: 600 }}>{dinero(l.margen)}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span className="adm-num" style={{ fontSize: 13.5, minWidth: 44 }}>{pct(l.pct)}</span>
-                {/* Escala fija de 0 a 20 %: las barras se comparan entre líneas y entre meses. */}
-                <Bar pct={(l.pct / 20) * 100} width={90} label={`${pct(l.pct)} de margen`} />
+        <Panel title="Últimos 6 meses" desc="Ventas y margen.">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, alignItems: 'end', height: 130 }} role="img" aria-label="Ventas y margen de los últimos 6 meses">
+            {d.tendencia.map((t) => (
+              <div key={t.mes} style={{ display: 'grid', gap: 4, justifyItems: 'center', height: '100%', alignContent: 'end' }} title={`${mesTitulo(t.mes)}: ventas ${dinero(t.ventas)}, margen ${dinero(t.margen)}`}>
+                <div style={{ width: '70%', display: 'grid', alignContent: 'end', height: 100 }}>
+                  <div style={{ height: `${(t.ventas / maxVentas) * 100}px`, minHeight: t.ventas > 0 ? 2 : 0, background: 'var(--adm-raised)', borderRadius: 4, display: 'grid', alignContent: 'end', overflow: 'hidden' }}>
+                    <div style={{ height: `${(Math.max(0, t.margen) / maxVentas) * 100}px`, background: 'var(--adm-ok)' }} />
+                  </div>
+                </div>
+                <span style={{ fontSize: 11.5, color: t.mes === d.mes ? 'var(--adm-text)' : 'var(--adm-muted)' }}>{mesCorto(t.mes)}</span>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </Panel>
-
-        <Panel title="Conciliación por servicio" icon="ph-scales" desc="Un servicio cuadra cuando el cliente ya pagó, al aliado ya se le pagó y están las dos facturas." flush clip>
-          <div className="adm-thead mg-serv mg-thead">
-            <div>Servicio</div><div>Aliado</div><div className="mg-num">Cobrado</div><div className="mg-num">Pagado</div><div className="mg-num">Margen</div><div>Estado</div>
+        <Panel title="Hoy" desc="Con IVA.">
+          <div style={{ display: 'grid', gap: 8, fontSize: 13.5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/cobranza">Por cobrar</a><span className="adm-num">{dinero(d.porCobrar)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>De eso, vencido</span><span className="adm-num" style={{ color: d.vencido > 0 ? 'var(--adm-bad)' : undefined }}>{dinero(d.vencido)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/pagos">Por pagar a aliados</a><span className="adm-num">{dinero(d.porPagar)}</span></div>
           </div>
-          {delMes.map((s) => {
-            const c = CONCILIACION[conciliacionDe(s.folio)];
-            const m = s.precioCliente - s.costoAliado;
-            return (
-              <div key={s.folio} className="adm-trow mg-serv">
-                <div style={{ minWidth: 0 }}>
-                  <div className="adm-cell-title adm-ellipsis">{s.cliente}</div>
-                  <div className="adm-cell-sub adm-ellipsis"><span className="adm-mono">{s.folio}</span> · {s.detalle}</div>
-                </div>
-                <div className="adm-ellipsis" style={{ fontSize: 13.5, color: 'var(--adm-text-2)' }}>{s.aliado}</div>
-                <div className="mg-num" style={{ fontSize: 13.5 }}>{dinero(s.precioCliente)}</div>
-                <div className="mg-num" style={{ fontSize: 13.5, color: 'var(--adm-text-2)' }}>{dinero(s.costoAliado)}</div>
-                <div className="mg-num" style={{ fontSize: 13.5, fontWeight: 600 }}>
-                  {dinero(m)}
-                  <div className="adm-cell-sub">{pct((m / s.precioCliente) * 100)}</div>
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <StatusText tone={c.tono}>{c.texto}</StatusText>
-                  {DIFERENCIAS[s.folio] ? <div className="adm-cell-sub" style={{ whiteSpace: 'normal' }}>{DIFERENCIAS[s.folio]}</div>
-                    : <div className="adm-cell-sub">Cerrado el {fechaCorta(s.cerrado)}</div>}
-                </div>
-              </div>
-            );
-          })}
         </Panel>
       </div>
+
+      <details style={{ marginTop: 18 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 13.5, color: 'var(--adm-muted)' }}>Reglas: comisión {pct(d.reglas.comisionPct)}, se paga a aliados los {DIAS_SEMANA[d.reglas.diaDePago]}</summary>
+        <Reglas d={d} />
+      </details>
     </div>
   );
 }
 
-/* ── Gráfica: margen por mes ─────────────────────────────────────────────
-   Una sola serie (el título la nombra, sin leyenda), columnas de 24 px como
-   máximo con la punta redondeada y la base recta, rejilla de líneas finas y
-   un tooltip por columna con hover y con teclado. Etiqueta directa solo en el
-   último mes; los demás valores están en el tooltip y en la vista de tabla. */
+function Reglas({ d }: { d: DatosMargen }) {
+  const router = useRouter();
+  const [general, setGeneral] = useState(String(d.reglas.comisionPct));
+  const [porLinea, setPorLinea] = useState<Record<string, string>>(Object.fromEntries(Object.entries(d.reglas.comisionPorLinea).map(([k, v]) => [k, String(v)])));
+  const [dia, setDia] = useState(d.reglas.diaDePago);
+  const [banco, setBanco] = useState(d.reglas.datosPago?.banco ?? '');
+  const [clabe, setClabe] = useState(d.reglas.datosPago?.clabe ?? '');
+  const [beneficiario, setBeneficiario] = useState(d.reglas.datosPago?.beneficiario ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
-interface PuntoMes { mes: string; cobrado: number; pagado: number; margen: number; pct: number; enCurso: boolean }
-
-function escalaBonita(max: number): { tope: number; paso: number } {
-  const crudo = max / 3;
-  const mag = 10 ** Math.floor(Math.log10(crudo));
-  const paso = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((p) => p >= crudo) ?? 10 * mag;
-  return { tope: Math.ceil(max / paso) * paso, paso };
-}
-
-const kMiles = (n: number) => (n === 0 ? '$0' : `$${Math.round(n / 1000)}k`);
-
-function GraficaMargen({ datos }: { datos: PuntoMes[] }) {
-  const caja = useRef<HTMLDivElement>(null);
-  const [ancho, setAncho] = useState(640);
-  const [activo, setActivo] = useState<number | null>(null);
-
-  useEffect(() => {
-    const el = caja.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => setAncho(Math.max(280, Math.round(e.contentRect.width))));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-
-  const alto = 220;
-  const izq = 48, der = 8, arriba = 22, ejeX = 40;
-  const plotW = ancho - izq - der;
-  const plotH = alto - arriba - ejeX;
-  const { tope, paso } = escalaBonita(Math.max(...datos.map((d) => d.margen)));
-  const y = (v: number) => arriba + plotH - (v / tope) * plotH;
-  const banda = plotW / datos.length;
-  const barW = Math.min(24, banda * 0.45);
-  const ticks: number[] = [];
-  for (let v = 0; v <= tope + 1; v += paso) ticks.push(v);
-  const ultimo = datos.length - 1;
-
-  const columna = (x: number, top: number, w: number, base: number) => {
-    const h = base - top;
-    const r = Math.min(4, h, w / 2);
-    return `M${x},${base} L${x},${top + r} Q${x},${top} ${x + r},${top} L${x + w - r},${top} Q${x + w},${top} ${x + w},${top + r} L${x + w},${base} Z`;
-  };
-
-  const d = activo !== null ? datos[activo] : null;
-  const xTip = activo !== null ? izq + banda * activo + banda / 2 : 0;
+  async function guardar() {
+    const g = Number(general);
+    if (!Number.isFinite(g) || g < 0 || g > 90) { setError('La comisión va de 0 a 90%.'); return; }
+    const lineas: Record<string, number> = {};
+    for (const [k, v] of Object.entries(porLinea)) if (v.trim() !== '') lineas[k] = Number(v);
+    setBusy(true); setError(null);
+    const fallo = await enviar('/api/admin/dinero/reglas', 'PUT', {
+      comisionPct: g, comisionPorLinea: lineas, diaDePago: dia,
+      datosPago: clabe.trim() ? { banco: banco.trim(), clabe: clabe.trim(), beneficiario: beneficiario.trim() } : null,
+    });
+    setBusy(false);
+    if (fallo) { setError(fallo); return; }
+    mostrarResultado('Reglas guardadas. Valen para los servicios que se cierren de aquí en adelante.', 'ok');
+    router.refresh();
+  }
 
   return (
-    <div ref={caja} style={{ position: 'relative' }}>
-      <svg
-        width={ancho}
-        height={alto}
-        role="img"
-        aria-label={`Margen por mes: ${datos.map((p) => `${mesLargo(p.mes)} ${dinero(p.margen)}`).join(', ')}. La vista de tabla tiene el detalle.`}
-        style={{ display: 'block', overflow: 'visible' }}
-      >
-        {ticks.map((t) => (
-          <g key={t}>
-            <line x1={izq} x2={ancho - der} y1={y(t)} y2={y(t)} stroke="var(--adm-border)" strokeWidth={1} />
-            <text x={izq - 10} y={y(t)} dy="0.32em" textAnchor="end" fontSize={11} fill="var(--adm-faint)" style={{ fontVariantNumeric: 'tabular-nums' }}>{kMiles(t)}</text>
-          </g>
-        ))}
-        {datos.map((p, i) => {
-          const x = izq + banda * i + (banda - barW) / 2;
-          const on = activo === i;
-          return (
-            <g
-              key={p.mes}
-              tabIndex={0}
-              role="button"
-              aria-label={`${mesLargo(p.mes)}: ${dinero(p.margen)} de margen, ${pct(p.pct)} de ${dinero(p.cobrado)} cobrado`}
-              onMouseEnter={() => setActivo(i)}
-              onMouseLeave={() => setActivo(null)}
-              onFocus={() => setActivo(i)}
-              onBlur={() => setActivo(null)}
-              style={{ cursor: 'default', outline: 'none' }}
-            >
-              {/* Zona de hover: toda la banda, no solo la columna. */}
-              <rect x={izq + banda * i} y={arriba} width={banda} height={plotH} fill={on ? 'rgba(255,255,255,0.035)' : 'transparent'} />
-              <path d={columna(x, y(p.margen), barW, y(0))} fill="var(--adm-accent)" opacity={p.enCurso ? 0.55 : 1} />
-              <text x={izq + banda * i + banda / 2} y={alto - ejeX + 18} textAnchor="middle" fontSize={12} fill={on ? 'var(--adm-text)' : 'var(--adm-muted)'} style={{ textTransform: 'capitalize' }}>
-                {mesCorto(p.mes)}
-              </text>
-              {p.enCurso ? (
-                <text x={izq + banda * i + banda / 2} y={alto - ejeX + 32} textAnchor="middle" fontSize={11} fill="var(--adm-faint)">en curso</text>
-              ) : null}
-              {i === ultimo ? (
-                <text x={x + barW / 2} y={y(p.margen) - 8} textAnchor="middle" fontSize={12} fontWeight={600} fill="var(--adm-text)">{dinero(p.margen)}</text>
-              ) : null}
-            </g>
-          );
-        })}
-        <line x1={izq} x2={ancho - der} y1={y(0)} y2={y(0)} stroke="var(--adm-border-strong)" strokeWidth={1} />
-      </svg>
-
-      {d ? (
-        <div
-          role="tooltip"
-          style={{
-            position: 'absolute', left: Math.min(Math.max(xTip, 110), ancho - 110), top: Math.max(0, y(d.margen) - 96), transform: 'translateX(-50%)',
-            pointerEvents: 'none', minWidth: 190, padding: '10px 12px', borderRadius: 8, background: 'var(--adm-raised)',
-            border: '1px solid var(--adm-border-strong)', boxShadow: '0 14px 30px -14px rgba(0,0,0,.8)', fontSize: 12.5, lineHeight: 1.5,
-          }}
-        >
-          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--adm-text)' }}>{dinero(d.margen)} <span style={{ fontSize: 12.5, fontWeight: 400, color: 'var(--adm-muted)' }}>de margen</span></div>
-          <div style={{ color: 'var(--adm-text-2)' }}>{pct(d.pct)} de {dinero(d.cobrado)} cobrado</div>
-          <div style={{ color: 'var(--adm-text-2)' }}>Pagado a aliados: {dinero(d.pagado)}</div>
-          <div style={{ color: 'var(--adm-faint)', marginTop: 2 }}>{mesTitulo(d.mes)}{d.enCurso ? ' · en curso' : ''}</div>
+    <Panel style={{ marginTop: 10 }} desc="Valen para los servicios que se cierren desde que se guardan; lo ya cerrado no cambia.">
+      <div style={{ display: 'grid', gap: 16 }}>
+        {error ? <Note tone="bad">{error}</Note> : null}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+          <FormField label="Comisión de MAQSER24 (%)" help="Del precio sin IVA. Lo demás es del aliado."><input className="adm-input" inputMode="decimal" value={general} onChange={(e) => setGeneral(e.target.value)} aria-label="Comisión general" /></FormField>
+          <FormField label="Día de pago a aliados"><select className="adm-input" value={dia} onChange={(e) => setDia(Number(e.target.value))} aria-label="Día de pago">{DIAS_SEMANA.map((n, i) => <option key={i} value={i}>{n.charAt(0).toUpperCase() + n.slice(1)}</option>)}</select></FormField>
         </div>
-      ) : null}
-    </div>
+        <FormField label="Comisión distinta por línea" help="Vacío = la general.">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>
+            {d.lineas.map((l) => (
+              <label key={l.slug} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <span style={{ flex: 1 }}>{l.nombre}</span>
+                <input className="adm-input" style={{ width: 80 }} inputMode="decimal" placeholder={general} value={porLinea[l.slug] ?? ''} onChange={(e) => setPorLinea((p) => ({ ...p, [l.slug]: e.target.value }))} aria-label={`Comisión de ${l.nombre}`} />
+              </label>
+            ))}
+          </div>
+        </FormField>
+        <FormField label="Datos para que el cliente transfiera" help="Van en los recordatorios de pago. Vacío = no se ponen.">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+            <input className="adm-input" value={banco} onChange={(e) => setBanco(e.target.value)} placeholder="Banco" aria-label="Banco" />
+            <input className="adm-input" value={clabe} onChange={(e) => setClabe(e.target.value)} placeholder="CLABE" aria-label="CLABE" />
+            <input className="adm-input" value={beneficiario} onChange={(e) => setBeneficiario(e.target.value)} placeholder="A nombre de" aria-label="Beneficiario" />
+          </div>
+        </FormField>
+        <div><Btn variant="primary" disabled={busy} onClick={() => void guardar()}>{busy ? 'Guardando…' : 'Guardar reglas'}</Btn></div>
+      </div>
+    </Panel>
   );
 }

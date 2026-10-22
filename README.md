@@ -1,10 +1,11 @@
 # MAQSER24 — Ficha técnica
 
-Plataforma web de **MAQSER24** (maqserv24.com): coordinación de renta y venta de
+Plataforma web de **MAQSER24** (maqser24.com): coordinación de renta y venta de
 maquinaria pesada, triturados, transporte y servicios de obra, materiales y
-soluciones asfálticas. MAQSER24 **no es dueño del equipo**: lo publica cada
-**proveedor (aliado)**; la plataforma cotiza, cobra y coordina entre el
-**comprador**, el **proveedor** y **MAQSER24**.
+soluciones asfálticas. MAQSER24 **es solo la plataforma**: las máquinas las pone
+la red de **aliados** (el grupo del dueño es un aliado más). El cliente ve un
+solo precio, el de MAQSER24, y la plataforma asigna al aliado y sigue el
+servicio hasta el cierre.
 
 Nació como migración del sistema Laravel anterior (`scava`) a un stack
 JavaScript moderno. El sistema viejo ya no está en uso.
@@ -13,11 +14,11 @@ JavaScript moderno. El sistema viejo ya no está en uso.
 
 | Concepto | Valor |
 |---|---|
-| Sitio público | https://maqserv24.com |
-| Panel de administración | https://admin.maqserv24.com |
-| API | https://api.maqserv24.com |
+| Sitio público | https://maqser24.com |
+| Panel de administración | https://admin.maqser24.com |
+| API | https://api.maqser24.com |
 | Hosting | Servidor cPanel propio (3 apps Node.js + MySQL en la misma cuenta) |
-| Dominio | GoDaddy (DNS apuntando al hosting) |
+| Dominio | maqser24.com en Namecheap, DNS del hosting (desde 2026-10-21). maqserv24.com redirige con 301 y se debe seguir renovando |
 | Repositorio | Monorepo `pnpm` + Turborepo |
 | Idioma / moneda | Español (México) / MXN |
 
@@ -30,7 +31,7 @@ JavaScript moderno. El sistema viejo ya no está en uso.
 | API (`apps/api`) | NestJS 11 · validación Zod · rate limit con `@nestjs/throttler` |
 | Base de datos | MySQL/MariaDB · Prisma 6 (94 modelos, esquema por introspección) |
 | Autenticación | Contraseñas bcrypt · sesiones JWT (`jose`) · inicio de sesión con Google |
-| Pagos | MercadoPago (Checkout Pro + webhook firmado) y transferencia |
+| Pagos | Ninguno en línea: el carrito y MercadoPago se retiraron el 2026-10-08 |
 | Correo | SMTP de cPanel (puerto 587) con Nodemailer |
 | Mapas / distancias | Google Distance Matrix si hay llave; OpenStreetMap (Nominatim) si no |
 | Runtime | Node.js ≥ 20 (CI compila con Node 22) |
@@ -39,7 +40,7 @@ JavaScript moderno. El sistema viejo ya no está en uso.
 
 ```
 apps/
-  web/      → sitio público: catálogo, cotizadores, carrito, checkout, cuenta, blog
+  web/      → sitio público: catálogo, cotizadores, cuenta, portal del aliado, operador, blog
   admin/    → panel: operación, catálogo, cotizador, diseño, usuarios y permisos
   api/      → API REST, un módulo por área de negocio
 packages/
@@ -54,34 +55,37 @@ scripts/    → empaquetado para cPanel y generadores de recursos de marca
 
 **Sitio público**
 
-- Catálogo por las 5 categorías de servicio, sectores, detalle de producto con
-  ficha técnica, opiniones y preguntas.
-- **Cotizadores** de maquinaria y de triturados (`/cotizador`). Cotizar exige
-  cuenta; la solicitud se vuelve un servicio con precio congelado que se le
-  ofrece al proveedor dueño del equipo.
-- Carrito y checkout: venta y renta por periodo × cantidad, IVA configurable,
-  traslado calculado por kilómetro.
-- Cuenta del cliente: pedidos, cotizaciones, favoritos, perfil y campana de
-  notificaciones. Rastreo de pedidos en `/rastreo`.
-- Portal del aliado (`/aliado`, por enlace firmado) para aceptar o rechazar servicios.
-- Blog (Bitácora), contacto, Quiénes somos, términos y privacidad.
+- Catálogo de las 5 líneas de servicio, sectores, ficha de cada servicio,
+  opiniones y preguntas. "Lista para cotizar" para pedir varios a la vez.
+- **Cotizadores** de maquinaria y de triturados (`/cotizador`) con el precio del
+  tabulador, y el formulario a la medida (`/cotizar`) sin precio. Los dos exigen
+  cuenta. MAQSER24 revisa o responde la solicitud en el panel; aceptada, se le
+  ofrece sola a los aliados que llegan a la obra y el primero que acepta se la queda.
+- Cuenta del cliente: cotizaciones (aceptar, documento, seguimiento del servicio
+  en mapa), favoritos, perfil y campana de avisos.
+- Aceptar sin cuenta una cotización armada en el panel (`/cotizacion/aceptar`,
+  enlace firmado del correo) y calificar el servicio al cierre (`/resena`).
+- Portal del aliado (`/aliado`, enlace firmado): ofertas, avance, operador,
+  ubicación, equipos y papeles. Página del operador (`/operador`).
+- Registro de proveedores, blog, contacto, Quiénes somos, términos y privacidad.
 
-**Panel de administración**
+**Panel de administración** (menú por flujo: Recibir → Cotizar → Ejecutar → Cobrar y medir)
 
-- Órdenes con flujo de envío (guía, traslado, sucursal) e historial de eventos,
-  pagos, cotizaciones, servicios, agenda y disponibilidad.
-- Catálogo: productos, categorías, proveedores, reseñas y preguntas.
-- Cotizador: tabulador de tarifas editable e historial de documentos emitidos.
-- **Diseño configurable** sin recompilar: marca, hero, secciones del home,
-  contacto, pie, FAQ, textos legales y temas.
-- Clientes, mensajes de contacto, correo, indicadores, blog.
-- Administradores con **5 roles** (Dirección General, Operaciones, Red de
-  Aliados, Comercial y Atención, Marca y Crecimiento), permisos editables por
-  módulo y bitácora.
+- Solicitudes, clientes y obras, mensajes, disponibilidad, mapa de cobertura,
+  cotizadores y cotizaciones emitidas, servicios en curso y agenda.
+- Proveedores (expediente, papeles, sello de verificado, equipos ofrecidos),
+  inventario y categorías.
+- Indicadores (12 del documento institucional; utilización y margen aún no se miden).
+- Cobranza, pagos a aliados, margen y zonas: **solo diseño**, con datos de
+  ejemplo, hasta que Dirección defina el modelo de cobro.
+- **Diseño configurable** sin recompilar: marca, secciones del home, contacto,
+  pie, FAQ, textos legales y temas.
+- Administradores con **3 roles** (Dirección General, Operaciones,
+  Administración), permisos editables por módulo y bitácora.
 
-**Apagado a propósito** (interruptores en `packages/config`, nada borrado):
-marketplace de vendedores y retiros (`MARKETPLACE_ACTIVO`), boletín
-(`NEWSLETTER_ACTIVO`) y sincronización con Perfex CRM (`CRM_ACTIVO`).
+**Retirado** (2026-10-08 y 2026-10-15): carrito, checkout y MercadoPago,
+marketplace de vendedores y boletín. **Apagado**: sincronización con Perfex CRM
+(`CRM_ACTIVO` en `packages/config`).
 
 ## Reglas de diseño
 
@@ -96,17 +100,24 @@ marketplace de vendedores y retiros (`MARKETPLACE_ACTIVO`), boletín
 
 - Contraseñas con bcrypt; recuperación de contraseña por token firmado de un solo uso.
 - Guard de permisos del panel **cerrado por defecto** (fail-closed) y bitácora de acciones.
-- Webhook de MercadoPago verificado por firma y monto; órdenes idempotentes.
+- Enlaces sin contraseña (aliado, operador, reseña, aceptar cotización) firmados
+  con `PROVIDER_LINK_SECRET`, cada uno con su emisor y su vigencia.
 - Rate limit en la API, CORS restringido y secreto compartido entre proxy y API (`PROXY_SECRET`).
 - Subidas de archivos validadas y guardadas fuera de las apps (`MEDIA_DIR`).
 
 ## Tareas programadas
 
-GitHub Actions (`.github/workflows/tareas-programadas.yml`) llama una vez al día a
-la API (protegida con `TASKS_SECRET`) para:
+Dos workflows de GitHub Actions llaman a la API con la cabecera
+`x-tasks-secret` (el secreto del repositorio y la variable `TASKS_SECRET` de la
+API deben ser idénticos):
 
-- cancelar órdenes impagas vencidas y devolver su stock;
-- enviar recordatorios a los aliados.
+- **Diario, 8:00 Monterrey** (`tareas-programadas.yml` → `/tareas/recordatorios`):
+  revisa las reservas, manda recordatorios a los aliados (equipos sin confirmar,
+  papeles por vencer) y avisa al cliente cuya cotización vence en 2 días o menos.
+- **Cada 15 min** (`avisos-de-salida.yml` → `/tareas/salidas`): recordatorio del
+  día anterior, hora de salir y retraso; seguimiento de ofertas sin contestar
+  (recordatorio al aliado y oferta a los siguientes). Mientras la API está
+  despierta, esto también corre con su propio reloj cada 5 min.
 
 ## Despliegue
 
@@ -124,7 +135,6 @@ de entorno en cPanel. Guía completa en [DEPLOY-CPANEL.md](DEPLOY-CPANEL.md).
 | URLs | `SITE_URL`, `ADMIN_URL`, `API_PUBLIC_URL`, `IMAGE_BASE_URL`, `CORS_ORIGINS` |
 | Secretos | `JWT_SECRET`, `AUTH_SECRET`, `PROXY_SECRET`, `REVALIDATE_SECRET`, `TASKS_SECRET`, `PROVIDER_LINK_SECRET` |
 | Correo | `MAIL_ENABLED`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, `MAIL_FROM_NAME` |
-| Pagos | `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `ORDER_EXPIRY_MP_HOURS`, `ORDER_EXPIRY_TRANSFER_HOURS` |
 | Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_DISTANCE_MATRIX_API_KEY` |
 | Archivos | `MEDIA_DIR` |
 | Servidor | `PORT`, `TOKIO_WORKER_THREADS=2` (limita hilos del motor Prisma por los límites del hosting) |

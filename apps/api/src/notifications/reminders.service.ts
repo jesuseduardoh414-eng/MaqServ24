@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { DIAS_FRESCURA } from '../catalog/availability';
-import { DIAS_AVISO } from '../catalog/provider-trust';
+import { DIAS_AVISO, DOC_LABEL, papelesQueFaltan } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso } from '../catalog/document-alerts';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { MailerService } from './mailer.service';
@@ -101,10 +101,17 @@ export class RemindersService {
         }));
 
         // Decisión 1: los papeles viajan en el mismo correo.
-        const avisos = documentosQueAvisan(a.provider_documents, hoy).map((d) => ({
-          texto: textoAviso(d),
-          nombre: d.name || d.kind,
-        }));
+        const avisos = [
+          ...documentosQueAvisan(a.provider_documents, hoy).map((d) => ({
+            texto: textoAviso(d),
+            nombre: d.name || d.kind,
+          })),
+          // Los obligatorios que nunca subió (2026-10-22, Fase B): sin ellos no
+          // tiene sello y no se le pedían. Los vencidos ya van arriba.
+          ...papelesQueFaltan(a.provider_documents, hoy)
+            .filter((k) => !a.provider_documents.some((d) => d.kind === k))
+            .map((k) => ({ texto: 'Falta', nombre: DOC_LABEL[k] })),
+        ];
 
         const hayQueDecirle = suyos.length > 0 || avisos.length > 0;
         const reciente = a.reminder_sent_at !== null && a.reminder_sent_at > desdeUltimo;

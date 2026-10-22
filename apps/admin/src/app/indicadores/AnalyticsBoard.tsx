@@ -207,7 +207,7 @@ function Celda({
             letterSpacing: hayDato ? '-0.02em' : 0, color,
           }}
         >
-          {hayDato ? formatear(i.valor!, i.formato) : i.estado === 'bloqueado' ? 'Falta decidir' : i.estado === 'no-medible' ? 'No se mide aún' : 'Sin datos'}
+          {hayDato ? formatear(i.valor!, i.formato) : i.estado === 'bloqueado' ? 'Falta decidir' : i.estado === 'no-medible' ? 'No se mide aún' : i.muestra > 0 ? 'Pocos casos' : 'Sin datos'}
         </span>
         {delta ? <span className={`adm-tone adm-num t-${delta.tono}`} style={{ fontSize: 12.5, fontWeight: 600 }}>{delta.texto}</span> : null}
       </div>

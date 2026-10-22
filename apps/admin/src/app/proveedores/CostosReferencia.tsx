@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ESTADO_SOLICITUD_PROVEEDOR } from '@maqserv/config';
+import { ShCombobox } from '@maqserv/ui';
 import { Btn, FormField, IconBtn, Note, Panel } from '@/components/ui';
+import { claseCampoAdmin } from '@/components/AdminSelect';
 import { avisar, confirmar } from '@/components/Dialogos';
 
 /**
@@ -47,8 +49,32 @@ interface ProveedorCrm {
 type Form = { tipo: string; marca: string; modelo: string; caracteristicas: string; costoSinOp: string; costoConOp: string; costoTodo: string; notas: string };
 const vacia: Form = { tipo: '', marca: '', modelo: '', caracteristicas: '', costoSinOp: '', costoConOp: '', costoTodo: '', notas: '' };
 
-/** Tipos sugeridos: la oferta vigente. Se puede escribir otro. */
+/** Tipos de base: la oferta vigente. A estos se suman los ya capturados. */
 const TIPOS = ['Excavadora', 'Retroexcavadora', 'Motoconformadora', 'Vibrocompactador', 'Pipa de agua', 'Camión de volteo'];
+/** Marcas de base, las más comunes en la región. */
+const MARCAS = ['Caterpillar', 'John Deere', 'Komatsu', 'JCB', 'Case', 'Volvo', 'Bobcat', 'New Holland'];
+
+/** Para comparar sin que "excavadora" y "Excavadora " cuenten como dos. */
+const clave = (s: string) => s.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/**
+ * LO QUE YA ESTÁ DISPONIBLE, Y SI NO, UNO NUEVO (2026-10-19). "Al agregar,
+ * ¿no sería mejor que aparezcan los que ya están y, si no tiene uno de esos,
+ * que lo deje meter uno más?" Las opciones son las de base más todo lo que ya
+ * se capturó en CUALQUIER aliado: así el mismo equipo se llama igual en todos
+ * y los costos se pueden comparar. Lo nuevo que se escriba sale para el
+ * siguiente aliado. Primero los de base; luego los demás, en orden.
+ */
+function opciones(base: string[], capturados: Array<string | null>): string[] {
+  const vistos = new Set(base.map(clave));
+  const extra = new Map<string, string>();
+  for (const c of capturados) {
+    const v = c?.trim();
+    if (!v || vistos.has(clave(v)) || extra.has(clave(v))) continue;
+    extra.set(clave(v), v);
+  }
+  return [...base, ...[...extra.values()].sort((a, b) => a.localeCompare(b, 'es'))];
+}
 
 const pesos = (n: number | null) =>
   n == null ? '—' : n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 });
@@ -60,6 +86,8 @@ async function leerCrm(): Promise<ProveedorCrm[] | null> {
 
 export function CostosReferencia({ providerId }: { providerId: number }) {
   const [maquinas, setMaquinas] = useState<Maquina[] | null>(null);
+  /** Las máquinas de TODOS los aliados: de ahí salen los tipos y marcas ya capturados. */
+  const [deTodos, setDeTodos] = useState<Maquina[]>([]);
   const [edit, setEdit] = useState<{ id: number | null; form: Form } | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +95,16 @@ export function CostosReferencia({ providerId }: { providerId: number }) {
   const cargar = useCallback(async () => {
     const todos = await leerCrm();
     setMaquinas(todos?.find((p) => p.id === providerId)?.maquinas ?? []);
+    setDeTodos(todos?.flatMap((p) => p.maquinas) ?? []);
   }, [providerId]);
+
+  const tipos = useMemo(() => opciones(TIPOS, deTodos.map((m) => m.tipo)), [deTodos]);
+  const marcas = useMemo(() => opciones(MARCAS, deTodos.map((m) => m.marca)), [deTodos]);
   useEffect(() => { void cargar(); }, [cargar]);
 
   async function guardar() {
     if (!edit || guardando) return;
-    if (edit.form.tipo.trim().length < 2) { setError('Escribe el tipo de maquinaria.'); return; }
+    if (edit.form.tipo.trim().length < 2) { setError('Elige el tipo de maquinaria, o escribe uno nuevo.'); return; }
     setGuardando(true); setError(null);
     const r = edit.id == null
       ? await fetch(`/api/admin/proveedores-crm/${providerId}/maquinas`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(edit.form) })
@@ -90,11 +122,27 @@ export function CostosReferencia({ providerId }: { providerId: number }) {
     void cargar();
   }
 
-  const campo = (k: keyof Form, titulo: string, extra?: { num?: boolean; ancho?: boolean; ph?: string; lista?: string }) => (
+  const poner = (k: keyof Form, v: string) => setEdit((e) => (e ? { ...e, form: { ...e.form, [k]: v } } : e));
+
+  const campo = (k: keyof Form, titulo: string, extra?: { num?: boolean; ancho?: boolean; ph?: string }) => (
     <FormField label={titulo} style={{ gridColumn: extra?.ancho ? '1 / -1' : undefined }}>
       <input className={extra?.num ? 'adm-input adm-num' : 'adm-input'} type={extra?.num ? 'number' : 'text'} min={extra?.num ? 0 : undefined} step={extra?.num ? '0.01' : undefined}
-        inputMode={extra?.num ? 'decimal' : undefined} placeholder={extra?.ph} list={extra?.lista} value={edit?.form[k] ?? ''}
-        onChange={(e) => edit && setEdit({ ...edit, form: { ...edit.form, [k]: e.target.value } })} />
+        inputMode={extra?.num ? 'decimal' : undefined} placeholder={extra?.ph} value={edit?.form[k] ?? ''}
+        onChange={(e) => poner(k, e.target.value)} />
+    </FormField>
+  );
+
+  /** Elegir de lo que ya hay o, si no está, escribirlo en el buscador y "Usar …". */
+  const lista = (k: 'tipo' | 'marca', titulo: string, opts: string[]) => (
+    <FormField label={titulo}>
+      <ShCombobox
+        value={edit?.form[k] ?? ''}
+        onChange={(v) => poner(k, v)}
+        options={opts}
+        placeholder="Elige uno"
+        buscar="Busca, o escribe uno nuevo…"
+        className={claseCampoAdmin('md')}
+      />
     </FormField>
   );
 
@@ -154,8 +202,8 @@ export function CostosReferencia({ providerId }: { providerId: number }) {
           <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)', marginBottom: 12 }}>{edit.id == null ? 'Agregar máquina' : 'Editar máquina'}</div>
           {error ? <div role="alert" style={{ marginBottom: 12 }}><Note tone="bad">{error}</Note></div> : null}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '12px 14px' }}>
-            {campo('tipo', 'Tipo de maquinaria *', { lista: 'costos-ref-tipos', ph: 'Excavadora, retroexcavadora…' })}
-            {campo('marca', 'Marca', { ph: 'Caterpillar, JCB…' })}
+            {lista('tipo', 'Tipo de maquinaria *', tipos)}
+            {lista('marca', 'Marca', marcas)}
             {campo('modelo', 'Modelo', { ph: '320, 416, 3CX…' })}
             {campo('caracteristicas', 'Características', { ancho: true, ph: 'Año, capacidad, implementos, horas de uso…' })}
             {campo('costoSinOp', 'Sin operador y sin diésel ($/h)', { num: true })}
@@ -163,7 +211,6 @@ export function CostosReferencia({ providerId }: { providerId: number }) {
             {campo('costoTodo', 'Con operador y diésel ($/h)', { num: true })}
             {campo('notas', 'Notas', { ancho: true, ph: 'Disponibilidad, condiciones, mínimo de horas…' })}
           </div>
-          <datalist id="costos-ref-tipos">{TIPOS.map((t) => <option key={t} value={t} />)}</datalist>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 14 }}>
             <Btn size="sm" variant="ghost" onClick={() => setEdit(null)}>Cancelar</Btn>
             {/* Primario dentro de su formulario: solo existe mientras se edita. */}

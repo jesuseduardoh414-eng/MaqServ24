@@ -1,16 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
-import { AdminSelect } from '@/components/AdminSelect';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import {
   COTIZADORES_META,
   COTIZADORES_ACTIVOS,
-  MUNICIPIOS_NORTE,
-  LINEA_MAQUINARIA,
-  LINEA_TRANSPORTE,
-  LINEA_TRITURADOS,
-  lineaDeServicio,
-  renglonesDe,
   type CatalogoCotizador,
   type CatalogoMaquinaria,
   type CatalogoTriturados,
@@ -32,39 +25,25 @@ import { confirmar } from '@/components/Dialogos';
  * condiciones), y con parches sueltos dos personas editando a la vez dejarían
  * una mezcla que ninguna de las dos escribió.
  */
-/** Un proveedor como lo ve este selector: lo justo para elegirlo. */
-export interface ProveedorOpcion {
+/**
+ * DESDE EL 2026-10-19 LOS RENGLONES SON DE SU FICHA. Equipos, servicios y
+ * materiales se dan de alta y se les pone precio en su ficha de Inventario;
+ * aquí solo se ven, con el enlace para editarlos ahí. Esta pantalla guarda lo
+ * general: publicación, documento, tramos, fletes, zonas y condiciones.
+ */
+/** A qué ficha de Inventario pertenece un renglón (GET admin/quoter/catalog/:kind/fichas). */
+export interface FichaDeRenglon {
   id: number;
   nombre: string;
-  /** Sin correo, asignarlo se ve igual en pantalla y no avisa a nadie. */
-  conCorreo: boolean;
+  activa: boolean;
 }
 
-/** Un equipo publicado que se puede ligar a un renglón (GET admin/quoter/ligables). */
-export interface EquipoLigable {
-  id: number;
-  name: string;
-  linea: string | null;
-  providerId: number | null;
-  provider: string | null;
-}
-
-/** Lo que necesita cada renglón para elegir sus equipos. */
-interface Ligas {
-  proveedores: ProveedorOpcion[];
-  ligables: EquipoLigable[];
-  /** Equipos ya ligados a algún renglón de este tabulador: uno cuenta como UNA cosa. */
-  usados: Set<number>;
-}
+const money = (n: number) => `$${Number(n || 0).toLocaleString('es-MX', { maximumFractionDigits: 2 })}`;
 
 export function TarifasEditor({
   inicial,
-  proveedores,
-  ligables,
 }: {
   inicial: Record<CotizadorTipo, CatalogoCotizador>;
-  proveedores: ProveedorOpcion[];
-  ligables: EquipoLigable[];
 }) {
   const [tipo, setTipo] = useState<CotizadorTipo>('maquinaria');
   const [cats, setCats] = useState(inicial);
@@ -72,10 +51,16 @@ export function TarifasEditor({
   const [mensaje, setMensaje] = useState<{ tono: 'ok' | 'bad'; texto: string } | null>(null);
 
   const cat = cats[tipo];
-  const ligas = useMemo<Ligas>(
-    () => ({ proveedores, ligables, usados: new Set(renglonesDe(cat).flatMap((r) => r.productos)) }),
-    [proveedores, ligables, cat],
-  );
+  // null mientras carga: así no parpadea "Sin ficha" en cada renglón.
+  const [fichas, setFichas] = useState<Record<string, FichaDeRenglon | null> | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void fetch(`/api/admin/quoter/catalog/${tipo}/fichas`)
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((d: Record<string, FichaDeRenglon | null>) => { if (vivo) setFichas(d ?? {}); })
+      .catch(() => undefined);
+    return () => { vivo = false; };
+  }, [tipo]);
   const set = (patch: Partial<CatalogoCotizador>) =>
     setCats((prev) => ({ ...prev, [tipo]: { ...prev[tipo], ...patch } as CatalogoCotizador }));
 
@@ -91,7 +76,7 @@ export function TarifasEditor({
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.message ?? 'No se pudo guardar.');
       setCats((prev) => ({ ...prev, [tipo]: body as CatalogoCotizador }));
-      setMensaje({ tono: 'ok', texto: 'Tabulador guardado. Las cotizaciones nuevas ya usan estos precios.' });
+      setMensaje({ tono: 'ok', texto: 'Guardado. Las cotizaciones nuevas ya usan estos datos.' });
     } catch (e) {
       setMensaje({ tono: 'bad', texto: e instanceof Error ? e.message : 'No se pudo guardar.' });
     } finally {
@@ -100,7 +85,7 @@ export function TarifasEditor({
   }
 
   async function restaurar() {
-    if (!(await confirmar({ titulo: '¿Volver al tabulador de fábrica?', mensaje: 'Se pierde lo que hayas cambiado en este cotizador.', confirmar: 'Restaurar', peligro: true }))) return;
+    if (!(await confirmar({ titulo: '¿Volver al tabulador de fábrica?', mensaje: 'Vuelven a su valor de fábrica los datos del documento, las condiciones, los tramos, los fletes y las zonas de este cotizador. El precio de cada tipo no se toca: vive en su ficha.', confirmar: 'Restaurar', peligro: true }))) return;
     setGuardando(true);
     setMensaje(null);
     try {
@@ -198,9 +183,9 @@ export function TarifasEditor({
       </Bloque>
 
       {cat.tipo === 'maquinaria' ? (
-        <EditorMaquinaria cat={cat} set={set} ligas={ligas} />
+        <EditorMaquinaria cat={cat} set={set} fichas={fichas} />
       ) : (
-        <EditorTriturados cat={cat} set={set} ligas={ligas} />
+        <EditorTriturados cat={cat} set={set} fichas={fichas} />
       )}
 
       <Bloque titulo="Condiciones comerciales" ayuda="Se imprimen al pie, y solo los bloques que apliquen a las partidas de esa cotización. Un punto por renglón.">
@@ -232,27 +217,12 @@ export function TarifasEditor({
         ))}
       </Bloque>
 
-      <Bloque titulo="Municipios sugeridos" ayuda="Salen como sugerencia en el campo de entrega. Uno por renglón.">
-        {/* TRES ESTADOS (2026-09-28): NL, Coahuila y Chihuahua. Nota pendiente del cliente. */}
-        <Note tone="warn" style={{ marginBottom: 12 }}>
-          <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>Pendiente de definir:</strong> la operación se extiende a Nuevo León, Coahuila y Chihuahua,
-          pero aún no se decide si estas tarifas valen igual en los tres estados o si cada uno tendrá su tabla.
-          Hoy el municipio NO cambia el precio: solo aparece en el documento.
-        </Note>
-        <Btn
-          size="sm"
-          icon="ph-plus"
-          onClick={() => set({ municipios: [...new Set([...cat.municipios, ...MUNICIPIOS_NORTE])] } as Partial<CatalogoCotizador>)}
-          style={{ marginBottom: 12 }}
-        >
-          Agregar municipios de NL, Coahuila y Chihuahua
-        </Btn>
-        <TextoLista
-          className="adm-textarea"
-          style={{ height: 130, lineHeight: 1.6 }}
-          valor={cat.municipios}
-          onCambio={(lista) => set({ municipios: [...new Set(lista)] } as Partial<CatalogoCotizador>)}
-        />
+      {/* Los municipios salen de Configuración › Zonas (2026-10-22): una sola lista para los dos cotizadores. */}
+      <Bloque titulo="Municipios" ayuda="Salen de Configuración › Zonas.">
+        <p style={{ margin: 0, fontSize: 13.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>
+          Los municipios del cotizador se editan en <a className="adm-link" href="/zonas">Zonas</a>: ahí se dice qué se anuncia en el sitio y qué se atiende sin anunciarse.
+          El precio es el mismo en todas las zonas.
+        </p>
       </Bloque>
 
       {/* Barra de guardar pegada abajo: el tabulador es largo y se guarda
@@ -285,11 +255,11 @@ export function TarifasEditor({
 function EditorMaquinaria({
   cat,
   set,
-  ligas,
+  fichas,
 }: {
   cat: CatalogoMaquinaria;
   set: (p: Partial<CatalogoCotizador>) => void;
-  ligas: Ligas;
+  fichas: Record<string, FichaDeRenglon | null> | null;
 }) {
   const tiposFlete = Object.keys(cat.fletes);
   return (
@@ -347,185 +317,29 @@ function EditorMaquinaria({
         </Rejilla>
       </Bloque>
 
-      <Bloque
+      <ListaDelCotizador
         titulo="Equipos"
-        ayuda="Tarifa por día en cada tramo. El costo por hora sale de dividir entre la jornada. El proveedor es quien recibe el aviso cuando alguien cotiza ese equipo desde el sitio."
-      >
-        {cat.equipos.map((eq, i) => (
-          <Renglon
-            key={eq.id}
-            onQuitar={() => set({ equipos: cat.equipos.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)}
-          >
-            <Campo etiqueta="Nombre" ancho>
-              <input
-                className="adm-input"
-                value={eq.nombre}
-                onChange={(e) => {
-                  const equipos = [...cat.equipos];
-                  equipos[i] = { ...eq, nombre: e.target.value };
-                  set({ equipos } as Partial<CatalogoCotizador>);
-                }}
-              />
-            </Campo>
-            <Campo etiqueta="Tipo de flete">
-              <AdminSelect
-                className="h-[38px]"
-                ariaLabel="Tipo de flete"
-                value={eq.flete_tipo}
-                onChange={(v) => {
-                  const equipos = [...cat.equipos];
-                  equipos[i] = { ...eq, flete_tipo: v };
-                  set({ equipos } as Partial<CatalogoCotizador>);
-                }}
-                options={tiposFlete.map((k) => ({ value: k, label: k }))}
-              />
-            </Campo>
-            <CampoEquipos
-              ligas={ligas}
-              linea={LINEA_MAQUINARIA}
-              productos={eq.productos}
-              proveedorId={eq.proveedor_id ?? null}
-              onChange={(patch) => {
-                const equipos = [...cat.equipos];
-                equipos[i] = { ...eq, ...patch };
-                set({ equipos } as Partial<CatalogoCotizador>);
-              }}
-            />
-            {(['dia', 'semana', 'mes'] as const).map((k) => (
-              <Campo key={k} etiqueta={`Tarifa ${k}`}>
-                <input
-                  className="adm-input"
-                  type="number"
-                  min="0"
-                  value={eq.tarifas[k]}
-                  onChange={(e) => {
-                    const equipos = [...cat.equipos];
-                    equipos[i] = { ...eq, tarifas: { ...eq.tarifas, [k]: Number(e.target.value) } };
-                    set({ equipos } as Partial<CatalogoCotizador>);
-                  }}
-                />
-              </Campo>
-            ))}
-          </Renglon>
-        ))}
-        <BotonAgregar
-          texto="Agregar equipo"
-          onClick={() =>
-            set({
-              equipos: [
-                ...cat.equipos,
-                // Nace sin dueño a propósito: adivinarlo mandaría el aviso a
-                // quien no le toca, y eso es peor que no mandarlo.
-                { id: `eq_${Date.now()}`, nombre: 'Equipo nuevo', icono: 'excavadora', flete_tipo: tiposFlete[0] ?? 'Excavadora', tarifas: { dia: 0, semana: 0, mes: 0 }, proveedor_id: null },
-              ],
-            } as Partial<CatalogoCotizador>)
-          }
-        />
-      </Bloque>
+        fichas={fichas}
+        filas={cat.equipos.map((eq) => ({
+          id: eq.id,
+          nombre: eq.nombre,
+          precio: `${money(eq.tarifas.dia)} · ${money(eq.tarifas.semana)} · ${money(eq.tarifas.mes)} por día`,
+          detalle: `Flete: ${eq.flete_tipo}${cat.fletes[eq.flete_tipo] !== undefined ? ` (${money(cat.fletes[eq.flete_tipo])})` : ''}`,
+          oculto: eq.oculto,
+        }))}
+      />
 
-      <Bloque titulo="Servicios" ayuda="Pipas y retiro de material. `Condición` decide qué bloque de condiciones se imprime.">
-        {cat.servicios.map((sv, i) => (
-          <Renglon key={sv.id} onQuitar={() => set({ servicios: cat.servicios.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)}>
-            <Campo etiqueta="Nombre" ancho>
-              <input
-                className="adm-input"
-                value={sv.nombre}
-                onChange={(e) => {
-                  const servicios = [...cat.servicios];
-                  servicios[i] = { ...sv, nombre: e.target.value };
-                  set({ servicios } as Partial<CatalogoCotizador>);
-                }}
-              />
-            </Campo>
-            <Campo etiqueta="Unidad">
-              <input
-                className="adm-input"
-                value={sv.unidad}
-                onChange={(e) => {
-                  const servicios = [...cat.servicios];
-                  servicios[i] = { ...sv, unidad: e.target.value };
-                  set({ servicios } as Partial<CatalogoCotizador>);
-                }}
-              />
-            </Campo>
-            <Campo etiqueta="Precio">
-              <input
-                className="adm-input"
-                type="number"
-                min="0"
-                value={sv.precio}
-                onChange={(e) => {
-                  const servicios = [...cat.servicios];
-                  servicios[i] = { ...sv, precio: Number(e.target.value) };
-                  set({ servicios } as Partial<CatalogoCotizador>);
-                }}
-              />
-            </Campo>
-            <Campo etiqueta="Línea de servicio" nota="Con esta línea se registra la solicitud y se busca al aliado.">
-              <AdminSelect
-                className="h-[38px]"
-                ariaLabel="Línea de servicio"
-                value={lineaDeServicio(sv)}
-                onChange={(v) => {
-                  const servicios = [...cat.servicios];
-                  servicios[i] = { ...sv, linea: v };
-                  set({ servicios } as Partial<CatalogoCotizador>);
-                }}
-                options={[
-                  { value: LINEA_MAQUINARIA, label: 'Maquinaria pesada' },
-                  { value: LINEA_TRANSPORTE, label: 'Transporte y servicios de obra' },
-                ]}
-              />
-            </Campo>
-            <CampoEquipos
-              ligas={ligas}
-              linea={lineaDeServicio(sv)}
-              productos={sv.productos}
-              proveedorId={sv.proveedor_id ?? null}
-              onChange={(patch) => {
-                const servicios = [...cat.servicios];
-                servicios[i] = { ...sv, ...patch };
-                set({ servicios } as Partial<CatalogoCotizador>);
-              }}
-            />
-            <Campo etiqueta="Condición">
-              <AdminSelect
-                className="h-[38px]"
-                ariaLabel="Bloque de condiciones"
-                value={sv.cond}
-                onChange={(v) => {
-                  const servicios = [...cat.servicios];
-                  servicios[i] = { ...sv, cond: v };
-                  set({ servicios } as Partial<CatalogoCotizador>);
-                }}
-                options={Object.keys(cat.condiciones).map((k) => ({ value: k, label: k }))}
-              />
-            </Campo>
-            <Campo etiqueta="Precios sugeridos (coma)" ancho>
-              <input
-                className="adm-input"
-                value={sv.presets.join(', ')}
-                onChange={(e) => {
-                  const servicios = [...cat.servicios];
-                  servicios[i] = { ...sv, presets: e.target.value.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n > 0) };
-                  set({ servicios } as Partial<CatalogoCotizador>);
-                }}
-              />
-            </Campo>
-          </Renglon>
-        ))}
-        <BotonAgregar
-          texto="Agregar servicio"
-          onClick={() =>
-            set({
-              servicios: [
-                ...cat.servicios,
-                { id: `sv_${Date.now()}`, nombre: 'Servicio nuevo', icono: 'retiro', unidad: 'viaje', precio: 0, presets: [], cond: Object.keys(cat.condiciones)[0] ?? 'renta' },
-              ],
-            } as Partial<CatalogoCotizador>)
-          }
-        />
-      </Bloque>
+      <ListaDelCotizador
+        titulo="Servicios"
+        fichas={fichas}
+        filas={cat.servicios.map((sv) => ({
+          id: sv.id,
+          nombre: sv.nombre,
+          precio: `${money(sv.precio)} por ${sv.unidad || 'viaje'}`,
+          detalle: cat.condiciones[sv.cond]?.titulo ? `Condiciones: ${cat.condiciones[sv.cond].titulo}` : undefined,
+          oculto: sv.oculto,
+        }))}
+      />
     </>
   );
 }
@@ -533,59 +347,19 @@ function EditorMaquinaria({
 function EditorTriturados({
   cat,
   set,
-  ligas,
+  fichas,
 }: {
   cat: CatalogoTriturados;
   set: (p: Partial<CatalogoCotizador>) => void;
-  ligas: Ligas;
+  fichas: Record<string, FichaDeRenglon | null> | null;
 }) {
   return (
     <>
-      <Bloque titulo="Materiales" ayuda="Precio por tonelada, cargado en planta.">
-        {cat.productos.map((p, i) => (
-          <Renglon key={p.id} onQuitar={() => set({ productos: cat.productos.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)}>
-            <Campo etiqueta="Nombre" ancho>
-              <input
-                className="adm-input"
-                value={p.nombre}
-                onChange={(e) => {
-                  const productos = [...cat.productos];
-                  productos[i] = { ...p, nombre: e.target.value };
-                  set({ productos } as Partial<CatalogoCotizador>);
-                }}
-              />
-            </Campo>
-            <Campo etiqueta="Precio / ton">
-              <input
-                className="adm-input"
-                type="number"
-                min="0"
-                value={p.precio_ton}
-                onChange={(e) => {
-                  const productos = [...cat.productos];
-                  productos[i] = { ...p, precio_ton: Number(e.target.value) };
-                  set({ productos } as Partial<CatalogoCotizador>);
-                }}
-              />
-            </Campo>
-            <CampoEquipos
-              ligas={ligas}
-              linea={LINEA_TRITURADOS}
-              productos={p.productos}
-              proveedorId={p.proveedor_id ?? null}
-              onChange={(patch) => {
-                const productos = [...cat.productos];
-                productos[i] = { ...p, ...patch };
-                set({ productos } as Partial<CatalogoCotizador>);
-              }}
-            />
-          </Renglon>
-        ))}
-        <BotonAgregar
-          texto="Agregar material"
-          onClick={() => set({ productos: [...cat.productos, { id: `mat_${Date.now()}`, nombre: 'Material nuevo', precio_ton: 0 }] } as Partial<CatalogoCotizador>)}
-        />
-      </Bloque>
+      <ListaDelCotizador
+        titulo="Materiales"
+        fichas={fichas}
+        filas={cat.productos.map((p) => ({ id: p.id, nombre: p.nombre, precio: `${money(p.precio_ton)} por tonelada`, oculto: p.oculto }))}
+      />
 
       <Bloque
         titulo="Zonas de entrega"
@@ -652,13 +426,6 @@ function EditorTriturados({
           <Campo etiqueta="m³ del camión">
             <input className="adm-input" type="number" min="0" value={cat.material_banco.camion_m3} onChange={(e) => set({ material_banco: { ...cat.material_banco, camion_m3: Number(e.target.value) } } as Partial<CatalogoCotizador>)} />
           </Campo>
-          <CampoEquipos
-            ligas={ligas}
-            linea={LINEA_TRITURADOS}
-            productos={cat.material_banco.productos}
-            proveedorId={cat.material_banco.proveedor_id ?? null}
-            onChange={(patch) => set({ material_banco: { ...cat.material_banco, ...patch } } as Partial<CatalogoCotizador>)}
-          />
         </Rejilla>
         <div style={{ height: 8 }} />
         <Interruptor
@@ -675,135 +442,49 @@ function EditorTriturados({
 // ---- piezas ----
 
 /**
- * DE QUIÉN ES ESTA PARTIDA.
- *
- * El dueño decide a quién le llega el correo cuando alguien la cotiza desde el
- * sitio. "Sin asignar" es una opción legítima y es como nacen las partidas
- * nuevas: adivinar el proveedor mandaría trabajo a quien no le toca.
- *
- * A los que no tienen correo capturado se les avisa en la propia opción. Sin
- * eso, asignarlos se ve idéntico a asignar a cualquier otro y el aviso
- * simplemente no sale, sin que nadie se entere.
+ * LO QUE SALE EN EL COTIZADOR, SOLO PARA VER (2026-10-19). Cada renglón lleva
+ * a su ficha, que es donde se le pone precio: así se captura una sola vez.
  */
-function CampoProveedor({
-  proveedores,
-  valor,
-  onChange,
+function ListaDelCotizador({
+  titulo,
+  filas,
+  fichas,
 }: {
-  proveedores: ProveedorOpcion[];
-  valor: number | null;
-  onChange: (v: number | null) => void;
+  titulo: string;
+  filas: Array<{ id: string; nombre: string; precio: string; detalle?: string; oculto?: boolean }>;
+  fichas: Record<string, FichaDeRenglon | null> | null;
 }) {
-  const elegido = proveedores.find((p) => p.id === valor);
   return (
-    <Campo
-      etiqueta="Proveedor de respaldo"
-      nota={
-        proveedores.length === 0
-          ? 'No hay proveedores activos todavía.'
-          : elegido && !elegido.conCorreo
-            ? 'Sin correo capturado: no recibirá el aviso.'
-            : 'Recibe el aviso cuando lo cotizan.'
-      }
-    >
-      <AdminSelect
-        className="h-[38px]"
-        ariaLabel="Proveedor dueño"
-        value={valor === null || valor === undefined ? '' : String(valor)}
-        onChange={(v) => onChange(v ? Number(v) : null)}
-        options={[
-          { value: '', label: 'Sin asignar' },
-          ...proveedores.map((p) => ({ value: String(p.id), label: `${p.nombre}${p.conCorreo ? '' : ' (sin correo)'}` })),
-        ]}
-      />
-    </Campo>
+    <Bloque titulo={titulo} ayuda="El precio de cada tipo se pone en su ficha de Inventario. Aquí solo se ve, para no capturarlo dos veces.">
+      {filas.length === 0 ? (
+        <p className="adm-help" style={{ margin: '0 0 12px' }}>Todavía no hay nada en esta parte del cotizador.</p>
+      ) : (
+        filas.map((f) => {
+          const ficha = fichas ? fichas[f.id] : undefined;
+          return (
+            <div key={f.id} className="tf-renglon" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontWeight: 600, color: 'var(--adm-text)' }}>{f.nombre}</div>
+                <div className="adm-help">{f.precio}{f.detalle ? ` · ${f.detalle}` : ''}</div>
+              </div>
+              {f.oculto ? <Chip tone="muted">{ficha && !ficha.activa ? 'Ficha inactiva' : 'No sale en el cotizador'}</Chip> : null}
+              {ficha ? (
+                <Btn size="sm" href={`/productos/editar/${ficha.id}`} icon="ph-pencil-simple">Editar en su ficha</Btn>
+              ) : ficha === null ? (
+                <Chip tone="warn">Sin ficha en Inventario</Chip>
+              ) : null}
+            </div>
+          );
+        })
+      )}
+      <div style={{ marginTop: 14 }}>
+        <Btn size="sm" icon="ph-plus" href="/productos/nuevo?tipo=servicio">Agregar un tipo nuevo</Btn>
+      </div>
+    </Bloque>
   );
 }
 
-/**
- * QUÉ EQUIPOS DEL CATÁLOGO CUENTAN COMO ESTE RENGLÓN (2026-09-24).
- *
- * El dueño ya no se captura aparte: es quien tiene publicado el equipo ligado.
- * Si lo cotizan, la solicitud se le ofrece a él; si varios aliados tienen
- * equipos ligados, queda "por asignar" y Operaciones elige. Solo se ofrecen
- * equipos de la misma línea y que no estén ya en otro renglón.
- *
- * Sin equipos ligados se ve el proveedor de antes, como respaldo.
- */
-function CampoEquipos({
-  ligas,
-  linea,
-  productos,
-  proveedorId,
-  onChange,
-}: {
-  ligas: Ligas;
-  linea: string;
-  productos?: number[];
-  proveedorId: number | null;
-  onChange: (patch: { productos?: number[]; proveedor_id?: number | null }) => void;
-}) {
-  const ids = productos ?? [];
-  const porId = new Map(ligas.ligables.map((e) => [e.id, e]));
-  const libres = ligas.ligables.filter((e) => e.linea === linea && !ligas.usados.has(e.id));
-  const duenos = new Set(ids.map((id) => porId.get(id)?.providerId).filter(Boolean));
-  return (
-    <>
-      <Campo
-        etiqueta="Equipos que cuentan como este renglón"
-        ancho
-        grupo
-        nota={
-          // Precio único (2026-09-28): la solicitud SIEMPRE queda por asignar y
-          // la asigna MAQSER24; quién tiene el equipo es sólo una sugerencia.
-          ids.length === 0
-            ? 'Sin equipos ligados. La solicitud queda por asignar sin aliado sugerido.'
-            : duenos.size > 1
-              ? 'La solicitud queda por asignar; en Servicios verás a estos aliados como sugeridos.'
-              : 'La solicitud queda por asignar; en Servicios verás a su dueño como sugerido.'
-        }
-      >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: ids.length ? 6 : 0 }}>
-          {ids.map((id) => {
-            const e = porId.get(id);
-            return (
-              <Chip
-                key={id}
-                tone={e ? undefined : 'muted'}
-                style={{ height: 'auto', minHeight: 26, padding: '3px 3px 3px 9px', fontSize: 12.5, fontWeight: 500, whiteSpace: 'normal', lineHeight: 1.35 }}
-              >
-                {e ? `${e.name} · ${e.provider ?? 'sin aliado'}` : `Equipo #${id} (ya no está publicado)`}
-                <button
-                  type="button"
-                  aria-label="Quitar equipo"
-                  title="Quitar equipo"
-                  className="adm-ibtn is-plain"
-                  onClick={() => onChange({ productos: ids.filter((x) => x !== id) })}
-                  style={{ width: 20, height: 20, borderRadius: 4 }}
-                >
-                  <i className="ph ph-x" aria-hidden style={{ fontSize: 12 }} />
-                </button>
-              </Chip>
-            );
-          })}
-        </div>
-        <AdminSelect
-          className="h-[38px]"
-          ariaLabel="Ligar un equipo"
-          value=""
-          onChange={(v) => { if (v) onChange({ productos: [...ids, Number(v)] }); }}
-          options={[
-            { value: '', label: libres.length ? '+ Ligar un equipo publicado…' : 'No hay equipos publicados libres de esta línea' },
-            ...libres.map((e) => ({ value: String(e.id), label: `${e.name} · ${e.provider ?? 'sin aliado'}` })),
-          ]}
-        />
-      </Campo>
-      {ids.length === 0 ? (
-        <CampoProveedor proveedores={ligas.proveedores} valor={proveedorId} onChange={(v) => onChange({ proveedor_id: v })} />
-      ) : null}
-    </>
-  );
-}
+
 
 /**
  * MARGEN DE MAQSER24 SOBRE EL COSTO DEL ALIADO (2026-09-25).

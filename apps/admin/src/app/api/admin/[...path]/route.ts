@@ -61,6 +61,15 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
       { status: 504 },
     );
   }
+  // Archivos (la factura de un aliado, 2026-10-22): pasan tal cual, sin leerlos como JSON.
+  const tipo = apiRes.headers.get('content-type') ?? '';
+  if (apiRes.ok && tipo && !tipo.includes('application/json')) {
+    const disposicion = apiRes.headers.get('content-disposition');
+    return new NextResponse(apiRes.body, {
+      status: apiRes.status,
+      headers: { 'Content-Type': tipo, 'Cache-Control': 'private, no-store', ...(disposicion ? { 'Content-Disposition': disposicion } : {}) },
+    });
+  }
   const data = await apiRes.json().catch(() => null);
 
   // Login exitoso → guardar cookies httpOnly (access + refresh)

@@ -20,6 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return paginaSeo(theme, { ruta: '/cotizador/maquinaria', titulo: t(theme, 'seo.quoter.machinery.title'), descripcion: t(theme, 'seo.quoter.machinery.description') });
 }
 
-export default function CotizadorMaquinariaPage() {
-  return <PaginaCotizador tipo="maquinaria" />;
+export default async function CotizadorMaquinariaPage({ searchParams }: { searchParams: Promise<{ tipo?: string }> }) {
+  // `?tipo=<ficha>`: viene de "Cotizar" en el catálogo y abre con ese equipo elegido.
+  const tipo = Number((await searchParams).tipo);
+  return <PaginaCotizador tipo="maquinaria" fichaId={Number.isInteger(tipo) && tipo > 0 ? tipo : null} />;
 }

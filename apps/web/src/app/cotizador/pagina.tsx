@@ -12,7 +12,7 @@ import { CotizadorPublico } from './CotizadorPublico';
  * Página pública de un cotizador. La comparten /cotizador/maquinaria y
  * /cotizador/triturados: lo único que cambia entre las dos es el tipo.
  */
-export async function PaginaCotizador({ tipo }: { tipo: CotizadorTipo }) {
+export async function PaginaCotizador({ tipo, fichaId }: { tipo: CotizadorTipo; /** `?tipo=` del catálogo: abre con ese equipo elegido (2026-10-22). */ fichaId?: number | null }) {
   const [theme, catalogo, user] = await Promise.all([getTheme(), getQuoterCatalog(tipo), getSessionUser()]);
   const meta = COTIZADORES_META[tipo];
   // El documento se imprime en blanco: se usa el logo para fondo claro.
@@ -46,7 +46,7 @@ export async function PaginaCotizador({ tipo }: { tipo: CotizadorTipo }) {
               servicio con precio, y el registro es lo que permite mandárselo al
               proveedor y seguirlo desde su cuenta. Ver QuoteGate. */}
           {!user ? (
-            <QuoteGate theme={theme} next={meta.ruta} />
+            <QuoteGate theme={theme} next={fichaId ? `${meta.ruta}?tipo=${fichaId}` : meta.ruta} />
           ) : catalogo === null ? (
             <div className="ms-empty czp-caja">
               <span className="ms-ico ms-ico-lg ms-ico-muted" aria-hidden><Icon name="calculator" size={22} /></span>
@@ -63,6 +63,7 @@ export async function PaginaCotizador({ tipo }: { tipo: CotizadorTipo }) {
             <CotizadorPublico
               catalogo={catalogo}
               logo={logo}
+              fichaId={fichaId ?? null}
               inicial={{
                 cliente: user?.name ?? '',
                 correo: user?.email ?? '',

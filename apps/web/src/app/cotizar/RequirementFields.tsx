@@ -121,11 +121,19 @@ export function RequirementFields({
                 <input
                   {...comun}
                   className="ms-input"
-                  type={f.type === 'numero' ? 'number' : 'text'}
-                  min={f.type === 'numero' ? 0 : undefined}
-                  // Superficie (m²) y espesor (cm) llevan decimales: sin esto el paso por defecto (1) rechaza 12.5.
-                  step={f.type === 'numero' ? 'any' : undefined}
-                  onChange={(e) => onChange(f.key, e.target.value)}
+                  // Los números van como texto numérico (2026-10-19): sin las
+                  // flechas de subir y bajar, que solo estorbaban, y sin que la
+                  // rueda del ratón los cambie al recorrer la página. Superficie
+                  // (m²) y espesor (cm) llevan decimales, así que se acepta un punto.
+                  type="text"
+                  inputMode={f.type === 'numero' ? 'decimal' : undefined}
+                  pattern={f.type === 'numero' ? '[0-9]+([.][0-9]+)?' : undefined}
+                  title={f.type === 'numero' ? 'Escribe solo el número, por ejemplo 12 o 12.5' : undefined}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // Solo dígitos y un punto; la coma se toma como punto decimal.
+                    onChange(f.key, f.type === 'numero' ? v.replace(',', '.').replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1') : v);
+                  }}
                 />
               )}
 

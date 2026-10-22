@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
 import { sanitizeUserHtml } from '../common/sanitize';
-import { productSlug, LINEAS_SERVICIO, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario } from '@maqserv/config';
+import { productSlug, LINEAS_SERVICIO, COTIZADORES_ACTIVOS, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario, type CotizadorTipo } from '@maqserv/config';
+import { QuoterService } from '../quoter/quoter.service';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
 import { videoDeServicio } from './video-servicio';
@@ -58,13 +59,40 @@ const CAMPOS_TARJETA = {
 
 @Injectable()
 export class ProductsService {
+  constructor(private readonly quoter: QuoterService) {}
+
+  /**
+   * Qué cotizador tiene cada ficha de tipo en su tabulador (2026-10-22, Fase
+   * 4): "Cotizar" en el catálogo abre ESE cotizador con el tipo ya elegido, en
+   * vez del formulario a la medida sin precio. Sale de los renglones visibles
+   * de los cotizadores encendidos en el sitio; el tabulador ya viene en caché.
+   */
+  private async cotizadorDeFichas(): Promise<Map<number, CotizadorTipo>> {
+    const mapa = new Map<number, CotizadorTipo>();
+    for (const tipo of COTIZADORES_ACTIVOS) {
+      try {
+        const cat = await this.quoter.catalogo(tipo);
+        if (!cat.publico.habilitado) continue;
+        const renglones: Array<{ productos?: number[]; oculto?: boolean }> =
+          cat.tipo === 'maquinaria' ? [...cat.equipos, ...cat.servicios] : cat.productos;
+        for (const r of renglones) {
+          if (r.oculto) continue;
+          for (const id of r.productos ?? []) if (!mapa.has(id)) mapa.set(id, tipo);
+        }
+      } catch { /* sin tabulador: se cotiza a la medida */ }
+    }
+    return mapa;
+  }
+
   private toCard(
     p: ProductRow,
     catSlugs: Map<number, string>,
     provs: Map<number, ProviderBadge> = new Map(),
     bloqueos: Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null; note?: string | null }>> = new Map(),
+    cotizadores: Map<number, CotizadorTipo> = new Map(),
   ): ProductCard {
     return {
+      quoter: cotizadores.get(p.id) ?? null,
       id: p.id,
       slug: productSlug(p.name, p.id),
       name: p.name,
@@ -109,7 +137,7 @@ export class ProductsService {
       select: {
         id: true, name: true, slug: true, level: true, coverage: true,
         response_minutes: true, joined_at: true,
-        provider_documents: { select: { expires_at: true } },
+        provider_documents: { select: { id: true, kind: true, name: true, expires_at: true } },
       },
     });
 
@@ -242,7 +270,8 @@ export class ProductsService {
   async resumen(): Promise<{ servicios: number; productos: number }> {
     const ids = await this.idsDeLineasServicio();
     const [servicios, productos] = await Promise.all([
-      prisma.products.count({ where: { status: 1, category_id: { in: ids } } }),
+      // Solo fichas de tipo: las máquinas de los aliados no salen en el sitio (Fase 4).
+      prisma.products.count({ where: { status: 1, category_id: { in: ids }, provider_id: null } }),
       prisma.products.count({ where: { status: 1, category_id: { notIn: ids } } }),
     ]);
     return { servicios, productos };
@@ -271,6 +300,13 @@ export class ProductsService {
 
     // Solo productos publicados (status=1, convención del Laravel viejo)
     const where: Record<string, unknown> = { status: 1 };
+    /**
+     * CADA TIPO UNA VEZ (2026-10-22, Fase 4): en las líneas de servicio el
+     * sitio enseña las fichas de tipo, no la máquina de cada aliado. Si no,
+     * cuando los aliados publiquen las suyas saldrían cinco "Excavadora 20 t".
+     * Va en AND para no chocar con el OR del filtro de existencias.
+     */
+    where.AND = [{ OR: [{ provider_id: null }, { category_id: { notIn: await this.idsDeLineasServicio() } }] }];
     if (opts.featured === true) where.featured = 1;
     else if (opts.featured === false) where.featured = { not: 1 };
     if (opts.vendorId) where.user_id = opts.vendorId;
@@ -343,13 +379,14 @@ export class ProductsService {
         ])
       : await this.porRelevancia(where, page);
 
-    const [catSlugs, provs, bloqueos] = await Promise.all([
+    const [catSlugs, provs, bloqueos, cotizadores] = await Promise.all([
       this.categorySlugMap(),
       this.providerBadges(rows.map((r) => r.provider_id)),
       this.bloqueosVigentes(rows.map((r) => r.id)),
+      this.cotizadorDeFichas(),
     ]);
     return {
-      items: rows.map((p) => this.toCard(p, catSlugs, provs, bloqueos)),
+      items: rows.map((p) => this.toCard(p, catSlugs, provs, bloqueos, cotizadores)),
       total,
       page,
       pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
@@ -360,11 +397,12 @@ export class ProductsService {
     const p = await prisma.products.findFirst({ where: { id, status: 1 } });
     if (!p) throw new NotFoundException(`Producto ${id} no encontrado`);
 
-    const [gallery, cat, provs, bloqueos] = await Promise.all([
+    const [gallery, cat, provs, bloqueos, cotizadores] = await Promise.all([
       prisma.galleries.findMany({ where: { product_id: id }, select: { photo: true } }),
       prisma.categories.findUnique({ where: { id: p.category_id } }),
       this.providerBadges([p.provider_id]),
       this.bloqueosVigentes([p.id]),
+      this.cotizadorDeFichas(),
     ]);
 
     const catSlugs = new Map(cat ? [[cat.id, cat.cat_slug] as const] : []);
@@ -378,7 +416,7 @@ export class ProductsService {
       }
     } catch { /* specs legacy/no JSON */ }
     return {
-      ...this.toCard(p, catSlugs, provs, bloqueos),
+      ...this.toCard(p, catSlugs, provs, bloqueos, cotizadores),
       // Defensa en la salida: lo guardado antes del arreglo también se limpia.
       description: sanitizeUserHtml(p.description ?? ''),
       short: p.Corto && p.Corto.trim() ? p.Corto.trim() : null,

@@ -76,6 +76,7 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
               formulario={requestFormFor(categoriaServicio ?? product?.categorySlug)}
               categoriaServicio={categoriaServicio ?? product?.categorySlug ?? null}
               user={user}
+              logoDocumento={theme.tokens.branding?.logoLight ?? theme.tokens.branding?.logoAlt ?? null}
               labels={{
                 name: t(theme, 'auth.field.name'),
                 email: t(theme, 'auth.field.email'),

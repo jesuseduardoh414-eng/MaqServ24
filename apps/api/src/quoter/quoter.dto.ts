@@ -88,6 +88,14 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
   const partidas = partidasDe(tipo, crudas);
   return partidas.map((p, i) => {
     const n = i + 1;
+    // "Sale en el cotizador" apagado en su ficha, o la ficha de baja (2026-10-19).
+    const oculto =
+      cat.tipo === 'maquinaria'
+        ? (p.tipo === 'equipo' && cat.equipos.find((e) => e.id === p.id)?.oculto) ||
+          (p.tipo === 'servicio' && cat.servicios.find((s) => s.id === p.id)?.oculto)
+        : (p.tipo === 'material' && cat.productos.find((x) => x.id === p.id)?.oculto) ||
+          (p.tipo === 'zona' && cat.productos.find((x) => x.id === p.producto_id)?.oculto);
+    if (oculto) throw new BadRequestException(`Partida ${n}: eso ya no está en el cotizador. Pídelo a la medida en /cotizar.`);
     if (cat.tipo === 'maquinaria') {
       if (p.tipo === 'equipo') {
         return { ...p, precio_hora: null, horas: Math.min(p.horas ?? 0, Math.max(0, cat.jornada_horas - 1)) };

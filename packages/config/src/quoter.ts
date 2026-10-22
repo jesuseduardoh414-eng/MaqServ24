@@ -105,6 +105,12 @@ const proveedorDe = () => z.number().int().positive().nullable().optional();
  * `proveedor_id` se queda como respaldo para los tabuladores viejos.
  */
 const productosDe = () => z.array(z.number().int().positive()).max(60).optional();
+/**
+ * "Sale en el cotizador" apagado desde la ficha del tipo (2026-10-19): el
+ * renglón conserva su precio pero no se ofrece al cotizar. También se marca
+ * solo, al leer el tabulador, cuando su ficha se da de baja.
+ */
+const ocultoDe = () => z.boolean().optional();
 
 const tierSchema = z.object({
   id: z.string().max(30),
@@ -121,6 +127,7 @@ const equipoSchema = z.object({
   proveedor_id: proveedorDe(),
   productos: productosDe(),
   tarifas: z.object({ dia: z.number().min(0), semana: z.number().min(0), mes: z.number().min(0) }),
+  oculto: ocultoDe(),
 });
 
 const servicioSchema = z.object({
@@ -140,6 +147,7 @@ const servicioSchema = z.object({
    * quien no le tocaba.
    */
   linea: z.string().max(80).optional(),
+  oculto: ocultoDe(),
 });
 
 export const catalogoMaquinariaSchema = z.object({
@@ -166,6 +174,7 @@ const productoSchema = z.object({
   precio_ton: z.number().min(0),
   proveedor_id: proveedorDe(),
   productos: productosDe(),
+  oculto: ocultoDe(),
 });
 
 const zonaSchema = z.object({
@@ -805,6 +814,219 @@ export function ligarProducto(cat: CatalogoCotizador, renglonId: string, product
     productos: cat.productos.map((p) => ({ ...p, productos: p.id === renglonId ? con(p.productos) : sin(p.productos) })),
     material_banco: { ...cat.material_banco, productos: renglonId === 'banco' ? con(cat.material_banco.productos) : sin(cat.material_banco.productos) },
   };
+}
+
+/**
+ * EL PRECIO VIVE EN LA FICHA DEL TIPO (2026-10-19).
+ *
+ * "Que cuando se haga un cambio en algo que tiene relación con otro ya no se
+ * haga doble trabajo, solo se haga una vez." Antes un equipo se daba de alta
+ * en Inventario y OTRA vez en Tarifas y condiciones, y se ligaban a mano.
+ * Ahora cada ficha de Inventario sin aliado —el TIPO: la retroexcavadora, la
+ * base hidráulica, la pipa de 10 m³— es dueña de sus renglones del tabulador
+ * (los que la traen en `productos`): se dan de alta, se editan y se quitan
+ * desde la ficha. Tarifas y condiciones solo los enseña y guarda lo general.
+ *
+ * El motor no cambia: los renglones siguen en el tabulador con el mismo id,
+ * así que los documentos ya emitidos y sus totales no se mueven.
+ */
+export type ClaseRenglon = 'equipo' | 'servicio' | 'material';
+export interface SeccionCotizador { tipo: CotizadorTipo; clase: ClaseRenglon }
+
+/** Dónde vive en el cotizador lo de cada línea. Null: la línea no tiene cotizador (se pide con el formulario). */
+export function seccionDeLinea(linea: string | null | undefined): SeccionCotizador | null {
+  if (linea === LINEA_MAQUINARIA) return { tipo: 'maquinaria', clase: 'equipo' };
+  if (linea === LINEA_TRANSPORTE) return { tipo: 'maquinaria', clase: 'servicio' };
+  if (linea === LINEA_TRITURADOS) return { tipo: 'triturados', clase: 'material' };
+  return null;
+}
+
+/** Un renglón tal como se edita desde la ficha. */
+export interface RenglonDeFicha {
+  /** Ausente: renglón nuevo (el id se genera al guardar). */
+  id?: string;
+  nombre: string;
+  /** Equipo: tarifa por día en cada tramo. */
+  tarifas?: { dia: number; semana: number; mes: number };
+  /** Equipo: qué flete se cobra (clave de `fletes`). */
+  flete_tipo?: string;
+  /** Servicio: por viaje. Material: por tonelada. */
+  precio?: number;
+  /** Servicio: el bloque de condiciones que se imprime. */
+  cond?: string;
+}
+
+const deLaFicha = (productId: number) => (r: { productos?: number[] }) => (r.productos ?? []).includes(productId);
+
+/** Los renglones de una ficha en la sección de su línea, y si están ocultos. */
+export function renglonesDeFicha(cat: CatalogoCotizador, clase: ClaseRenglon, productId: number): { renglones: RenglonDeFicha[]; oculto: boolean } {
+  const es = deLaFicha(productId);
+  if (cat.tipo === 'maquinaria' && clase === 'equipo') {
+    const rs = cat.equipos.filter(es);
+    return { renglones: rs.map((e) => ({ id: e.id, nombre: e.nombre, tarifas: { ...e.tarifas }, flete_tipo: e.flete_tipo })), oculto: rs.length > 0 && rs.every((e) => e.oculto) };
+  }
+  if (cat.tipo === 'maquinaria' && clase === 'servicio') {
+    const rs = cat.servicios.filter(es);
+    return { renglones: rs.map((s) => ({ id: s.id, nombre: s.nombre, precio: s.precio, cond: s.cond })), oculto: rs.length > 0 && rs.every((s) => s.oculto) };
+  }
+  if (cat.tipo === 'triturados' && clase === 'material') {
+    const rs = cat.productos.filter(es);
+    return { renglones: rs.map((p) => ({ id: p.id, nombre: p.nombre, precio: p.precio_ton })), oculto: rs.length > 0 && rs.every((p) => p.oculto) };
+  }
+  return { renglones: [], oculto: false };
+}
+
+/** Un id corto y legible que no choque con los del tabulador (los documentos lo guardan). */
+export function idDeRenglon(nombre: string, usados: Iterable<string>): string {
+  const base = nombre
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32) || 'renglon';
+  const ya = new Set(usados);
+  if (!ya.has(base)) return base;
+  for (let i = 2; ; i++) {
+    const id = `${base}_${i}`;
+    if (!ya.has(id)) return id;
+  }
+}
+
+/** Todos los ids del tabulador, de cualquier sección. */
+function idsDe(cat: CatalogoCotizador): string[] {
+  return cat.tipo === 'maquinaria'
+    ? [...cat.equipos.map((e) => e.id), ...cat.servicios.map((s) => s.id)]
+    : [...cat.productos.map((p) => p.id), 'banco'];
+}
+
+/** Cambia los renglones de la ficha en su lugar; si no tenía, los nuevos van al final. */
+function reemplazar<T>(lista: T[], es: (x: T) => boolean, nuevos: T[]): T[] {
+  const i = lista.findIndex(es);
+  const resto = lista.filter((x) => !es(x));
+  if (i < 0) return [...resto, ...nuevos];
+  const antes = lista.slice(0, i).filter((x) => !es(x)).length;
+  return [...resto.slice(0, antes), ...nuevos, ...resto.slice(antes)];
+}
+
+/** Icono de un servicio nuevo, por su bloque de condiciones. */
+const ICONO_SERVICIO: Record<string, string> = { pipa: 'pipa', banco: 'banco', retiro: 'retiro' };
+
+/**
+ * Deja los renglones de la ficha como vienen: actualiza los que traen id,
+ * crea los nuevos ligados a ella y quita los que ya no vienen. El resto del
+ * tabulador no se toca. Un id que no es de esta ficha cuenta como nuevo: desde
+ * una ficha no se puede reescribir el renglón de otra.
+ */
+export function aplicarRenglonesDeFicha(
+  cat: CatalogoCotizador,
+  clase: ClaseRenglon,
+  productId: number,
+  renglones: RenglonDeFicha[],
+  opciones: { oculto: boolean; linea: string },
+): CatalogoCotizador {
+  const es = deLaFicha(productId);
+  const usados = new Set(idsDe(cat));
+  const oculto = opciones.oculto || undefined;
+  const idPara = <T extends { id: string }>(previos: Map<string, T>, r: RenglonDeFicha): { id: string; ya: T | undefined } => {
+    const ya = r.id ? previos.get(r.id) : undefined;
+    const id = ya?.id ?? idDeRenglon(r.nombre, usados);
+    usados.add(id);
+    return { id, ya };
+  };
+
+  if (cat.tipo === 'maquinaria' && clase === 'equipo') {
+    const previos = cat.equipos.filter(es);
+    const porId = new Map(previos.map((e) => [e.id, e]));
+    const icono = previos[0]?.icono ?? 'excavadora';
+    const nuevos: EquipoCotizador[] = renglones.map((r) => {
+      const { id, ya } = idPara(porId, r);
+      return {
+        ...(ya ?? { icono, proveedor_id: null, productos: [productId] }),
+        id,
+        nombre: r.nombre.trim(),
+        flete_tipo: r.flete_tipo ?? ya?.flete_tipo ?? Object.keys(cat.fletes)[0] ?? 'Excavadora',
+        tarifas: r.tarifas ?? ya?.tarifas ?? { dia: 0, semana: 0, mes: 0 },
+        oculto,
+      } as EquipoCotizador;
+    });
+    return { ...cat, equipos: reemplazar(cat.equipos, es, nuevos) };
+  }
+
+  if (cat.tipo === 'maquinaria' && clase === 'servicio') {
+    const previos = cat.servicios.filter(es);
+    const porId = new Map(previos.map((s) => [s.id, s]));
+    const nuevos: ServicioCotizador[] = renglones.map((r) => {
+      const { id, ya } = idPara(porId, r);
+      const precio = r.precio ?? ya?.precio ?? 0;
+      const cond = r.cond ?? ya?.cond ?? Object.keys(cat.condiciones)[0] ?? 'renta';
+      // Con un solo precio sugerido, ese ES el precio; con varios (retiros), se
+      // conservan y se suma el nuevo para que siga a la mano en el panel.
+      const presets = ya && ya.presets.length > 1
+        ? [...new Set([...ya.presets, precio])].sort((a, b) => a - b)
+        : [precio];
+      return {
+        ...(ya ?? { icono: ICONO_SERVICIO[cond] ?? previos[0]?.icono ?? 'retiro', unidad: 'viaje', proveedor_id: null, productos: [productId] }),
+        id,
+        nombre: r.nombre.trim(),
+        precio,
+        presets,
+        cond,
+        linea: opciones.linea,
+        oculto,
+      } as ServicioCotizador;
+    });
+    return { ...cat, servicios: reemplazar(cat.servicios, es, nuevos) };
+  }
+
+  if (cat.tipo === 'triturados' && clase === 'material') {
+    const previos = cat.productos.filter(es);
+    const porId = new Map(previos.map((p) => [p.id, p]));
+    const nuevos: ProductoTriturado[] = renglones.map((r) => {
+      const { id, ya } = idPara(porId, r);
+      return {
+        ...(ya ?? { proveedor_id: null, productos: [productId] }),
+        id,
+        nombre: r.nombre.trim(),
+        precio_ton: r.precio ?? ya?.precio_ton ?? 0,
+        oculto,
+      } as ProductoTriturado;
+    });
+    return { ...cat, productos: reemplazar(cat.productos, es, nuevos) };
+  }
+
+  return cat;
+}
+
+/**
+ * Lo que guarda Tarifas y condiciones: lo general del tabulador con los
+ * renglones TAL COMO ESTÁN GUARDADOS, porque son de cada ficha. Así una
+ * pantalla de Tarifas abierta desde antes no deshace un precio que se acaba
+ * de cambiar en una ficha. Un tipo de flete que use algún equipo no se puede
+ * perder: si no viene, se conserva con su monto.
+ */
+export function conRenglonesGuardados(nuevo: CatalogoCotizador, guardado: CatalogoCotizador): CatalogoCotizador {
+  if (nuevo.tipo === 'maquinaria' && guardado.tipo === 'maquinaria') {
+    const fletes = { ...nuevo.fletes };
+    for (const e of guardado.equipos) if (!(e.flete_tipo in fletes)) fletes[e.flete_tipo] = guardado.fletes[e.flete_tipo] ?? 0;
+    return { ...nuevo, fletes, equipos: guardado.equipos, servicios: guardado.servicios };
+  }
+  if (nuevo.tipo === 'triturados' && guardado.tipo === 'triturados') {
+    return { ...nuevo, productos: guardado.productos };
+  }
+  return nuevo;
+}
+
+/**
+ * El tabulador sin lo oculto, para ELEGIR al cotizar. Lo que ya trae la
+ * cotización (`enUso`, al volver a cotizar un documento viejo) se queda
+ * aunque esté oculto: si no, la partida no tendría con qué pintarse.
+ */
+export function soloVisibles(cat: CatalogoCotizador, enUso: Iterable<string> = []): CatalogoCotizador {
+  const usa = new Set(enUso);
+  const ve = (r: { id: string; oculto?: boolean }) => !r.oculto || usa.has(r.id);
+  if (cat.tipo === 'maquinaria') return { ...cat, equipos: cat.equipos.filter(ve), servicios: cat.servicios.filter(ve) };
+  return { ...cat, productos: cat.productos.filter(ve) };
 }
 
 /** Qué pidió el cliente en un renglón, en texto (para el correo y el alcance). */

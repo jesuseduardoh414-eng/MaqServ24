@@ -3,19 +3,28 @@ import { Prisma, prisma } from '@maqserv/db';
 import {
   CATALOGOS_DEFAULT,
   COTIZADORES_META,
+  COTIZADOR_TIPOS,
+  aplicarRenglonesDeFicha,
   calcularCotizacion,
   catalogoCotizadorSchema,
   centroDeMunicipio,
+  conRenglonesGuardados,
   partidasPorProveedor,
+  renglonesDeFicha,
+  seccionDeLinea,
   tieneImporte,
   type CalculoCotizacion,
   type CatalogoCotizador,
   type CotizadorTipo,
   type OpcionesCotizador,
   type PartidaCotizador,
+  type RenglonDeFicha,
 } from '@maqserv/config';
+import { conCandado } from '../common/candado';
 import { MailerService } from '../notifications/mailer.service';
 import { sincronizarReserva } from '../quotes/reservas';
+import { firmarAceptacion, rutaAceptar } from './aceptar-link';
+import { leerZonas, municipiosDe } from '../common/zonas';
 import {
   correoAcuseSolicitud,
   correoCotizacionDelPanel,
@@ -66,7 +75,21 @@ export class QuoterService {
   async catalogo(tipo: CotizadorTipo): Promise<CatalogoCotizador> {
     const hit = this.cache.get(tipo);
     if (hit && hit.until > Date.now()) return hit.cat;
+    const guardado = await this.marcarFichasInactivas(await this.catalogoGuardado(tipo));
+    // Los municipios salen de Configuración › Zonas (2026-10-22): las anunciadas
+    // y las internas; el sitio filtra solo las anunciadas (quoter.controller).
+    const deZonas = municipiosDe(await leerZonas(), ['sitio', 'interna']);
+    const cat = deZonas.length ? { ...guardado, municipios: deZonas } : guardado;
+    this.cache.set(tipo, { until: Date.now() + QuoterService.TTL_MS, cat });
+    return cat;
+  }
 
+  /**
+   * El tabulador TAL COMO ESTÁ GUARDADO: sin caché y sin las marcas que se
+   * calculan al leer. Es el que se edita; editar sobre `catalogo()` guardaría
+   * como "oculto" lo que solo está oculto porque su ficha está de baja.
+   */
+  async catalogoGuardado(tipo: CotizadorTipo): Promise<CatalogoCotizador> {
     const fila = await prisma.quoter_catalogs.findUnique({ where: { kind: tipo } });
     let cat: CatalogoCotizador;
 
@@ -88,13 +111,39 @@ export class QuoterService {
         cat = CATALOGOS_DEFAULT[tipo];
       }
     }
-
-    this.cache.set(tipo, { until: Date.now() + QuoterService.TTL_MS, cat });
     return cat;
   }
 
-  /** Guarda el tabulador completo. Lo valida el controlador antes de llegar. */
-  async guardarCatalogo(tipo: CotizadorTipo, cat: CatalogoCotizador, correo: string): Promise<CatalogoCotizador> {
+  /**
+   * Un renglón cuya ficha se dio de baja (o se borró) no se ofrece al cotizar:
+   * la ficha ES el tipo, y si el tipo salió del catálogo también sale del
+   * cotizador (2026-10-19). Se calcula al leer y NO se guarda, así que al
+   * reactivar la ficha vuelve solo. Un renglón sin ficha (tabuladores viejos)
+   * se queda como estaba.
+   */
+  private async marcarFichasInactivas(cat: CatalogoCotizador): Promise<CatalogoCotizador> {
+    const renglones: Array<{ productos?: number[] }> = cat.tipo === 'maquinaria' ? [...cat.equipos, ...cat.servicios] : cat.productos;
+    const ids = [...new Set(renglones.flatMap((r) => r.productos ?? []))];
+    if (ids.length === 0) return cat;
+    const productos = await prisma.products.findMany({ where: { id: { in: ids } }, select: { id: true, status: true, provider_id: true } });
+    const porId = new Map(productos.map((p) => [p.id, p]));
+    const inactivo = (r: { productos?: number[] }): boolean => {
+      const lista = r.productos ?? [];
+      if (lista.length === 0) return false;
+      const vivos = lista.map((id) => porId.get(id)).filter((p): p is NonNullable<typeof p> => !!p);
+      const ficha = vivos.find((p) => p.provider_id === null);
+      if (ficha) return ficha.status !== 1;
+      // Todo lo que tenía ligado se borró: su ficha ya no existe.
+      return vivos.length === 0;
+    };
+    const marca = <T extends { productos?: number[]; oculto?: boolean }>(r: T): T => (!r.oculto && inactivo(r) ? { ...r, oculto: true } : r);
+    return cat.tipo === 'maquinaria'
+      ? { ...cat, equipos: cat.equipos.map(marca), servicios: cat.servicios.map(marca) }
+      : { ...cat, productos: cat.productos.map(marca) };
+  }
+
+  /** Escribe el tabulador y tira la caché. Lo de antes de llegar aquí ya se validó. */
+  private async escribir(tipo: CotizadorTipo, cat: CatalogoCotizador, correo: string): Promise<void> {
     const data = { version: cat.version, data: cat as unknown as Prisma.InputJsonValue, updated_by: correo.slice(0, 190), updated_at: new Date() };
     await prisma.quoter_catalogs.upsert({
       where: { kind: tipo },
@@ -102,12 +151,148 @@ export class QuoterService {
       update: data,
     });
     this.cache.delete(tipo);
-    return cat;
   }
 
-  /** Vuelve el tabulador a los valores de fábrica de `@maqserv/config`. */
+  /**
+   * Guarda lo GENERAL del tabulador (Tarifas y condiciones). Los equipos,
+   * servicios y materiales se quedan como están guardados: desde el
+   * 2026-10-19 son de su ficha (ver `guardarFicha`). Lo valida el controlador.
+   */
+  async guardarCatalogo(tipo: CotizadorTipo, cat: CatalogoCotizador, correo: string): Promise<CatalogoCotizador> {
+    await conCandado([`tabulador:${tipo}`], async () => {
+      await this.escribir(tipo, conRenglonesGuardados(cat, await this.catalogoGuardado(tipo)), correo);
+    });
+    return this.catalogo(tipo);
+  }
+
+  /** Vuelve lo general a los valores de fábrica. Los precios de cada tipo no se tocan: viven en su ficha. */
   async restaurarCatalogo(tipo: CotizadorTipo, correo: string): Promise<CatalogoCotizador> {
     return this.guardarCatalogo(tipo, CATALOGOS_DEFAULT[tipo], correo);
+  }
+
+  /**
+   * LO QUE UNA FICHA DE INVENTARIO TIENE EN EL COTIZADOR (2026-10-19).
+   *
+   * Lo pide la ficha para enseñar y editar su precio. `seccion` es null cuando
+   * su línea no tiene cotizador (materiales, asfalto): esas se cotizan con el
+   * formulario y el precio se pone al responder.
+   */
+  async fichaEnCotizador(productId: number) {
+    const p = await prisma.products.findUnique({
+      where: { id: productId },
+      select: { id: true, name: true, status: true, provider_id: true, category_id: true },
+    });
+    if (!p) throw new NotFoundException('Esa ficha no existe.');
+    const linea = (await prisma.categories.findUnique({ where: { id: p.category_id }, select: { cat_slug: true } }))?.cat_slug ?? null;
+    const seccion = seccionDeLinea(linea);
+    const base = { productId: p.id, nombreFicha: p.name, linea, seccion, deAliado: p.provider_id !== null, activa: p.status === 1 };
+    if (!seccion) return { ...base, renglones: [], oculto: false, fletes: [], condiciones: [], tramos: [] };
+    const cat = await this.catalogoGuardado(seccion.tipo);
+    const { renglones, oculto } = renglonesDeFicha(cat, seccion.clase, p.id);
+    return {
+      ...base,
+      renglones,
+      oculto,
+      fletes: cat.tipo === 'maquinaria' ? Object.entries(cat.fletes).map(([nombre, monto]) => ({ nombre, monto })) : [],
+      condiciones: Object.entries(cat.condiciones).map(([clave, b]) => ({ clave, titulo: b.titulo })),
+      tramos: cat.tipo === 'maquinaria'
+        ? cat.tiers.map((t) => ({ id: t.id, label: t.label, desde: t.desde_dias, hasta: t.hasta_dias }))
+        : [],
+    };
+  }
+
+  /**
+   * Guarda el precio de una ficha en el cotizador: sus renglones, si sale o
+   * no, y los tipos de flete nuevos que haya creado ahí mismo. Una sola vez,
+   * desde la ficha; el cotizador del sitio y el del panel lo leen de aquí.
+   */
+  async guardarFicha(
+    productId: number,
+    d: { renglones: RenglonDeFicha[]; oculto: boolean; fletesNuevos?: Record<string, number> },
+    correo: string,
+  ) {
+    const p = await prisma.products.findUnique({ where: { id: productId }, select: { id: true, name: true, provider_id: true, category_id: true } });
+    if (!p) throw new NotFoundException('Esa ficha no existe.');
+    if (p.provider_id !== null) {
+      throw new BadRequestException('El precio se pone en la ficha del tipo, no en el equipo de un aliado: el cotizador maneja un solo precio por tipo.');
+    }
+    const linea = (await prisma.categories.findUnique({ where: { id: p.category_id }, select: { cat_slug: true } }))?.cat_slug ?? null;
+    const seccion = seccionDeLinea(linea);
+    if (!seccion) throw new BadRequestException('Esta línea no tiene cotizador: se cotiza con el formulario y el precio se pone al responder.');
+
+    await conCandado([`tabulador:${seccion.tipo}`], async () => {
+      let cat = await this.catalogoGuardado(seccion.tipo);
+      if (cat.tipo === 'maquinaria') {
+        const actual = cat;
+        const nuevos = Object.entries(d.fletesNuevos ?? {}).filter(([k]) => k.trim() && !(k.trim() in actual.fletes));
+        const fletes = { ...actual.fletes, ...Object.fromEntries(nuevos.map(([k, v]) => [k.trim(), v])) };
+        cat = { ...actual, fletes };
+        if (seccion.clase === 'equipo') {
+          const malo = d.renglones.find((r) => !r.flete_tipo || !(r.flete_tipo in fletes));
+          if (malo) throw new BadRequestException(`«${malo.nombre}»: elige qué flete se le cobra.`);
+        } else {
+          const malo = d.renglones.find((r) => r.cond && !(r.cond in actual.condiciones));
+          if (malo) throw new BadRequestException(`«${malo.nombre}»: esas condiciones no existen.`);
+        }
+      }
+      const siguiente = catalogoCotizadorSchema.safeParse(
+        aplicarRenglonesDeFicha(cat, seccion.clase, p.id, d.renglones, { oculto: d.oculto, linea: linea as string }),
+      );
+      if (!siguiente.success) {
+        const issue = siguiente.error.issues[0];
+        throw new BadRequestException(`No se pudo guardar el precio: ${issue?.path.join('.') ?? ''} ${issue?.message ?? ''}`.trim());
+      }
+      await this.escribir(seccion.tipo, siguiente.data, correo);
+    });
+    return { tipo: seccion.tipo, nombre: p.name, ficha: await this.fichaEnCotizador(p.id) };
+  }
+
+  /**
+   * Una ficha que se BORRA se lleva sus renglones del tabulador: el tipo se
+   * borra una sola vez (2026-10-19). Si lo borrado era el equipo de un aliado
+   * ligado a un renglón, el renglón se queda y solo se suelta esa liga.
+   * Nunca lanza: borrar la ficha ya pasó y esto es limpieza.
+   */
+  async quitarDelTabulador(productId: number, eraFicha: boolean, correo: string): Promise<void> {
+    const sin = (l?: number[]) => (l ? l.filter((x) => x !== productId) : l);
+    for (const tipo of COTIZADOR_TIPOS) {
+      try {
+        await conCandado([`tabulador:${tipo}`], async () => {
+          const cat = await this.catalogoGuardado(tipo);
+          let sig: CatalogoCotizador = cat;
+          if (eraFicha) {
+            for (const clase of ['equipo', 'servicio', 'material'] as const) {
+              sig = aplicarRenglonesDeFicha(sig, clase, productId, [], { oculto: false, linea: '' });
+            }
+          } else if (sig.tipo === 'maquinaria') {
+            sig = { ...sig, equipos: sig.equipos.map((e) => ({ ...e, productos: sin(e.productos) })), servicios: sig.servicios.map((s) => ({ ...s, productos: sin(s.productos) })) };
+          } else {
+            sig = { ...sig, productos: sig.productos.map((p) => ({ ...p, productos: sin(p.productos) })), material_banco: { ...sig.material_banco, productos: sin(sig.material_banco.productos) } };
+          }
+          if (JSON.stringify(sig) !== JSON.stringify(cat)) await this.escribir(tipo, sig, correo);
+        });
+      } catch (e) {
+        this.log.warn(`No se pudo limpiar el tabulador de "${tipo}" tras borrar el producto ${productId}: ${(e as Error).message}`);
+      }
+    }
+  }
+
+  /**
+   * Para Tarifas y condiciones, que ya solo enseña los renglones: a qué ficha
+   * pertenece cada uno, para llevar a editarlo ahí.
+   */
+  async fichasDeRenglones(tipo: CotizadorTipo): Promise<Record<string, { id: number; nombre: string; activa: boolean } | null>> {
+    const cat = await this.catalogoGuardado(tipo);
+    const renglones: Array<{ id: string; productos?: number[] }> = cat.tipo === 'maquinaria' ? [...cat.equipos, ...cat.servicios] : cat.productos;
+    const ids = [...new Set(renglones.flatMap((r) => r.productos ?? []))];
+    const fichas = ids.length
+      ? await prisma.products.findMany({ where: { id: { in: ids }, provider_id: null }, select: { id: true, name: true, status: true } })
+      : [];
+    const porId = new Map(fichas.map((f) => [f.id, f]));
+    return Object.fromEntries(renglones.map((r) => {
+      const f = (r.productos ?? []).map((id) => porId.get(id)).find(Boolean);
+      return [r.id, f ? { id: f.id, nombre: f.name, activa: f.status === 1 } : null];
+    }));
   }
 
   /** Vista previa: calcula sin guardar nada. */
@@ -262,7 +447,7 @@ export class QuoterService {
     const q = await this.solicitudLigable(quoteId);
     const req = (q.requirements ?? {}) as Record<string, unknown>;
     const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
-    const internas = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'obra_ubicacion', 'productos', 'productId']);
+    const internas = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'obra_ubicacion', 'productos', 'productId', 'renglones']);
     // El municipio casi nunca viene solo: va al final de la dirección ("Av. …, San
     // Pedro Garza García") y `region` es el ESTADO. Se busca pieza por pieza.
     const municipio = [q.client_sites?.municipality, texto(req.obra_ubicacion), q.address, q.region]
@@ -649,6 +834,24 @@ export class QuoterService {
     };
     const calc = doc.calc;
 
+    /**
+     * El botón "Acepto" (2026-10-22): solo en las que armó el panel y no son la
+     * respuesta a una solicitud del sitio (esas el cliente las acepta desde su
+     * cuenta, con su propio camino). Sin llave para firmar, sale sin botón.
+     */
+    let aceptarUrl: string | null = null;
+    if (q.origin === 'panel' && q.state !== 'aceptada' && q.state !== 'cancelada') {
+      const ligada = await prisma.quotes.count({ where: { requirements: { path: '$.folio', equals: q.folio } } });
+      if (ligada === 0) {
+        try {
+          const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
+          aceptarUrl = `${sitio}${rutaAceptar(await firmarAceptacion(q.id))}`;
+        } catch (e) {
+          this.log.warn(`Cotización ${q.folio} sin botón para aceptar: ${(e as Error).message}`);
+        }
+      }
+    }
+
     const envio = await this.mailer.enviar({
       kind: 'quoter_quote_sent',
       to: q.email,
@@ -673,6 +876,7 @@ export class QuoterService {
         condiciones: calc.condiciones ?? [],
         notas: q.notes,
         firma: doc.firma?.nombre ? doc.firma : null,
+        aceptarUrl,
       }),
     });
 

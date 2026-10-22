@@ -1,16 +1,18 @@
 import { redirect } from 'next/navigation';
-import { getAdmin, exigirModulo } from '@/lib/admin';
+import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { Pagos } from './Pagos';
+import { Pagos, type AliadoPago } from './Pagos';
 
-/** PAGOS A ALIADOS — vista de diseño con datos de ejemplo (2026-10-09). Ver ../datos-ejemplo.ts. */
-export default async function AdminPagos() {
+/** PAGOS A ALIADOS (2026-10-22, Fase A): datos reales de money/ en la API. */
+export default async function AdminPagos({ searchParams }: { searchParams: Promise<{ pagados?: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'administracion');
+  const pagados = (await searchParams).pagados === '1';
+  const datos = await adminFetch<{ paraPagar: AliadoPago[]; esperando: AliadoPago[]; pagados: AliadoPago[] }>(`/admin/dinero/pagos${pagados ? '?pagados=1' : ''}`);
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <Pagos />
+      <Pagos datos={datos ?? { paraPagar: [], esperando: [], pagados: [] }} pagados={pagados} />
     </AdminShell>
   );
 }

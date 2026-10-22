@@ -72,7 +72,12 @@ export function CotizadorPanel({
       folio: body.folio as string,
       id: body.id as number,
       // Lo que sigue es responderle al cliente con este documento.
-      ...(solicitud ? { enlace: { href: `/cotizaciones?ver=${solicitud.id}`, label: `Volver a ${solicitud.quoteNumber} para responder` } } : {}),
+      ...(solicitud
+        ? { enlace: { href: `/cotizaciones?ver=${solicitud.id}`, label: `Volver a ${solicitud.quoteNumber} para responder` } }
+        // Con su correo, lo que sigue es mandársela (2026-10-22): un clic al documento con el botón.
+        : datos.contexto.correo?.trim()
+          ? { enlace: { href: `/cotizador/historial/${body.id}`, label: 'Revisar y enviar al cliente' } }
+          : {}),
     };
   }
 

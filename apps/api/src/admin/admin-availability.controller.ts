@@ -57,8 +57,10 @@ const fecha = (v: string | null | undefined): Date | null =>
 export class AdminAvailabilityController {
   @Get()
   async list() {
+    // Solo máquinas de algún aliado (2026-10-21): sin aliado es la ficha del
+    // tipo, que lleva el precio y no ocupa patio ni fechas.
     const productos = await prisma.products.findMany({
-      where: { status: 1 },
+      where: { status: 1, provider_id: { not: null } },
       select: {
         id: true, name: true, stock: true, location: true,
         availability_confirmed_at: true, category_id: true, provider_id: true,

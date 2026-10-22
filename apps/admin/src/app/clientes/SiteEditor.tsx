@@ -2,6 +2,7 @@
 
 import { useState, type CSSProperties } from 'react';
 import { Btn, Chip, FormField, StatusText } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
 
 /**
  * UNA OBRA.
@@ -101,10 +102,28 @@ export function SiteEditor({
 
   async function archivar() {
     if (!obra) return;
+    // Va junto a "Guardar" al editar (QA 2026-10-19: se dio de baja una obra
+    // queriendo guardarla), así que se pregunta antes.
+    if (!(await confirmar({
+      titulo: `¿Dar de baja «${obra.name}»?`,
+      mensaje: 'Ya no se le ofrece al cliente al cotizar. Sus solicitudes se quedan en el historial y la puedes reactivar después.',
+      confirmar: 'Dar de baja',
+      peligro: true,
+    }))) return;
     // No se borra: sus solicitudes son el historial del cliente y borrarla los
     // dejaría huérfanos.
     await fetch(`/api/admin/clients/sites/${obra.id}`, { method: 'DELETE' });
     onListo();
+  }
+
+  async function reactivar() {
+    if (!obra) return;
+    setGuardando(true);
+    const r = await fetch(`/api/admin/clients/sites/${obra.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }),
+    });
+    setGuardando(false);
+    if (r.ok) onListo();
   }
 
   // Una obra es un bloque con acciones, requisitos e historial propio: se
@@ -132,7 +151,14 @@ export function SiteEditor({
               </div>
             ) : null}
           </div>
-          <Btn size="sm" icon="ph-pencil-simple" onClick={() => setEditando(true)}>Editar</Btn>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {obra.status === 0 ? (
+              <Btn size="sm" icon="ph-arrow-counter-clockwise" onClick={reactivar} disabled={guardando}>
+                {guardando ? 'Reactivando…' : 'Reactivar'}
+              </Btn>
+            ) : null}
+            <Btn size="sm" icon="ph-pencil-simple" onClick={() => setEditando(true)}>Editar</Btn>
+          </div>
         </div>
 
         {obra.requirements.length > 0 ? (

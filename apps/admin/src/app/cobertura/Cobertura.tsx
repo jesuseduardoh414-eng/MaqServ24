@@ -30,8 +30,10 @@ type Filtro = 'todas' | LineaId;
 type Nivel = 'sin' | 'uno' | 'bien';
 
 const NIVEL: Record<Nivel, { texto: string; tono: Tone; orden: number }> = {
-  sin: { texto: 'Sin cobertura', tono: 'bad', orden: 0 },
-  uno: { texto: 'Depende de uno', tono: 'warn', orden: 1 },
+  // Los mismos nombres que las tarjetas de arriba (2026-10-19): "Depende de
+  // uno" y "Sin cobertura" obligaban a traducir.
+  sin: { texto: 'Nadie llega', tono: 'bad', orden: 0 },
+  uno: { texto: 'Un solo aliado', tono: 'warn', orden: 1 },
   bien: { texto: 'Bien cubierto', tono: 'ok', orden: 2 },
 };
 const nivelDe = (aliados: number): Nivel => (aliados === 0 ? 'sin' : aliados === 1 ? 'uno' : 'bien');
@@ -40,12 +42,12 @@ const nivelDe = (aliados: number): Nivel => (aliados === 0 ? 'sin' : aliados ===
 const AZUL_ALIADO = '#008CFF';
 const AMBAR_OBRA = '#E0A32E';
 
-const GRID = 'minmax(0,1.1fr) 104px minmax(0,1.45fr) minmax(0,1fr) minmax(0,1.15fr)';
+const GRID = 'minmax(0,1fr) 150px minmax(0,1.05fr) minmax(0,1.9fr) 136px';
 
 const ESTADO_SOL: Record<Solicitud['estado'], { texto: string; tono: Tone }> = {
-  cubierta: { texto: 'Se cubrió', tono: 'ok' },
-  pendiente: { texto: 'Sin aliado todavía', tono: 'warn' },
-  perdida: { texto: 'No se cubrió', tono: 'bad' },
+  cubierta: { texto: 'Con aliado', tono: 'ok' },
+  pendiente: { texto: 'Esperando aliado', tono: 'warn' },
+  perdida: { texto: 'Se perdió', tono: 'bad' },
 };
 
 interface Llegada { aliado: Aliado; km: number | null; como: 'lista' | 'distancia' }
@@ -64,12 +66,14 @@ interface FilaMunicipio {
   /** Las más nuevas primero. */
   sols: Solicitud[];
   sinCubrir: number;
+  /** De esas, las que siguen sin aliado asignado y las que se perdieron. */
+  pendientes: number;
+  perdidas: number;
   /** Solo las líneas que tienen demanda ahí, la más débil primero. */
   lineas: CoberturaLinea[];
   nivel: Nivel;
   /** Los que llegan para alguna de sus líneas, el más cercano primero. */
   aliados: Llegada[];
-  cercano: { aliado: Aliado; km: number | null; llega: boolean } | null;
 }
 
 /** Sin ubicar, al final de "el más cercano". */
@@ -101,19 +105,15 @@ function filasDe(d: DatosCobertura, lineas: readonly LineaId[]): FilaMunicipio[]
     for (const l of porLinea) for (const x of l.llegan) if (!unicos.has(x.aliado.id)) unicos.set(x.aliado.id, x);
     const aliados = [...unicos.values()].sort((a, b) => kmOrden(a.km) - kmOrden(b.km));
 
-    // Si nadie llega, "el más cercano" es el que se queda más cerca de llegar.
-    const fueras = porLinea.map((l) => l.cercaFuera).filter((x): x is NonNullable<typeof x> => x !== null).sort((a, b) => a.km - b.km);
-    const cercano = aliados[0] ? { aliado: aliados[0].aliado, km: aliados[0].km, llega: true }
-      : fueras[0] ? { aliado: fueras[0].aliado, km: fueras[0].km, llega: false } : null;
-
     filas.push({
       m,
       sols: [...sols].sort((a, b) => b.fecha.localeCompare(a.fecha)),
       sinCubrir: sols.filter((s) => s.estado !== 'cubierta').length,
+      pendientes: sols.filter((s) => s.estado === 'pendiente').length,
+      perdidas: sols.filter((s) => s.estado === 'perdida').length,
       lineas: porLinea,
       nivel: porLinea[0].nivel,
       aliados,
-      cercano,
     });
   }
   // Riesgo primero; dentro de cada grupo, donde más se pide.
@@ -121,25 +121,38 @@ function filasDe(d: DatosCobertura, lineas: readonly LineaId[]): FilaMunicipio[]
 }
 
 const sol = (n: number) => (n === 1 ? 'solicitud' : 'solicitudes');
-const cortos = (ls: CoberturaLinea[]) => ls.map((l) => LINEAS[l.linea]?.corto ?? l.linea).join(', ');
 
-/** La razón del estado, en pocas palabras, para debajo del punto de color. */
-function porQue(f: FilaMunicipio, filtro: Filtro): string {
-  if (f.nivel === 'sin') return filtro === 'todas' ? `Falta ${cortos(f.lineas.filter((l) => l.nivel === 'sin'))}` : 'Nadie llega';
-  if (f.nivel === 'uno') {
-    const uno = f.lineas.filter((l) => l.nivel === 'uno');
-    if (uno.length > 1) return `Uno solo en ${cortos(uno)}`;
-    return `Solo ${uno[0].llegan[0].aliado.corto}${filtro === 'todas' ? ` en ${LINEAS[uno[0].linea]?.corto ?? ''}` : ''}`;
-  }
-  return filtro === 'todas' && f.lineas.length > 1 ? '2 o más en cada línea' : `${f.lineas[0].llegan.length} aliados llegan`;
+/**
+ * QUÉ HACER CON UNA LÍNEA FLOJA (2026-10-19). "Está algo confuso ese módulo":
+ * la tabla decía el estado ("Depende de uno") y cortaba el porqué a media
+ * frase. Ahora cada línea que no está bien dice qué pasa y qué conviene hacer,
+ * completo.
+ */
+function queHacer(l: CoberturaLinea): string {
+  if (l.nivel === 'bien') return `${l.llegan.length} aliados llegan`;
+  if (l.nivel === 'uno') return `Solo llega ${l.llegan[0].aliado.nombre}. Si está ocupado no hay respaldo: conviene un segundo aliado.`;
+  if (!l.cercaFuera) return 'Nadie de la red ofrece esta línea cerca: hay que reclutar en la zona.';
+  const faltan = Math.ceil(l.cercaFuera.faltan);
+  return faltan <= 10
+    ? `Nadie llega. A ${l.cercaFuera.aliado.nombre} le faltan ${faltan} km: pídele que amplíe su zona.`
+    : `Nadie llega. El más cercano, ${l.cercaFuera.aliado.nombre}, queda ${faltan} km fuera de su alcance: hace falta alguien de la zona.`;
 }
 
-/** Lo que falta en una línea floja: quién llega, o a quién le falta poco. */
-function textoFalta(l: CoberturaLinea): string {
-  if (l.nivel === 'uno') return `solo llega ${l.llegan[0].aliado.nombre}`;
-  if (!l.cercaFuera) return 'nadie en la red ofrece esta línea cerca';
-  return `nadie llega; al más cercano, ${l.cercaFuera.aliado.nombre}, le faltan ${Math.ceil(l.cercaFuera.faltan)} km`;
+/**
+ * En qué van las solicitudes de ese municipio. Es OTRA pregunta que la
+ * cobertura (si la red llega): "1 sin aliado" junto a "1 aliado llega" parecía
+ * una contradicción, cuando solo quería decir que aún no se le asigna.
+ */
+function atencion(f: FilaMunicipio): { texto: string; tono: Tone | null } {
+  const partes = [
+    f.pendientes ? `${f.pendientes} esperando aliado` : '',
+    f.perdidas ? `${f.perdidas} ${f.perdidas === 1 ? 'se perdió' : 'se perdieron'}` : '',
+  ].filter(Boolean);
+  if (partes.length === 0) return { texto: f.sols.length === 1 ? 'ya tiene aliado' : 'todas con aliado', tono: null };
+  return { texto: partes.join(' · '), tono: f.perdidas ? 'bad' : 'warn' };
 }
+
+const COLOR_TONO: Record<string, string> = { bad: 'var(--adm-bad)', warn: 'var(--adm-warn)' };
 
 export function Cobertura({ datos }: { datos: DatosCobertura }) {
   const [filtro, setFiltro] = useState<Filtro>('todas');
@@ -195,7 +208,7 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
           lat: o.lat ?? m.lat,
           lng: o.lng ?? m.lng,
           tipo: 'obra',
-          detalle: `${o.cliente} · ${m.nombre} · ${ss.length} ${sol(ss.length)}${sinCubrir ? `, ${sinCubrir} sin aliado` : ''}${o.lat === null ? ' · sin coordenadas: va en el centro del municipio' : ''}`,
+          detalle: `${o.cliente} · ${m.nombre} · ${ss.length} ${sol(ss.length)}${sinCubrir ? `, ${sinCubrir} sin aliado asignado` : ''}${o.lat === null ? ' · sin coordenadas: va en el centro del municipio' : ''}`,
         });
       }
     }
@@ -215,8 +228,11 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
     <div>
       <style>{`
         .cv-row { display: grid; grid-template-columns: ${GRID}; gap: 16px; align-items: center; }
-        .cv-row.adm-trow { cursor: pointer; }
+        .cv-row.adm-trow { cursor: pointer; align-items: start; }
         .cv-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .cv-que { margin-top: 4px; font-size: 13px; line-height: 1.5; color: var(--adm-text-2); }
+        .cv-que b { font-weight: 600; color: var(--adm-text); }
+        .cv-accion { display: flex; justify-content: flex-end; }
         .cv-movil { display: none; }
         .cv-etq { margin-right: 6px; font-size: 12px; font-weight: 400; color: var(--adm-faint); }
         .cv-aside { font-size: 13px; color: var(--adm-muted); white-space: nowrap; }
@@ -225,12 +241,6 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
         .cv-leyenda > span { display: inline-flex; align-items: center; gap: 6px; }
         .cv-leyenda i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
         .cv-mapa-vacio { display: grid; place-items: center; border: 1px solid var(--adm-border); border-radius: 12px; }
-        .cv-hueco { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 20px; padding: 16px 20px; border-bottom: 1px solid var(--adm-border); }
-        .cv-hueco:last-child { border-bottom: 0; }
-        .cv-link { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--adm-text); text-align: left; transition: color .15s ease; }
-        .cv-link:hover { color: var(--adm-accent); }
-        .cv-faltas { display: grid; gap: 7px; margin-top: 10px; }
-        .cv-falta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 13px; line-height: 1.5; color: var(--adm-text-2); }
         .cv-mrow { display: grid; gap: 4px 14px; align-items: center; padding: 9px 0; border-top: 1px solid var(--adm-border); font-size: 13.5px; }
         .cv-mrow-linea { grid-template-columns: minmax(0, 1.3fr) 100px minmax(0, 1.3fr) 128px; }
         .cv-mrow-aliado { grid-template-columns: minmax(0, 1fr) auto; }
@@ -242,9 +252,8 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
           .cv-row > :first-child { flex: 1 1 100%; }
           .cv-num { text-align: left; }
           .cv-movil { display: inline; }
-        }
-        @media (max-width: 760px) {
-          .cv-hueco { flex-direction: column; padding-left: 16px; padding-right: 16px; }
+          .cv-row > :nth-child(4) { flex: 1 1 100%; }
+          .cv-accion { justify-content: flex-start; }
         }
         @media (max-width: 640px) {
           .cv-mrow-linea, .cv-mrow-sol { grid-template-columns: minmax(0, 1fr); }
@@ -291,23 +300,23 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
       </Toolbar>
 
       <Stats>
-        <Stat label="Municipios con demanda" icon="ph-map-pin" tone="accent" value={filas.length} hint={`${sumaSols(filas)} solicitudes en 90 días`} />
-        <Stat label="Bien cubiertos" icon="ph-check-circle" tone="ok" value={bien.length} hint="2 o más aliados" />
+        <Stat label="Municipios con solicitudes" icon="ph-map-pin" tone="accent" value={filas.length} hint={`${sumaSols(filas)} solicitudes en 90 días`} />
+        <Stat label="Bien cubiertos" icon="ph-check-circle" tone="ok" value={bien.length} hint="llegan 2 o más aliados" />
         <Stat
-          label="Dependen de un solo aliado"
-          title="Dependen de un solo aliado: si está ocupado, nadie más llega"
+          label="Con un solo aliado"
+          title="Solo un aliado llega: si está ocupado, nadie más puede atender"
           icon="ph-warning"
           tone="warn"
           value={uno.length}
-          hint={`${sumaSols(uno)} solicitudes`}
+          hint={`${sumaSols(uno)} solicitudes sin respaldo`}
         />
         <Stat
-          label="Sin cobertura"
+          label="Nadie llega"
           icon="ph-warning-circle"
           tone="bad"
           valueTone={sin.length > 0 ? 'bad' : undefined}
           value={sin.length}
-          hint={sin.length > 0 ? `${sumaSols(sin)} solicitudes, ${sin.reduce((a, f) => a + f.sinCubrir, 0)} sin aliado` : 'ningún hueco'}
+          hint={sin.length > 0 ? `${sumaSols(sin)} solicitudes sin quién las atienda` : 'ningún hueco'}
         />
       </Stats>
 
@@ -335,8 +344,7 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
             <span><i style={{ background: AMBAR_OBRA }} /> Obra con solicitudes</span>
           </div>
           <p className="adm-help" style={{ margin: '6px 0 0' }}>
-            El círculo y el «Llega hasta» de cada globo son el alcance en línea recta; por carretera es 1.32 veces más, y esa es la
-            distancia que usan las tablas y el emparejamiento.
+            El círculo es hasta dónde llega cada aliado, aproximado. Toca un punto para ver sus datos.
             {sinCoordenadas > 0 ? ` ${sinCoordenadas} ${sinCoordenadas === 1 ? 'obra no tiene' : 'obras no tienen'} coordenadas y ${sinCoordenadas === 1 ? 'va' : 'van'} en el centro de su municipio.` : ''}
             {datos.sinUbicar > 0 ? ` ${datos.sinUbicar} ${datos.sinUbicar === 1 ? 'aliado no está ubicado' : 'aliados no están ubicados'}: no ${datos.sinUbicar === 1 ? 'sale' : 'salen'} en el mapa, pero cuenta${datos.sinUbicar === 1 ? '' : 'n'} por los municipios de su lista.` : ''}
             {datos.fueraDelMapa.length > 0 ? ` No aparece${datos.fueraDelMapa.length === 1 ? '' : 'n'} ${datos.fueraDelMapa.map((x) => `${x.nombre}${x.plaza ? ` (${x.plaza})` : ''}`).join(', ')}: su base está a más de 400 km y alejaría el mapa.` : ''}
@@ -344,59 +352,27 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
           </p>
         </Panel>
 
+        {/*
+          UNA SOLA LISTA (2026-10-19). Antes eran dos tablas —"Cobertura por
+          municipio" y "Huecos para reclutar"— con los mismos municipios dos
+          veces. Ahora cada municipio sale una vez, ordenado por lo que más
+          urge, con qué hacer al lado y el botón solo donde hace falta aliado.
+        */}
         <Panel
-          title="Cobertura por municipio"
+          title="Municipios con solicitudes"
           icon="ph-list-checks"
-          desc="Solicitudes de los últimos 90 días. Primero donde nadie llega y, dentro de cada grupo, donde más se pide. Toca un municipio para ver su detalle."
+          desc="Últimos 90 días. Arriba lo que urge: donde nadie llega y donde todo depende de un solo aliado. Toca un municipio para ver sus solicitudes y quién llega."
+          action={huecos.length > 0 ? <span className="cv-aside">{huecos.length} {huecos.length === 1 ? 'necesita' : 'necesitan'} aliado</span> : null}
           flush
           clip
         >
           <div className="adm-thead cv-row cv-thead">
-            <div>Municipio</div><div className="cv-num">Solicitudes</div><div>Aliados que llegan</div><div>El más cercano</div><div>Estado</div>
+            <div>Municipio</div><div>Solicitudes</div><div>Quién llega</div><div>Estado y qué hacer</div><div />
           </div>
           {filas.length === 0 ? (
             <EmptyState icon="ph-map-pin" title={filtro === 'todas' ? 'Sin solicitudes en los últimos 90 días' : 'Sin solicitudes de esta línea'} sub="La cobertura se mide contra la demanda: aparecerá cuando lleguen solicitudes." />
           ) : filas.map((f) => (
             <FilaTabla key={f.m.id} f={f} filtro={filtro} onAbrir={() => setViendo(f.m.id)} />
-          ))}
-        </Panel>
-
-        <Panel
-          title="Huecos para reclutar"
-          icon="ph-user-plus"
-          desc="Donde nadie llega o todo depende de un aliado: qué línea falta, cuánta demanda hay y quién se queda más cerca."
-          action={huecos.length > 0 ? <span className="cv-aside">{huecos.length} {huecos.length === 1 ? 'municipio' : 'municipios'}</span> : null}
-          flush
-          clip
-        >
-          {huecos.length === 0 ? (
-            <EmptyState
-              icon="ph-check-circle"
-              title={filas.length === 0 ? 'Sin demanda que medir' : 'Sin huecos en esta línea'}
-              sub={filas.length === 0 ? 'Cuando lleguen solicitudes, aquí saldrá dónde falta red.' : 'Cada municipio con demanda tiene al menos dos aliados que llegan.'}
-            />
-          ) : huecos.map((f) => (
-            <div key={f.m.id} className="cv-hueco">
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', columnGap: 12 }}>
-                  <button type="button" className="cv-link" onClick={() => setViendo(f.m.id)}>{f.m.nombre}</button>
-                  <StatusText tone={NIVEL[f.nivel].tono}>{NIVEL[f.nivel].texto}</StatusText>
-                </div>
-                <div className="adm-meta">
-                  <span>{f.sols.length} {sol(f.sols.length)} en 90 días</span>
-                  {f.sinCubrir > 0 ? <span style={{ color: 'var(--adm-bad)' }}>{f.sinCubrir} sin aliado</span> : <span>todas cubiertas</span>}
-                </div>
-                <div className="cv-faltas">
-                  {f.lineas.filter((l) => l.nivel !== 'bien').map((l) => (
-                    <div key={l.linea} className="cv-falta">
-                      <Chip tone={NIVEL[l.nivel].tono}>{LINEAS[l.linea]?.nombre ?? l.linea}</Chip>
-                      <span>{l.solicitudes} {sol(l.solicitudes)} · {textoFalta(l)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <Btn size="sm" icon="ph-user-plus" href="/proveedores">Agregar aliado</Btn>
-            </div>
           ))}
         </Panel>
       </div>
@@ -408,7 +384,11 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
 
 function FilaTabla({ f, filtro, onAbrir }: { f: FilaMunicipio; filtro: Filtro; onAbrir: () => void }) {
   const n = NIVEL[f.nivel];
-  const nombres = f.aliados.map((x) => x.aliado.corto).join(', ');
+  const at = atencion(f);
+  const flojas = f.lineas.filter((l) => l.nivel !== 'bien');
+  // Con varias líneas en el mismo municipio, cada frase dice de cuál habla.
+  const varias = filtro === 'todas' && f.lineas.length > 1;
+  const nombres = f.aliados.map((x) => x.aliado.nombre);
   return (
     <div
       className="adm-trow cv-row"
@@ -419,44 +399,38 @@ function FilaTabla({ f, filtro, onAbrir }: { f: FilaMunicipio; filtro: Filtro; o
       onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onAbrir(); } }}
     >
       <div style={{ minWidth: 0 }}>
-        <div className="adm-cell-title adm-ellipsis">{f.m.nombre}</div>
-        <div className="adm-cell-sub adm-ellipsis">
-          {f.m.estado !== 'Nuevo León' ? `${f.m.estado} · ` : ''}{f.lineas.map((l) => LINEAS[l.linea]?.corto ?? l.linea).join(' · ')}
+        <div className="adm-cell-title">{f.m.nombre}</div>
+        <div className="adm-cell-sub">
+          {f.m.estado !== 'Nuevo León' ? `${f.m.estado} · ` : ''}{f.lineas.map((l) => LINEAS[l.linea]?.nombre ?? l.linea).join(' · ')}
         </div>
       </div>
-      <div className="cv-num">
-        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>
-          {f.sols.length}<span className="cv-movil" style={{ fontWeight: 400, color: 'var(--adm-muted)' }}> {sol(f.sols.length)}</span>
-        </div>
-        <div className="adm-cell-sub" style={f.sinCubrir > 0 ? { color: 'var(--adm-bad)' } : undefined}>
-          {f.sinCubrir > 0 ? `${f.sinCubrir} sin aliado` : 'todas cubiertas'}
-        </div>
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>{f.sols.length} {sol(f.sols.length)}</div>
+        <div className="adm-cell-sub" style={at.tono ? { color: COLOR_TONO[at.tono] } : undefined}>{at.texto}</div>
       </div>
-      <div style={{ minWidth: 0 }}>
-        {f.aliados.length === 0 ? (
-          <span style={{ fontSize: 13.5, color: 'var(--adm-faint)' }}><span className="cv-movil cv-etq">Llegan</span>Nadie</span>
+      <div style={{ minWidth: 0, fontSize: 13.5, lineHeight: 1.5 }}>
+        <span className="cv-movil cv-etq">Llegan</span>
+        {nombres.length === 0 ? (
+          <span style={{ color: 'var(--adm-faint)' }}>Nadie</span>
         ) : (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-            <span className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)', flexShrink: 0 }}>
-              <span className="cv-movil cv-etq">Llegan</span>{f.aliados.length}
-            </span>
-            <span className="adm-ellipsis" style={{ fontSize: 13, color: 'var(--adm-text-2)', minWidth: 0 }} title={nombres}>{nombres}</span>
-          </div>
+          <span style={{ color: 'var(--adm-text)' }}>{nombres.slice(0, 2).join(', ')}{nombres.length > 2 ? ` y ${nombres.length - 2} más` : ''}</span>
         )}
       </div>
       <div style={{ minWidth: 0 }}>
-        {f.cercano ? (
-          <>
-            <div className="adm-num" style={{ fontSize: 13.5, color: f.cercano.llega ? 'var(--adm-text)' : 'var(--adm-text-2)' }}>
-              <span className="cv-movil cv-etq">Más cercano</span>{kmTexto(f.cercano.km)}
-            </div>
-            <div className="adm-cell-sub adm-ellipsis">{f.cercano.aliado.corto}{f.cercano.llega ? '' : ' · no llega'}</div>
-          </>
-        ) : <span style={{ color: 'var(--adm-faint)' }}>—</span>}
-      </div>
-      <div style={{ minWidth: 0 }}>
         <StatusText tone={n.tono}>{n.texto}</StatusText>
-        <div className="adm-cell-sub adm-ellipsis">{porQue(f, filtro)}</div>
+        {flojas.length ? (
+          flojas.map((l) => (
+            <div key={l.linea} className="cv-que">
+              {varias ? <b>{LINEAS[l.linea]?.corto ?? l.linea}: </b> : null}{queHacer(l)}
+            </div>
+          ))
+        ) : (
+          <div className="cv-que">{varias ? '2 o más aliados en cada línea' : `${f.lineas[0].llegan.length} aliados llegan: hay respaldo`}</div>
+        )}
+      </div>
+      {/* El botón no abre el detalle: lleva a dar de alta o buscar aliados. */}
+      <div className="cv-accion" onClick={(ev) => ev.stopPropagation()} onKeyDown={(ev) => ev.stopPropagation()}>
+        {f.nivel !== 'bien' ? <Btn size="sm" icon="ph-user-plus" href="/proveedores">Buscar aliado</Btn> : null}
       </div>
     </div>
   );
@@ -464,6 +438,7 @@ function FilaTabla({ f, filtro, onAbrir }: { f: FilaMunicipio; filtro: Filtro; o
 
 function DetalleMunicipio({ datos, f, filtro, onCerrar }: { datos: DatosCobertura; f: FilaMunicipio; filtro: Filtro; onCerrar: () => void }) {
   const n = NIVEL[f.nivel];
+  const at = atencion(f);
   const sinNadie = f.lineas.filter((l) => l.nivel === 'sin');
   const muni = new Map(datos.municipios.map((m) => [m.id, m]));
   const obra = new Map(datos.obras.map((o) => [o.id, o]));
@@ -482,8 +457,8 @@ function DetalleMunicipio({ datos, f, filtro, onCerrar }: { datos: DatosCobertur
       <div style={{ display: 'grid', gap: 22 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <StatusText tone={n.tono}>{n.texto}</StatusText>
-          {f.sinCubrir > 0 ? <Chip tone="bad">{f.sinCubrir} sin aliado</Chip> : <Chip tone="ok">Todas cubiertas</Chip>}
           <Chip>{f.aliados.length === 0 ? 'Nadie llega' : `${f.aliados.length} ${f.aliados.length === 1 ? 'aliado llega' : 'aliados llegan'}`}</Chip>
+          <Chip tone={at.tono ?? 'ok'}>{at.texto.charAt(0).toUpperCase() + at.texto.slice(1)}</Chip>
         </div>
 
         <section>

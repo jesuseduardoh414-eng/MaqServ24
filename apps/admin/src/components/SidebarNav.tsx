@@ -186,9 +186,9 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
   {
     title: 'Administración', icon: 'ph-bank',
     items: [
-      { modulo: 'administracion', href: '/administracion/cobranza', label: 'Cobranza a clientes', icon: 'ph-invoice', diseno: true },
-      { modulo: 'administracion', href: '/administracion/pagos', label: 'Pagos a aliados', icon: 'ph-hand-coins', diseno: true },
-      { modulo: 'administracion', href: '/administracion/margen', label: 'Margen y conciliación', icon: 'ph-scales', diseno: true },
+      { modulo: 'administracion', href: '/administracion/cobranza', label: 'Cobranza a clientes', icon: 'ph-invoice' },
+      { modulo: 'administracion', href: '/administracion/pagos', label: 'Pagos a aliados', icon: 'ph-hand-coins' },
+      { modulo: 'administracion', href: '/administracion/margen', label: 'Margen', icon: 'ph-scales' },
     ],
   },
   {
@@ -201,7 +201,7 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
     title: 'Configuración', icon: 'ph-gear',
     items: [
       { modulo: 'cotizador', href: '/cotizador/tarifas', label: 'Tarifas y condiciones', icon: 'ph-sliders-horizontal' },
-      { modulo: 'configuracion', href: '/zonas', label: 'Zonas', icon: 'ph-map-pin-area', diseno: true },
+      { modulo: 'configuracion', href: '/zonas', label: 'Zonas', icon: 'ph-map-pin-area' },
       // Cada rol ve ahí los correos de sus módulos (2026-10-12).
       { modulo: 'configuracion', tambien: MODULOS_CON_CORREO, href: '/correo', label: 'Correo', icon: 'ph-envelope-simple-open' },
       { modulo: 'admins', href: '/admins', label: 'Administradores', icon: 'ph-user-gear' },

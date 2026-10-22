@@ -6,6 +6,7 @@ import { DIAS_SEMANA, HORARIO_DEFAULT, atributosDe, horarioDe, margenDe, precioC
 import { AdminSelect } from '@/components/AdminSelect';
 import { AdminTimePicker } from '@/components/AdminFecha';
 import { Btn, Chip, IconBtn, Note, PageHeader, Panel, btnClass } from '@/components/ui';
+import { PrecioEnCotizador, type PrecioEnCotizadorControl } from '@/components/PrecioEnCotizador';
 import { mostrarResultado } from '@maqserv/ui';
 
 export interface ProductFormData {
@@ -23,8 +24,10 @@ export interface ProductFormData {
   rentalFreight?: number | null;
   featured?: boolean;
   image?: string | null;
-  /** De qué aliado es el equipo. Null = equipo propio de MAQSER24. */
+  /** De qué aliado es el equipo. Null = la ficha del tipo (lleva el precio; no es una máquina). */
   providerId?: number | null;
+  /** Máquina de aliado: la ficha del tipo a la que pertenece (2026-10-22). */
+  tipoId?: number | null;
   /** 0 inactivo · 1 activo · 2 por revisar (lo ofreció el aliado desde su portal). */
   status?: number;
   /** Ficha técnica estructurada por línea (`atributosDe`). */
@@ -43,7 +46,8 @@ export interface ProductFormData {
 interface Categoria { id: number; name: string; slug?: string; status?: number }
 
 interface Proveedor { id: number; name: string; level?: string }
-interface Renglon { tipo: string; id: string; nombre: string; linea: string; productos: number[] }
+/** Una ficha de tipo (sin aliado), para el selector "Tipo" de una máquina de aliado. */
+interface TipoFicha { id: number; name: string; category_id: number; status: number }
 interface Foto { id: number; url: string | null }
 
 /** Lo mismo que acepta la API (admin-catalog: IMAGE_TYPES y 8 MB por archivo). */
@@ -206,19 +210,52 @@ export function ProductForm({
   const [minimo, setMinimo] = useState(initial.minimo != null ? String(initial.minimo) : '');
   const [horario, setHorario] = useState<Horario | null>(initial.horario ? horarioDe(initial.horario) : null);
 
-  // ---- Revisión: renglones del cotizador + rechazo ----
-  const [renglones, setRenglones] = useState<Renglon[]>([]);
-  const [cuentaComo, setCuentaComo] = useState('');
+  /**
+   * El precio en el cotizador vive en la ficha del TIPO (2026-10-19): la de
+   * MAQSER24, sin aliado. El equipo de un aliado se cotiza con el de su tipo.
+   */
+  const esTipo = tipoActual === 'servicio' && !initial.providerId;
+  const precioCotizador = useRef<PrecioEnCotizadorControl | null>(null);
+
+  // ---- Revisión: rechazo ----
   const [rechazando, setRechazando] = useState(false);
   const [motivo, setMotivo] = useState('');
+
+  /**
+   * EL TIPO DE UNA MÁQUINA DE ALIADO (2026-10-22). Reemplaza al selector
+   * "Cuenta como en el cotizador", que la API ignoraba desde el 2026-09-25: la
+   * máquina apunta a la ficha de su tipo, y así las solicitudes de ese tipo le
+   * llegan a su aliado y al aceptar se aparta ESTA máquina.
+   */
+  const esUnidad = Boolean(initial.providerId) && tipoActual === 'servicio';
+  const [tipos, setTipos] = useState<TipoFicha[]>([]);
+  const [tipoSel, setTipoSel] = useState(initial.tipoId ? String(initial.tipoId) : '');
+  const [nuevoTipo, setNuevoTipo] = useState<string | null>(null); // null = cerrado
   useEffect(() => {
-    if (!enRevision) return;
-    void fetch('/api/admin/providers/cotizador/renglones')
+    if (!esUnidad) return;
+    void fetch('/api/admin/catalog/tipos')
       .then((r) => (r.ok ? r.json() : []))
-      .then((d: Renglon[]) => setRenglones(Array.isArray(d) ? d : []))
+      .then((d: TipoFicha[]) => setTipos(Array.isArray(d) ? d : []))
       .catch(() => undefined);
-  }, [enRevision]);
-  const renglonesLinea = renglones.filter((r) => !slug || r.linea === slug);
+  }, [esUnidad]);
+  const tiposLinea = tipos.filter((t) => t.category_id === Number(categoryId));
+  const tipoNombre = tiposLinea.find((t) => String(t.id) === tipoSel)?.name ?? null;
+
+  async function crearTipo() {
+    const nombre = nuevoTipo?.trim() ?? '';
+    if (!initial.id || nombre.length < 3) return;
+    const r = await fetch(`/api/admin/catalog/products/${initial.id}/crear-tipo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nombre }),
+    });
+    const d = await r.json().catch(() => null) as { id: number; nombre: string; yaExistia: boolean; message?: string } | null;
+    if (!r.ok || !d) { setError(d?.message ?? 'No se pudo crear el tipo.'); return; }
+    setTipos((ts) => (ts.some((t) => t.id === d.id) ? ts : [...ts, { id: d.id, name: d.nombre, category_id: Number(categoryId), status: 1 }]));
+    setTipoSel(String(d.id));
+    setNuevoTipo(null);
+    mostrarResultado(d.yaExistia ? `Ya existía el tipo "${d.nombre}": quedó asignado.` : `Se creó el tipo "${d.nombre}". Ponle su precio en su ficha, en Inventario.`, 'ok');
+  }
 
   // ---- Foto principal ----
   /*
@@ -362,6 +399,7 @@ export function ProductForm({
     if (!form.current.reportValidity()) return false;
     setError(null);
     const fd = new FormData(form.current);
+    if (esUnidad) fd.set('tipoId', tipoSel);
     if (isRental) fd.set('isRental', 'true');
     else { fd.set('isRental', 'false'); fd.delete('rentalFreight'); }
     fd.set('featured', fd.get('featured') === 'on' ? 'true' : 'false');
@@ -380,6 +418,18 @@ export function ProductForm({
       setError(typeof data?.message === 'string' ? data.message : 'No se pudo guardar');
       return false;
     }
+    // Con la ficha guardada, su precio en el cotizador (es la misma pantalla).
+    const id = isEdit ? initial.id : (typeof data?.id === 'number' ? data.id : null);
+    if (esTipo && id && precioCotizador.current) {
+      const fallo = await precioCotizador.current.guardar(id, String(fd.get('name') ?? ''));
+      if (fallo) {
+        if (isEdit) { setError(`La ficha se guardó, pero su precio en el cotizador no: ${fallo}`); return false; }
+        // Recién creada: se abre ya como edición para corregir el precio sin duplicar la ficha.
+        mostrarResultado(`La ficha se creó, pero su precio en el cotizador no: ${fallo}`, 'bad');
+        router.push(`/productos/editar/${id}`);
+        return false;
+      }
+    }
     return true;
   }
 
@@ -395,11 +445,11 @@ export function ProductForm({
   async function onPublicar() {
     setBusy('publicar');
     if (!(await guardar())) { setBusy(null); return; }
-    const [tipo, ...id] = cuentaComo.split(':');
+    // El tipo ya va en lo guardado (2026-10-22).
     const r = await fetch(`/api/admin/providers/equipos/${initial.id}/publicar`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ renglon: cuentaComo ? { tipo, id: id.join(':') } : null }),
+      body: JSON.stringify({}),
     });
     const d = await r.json().catch(() => null);
     setBusy(null);
@@ -459,8 +509,8 @@ export function ProductForm({
 
       {enRevision ? (
         <Note tone="warn" icon="ph-clipboard-text" style={{ marginBottom: 18 }}>
-          <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>Revisa lo que mandó el aliado.</strong> Corrige lo que haga falta (nombre, ficha, fotos), elige a qué
-          renglón del cotizador cuenta y publícalo. Si no sirve, recházalo con el motivo: le llega por correo.
+          <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>Revisa lo que mandó el aliado.</strong> Corrige lo que haga falta (nombre, ficha, fotos), confirma
+          de qué tipo es y publícalo. Si no sirve, recházalo con el motivo: le llega por correo.
         </Note>
       ) : null}
 
@@ -540,11 +590,17 @@ export function ProductForm({
             </div>
           </Tarjeta>
 
+          {esTipo ? (
+            <Tarjeta titulo="Precio en el cotizador" icono="ph-calculator" ayuda="Lo que se cobra al cotizarlo, en el sitio y en el panel. Un solo precio de MAQSER24 para todos los aliados que lo tengan.">
+              <PrecioEnCotizador productId={initial.id} linea={slug} controlRef={precioCotizador} />
+            </Tarjeta>
+          ) : null}
+
           <Tarjeta
             titulo={tipoActual === 'servicio' ? 'Disponibilidad' : 'Venta y existencias'}
             icono="ph-tag"
             ayuda={tipoActual === 'servicio'
-              ? 'El servicio se cotiza con el tabulador estándar de MAQSER24 (Cotizador → Tarifas y condiciones), no con precios por máquina ni por aliado.'
+              ? 'Cuántas hay, dónde están y en qué horario atienden.'
               : 'Precio fijo al que se vende y va al carrito.'}
           >
             <input type="hidden" name="priceUnit" value={unidad} />
@@ -555,10 +611,12 @@ export function ProductForm({
             <input type="hidden" name="minimo" value={Math.max(0, Number(minimo) || 0)} />
             <input type="hidden" name="horario" value={horario ? JSON.stringify(horario) : ''} />
             {tipoActual === 'servicio' ? (
-              <div style={{ fontSize: 13.5, color: 'var(--adm-muted)', lineHeight: 1.6 }}>
-                Este equipo no lleva precio propio. Las tarifas por día, semana, mes, viaje o tonelada se editan en{' '}
-                <a href="/cotizador/tarifas" style={{ color: 'var(--adm-accent)', fontWeight: 600, textDecoration: 'none' }}>Cotizador → Tarifas y condiciones</a>.
-              </div>
+              esTipo ? null : (
+                <div style={{ fontSize: 13.5, color: 'var(--adm-muted)', lineHeight: 1.6 }}>
+                  Es el equipo de un aliado: no lleva precio propio. Se cotiza con el precio de su tipo, que se pone en la ficha de
+                  MAQSER24 de esta línea (Inventario).
+                </div>
+              )
             ) : (
             <>
             <div style={{ overflowX: 'auto' }}>
@@ -679,26 +737,13 @@ export function ProductForm({
           {enRevision ? (
             <Tarjeta titulo="Revisión" icono="ph-seal-check" acento>
               {error ? <div role="alert"><Note tone="bad">{error}</Note></div> : null}
-              {renglonesLinea.length > 0 ? (
-                <Campo etiqueta="Cuenta como en el cotizador" nota="Cuando un cliente cotice ese renglón, este aliado aparece como sugerido para asignarle el servicio.">
-                  <AdminSelect
-                    ariaLabel="Renglón del cotizador"
-                    value={cuentaComo}
-                    onChange={setCuentaComo}
-                    options={[
-                      { value: '', label: 'No está en el cotizador' },
-                      ...renglonesLinea.map((x) => ({
-                        value: `${x.tipo}:${x.id}`,
-                        label: `${x.nombre}${x.productos.length ? ` · ya lo tienen ${x.productos.length}` : ''}`,
-                      })),
-                    ]}
-                  />
-                </Campo>
-              ) : (
+              {esUnidad ? (
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
-                  Esta línea no tiene renglones en el cotizador: se publica solo en el catálogo.
+                  {tipoNombre
+                    ? <>Tipo: <strong style={{ color: 'var(--adm-text)' }}>{tipoNombre}</strong>. Le llegarán las solicitudes de ese tipo.</>
+                    : 'Sin tipo: elígelo o créalo en la tarjeta "Tipo" para que le lleguen las solicitudes de ese tipo.'}
                 </p>
-              )}
+              ) : null}
               {rechazando ? (
                 <div style={{ display: 'grid', gap: 8 }}>
                   <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} placeholder="Qué le falta o por qué no se publica (le llega por correo)" aria-label="Motivo del rechazo" className="adm-textarea" />
@@ -718,6 +763,37 @@ export function ProductForm({
                   <Btn variant="danger" onClick={() => setRechazando(true)}>Rechazar</Btn>
                 </div>
               )}
+            </Tarjeta>
+          ) : null}
+
+          {esUnidad ? (
+            <Tarjeta titulo="Tipo" icono="ph-tag">
+              {/* `key`: al crear un tipo, la opción nueva y el valor llegan juntos y
+                  Radix se quedaba en "Sin tipo" (y al guardar lo borraba). */}
+              <AdminSelect
+                key={tiposLinea.map((t) => t.id).join('-')}
+                ariaLabel="Tipo de equipo"
+                value={tipoSel}
+                onChange={setTipoSel}
+                options={[
+                  { value: '', label: 'Sin tipo' },
+                  ...tiposLinea.map((t) => ({ value: String(t.id), label: `${t.name}${t.status !== 1 ? ' (inactivo)' : ''}` })),
+                ]}
+              />
+              <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
+                El tipo es la ficha que lleva el precio. Las solicitudes de ese tipo le llegan a este aliado, y al aceptar se aparta esta máquina.
+              </p>
+              {isEdit ? (
+                nuevoTipo === null ? (
+                  <Btn variant="ghost" onClick={() => setNuevoTipo(initial.name ?? '')}>Crear tipo nuevo</Btn>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <input value={nuevoTipo} onChange={(e) => setNuevoTipo(e.target.value)} aria-label="Nombre del tipo nuevo" placeholder="Retroexcavadora 4x4" className="adm-input" />
+                    <Btn variant="primary" disabled={nuevoTipo.trim().length < 3} onClick={() => void crearTipo()}>Crear y asignar</Btn>
+                    <Btn variant="ghost" onClick={() => setNuevoTipo(null)}>Cancelar</Btn>
+                  </div>
+                )
+              ) : null}
             </Tarjeta>
           ) : null}
 
@@ -801,12 +877,13 @@ export function ProductForm({
               ariaLabel="Proveedor"
               defaultValue={initial.providerId ? String(initial.providerId) : ''}
               options={[
-                { value: '', label: 'MAQSER24 · equipo propio' },
+                { value: '', label: tipoActual === 'servicio' ? 'Sin aliado · ficha del tipo' : 'Sin aliado' },
                 ...providers.map((p) => ({ value: String(p.id), label: `${p.name}${p.level ? ` · ${p.level}` : ''}` })),
               ]}
             />
             <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
               Con proveedor, el aliado lo ve en su portal y el emparejamiento sabe que tiene esta máquina.
+              {tipoActual === 'servicio' ? ' Sin aliado es la ficha del tipo: lleva el precio del cotizador, no es una máquina y nunca se aparta. Toda máquina real va a nombre del aliado que la tiene.' : null}
             </p>
           </Tarjeta>
         </aside>
@@ -881,6 +958,8 @@ const CSS = `
 .pf-side { display: grid; gap: 16px; position: sticky; top: 16px; }
 .pf-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
 .pf-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 16px; }
+/* Renglones del precio en el cotizador: separados por una línea fina. */
+.pf-renglon { display: grid; gap: 12px; padding-top: 14px; border-top: 1px solid var(--adm-border); }
 /* Tabla de precios dentro del panel: sin la sangría de las tablas a todo lo ancho. */
 .pf-tarifas th, .pf-tarifas td { padding: 8px 10px; }
 .pf-tarifas th:first-child, .pf-tarifas td:first-child { padding-left: 0; }

@@ -1,12 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
 import { kmRestantes, obraDe, ultimaUbicacion } from './rastreo';
 import type { QuoteDetail, QuoteItem, QuoteRequestInput, QuoteSummary } from '@maqserv/types';
-import { CATALOGOS_DEFAULT, centroDeMunicipio, formatearCantidad } from '@maqserv/config';
+import { CATALOGOS_DEFAULT, centroDeMunicipio, formatearCantidad, requestAnswersToText, requestFormFor } from '@maqserv/config';
 import { imageUrl } from '../catalog/images';
 import { FreightService } from '../freight/freight.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { MailerService } from '../notifications/mailer.service';
+import { correoAcuseSolicitudAMedida, correoSolicitudAMedidaInterna } from '../notifications/email-templates';
 import { estadoCotizacion, sePuedeAceptar, diasParaVencer } from './quote-validity';
 import { PASOS, avance, esEstado, estadoInicial, type EstadoServicio } from './service-flow';
 import { resolverClienteYObra } from './client-resolver';
@@ -15,6 +17,7 @@ import { estadoSolicitud } from './estado-solicitud';
 import { sincronizarReserva } from './reservas';
 import { ServiceService } from './service.service';
 import { operadorDe } from '../providers/operador';
+import { pedidoDe } from '../providers/pedido';
 
 /**
  * EL PRECIO EN PREPARACIÓN NO SE ENSEÑA (2026-10-15). Mientras MAQSER24 no
@@ -31,6 +34,104 @@ function folioDocumento(requirements: unknown): string | null {
   return typeof f === 'string' && f.trim() ? f : null;
 }
 
+/**
+ * EL DOCUMENTO DE UNA SOLICITUD SIN PRECIO (2026-10-15; compartido 2026-10-19).
+ *
+ * El formato de siempre (empresa, folio, partidas, firma) sin importes. Lo
+ * usan la vista previa antes de enviarla y Mis cotizaciones después: UNA sola
+ * función para que lo que el cliente revisó sea exactamente lo que recibe.
+ */
+async function documentoDeSolicitud(d: {
+  folio: string;
+  quoteNumber: string | null;
+  categoria: string | null;
+  requirements: Record<string, unknown>;
+  comments: string | null;
+  partidas: Array<{ productId: number; nombre: string; renta: boolean; qty: number; days: number }>;
+  /** Lo que se pidió cuando no hay equipo del catálogo (pipas, triturados…). */
+  servicio: string | null;
+  cliente: string;
+  atencion: string | null;
+  obra: string | null;
+  municipio: string | null;
+  emitida: Date;
+  saludo: string;
+}) {
+  const tipo = (d.categoria ?? '').includes('tritur') ? 'triturados' : 'maquinaria';
+  const fila = await prisma.quoter_catalogs.findUnique({ where: { kind: tipo } });
+  const cat = (fila?.data ?? CATALOGOS_DEFAULT[tipo]) as { empresa: unknown; firma: unknown; version: string };
+  // Lo que contestó del formulario va en su propio bloque, renglón por
+  // renglón. La ubicación de la obra también: `pedidoDe` la salta porque el
+  // aliado la recibe aparte, pero en el documento es justo lo que hay que leer.
+  const form = requestFormFor(d.categoria);
+
+  // Si la línea pregunta su propia cantidad (2000 piezas de block), esa es la
+  // del renglón: el sitio ya no pide además la del paso 1 (2026-10-22).
+  const campoCantidad = form?.fields.find((f) => f.key === 'cantidad');
+  const cantidadPedida = Number(d.requirements.cantidad);
+  const usarCantidad = d.partidas.length === 1 && !d.partidas[0].renta && campoCantidad && cantidadPedida > 0;
+  const renglones = d.partidas.length
+    ? d.partidas.map((i) => ({
+        clase: 'equipo', id: String(i.productId), nombre: i.nombre, concepto: i.nombre,
+        unidad: i.renta ? 'DÍAS' : 'PZA', cantidad: usarCantidad ? cantidadPedida : i.renta ? i.days * i.qty : i.qty, pu: 0, importe: 0,
+      }))
+    : [{ clase: 'equipo', id: 'solicitud', nombre: d.servicio ?? 'Servicio', concepto: d.servicio ?? 'Servicio', unidad: 'SERV', cantidad: 1, pu: 0, importe: 0 }];
+  const detalle = pedidoDe(d.categoria, d.requirements, d.comments);
+  const ubicacion = typeof d.requirements.obra_ubicacion === 'string' ? d.requirements.obra_ubicacion.trim() : '';
+  if (ubicacion) {
+    const fila = { label: form?.fields.find((f) => f.key === 'obra_ubicacion')?.label ?? 'Ubicación de la obra', valor: ubicacion };
+    const fecha = form?.fields.find((f) => f.key === 'fecha_inicio')?.label;
+    const i = fecha ? detalle.findIndex((r) => r.label === fecha) : -1;
+    if (i >= 0) detalle.splice(i, 0, fila);
+    else detalle.unshift(fila);
+  }
+  // "Municipio" es el municipio, no la dirección completa: se busca pieza por
+  // pieza ("Av. Miguel Alemán 1500, Apodaca" → Apodaca), como el cotizador.
+  const municipio = [d.municipio, ubicacion, d.obra]
+    .flatMap((t) => (t ?? '').split(',').map((p) => p.trim()).filter(Boolean).reverse())
+    .map((p) => centroDeMunicipio(p)?.nombre)
+    .find(Boolean) ?? d.municipio;
+
+  return {
+    folio: d.folio,
+    tipo: 'solicitud',
+    quoteNumber: d.quoteNumber,
+    cliente: d.cliente,
+    obra: d.obra,
+    atencion: d.atencion,
+    municipio,
+    detalle,
+    notas: comentarioLibre(d.categoria, d.requirements, d.comments),
+    sinPrecios: true,
+    documento: {
+      calc: {
+        renglones,
+        desglose: { renta: 0, servicios: 0, fletes: 0, materiales: 0 },
+        subtotal: 0, iva: 0, iva_tasa: 0.16, con_iva: true, total: 0, condiciones: [],
+      },
+      empresa: cat.empresa,
+      firma: cat.firma,
+      saludo: d.saludo,
+      version: cat.version,
+      emitida: d.emitida.toISOString(),
+    },
+  };
+}
+
+/**
+ * Lo que el cliente escribió aparte del formulario. El comentario guardado
+ * lleva primero las respuestas en texto (ver QuoteForm): esas ya van en el
+ * bloque de detalle y repetirlas en las notas sería decir todo dos veces.
+ */
+function comentarioLibre(categoria: string | null, requirements: Record<string, unknown>, comments: string | null): string | null {
+  const c = (comments ?? '').trim();
+  const form = requestFormFor(categoria);
+  if (!c || !form) return c || null;
+  const respuestas = Object.fromEntries(Object.entries(requirements).filter(([, v]) => typeof v === 'string')) as Record<string, string>;
+  const texto = requestAnswersToText(form, respuestas);
+  return (texto && c.startsWith(texto) ? c.slice(texto.length) : c).trim() || null;
+}
+
 /** Formato legacy: COT- + 8 alfanuméricos mayúsculas. Lo usa también el puente del cotizador. */
 export function newQuoteNumber(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -45,7 +146,67 @@ export class QuotesService {
     private readonly freight: FreightService,
     private readonly notifications: NotificationsService,
     private readonly services: ServiceService,
+    private readonly mailer: MailerService,
   ) {}
+
+  private readonly log = new Logger(QuotesService.name);
+
+  /**
+   * LOS CORREOS DE UNA SOLICITUD A LA MEDIDA (2026-10-21).
+   *
+   * Antes solo sonaban las campanas: el cliente que no volvía a entrar no sabía
+   * si había llegado, y en MAQSER24 nadie se enteraba fuera del panel. Igual
+   * que en el cotizador: acuse al cliente y aviso al buzón de la plataforma.
+   * Nunca lanza; si falla, queda en el registro de correos.
+   */
+  private async avisarSolicitudPorCorreo(q: {
+    id: bigint; quote_number: string; product_interested: string | null; address: string | null; comments: string | null; requirements: unknown;
+  }, customer: { name: string; email: string; phone: string; company?: string }): Promise<void> {
+    try {
+      const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
+      const panel = (process.env.ADMIN_URL ?? '').replace(/\/+$/, '');
+      const pidio = q.product_interested?.trim() || null;
+      await this.mailer.enviar({
+        kind: 'quote_request_ack',
+        to: customer.email,
+        toName: customer.name,
+        quoteId: Number(q.id),
+        ...correoAcuseSolicitudAMedida({
+          nombre: customer.name,
+          folio: q.quote_number,
+          pidio,
+          url: `${sitio}/cuenta/cotizaciones/${encodeURIComponent(q.quote_number)}`,
+        }),
+      });
+
+      // Al buzón desde el que sale el correo, como el aviso del cotizador.
+      const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;
+      if (!interno) return;
+      const fecha = (q.requirements as Record<string, unknown> | null)?.fecha_inicio;
+      await this.mailer.enviar({
+        kind: 'quote_request_internal',
+        to: interno,
+        replyTo: customer.email,
+        quoteId: Number(q.id),
+        ...correoSolicitudAMedidaInterna({
+          folio: q.quote_number,
+          cliente: customer.name,
+          empresa: customer.company?.trim() || null,
+          correo: customer.email,
+          telefono: customer.phone || null,
+          pidio,
+          direccion: q.address,
+          fecha: typeof fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(fecha)
+            ? new Date(`${fecha}T12:00:00Z`).toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+            : null,
+          comentarios: q.comments,
+          url: `${panel}/cotizaciones?ver=${q.id}`,
+        }),
+      });
+    } catch (e) {
+      this.log.error(`No se pudieron mandar los correos de la solicitud ${q.quote_number}: ${(e as Error).message}`);
+    }
+  }
 
   private toSummary(q: {
     id: bigint; quote_number: string; status: string;
@@ -247,6 +408,10 @@ export class QuotesService {
       body: 'Un asesor de MAQSER24 la revisa y te enviamos la cotización con precio y vigencia.',
       link: `/cuenta/cotizaciones/${q.quote_number}`,
     });
+
+    // Y por correo, a los dos (2026-10-21). Sin esperar: el SMTP tarda y la
+    // solicitud ya está guardada.
+    void this.avisarSolicitudPorCorreo(q, customer);
 
     return {
       ...this.toSummary(q),
@@ -586,39 +751,68 @@ export class QuotesService {
       where: { quote_number: quoteNumber, user_id: userId },
       select: { service_category: true, requirements: true, created_at: true, product_interested: true, client_sites: { select: { name: true, municipality: true } } },
     });
-    const tipo = (q?.service_category ?? '').includes('tritur') ? 'triturados' : 'maquinaria';
-    const fila = await prisma.quoter_catalogs.findUnique({ where: { kind: tipo } });
-    const cat = (fila?.data ?? CATALOGOS_DEFAULT[tipo]) as { empresa: unknown; firma: unknown; saludo: string; version: string };
     const req = (q?.requirements ?? {}) as Record<string, unknown>;
-    const renglones = det.items.length
-      ? det.items.map((i) => ({
-          clase: 'equipo', id: String(i.productId), nombre: i.name, concepto: i.name,
-          unidad: i.isRental ? 'DÍAS' : 'PZA', cantidad: i.isRental ? i.days * i.qty : i.qty, pu: 0, importe: 0,
-        }))
-      : [{ clase: 'equipo', id: 'solicitud', nombre: q?.product_interested ?? 'Servicio', concepto: q?.product_interested ?? 'Servicio', unidad: 'SERV', cantidad: 1, pu: 0, importe: 0 }];
-    return {
+    return documentoDeSolicitud({
       folio: quoteNumber,
-      tipo: 'solicitud',
       quoteNumber,
+      categoria: q?.service_category ?? null,
+      requirements: req,
+      comments: det.comments,
+      partidas: det.items.map((i) => ({ productId: i.productId, nombre: i.name, renta: i.isRental, qty: i.qty, days: i.days })),
+      servicio: q?.product_interested ?? null,
       cliente: det.customer.company || det.customer.name,
-      obra: q?.client_sites?.name ?? det.address,
       atencion: det.customer.company ? det.customer.name : null,
+      obra: q?.client_sites?.name ?? det.address,
       municipio: q?.client_sites?.municipality ?? (typeof req.obra_ubicacion === 'string' ? req.obra_ubicacion : det.customer.region),
-      notas: det.comments,
-      sinPrecios: true,
-      documento: {
-        calc: {
-          renglones,
-          desglose: { renta: 0, servicios: 0, fletes: 0, materiales: 0 },
-          subtotal: 0, iva: 0, iva_tasa: 0.16, con_iva: true, total: 0, condiciones: [],
-        },
-        empresa: cat.empresa,
-        firma: cat.firma,
-        saludo: 'Recibimos su solicitud con los siguientes datos. La estamos revisando y le enviaremos la cotización con precios y vigencia.',
-        version: cat.version,
-        emitida: (q?.created_at ?? new Date()).toISOString(),
-      },
-    };
+      emitida: q?.created_at ?? new Date(),
+      saludo: 'Recibimos su solicitud con los siguientes datos. La estamos revisando y le enviaremos la cotización con precios y vigencia.',
+    });
+  }
+
+  /**
+   * LA SOLICITUD COMO DOCUMENTO, ANTES DE ENVIARLA (2026-10-19). "Al cotizar
+   * desde el botón Cotizar de un servicio, en lugar de ese resumen debe
+   * aparecer el resumen en el documento; ya después en el admin se agrega lo
+   * demás." Es el MISMO documento que verá en Mis cotizaciones al enviarla
+   * (`documentoDeSolicitud`), con "Vista previa" en lugar del folio. No guarda
+   * nada.
+   */
+  async vistaPrevia(input: QuoteRequestInput, userId: number) {
+    const cuenta = await datosDeCuenta(userId);
+    if (!cuenta) throw new NotFoundException('La cuenta ya no existe');
+    if (input.items.length === 0 && !input.service) throw new BadRequestException('La solicitud no tiene productos');
+
+    const productos = input.items.length
+      ? await prisma.products.findMany({
+          where: { id: { in: input.items.map((i) => i.productId) }, status: 1 },
+          select: { id: true, name: true, is_rental: true },
+        })
+      : [];
+    const porId = new Map(productos.map((p) => [p.id, p]));
+    // La obra solo si es de SU cliente: el id viene del navegador.
+    const obra = input.siteId ? (await this.sitesOfUser(userId)).sites.find((s) => s.id === input.siteId) ?? null : null;
+    const nombre = input.customer.name?.trim() || cuenta.name;
+    const empresa = input.customer.company?.trim() || null;
+    const req = input.requirements ?? {};
+
+    return documentoDeSolicitud({
+      folio: 'Vista previa',
+      quoteNumber: null,
+      categoria: input.serviceCategory ?? null,
+      requirements: req,
+      comments: input.comments ?? null,
+      partidas: input.items.flatMap((i) => {
+        const p = porId.get(i.productId);
+        return p ? [{ productId: p.id, nombre: p.name, renta: p.is_rental, qty: i.qty, days: i.days ?? 1 }] : [];
+      }),
+      servicio: input.service ?? null,
+      cliente: empresa || nombre,
+      atencion: empresa ? nombre : null,
+      obra: obra?.name ?? input.address ?? null,
+      municipio: obra?.municipality ?? (req.obra_ubicacion?.trim() || input.customer.region || null),
+      emitida: new Date(),
+      saludo: 'Esta es la solicitud que nos va a enviar. La revisaremos y le enviaremos la cotización con precios y vigencia.',
+    });
   }
 
   /**

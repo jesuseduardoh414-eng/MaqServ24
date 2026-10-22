@@ -20,6 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return paginaSeo(theme, { ruta: '/cotizador/triturados', titulo: t(theme, 'seo.quoter.aggregates.title'), descripcion: t(theme, 'seo.quoter.aggregates.description') });
 }
 
-export default function CotizadorTrituradosPage() {
-  return <PaginaCotizador tipo="triturados" />;
+export default async function CotizadorTrituradosPage({ searchParams }: { searchParams: Promise<{ tipo?: string }> }) {
+  // `?tipo=<ficha>`: viene de "Cotizar" en el catálogo y abre con ese material elegido.
+  const tipo = Number((await searchParams).tipo);
+  return <PaginaCotizador tipo="triturados" fichaId={Number.isInteger(tipo) && tipo > 0 ? tipo : null} />;
 }

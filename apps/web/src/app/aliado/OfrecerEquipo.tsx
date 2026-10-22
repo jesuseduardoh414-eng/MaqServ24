@@ -92,10 +92,16 @@ const TITULO: Record<'servicio' | 'producto', Record<Paso, string>> = {
 
 export function OfrecerEquipo({
   lineas,
+  tipos = {},
   onCerrar,
   onEnviado,
 }: {
   lineas: Array<{ slug: string; label: string }>;
+  /**
+   * Los tipos de cada línea (2026-10-22): las fichas que llevan el precio de
+   * MAQSER24. Elegir uno es lo que hace que le lleguen las ofertas de ese tipo.
+   */
+  tipos?: Record<string, Array<{ id: number; nombre: string }>>;
   onCerrar: () => void;
   onEnviado: (nombre: string) => void;
 }) {
@@ -107,6 +113,8 @@ export function OfrecerEquipo({
   const opciones = esProducto ? productos : servicios;
   const [linea, setLinea] = useState(!ambos && lineas.length === 1 ? lineas[0].slug : '');
   const [nombre, setNombre] = useState('');
+  // '' = aún no elige; 'otro' = no está en la lista; si no, el id de la ficha.
+  const [tipoId, setTipoId] = useState('');
   const [marca, setMarca] = useState('');
   const [modalidad, setModalidad] = useState<'renta' | 'venta'>(EJEMPLO[lineas[0]?.slug ?? '']?.modalidad ?? 'renta');
   const [atributos, setAtributos] = useState<Record<string, string>>({});
@@ -146,10 +154,23 @@ export function OfrecerEquipo({
   const unidadElegida = unidadPrincipal && costosNumericos[unidadPrincipal] ? unidadPrincipal : Object.keys(costosNumericos)[0] ?? '';
   const lineaLabel = lineas.find((l) => l.slug === linea)?.label ?? '';
   const previews = useMemo(() => fotos.map((f) => URL.createObjectURL(f)), [fotos]);
+  // Solo los servicios se cotizan con el tabulador, y solo hay qué elegir si la línea tiene tipos.
+  const tiposLinea = esProducto ? [] : tipos[linea] ?? [];
+  const tipoNombre = tiposLinea.find((t) => String(t.id) === tipoId)?.nombre ?? null;
+
+  /** Elegir el tipo llena el nombre, si no había escrito otro. */
+  function elegirTipoEquipo(id: string) {
+    const antes = tipoNombre;
+    setTipoId(id);
+    const nuevo = tiposLinea.find((t) => String(t.id) === id)?.nombre;
+    if (nuevo && (!nombre.trim() || nombre.trim() === antes)) setNombre(nuevo);
+    // "Otro": el nombre del tipo de antes ya no aplica, que escriba el suyo.
+    else if (!nuevo && antes && nombre.trim() === antes) setNombre('');
+  }
 
   function elegirTipo(t: 'servicio' | 'producto') {
     setTipo(t);
-    setAtributos({}); setCostos({}); setUnidadPrincipal('');
+    setAtributos({}); setCostos({}); setUnidadPrincipal(''); setTipoId('');
     const suyas = t === 'servicio' ? servicios : productos;
     setLinea(suyas.length === 1 ? suyas[0].slug : '');
     setModalidad(t === 'producto' ? 'venta' : EJEMPLO[suyas[0]?.slug ?? '']?.modalidad ?? 'renta');
@@ -157,13 +178,14 @@ export function OfrecerEquipo({
 
   function elegirLinea(slug: string) {
     setLinea(slug);
-    setAtributos({}); setCostos({}); setUnidadPrincipal('');
+    setAtributos({}); setCostos({}); setUnidadPrincipal(''); setTipoId('');
     setModalidad(esProducto ? 'venta' : EJEMPLO[slug]?.modalidad ?? 'renta');
   }
 
   /** Qué falta para pasar de este paso. Null = puede seguir. */
   function falta(): string | null {
     if (paso === 'linea' && !linea) return esProducto ? 'Elige la categoría del producto.' : 'Elige la línea de servicio.';
+    if (paso === 'queEs' && tiposLinea.length > 0 && !tipoId) return 'Elige el tipo de equipo, o "Otro" si no está en la lista.';
     if (paso === 'queEs' && nombre.trim().length < 3) return esProducto ? 'Escribe qué producto es.' : 'Escribe qué equipo o servicio es.';
     if (paso === 'donde' && !esProducto && horario.dias.length === 0) return 'Marca al menos un día en que atiendes.';
     if (paso === 'donde' && !esProducto && horario.desde >= horario.hasta) return 'La hora de cierre debe ser después de la de apertura.';
@@ -183,6 +205,7 @@ export function OfrecerEquipo({
     setEnviando(true); setError(null);
     const fd = new FormData();
     fd.set('categoria', linea);
+    if (tipoId && tipoId !== 'otro') fd.set('tipoId', tipoId);
     fd.set('nombre', nombre.trim());
     if (marca.trim()) fd.set('marca', marca.trim());
     fd.set('modalidad', esProducto ? 'venta' : modalidad);
@@ -261,8 +284,22 @@ export function OfrecerEquipo({
 
         {paso === 'queEs' ? (
           <>
+            {tiposLinea.length > 0 ? (
+              <div className="ms-field">
+                <span className="ms-label">¿Qué tipo de equipo es?</span>
+                <div className="of-opciones">
+                  {[...tiposLinea.map((t) => ({ v: String(t.id), t: t.nombre, a: null as string | null })), { v: 'otro', t: 'Otro', a: 'No está en la lista. Escríbelo abajo y MAQSER24 lo agrega.' }].map(({ v, t, a }) => (
+                    <button key={v} type="button" onClick={() => elegirTipoEquipo(v)} className="of-opcion" aria-pressed={tipoId === v}>
+                      <span className="ms-check" data-on={tipoId === v} aria-hidden>{tipoId === v ? <Icon name="check" size={13} /> : null}</span>
+                      <span>{t}{a ? <small>{a}</small> : null}</span>
+                    </button>
+                  ))}
+                </div>
+                <span className="ms-hint">Te llegan las solicitudes del tipo que elijas.</span>
+              </div>
+            ) : null}
             <label className="ms-field">
-              <span className="ms-label">¿Qué es?</span>
+              <span className="ms-label">{tiposLinea.length > 0 ? 'Nombre de tu equipo' : '¿Qué es?'}</span>
               <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={EJEMPLO[linea]?.nombre ?? (esProducto ? 'Nombre del producto' : 'Nombre del equipo o servicio')} className="ms-input" />
               <span className="ms-hint">{esProducto ? 'Como lo buscaría un cliente: qué es y su medida o presentación.' : 'Como lo buscaría un cliente: tipo y tamaño. Ej. "Excavadora 20 t".'}</span>
             </label>
@@ -448,6 +485,7 @@ export function OfrecerEquipo({
               {([
                 ['Tipo', esProducto ? 'Producto' : 'Servicio'],
                 [esProducto ? 'Categoría' : 'Línea', lineaLabel],
+                ...(tiposLinea.length > 0 ? [['Tipo de equipo', tipoNombre ?? 'Otro (lo agrega MAQSER24)']] : []),
                 ['Qué es', nombre],
                 ['Marca', marca || '—'],
                 ...preguntas.filter((q) => (atributos[q.clave] ?? '').trim()).map((q) => [q.label, `${atributos[q.clave]}${q.unidad ? ` ${q.unidad}` : ''}`]),

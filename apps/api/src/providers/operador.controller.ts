@@ -7,6 +7,7 @@ import { PASOS, esEstado, siguientes } from '../quotes/service-flow';
 import { guardarUbicacion, obraDe } from '../quotes/rastreo';
 import { OperadorGuard, operadorDe, type OperadorRequest } from './operador';
 import { notasDe, pedidoDe } from './pedido';
+import { parteDelDocumento, type SolicitudDeLaParte } from '../quoter/parte-del-documento';
 
 /** Lo que el operador va marcando, en orden. Cerrar (con horas o viajes) sigue siendo de MAQSER24. */
 const PASOS_OPERADOR = ['en_traslado', 'en_sitio', 'en_curso', 'terminado'] as const;
@@ -32,6 +33,7 @@ export class OperadorController {
       select: {
         id: true, quote_number: true, service_state: true, service_category: true, address: true, region: true,
         requirements: true, comments: true, product_interested: true,
+        subtotal: true, freight_cost: true, tax: true, total: true, conditions: true,
         client_sites: { select: { name: true, address: true, municipality: true, state: true, lat: true, lng: true, contact_name: true, contact_phone: true, requirements: true } },
         service_assignments: { where: { state: 'aceptado' }, orderBy: { id: 'asc' }, take: 1, select: { committed_at: true, providers: { select: { name: true } } } },
       },
@@ -40,7 +42,7 @@ export class OperadorController {
     const estado = esEstado(q.service_state) ? q.service_state : null;
     const obra = obraDe(q);
     const asignado = q.service_assignments[0];
-    const equipo = await equipoDe(q.requirements, q.product_interested);
+    const equipo = await equipoDe(q);
     return {
       folio: q.quote_number,
       estado,
@@ -90,14 +92,16 @@ export class OperadorController {
   }
 }
 
-/** Qué lleva, sin precios: los renglones del documento del cotizador, o lo que pidió el cliente. */
-async function equipoDe(requirements: unknown, pidio: string | null): Promise<string[]> {
-  const id = (requirements as { quoterId?: unknown } | null)?.quoterId;
-  if (typeof id === 'number') {
-    const doc = await prisma.quoter_quotes.findUnique({ where: { id }, select: { snapshot: true } });
-    const renglones = (doc?.snapshot as { calc?: { renglones?: Array<{ clase?: string; concepto?: string; cantidad?: number; unidad?: string }> } } | null)?.calc?.renglones ?? [];
-    const lineas = renglones.filter((r) => r.concepto && r.clase !== 'flete').map((r) => `${r.concepto}${r.cantidad ? ` · ${r.cantidad} ${r.unidad ?? ''}`.trimEnd() : ''}`);
-    if (lineas.length) return lineas;
-  }
-  return pidio ? [pidio.split(' · ')[0]] : [];
+/**
+ * Qué lleva, sin precios: los renglones del documento del cotizador que son de
+ * ESTE servicio (no los de otros aliados del mismo documento), o lo que pidió
+ * el cliente.
+ */
+async function equipoDe(q: SolicitudDeLaParte & { product_interested: string | null }): Promise<string[]> {
+  const parte = await parteDelDocumento(q);
+  const lineas = (parte?.snapshot.calc.renglones ?? [])
+    .filter((r) => r.concepto && r.clase !== 'flete')
+    .map((r) => `${r.concepto}${r.cantidad ? ` · ${r.cantidad} ${r.unidad ?? ''}`.trimEnd() : ''}`);
+  if (lineas.length) return lineas;
+  return q.product_interested ? [q.product_interested.split(' · ')[0]] : [];
 }

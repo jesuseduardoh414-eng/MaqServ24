@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { TIPOS_ALIADO, esLineaServicio, ofertaDe, tiposDeAliado } from '@maqserv/config';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue, mostrarResultado, ShDatePicker, ShDateTimePicker } from '@maqserv/ui';
 import { Icon, type IconName } from '@/components/Icon';
 import { OfrecerEquipo } from './OfrecerEquipo';
+import { CobrosAliado, type CobroAliado } from './CobrosAliado';
 import { CompartirUbicacion } from './CompartirUbicacion';
 import { OperadorServicio } from './OperadorServicio';
 import { telHref } from '@/lib/telefono';
@@ -64,19 +66,23 @@ export interface DatosPortal {
     /** Lo que pide el cliente, con las preguntas de su línea. */
     pedido?: Array<{ label: string; valor: string }>;
     offeredAt: string;
-    total?: number | null;
+    /** Lo que se le paga, ya sin la comisión (2026-10-22). */
+    pago?: Pago | null;
     /** La cotización completa (2026-10-15): folio y partidas del documento. */
     documento?: string | null;
     partidas?: Array<{ concepto: string; cantidad: string; importe: number }>;
   }>;
   enCurso: Array<{
+    assignmentId?: number;
     quoteNumber: string;
+    /** Folio del documento de la cotización, si lo hay (2026-10-19). */
+    documento?: string | null;
     category: string | null;
     state: string | null;
     stateLabel?: string;
     progress?: number;
     committedAt?: string | null;
-    total?: number | null;
+    pago?: Pago | null;
     site: string | null;
     address: string | null;
     contactName: string | null;
@@ -94,12 +100,18 @@ export interface DatosPortal {
     diasSinConfirmar: number | null;
     confirmacion: string;
   }>;
+  /** Tipos que puede elegir al ofrecer un equipo, por línea (2026-10-22). */
+  tipos?: Record<string, Array<{ id: number; nombre: string }>>;
+  /** Lo que tiene por facturar y cuándo se le paga (2026-10-22). */
+  cobros?: CobroAliado[];
   documentos: {
     estado: string;
     avisos: Array<{ documentId: number; kind: string; name: string | null; expiresAt: string; texto: string; urgencia: string }>;
     diasAviso: number;
     lista: Array<{ id: number; kind: string; kindLabel: string; name: string | null; expiresAt: string | null }>;
     tipos: Array<{ clave: string; label: string }>;
+    /** Los papeles obligatorios que le faltan, por nombre (2026-10-22). */
+    faltan?: string[];
   };
   /** Lo que ofreció desde aquí y MAQSER24 aún no publica. */
   propuestas?: Array<{ id: number; name: string; brand: string | null; image: string | null; createdAt: string | null }>;
@@ -112,7 +124,7 @@ export interface DatosPortal {
     respondedAt: string | null;
     stateLabel: string;
     progress: number;
-    total: number | null;
+    pago?: Pago | null;
   }>;
   cumplimiento: {
     resumen: string;
@@ -281,6 +293,10 @@ const AMBAR = 'var(--color-warning)';
 const ROJO = 'var(--color-error)';
 const AZUL = 'var(--color-primary)';
 
+/** Lo que se le paga al aliado por un servicio: su parte, sin la comisión. */
+type Pago = { monto: number; masIva: boolean; comisionPct: number };
+const pagoTexto = (p: Pago | null | undefined) => (p && p.monto > 0 ? `${dinero(p.monto)}${p.masIva ? ' + IVA' : ''}` : null);
+
 const dinero = (n: number | null | undefined) =>
   n ? `$${n.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}` : null;
 
@@ -331,6 +347,7 @@ const ESTADO_DOCS: Record<string, { label: string; tono: Tono; color: string }> 
   'al-dia': { label: 'Al día', tono: 'ok', color: VERDE },
   'por-vencer': { label: 'Por vencer', tono: 'warn', color: AMBAR },
   vencido: { label: 'Vencido', tono: 'bad', color: ROJO },
+  incompleto: { label: 'Faltan papeles', tono: 'warn', color: AMBAR },
   'sin-documentos': { label: 'Sin papeles', tono: 'bad', color: ROJO },
 };
 
@@ -384,6 +401,18 @@ function LoQuePide({ pedido }: { pedido?: Array<{ label: string; valor: string }
         ))}
       </dl>
     </div>
+  );
+}
+
+/**
+ * El documento de la cotización tal como lo recibió el cliente (2026-10-19):
+ * folio, partidas, condiciones y firma, para verlo o guardarlo en PDF.
+ */
+function VerDocumento({ assignmentId, folio }: { assignmentId: number; folio?: string }) {
+  return (
+    <Link href={`/aliado/cotizacion/${assignmentId}`} className="ms-btn ms-btn-sec ms-btn-sm" style={{ marginTop: 12 }}>
+      <Icon name="article" size={15} />Ver documento de la cotización{folio ? ` ${folio}` : ''}
+    </Link>
   );
 }
 
@@ -547,7 +576,8 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
   const equiposConfirmados = equipos.filter((e) => e.diasSinConfirmar !== null && e.diasSinConfirmar <= 14).length;
   const pasos: Array<{ hecho: boolean; texto: string; ayuda: string }> = [
     { hecho: Boolean(aliado.phone && aliado.email && aliado.coverage.length), texto: 'Tus datos y tu cobertura', ayuda: 'Teléfono, correo y los municipios a los que llegas.' },
-    { hecho: documentos.lista.length > 0, texto: 'Entregar tus papeles', ayuda: 'Póliza de seguro, constancia fiscal y DC-3 de tus operadores.' },
+    // Los obligatorios que le faltan, por nombre (2026-10-22): sin ellos no hay sello.
+    { hecho: documentos.lista.length > 0 && !(documentos.faltan?.length), texto: 'Entregar tus papeles', ayuda: documentos.faltan?.length ? `Te falta: ${documentos.faltan.join(' y ')}.` : 'Póliza de seguro, constancia fiscal y DC-3 de tus operadores.' },
     { hecho: aliado.verified, texto: 'Sello de verificado', ayuda: 'Lo da MAQSER24 al revisar tus papeles vigentes.' },
     { hecho: equipos.length > 0, texto: `Ofrecer tus ${queOfrece}`, ayuda: propuestas.length ? 'Ya enviaste lo que ofreces: MAQSER24 lo está revisando para publicarlo.' : `Toca "${botonOfrecer}" y responde las preguntas: MAQSER24 lo revisa y lo publica.` },
     { hecho: equipos.length > 0 && equiposConfirmados === equipos.length, texto: 'Disponibilidad confirmada', ayuda: `Toca "Sigue libre" en cada uno de tus ${oferta} al menos cada 14 días.` },
@@ -670,10 +700,10 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                     </div>
                     <h3 className="al-card-t">{s.category ?? 'Servicio'}</h3>
                   </div>
-                  {dinero(s.total) ? (
-                    <div className="al-importe">
-                      <span className="al-dato-l">Importe</span>
-                      <b>{dinero(s.total)}</b>
+                  {pagoTexto(s.pago) ? (
+                    <div className="al-importe" title={`Lo cotizado sin IVA, menos la comisión de MAQSER24 (${s.pago?.comisionPct}%)`}>
+                      <span className="al-dato-l">Te pagamos</span>
+                      <b>{pagoTexto(s.pago)}</b>
                     </div>
                   ) : null}
                 </div>
@@ -685,18 +715,22 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
 
                 <LoQuePide pedido={s.pedido} />
 
-                {/* La cotización que el cliente aceptó, partida por partida (2026-10-15). */}
-                {s.partidas?.length ? (
+                {/* La cotización que el cliente aceptó, partida por partida (2026-10-15),
+                    y el documento completo para verlo o imprimirlo (2026-10-19). */}
+                {s.partidas?.length || s.documento ? (
                   <div className="al-pide">
                     <span className="al-dato-l">Cotización{s.documento ? ` ${s.documento}` : ''}</span>
-                    <dl>
-                      {s.partidas.map((p, i) => (
-                        <div key={i}>
-                          <dt>{p.concepto}{p.cantidad ? <span style={{ display: 'block', fontWeight: 400, color: 'var(--color-text-muted)' }}>{p.cantidad}</span> : null}</dt>
-                          <dd className="ms-num" style={{ textAlign: 'right' }}>{dinero(p.importe)}</dd>
-                        </div>
-                      ))}
-                    </dl>
+                    {s.partidas?.length ? (
+                      <dl>
+                        {s.partidas.map((p, i) => (
+                          <div key={i}>
+                            <dt>{p.concepto}{p.cantidad ? <span style={{ display: 'block', fontWeight: 400, color: 'var(--color-text-muted)' }}>{p.cantidad}</span> : null}</dt>
+                            <dd className="ms-num" style={{ textAlign: 'right' }}>{dinero(p.importe)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    {s.documento ? <div><VerDocumento assignmentId={s.assignmentId} /></div> : null}
                   </div>
                 ) : null}
 
@@ -765,7 +799,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                     <div>
                       <h3 className="al-card-t" style={{ margin: 0, fontSize: 16 }}>{s.site ?? s.category ?? 'Servicio'}</h3>
                       <div className="al-folio" style={{ marginTop: 2 }}>
-                        {s.category ?? ''}{s.category ? ' · ' : ''}Folio {s.quoteNumber}{dinero(s.total) ? ` · ${dinero(s.total)}` : ''}
+                        {s.category ?? ''}{s.category ? ' · ' : ''}Folio {s.quoteNumber}{pagoTexto(s.pago) ? ` · te pagamos ${pagoTexto(s.pago)}` : ''}
                       </div>
                     </div>
                     <Chip tono="info">{s.stateLabel ?? 'Asignado'}</Chip>
@@ -781,6 +815,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                     />
                   </div>
                   <LoQuePide pedido={s.pedido} />
+                  {s.documento && s.assignmentId ? <VerDocumento assignmentId={s.assignmentId} folio={s.documento} /> : null}
                   {s.requirements.length > 0 ? (
                     <div className="al-exige">
                       <Icon name="warning" size={14} /><span>Exige: {s.requirements.join(' · ')}</span>
@@ -813,6 +848,14 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
         </section>
       ) : null}
 
+      {/* ── Cobros (2026-10-22): solo si tiene algo por facturar o pagado hace poco ── */}
+      {datos.cobros?.length ? (
+        <section id="cobros" className="al-sec">
+          <Titulo desc="Sube tu factura de cada servicio terminado. Te pagamos en cuanto el cliente pague.">Tus cobros</Titulo>
+          <CobrosAliado cobros={datos.cobros} />
+        </section>
+      ) : null}
+
       {/* ── Equipos ── */}
       <section id="equipos" className="al-sec">
         <Titulo
@@ -830,6 +873,7 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
           <div style={{ marginBottom: 14 }}>
             <OfrecerEquipo
               lineas={lineasOferta}
+              tipos={datos.tipos ?? {}}
               onCerrar={() => setOfreciendo(false)}
               onEnviado={(nombre) => {
                 setOfreciendo(false);
@@ -941,9 +985,9 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {acepto && dinero(r.total) ? <span className="ms-num" style={{ fontSize: 13.5, fontWeight: 700 }}>{dinero(r.total)}</span> : null}
+                    {acepto && pagoTexto(r.pago) ? <span className="ms-num" style={{ fontSize: 13.5, fontWeight: 700 }}>{pagoTexto(r.pago)}</span> : null}
                     <Chip tono={acepto ? (r.stateLabel === 'Cerrado' ? 'ok' : 'info') : ''}>
-                      {acepto ? r.stateLabel : r.answer === 'retirado' ? 'Te retiraste' : r.answer === 'tomado' ? 'Lo tomó otro aliado' : 'No lo tomaste'}
+                      {acepto ? r.stateLabel : r.answer === 'retirado' ? 'Te retiraste' : r.answer === 'tomado' ? (r.reason === 'Se canceló el servicio' ? 'Se canceló' : 'Lo tomó otro aliado') : 'No lo tomaste'}
                     </Chip>
                   </div>
                 </div>

@@ -233,7 +233,7 @@ export function MailPanel({
       <Panel
         title="Recordar a los aliados"
         icon="ph-bell-simple"
-        desc="Un correo por aliado con sus equipos sin confirmar y sus papeles por vencer, con su enlace para resolverlo en un clic. A nadie se le escribe dos veces en la misma semana."
+        desc="Un correo por aliado con sus equipos sin confirmar y los papeles que le faltan o están por vencer, con su enlace para resolverlo en un clic. A nadie se le escribe dos veces en la misma semana."
       >
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Btn icon="ph-eye" onClick={verRecordatorios} disabled={ocupado}>

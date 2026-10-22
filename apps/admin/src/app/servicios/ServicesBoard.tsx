@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
 import {
@@ -27,6 +27,13 @@ export interface ServicioRow {
   client: string;
   phone: string | null;
   category: string | null;
+  /** Nombre legible de la línea ("Materiales para construcción"). */
+  categoryName?: string | null;
+  /**
+   * Folio del documento del que salió (MQ-/TR-). Una cotización con varias
+   * líneas abre un servicio por línea; el tablero los junta por aquí.
+   */
+  folio?: string | null;
   address: string | null;
   state: string;
   stateLabel: string;
@@ -35,6 +42,8 @@ export interface ServicioRow {
   next: Array<{ state: string; label: string }>;
   units: Array<{ clave: string; label: string }>;
   defaultUnit: string;
+  /** Días cotizados, para prellenar el cierre. */
+  quotedDays?: number | null;
   closed: string | null;
   total: number;
   acceptedAt: string | null;
@@ -79,6 +88,84 @@ const ESTADO_ASIGNACION: Record<string, { texto: string; tono: Tone }> = {
 
 /** Estados en los que ya hay aliado trabajando (o a punto de salir). */
 const EN_OPERACION = ['asignado', 'en_traslado', 'en_sitio', 'en_curso'];
+
+const aliados = (n: number) => `${n} ${n === 1 ? 'aliado' : 'aliados'}`;
+const nombres = (l: ServicioRow['assignments']) => l.map((a) => a.provider).join(', ');
+
+/**
+ * A CUÁNTOS SE LE MANDÓ Y EN QUÉ VA (2026-10-19). Con la oferta automática un
+ * servicio sale a varios aliados a la vez (hasta cinco); sin este resumen
+ * había que contar renglones para saber si alguien ya la tomó.
+ *
+ * `estado` es lo que va con color; `detalle` lo que sigue, que puede llevar
+ * nombres y tiene que poder partirse en el teléfono. `corto` es para el
+ * encabezado de la cotización, donde va un renglón por servicio.
+ */
+function resumenOferta(s: ServicioRow): { mandada: string; estado: string; detalle: string; corto: string; tono: Tone } {
+  const n = s.assignments.length;
+  const tomaron = s.assignments.filter((a) => a.state === 'aceptado');
+  const esperando = s.assignments.filter((a) => a.state === 'propuesto');
+  const noPueden = s.assignments.filter((a) => a.state === 'rechazado' || a.state === 'retirado');
+  const retirados = s.assignments.filter((a) => a.state === 'tomado');
+  const mandada = `Se mandó a ${aliados(n)}`;
+
+  if (n === 0) return { mandada: '', estado: 'Sin mandar', detalle: '', corto: 'sin mandar: búscale aliado', tono: 'warn' };
+  if (tomaron.length) {
+    const quien = `${tomaron.length === 1 ? 'la tomó' : 'la tomaron'} ${nombres(tomaron)}`;
+    const otros = retirados.length === 0
+      ? ''
+      : retirados.length === 1
+        ? `al otro se le retiró (${nombres(retirados)})`
+        : `a los otros ${retirados.length} se les retiró (${nombres(retirados)})`;
+    return { mandada, estado: tomaron.length === 1 ? 'La tomó' : 'La tomaron', detalle: [nombres(tomaron), otros].filter(Boolean).join(' · '), corto: quien, tono: 'ok' };
+  }
+  if (esperando.length) {
+    const no = noPueden.length ? `· ${noPueden.length} no ${noPueden.length === 1 ? 'puede' : 'pueden'} (${nombres(noPueden)})` : '';
+    return {
+      mandada,
+      estado: esperando.length === n ? 'Esperando respuesta' : `Esperando respuesta de ${esperando.length}`,
+      detalle: no,
+      corto: `mandada a ${aliados(n)}, esperando respuesta`,
+      tono: 'warn',
+    };
+  }
+  return {
+    mandada,
+    estado: n === 1 ? 'No puede' : 'Ninguno puede',
+    detalle: '· búscale otro',
+    corto: n === 1 ? 'el aliado no puede: búscale otro' : `ninguno de los ${n} aliados puede: búscale otro`,
+    tono: 'bad',
+  };
+}
+
+/**
+ * Encabezado de los servicios que salieron de la misma cotización: un renglón
+ * por servicio con su línea y en qué va la oferta, para ver el pedido entero
+ * del cliente sin abrir cada tarjeta.
+ */
+function EncabezadoCotizacion({ folio, servicios }: { folio: string; servicios: ServicioRow[] }) {
+  return (
+    <div className="srv-doc">
+      <div className="srv-doc-t">
+        <i className="ph ph-files" aria-hidden />
+        <span>Cotización <span className="adm-mono" style={{ color: 'var(--adm-text)' }}>{folio}</span></span>
+        <span>· {servicios[0].client}</span>
+        <span>· {servicios.length} servicios, cada uno con sus aliados</span>
+      </div>
+      <ul>
+        {servicios.map((s) => {
+          const r = resumenOferta(s);
+          return (
+            <li key={s.id}>
+              <span style={{ fontWeight: 600, color: 'var(--adm-text)' }}>{s.categoryName ?? s.category ?? 'Sin línea'}</span>
+              <span style={{ color: r.tono === 'ok' ? 'var(--adm-text)' : 'var(--adm-muted)' }}>{r.corto.charAt(0).toUpperCase() + r.corto.slice(1)}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
 
 const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -132,10 +219,33 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
     const q = filtro.trim().toLowerCase();
     if (!q) return initial;
     return initial.filter((s) =>
-      [s.quoteNumber, s.client, s.category, s.address, s.stateLabel]
+      [s.quoteNumber, s.folio, s.client, s.category, s.categoryName, s.address, s.stateLabel]
         .some((v) => v?.toLowerCase().includes(q)),
     );
   }, [initial, filtro]);
+
+  /**
+   * Los servicios de UNA cotización, juntos (2026-10-19). Si el cliente pidió
+   * excavadora y pipa en el mismo documento, son dos servicios con aliados
+   * distintos; van uno tras otro, bajo un encabezado que dice en qué va cada
+   * uno, en el lugar del más reciente.
+   */
+  const { ordenados, grupos } = useMemo(() => {
+    const porFolio = new Map<string, ServicioRow[]>();
+    for (const s of filtrados) if (s.folio) porFolio.set(s.folio, [...(porFolio.get(s.folio) ?? []), s]);
+    const grupos = new Map([...porFolio].filter(([, l]) => l.length > 1));
+    const vistos = new Set<string>();
+    const ordenados: ServicioRow[] = [];
+    for (const s of filtrados) {
+      const hermanos = s.folio ? grupos.get(s.folio) : undefined;
+      if (!hermanos) ordenados.push(s);
+      else if (!vistos.has(s.folio!)) {
+        vistos.add(s.folio!);
+        ordenados.push(...hermanos);
+      }
+    }
+    return { ordenados, grupos };
+  }, [filtrados]);
 
   // Conteos de lo que ya está en pantalla: responden "¿qué hay que empujar?"
   // antes de bajar por las tarjetas.
@@ -147,7 +257,7 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
     porCerrar: initial.filter((s) => s.state === 'terminado').length,
   }), [initial]);
 
-  async function mover(s: ServicioRow, state: string, extra?: { quantity?: number; unit?: string; note?: string }) {
+  async function mover(s: ServicioRow, state: string, extra?: { quantity?: number; unit?: string; note?: string; causa?: string }) {
     setOcupado(s.id);
     setError(null);
     try {
@@ -194,8 +304,16 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
         .srv-asig { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--adm-border); }
         .srv-asig:last-child { border-bottom: 0; padding-bottom: 0; }
         .srv-acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--adm-border); }
+        .srv-oferta { display: flex; align-items: baseline; gap: 8px; padding: 10px 0 4px; font-size: 13px; color: var(--adm-muted); line-height: 1.5; }
+        .srv-oferta i { flex: none; position: relative; top: 2px; }
+        .srv-doc { padding: 12px 16px; border: 1px dashed var(--adm-border); border-radius: 12px; }
+        .srv-doc-t { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; font-size: 13.5px; color: var(--adm-muted); }
+        .srv-doc ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+        .srv-doc li { display: flex; gap: 4px 10px; flex-wrap: wrap; align-items: baseline; }
+        .srv-en-grupo { margin-left: 14px; border-left: 3px solid var(--adm-accent); }
         @media (max-width: 560px) {
           .srv-card { padding: 14px; }
+          .srv-en-grupo { margin-left: 6px; }
           .srv-precio { align-items: flex-start !important; }
         }
       `}</style>
@@ -268,14 +386,18 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
           respuesta, avisos y los botones de su siguiente paso. Una fila de
           tabla no aguanta todo eso sin esconder lo que hay que hacer. */}
       <div style={{ display: 'grid', gap: 12 }}>
-        {filtrados.map((s) => {
+        {ordenados.map((s) => {
           const tono = TONO_ESTADO[s.state] ?? 'accent';
           const aceptado = s.assignments.filter((a) => a.state === 'aceptado');
           const esperando = s.assignments.filter((a) => a.state === 'propuesto');
           const alterno = acciones[s.id];
+          const oferta = resumenOferta(s);
+          const hermanos = s.folio ? grupos.get(s.folio) : undefined;
 
           return (
-            <article key={s.id} className="adm-card srv-card">
+            <Fragment key={s.id}>
+            {hermanos?.[0].id === s.id ? <EncabezadoCotizacion folio={s.folio!} servicios={hermanos} /> : null}
+            <article className={`adm-card srv-card${hermanos ? ' srv-en-grupo' : ''}`}>
               <div className="srv-top">
                 <div style={{ minWidth: 0, flex: '1 1 300px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px 10px', flexWrap: 'wrap' }}>
@@ -283,7 +405,7 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
                     <span className="adm-mono" style={{ fontSize: 12, color: 'var(--adm-faint)' }}>{s.quoteNumber}</span>
                   </div>
                   <div className="adm-cell-sub" style={{ marginTop: 3 }}>
-                    {s.category ?? 'Sin línea de servicio'}
+                    {s.categoryName ?? s.category ?? 'Sin línea de servicio'}
                     {s.address ? ` · ${s.address}` : ''}
                     {s.phone ? <> · <span className="adm-mono">{s.phone}</span></> : null}
                   </div>
@@ -302,10 +424,21 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>{s.stateHint}</div>
 
-              {/* Aliados */}
+              {/* Aliados: primero a cuántos se le mandó y en qué va; luego cada
+                  uno. A los que se les retiró porque otro la tomó ya van en el
+                  resumen, con nombre: un renglón por cada uno solo estorbaba. */}
               {s.assignments.length > 0 ? (
-                <div style={{ marginTop: 12, paddingTop: 4, borderTop: '1px solid var(--adm-border)' }}>
-                  {s.assignments.map((a) => {
+                <div style={{ marginTop: 12, paddingTop: 2, borderTop: '1px solid var(--adm-border)' }}>
+                  <div className="srv-oferta">
+                    <i className="ph ph-paper-plane-tilt" aria-hidden />
+                    <span>
+                      <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{oferta.mandada}</span>
+                      {' · '}
+                      <StatusText tone={oferta.tono}>{oferta.estado}</StatusText>
+                      {oferta.detalle ? <> {oferta.detalle}</> : null}
+                    </span>
+                  </div>
+                  {s.assignments.filter((a) => a.state !== 'tomado').map((a) => {
                     const e = ESTADO_ASIGNACION[a.state] ?? { texto: a.state, tono: 'muted' as Tone };
                     return (
                       <div key={a.id} className="srv-asig">
@@ -403,17 +536,44 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
                   Incidencias
                 </Btn>
 
-                {s.next.map((n) =>
-                  n.state === 'cerrado' ? (
-                    <Btn key={n.state} size="sm" icon="ph-flag-checkered" onClick={() => setCerrando(s)} disabled={ocupado === s.id}>
-                      Cerrar…
-                    </Btn>
-                  ) : n.state === 'cancelado' ? null : (
-                    <Btn key={n.state} size="sm" onClick={() => mover(s, n.state)} disabled={ocupado === s.id}>
-                      {n.label}
-                    </Btn>
-                  ),
-                )}
+                {/*
+                  Solo el SIGUIENTE paso a la vista (2026-10-22): el avance lo
+                  reportan el operador y el aliado, así que aquí casi nunca se
+                  mueve a mano. Las demás etapas quedan en "Otra etapa…".
+                */}
+                {(() => {
+                  const pasos = s.next.filter((n) => n.state !== 'cancelado');
+                  const [primero, ...otros] = pasos;
+                  return (
+                    <>
+                      {primero ? (
+                        primero.state === 'cerrado' ? (
+                          <Btn size="sm" variant="primary" icon="ph-flag-checkered" onClick={() => setCerrando(s)} disabled={ocupado === s.id}>Cerrar…</Btn>
+                        ) : (
+                          <Btn size="sm" variant="primary" onClick={() => mover(s, primero.state)} disabled={ocupado === s.id}>{primero.label}</Btn>
+                        )
+                      ) : null}
+                      {otros.length ? (
+                        <select
+                          className="adm-input"
+                          style={{ width: 'auto', height: 30, fontSize: 12.5, padding: '0 8px' }}
+                          value=""
+                          aria-label={`Pasar ${s.quoteNumber} a otra etapa`}
+                          disabled={ocupado === s.id}
+                          onChange={(e) => {
+                            const destino = otros.find((n) => n.state === e.target.value);
+                            if (!destino) return;
+                            if (destino.state === 'cerrado') setCerrando(s);
+                            else mover(s, destino.state);
+                          }}
+                        >
+                          <option value="">Otra etapa…</option>
+                          {otros.map((n) => <option key={n.state} value={n.state}>{n.state === 'cerrado' ? 'Cerrar…' : n.label}</option>)}
+                        </select>
+                      ) : null}
+                    </>
+                  );
+                })()}
 
                 {s.next.some((n) => n.state === 'cancelado') ? (
                   <Btn
@@ -425,11 +585,31 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
                         mensaje: 'Escribe por qué se cancela; queda en su historial.',
                         etiqueta: 'Motivo',
                         multilinea: true,
-                        confirmar: 'Cancelar servicio',
+                        confirmar: s.assignments.some((a) => a.state === 'aceptado') ? 'Siguiente' : 'Cancelar servicio',
                         cancelar: 'Volver',
                         peligro: true,
                       });
-                      if (nota !== null) mover(s, 'cancelado', { note: nota || undefined });
+                      if (nota === null) return;
+                      // Si ya lo había tomado un aliado, quién lo canceló decide si le
+                      // cuenta en contra (2026-10-22): antes toda cancelación le restaba.
+                      let causa: string | undefined;
+                      if (s.assignments.some((a) => a.state === 'aceptado')) {
+                        const r = await pedirTexto({
+                          titulo: '¿Quién lo canceló?',
+                          valor: 'cliente',
+                          opciones: [
+                            { valor: 'cliente', texto: 'El cliente' },
+                            { valor: 'aliado', texto: 'El aliado se bajó' },
+                            { valor: 'plataforma', texto: 'Nosotros (MAQSER24)' },
+                          ],
+                          confirmar: 'Cancelar servicio',
+                          cancelar: 'Volver',
+                          peligro: true,
+                        });
+                        if (r === null) return;
+                        causa = r;
+                      }
+                      mover(s, 'cancelado', { note: nota || undefined, causa });
                     }}
                     disabled={ocupado === s.id}
                     style={{ marginLeft: 'auto', color: 'var(--adm-muted)' }}
@@ -439,6 +619,7 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
                 ) : null}
               </div>
             </article>
+            </Fragment>
           );
         })}
       </div>
@@ -464,7 +645,8 @@ function ModalCierre({
   onGuardar: (s: ServicioRow, state: string, extra: { quantity: number; unit: string; note?: string }) => void;
   ocupado: boolean;
 }) {
-  const [cantidad, setCantidad] = useState('');
+  // Con los días cotizados ya puestos: casi siempre solo se confirma.
+  const [cantidad, setCantidad] = useState(servicio.defaultUnit === 'dia' && servicio.quotedDays ? String(servicio.quotedDays) : '');
   const [unidad, setUnidad] = useState(servicio.defaultUnit);
   const [nota, setNota] = useState('');
   const n = Number(cantidad);

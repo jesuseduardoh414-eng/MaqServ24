@@ -6,6 +6,7 @@ import { disponibilidadDe } from '../catalog/availability';
 import { historialDe, type AsignacionHistorica } from '../catalog/provider-history';
 import { emparejar, motivoSinCobertura, type Coincidencia, type ProveedorCandidato } from './matching';
 import { evaluarRequisitos } from '../catalog/requirements-match';
+import { tiposDeLaSolicitud } from './reservas';
 import { desajustes } from '@maqserv/config';
 
 /**
@@ -32,6 +33,14 @@ export interface ResultadoEmparejamiento {
   contacto: Map<number, { phone: string | null; contactName: string | null }>;
   /** Dónde está la obra, si ya se geocodificó. Es lo que ancla el mapa. */
   punto: { lat: number; lon: number } | null;
+  /**
+   * Aliados que tienen registrada una máquina del TIPO pedido (2026-10-22).
+   * Null cuando la solicitud no dice tipo. Vacío cuando nadie lo tiene: ese
+   * es el hueco de reclutamiento, y la oferta sigue por línea.
+   */
+  conTipo: Set<number> | null;
+  /** Los tipos pedidos que nadie de la línea tiene registrados (nombres). */
+  tiposSinAliado: string[];
 }
 
 @Injectable()
@@ -71,7 +80,7 @@ export class MatchingService {
       where: { status: 1 },
       // Se trae el TIPO ademas de la vigencia: sin el no se puede saber si un
       // documento acredita el seguro que la obra pide o solo el alta fiscal.
-      include: { provider_documents: { select: { kind: true, expires_at: true } } },
+      include: { provider_documents: { select: { id: true, kind: true, name: true, expires_at: true } } },
     });
     const enCategoria = categoria
       ? aliados.filter((a) => lista(a.categories).includes(categoria))
@@ -90,7 +99,7 @@ export class MatchingService {
             where: { status: 1, provider_id: { in: idsAliados }, ...(cat ? { category_id: cat.id } : {}) },
             select: {
               id: true, name: true, stock: true, location: true,
-              availability_confirmed_at: true, provider_id: true, attributes: true,
+              availability_confirmed_at: true, provider_id: true, attributes: true, tipo_id: true,
             },
           })
         : Promise.resolve([]),
@@ -191,7 +200,38 @@ export class MatchingService {
 
     const coincidencias = emparejar({ categoria, zona, punto }, candidatos);
 
+    /**
+     * POR TIPO, NO SOLO POR LÍNEA (2026-10-22, Fase 3). Si la solicitud dice
+     * qué tipo pide, quien tiene registrada una máquina de ese tipo sube
+     * arriba y la oferta automática va primero a ellos. Si nadie lo tiene, se
+     * queda como estaba (por línea) y se dice cuál tipo falta en la red.
+     */
+    const tipos = await tiposDeLaSolicitud(q);
+    let conTipo: Set<number> | null = null;
+    let tiposSinAliado: string[] = [];
+    if (tipos.length) {
+      conTipo = new Set(equipos.filter((e) => e.provider_id !== null && e.tipo_id !== null && tipos.includes(e.tipo_id)).map((e) => e.provider_id as number));
+      const tienen = new Set(equipos.map((e) => e.tipo_id).filter((t): t is number => t !== null));
+      const faltan = tipos.filter((t) => !tienen.has(t));
+      tiposSinAliado = faltan.length
+        ? (await prisma.products.findMany({ where: { id: { in: faltan } }, select: { name: true } })).map((p) => p.name)
+        : [];
+      if (conTipo.size) {
+        for (const c of coincidencias) {
+          if (conTipo.has(c.proveedor.id)) {
+            c.puntaje += 40;
+            c.razones.unshift('Tiene registrado el tipo de equipo que se pidió');
+          } else {
+            c.advertencias.push('No tiene registrado el tipo de equipo que se pidió');
+          }
+        }
+        coincidencias.sort((a, b) => b.puntaje - a.puntaje);
+      }
+    }
+
     return {
+      conTipo,
+      tiposSinAliado,
       quoteNumber: q.quote_number,
       categoria,
       zona,

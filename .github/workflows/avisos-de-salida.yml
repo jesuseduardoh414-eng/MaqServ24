@@ -5,6 +5,10 @@
 # (más una campana en el panel) si pasó la hora y no marcó la salida. Ver
 # apps/api/src/notifications/aviso-salida.service.ts.
 #
+# La misma llamada sigue las ofertas sin contestar (2026-10-21): recordatorio al
+# aliado y, si nadie contesta a tiempo, oferta a los siguientes. Ver
+# apps/api/src/quotes/seguimiento-ofertas.service.ts.
+#
 # Va aparte de "Tareas programadas" (diaria) porque necesita correr seguido, y
 # de paso despierta la API: en cPanel se duerme sin visitas y con ella su
 # reloj interno. Usa los mismos API_URL y TASKS_SECRET.

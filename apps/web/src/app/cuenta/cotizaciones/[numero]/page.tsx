@@ -40,6 +40,34 @@ const chip = (color: string): React.CSSProperties => ({
   background: `color-mix(in srgb, ${color} 10%, transparent)`,
 });
 
+/**
+ * LO QUE SOLICITÓ, EN RENGLONES (2026-10-19). El comentario guardado trae
+ * primero las respuestas del formulario como texto —un título y renglones
+ * "· Etiqueta: valor" (ver requestAnswersToText)— y después lo que escribió
+ * aparte. Pintado tal cual era un bloque corrido de viñetas; así se lee como
+ * el documento. Lo que no tenga esa forma se queda como notas.
+ */
+function partesDelComentario(texto: string): { titulo: string | null; filas: Array<[string, string]>; notas: string } {
+  const lineas = texto.split(/\r?\n/);
+  const filas: Array<[string, string]> = [];
+  const resto: string[] = [];
+  let titulo: string | null = null;
+  lineas.forEach((l, i) => {
+    const m = l.match(/^\s*·\s*(.+?):\s+(.+)$/);
+    if (m) {
+      filas.push([m[1].trim(), m[2].trim()]);
+      return;
+    }
+    // El título es el renglón que va justo antes de la primera viñeta.
+    if (titulo === null && filas.length === 0 && l.trim() && /^\s*·/.test(lineas[i + 1] ?? '')) {
+      titulo = l.trim();
+      return;
+    }
+    resto.push(l);
+  });
+  return { titulo, filas, notas: resto.join('\n').trim() };
+}
+
 /** Estilos propios del detalle de cotización (prefijo `qd-`). */
 const CSS = `
 .qd-back{ margin-bottom:18px; }
@@ -50,6 +78,20 @@ const CSS = `
 .qd-fila > :first-child{ min-width:0; overflow-wrap:anywhere; }
 .qd-fila > :last-child{ flex-shrink:0; text-align:right; }
 a.qd-fila{ text-decoration:none; }
+/* Dato de la solicitud: aquí lo largo es el VALOR (una dirección, un correo),
+   así que la etiqueta no se encoge y el valor parte renglón. .qd-fila es al
+   revés porque está hecha para "concepto … $monto". */
+.qd-dato{ display:flex; justify-content:space-between; align-items:baseline; gap:4px 16px; font-size:14.5px; color:var(--color-text-muted); padding:7px 0; }
+.qd-dato > :first-child{ flex:none; }
+.qd-dato > :last-child{ min-width:0; text-align:right; overflow-wrap:anywhere; color:var(--color-text); }
+.qd-sub{ margin:-6px 0 10px; }
+.qd-pedido{ display:grid; margin:0; }
+.qd-pedido > div{ display:grid; grid-template-columns:minmax(0,2fr) minmax(0,3fr); gap:2px 16px; padding:9px 0; border-bottom:1px solid var(--color-border); font-size:14px; line-height:1.5; }
+.qd-pedido > div:last-child{ border-bottom:0; }
+.qd-pedido dt{ color:var(--color-text-muted); }
+.qd-pedido dd{ margin:0; color:var(--color-text); font-weight:500; overflow-wrap:anywhere; }
+.qd-notas{ display:grid; gap:4px; margin-top:10px; padding-top:12px; border-top:1px solid var(--color-border); }
+@media (max-width:560px){ .qd-pedido > div{ grid-template-columns:minmax(0,1fr); } }
 a.qd-fila:hover > :first-child{ color:var(--color-primary); }
 .qd-pasos{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:6px; }
 .qd-paso{ padding-top:8px; font-size:13px; }
@@ -223,12 +265,32 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
                 </section>
               ) : null}
 
-              {q.comments ? (
-                <section className="ms-panel">
-                  <h2 className="ms-h3 qd-card-t">Lo que solicitaste</h2>
-                  <p className="qd-txt ms-muted" style={{ fontSize: 14, lineHeight: 1.7 }}>{q.comments}</p>
-                </section>
-              ) : null}
+              {q.comments ? (() => {
+                const pedido = partesDelComentario(q.comments);
+                return (
+                  <section className="ms-panel">
+                    <h2 className="ms-h3 qd-card-t">Lo que solicitaste</h2>
+                    {pedido.titulo ? <p className="ms-hint qd-sub">{pedido.titulo}</p> : null}
+                    {pedido.filas.length ? (
+                      <dl className="qd-pedido">
+                        {pedido.filas.map(([k, v], i) => (
+                          <div key={`${k}-${i}`}><dt>{k}</dt><dd>{v}</dd></div>
+                        ))}
+                      </dl>
+                    ) : null}
+                    {pedido.notas ? (
+                      pedido.filas.length ? (
+                        <div className="qd-notas">
+                          <span className="ms-hint">Notas</span>
+                          <p className="qd-txt" style={{ fontSize: 14 }}>{pedido.notas}</p>
+                        </div>
+                      ) : (
+                        <p className="qd-txt ms-muted" style={{ fontSize: 14, lineHeight: 1.7 }}>{pedido.notas}</p>
+                      )
+                    ) : null}
+                  </section>
+                );
+              })() : null}
             </div>
 
             {/* ── Derecha: lo que se decide y los datos ── */}
@@ -280,7 +342,7 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
                   ['Dirección de entrega', q.address],
                   ['Región', q.customer.region],
                 ] as Array<[string, string | null]>).filter(([, v]) => v && String(v).trim()).map(([k, v]) => (
-                  <div key={k} className="qd-fila"><span>{k}</span><span style={{ color: 'var(--color-text)' }}>{v}</span></div>
+                  <div key={k} className="qd-dato"><span>{k}</span><span>{v}</span></div>
                 ))}
               </section>
 

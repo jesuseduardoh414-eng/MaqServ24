@@ -37,6 +37,26 @@ export const sanitizeKey = (k: string): string =>
     .join('/');
 
 /**
+ * Copia una foto de `uploads/` a un archivo propio y devuelve su ruta (o null).
+ * Para que dos productos no compartan archivo: borrar uno no le quita la foto
+ * al otro (2026-10-22, la ficha de un tipo nuevo toma la foto del equipo).
+ */
+export async function copiarSubida(ruta: string | null | undefined, prefijo: string): Promise<string | null> {
+  if (!ruta || !ruta.startsWith('uploads/')) return null;
+  const { copyFile } = await import('node:fs/promises');
+  const { basename } = await import('node:path');
+  const nombre = basename(ruta);
+  if (!nombre || nombre.startsWith('.')) return null;
+  const nuevo = `${prefijo}-${Date.now()}-${nombre}`;
+  try {
+    await copyFile(join(mediaDir(), 'uploads', nombre), join(mediaDir(), 'uploads', nuevo));
+    return `uploads/${nuevo}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Borra del disco fotos que ya no usa nadie (QA 2026-09-25: al rechazar una
  * propuesta quedaban huérfanas). Solo toca `uploads/<nombre>` y por NOMBRE
  * de archivo: una ruta rara en la BD nunca puede salirse de esa carpeta.

@@ -15,6 +15,8 @@ export const MODULO_DE_CORREO: Record<string, ModuloAdmin> = {
   // Solicitudes del sitio y su respuesta.
   quote_answered: 'cotizaciones',
   quote_expiring: 'cotizaciones',
+  quote_request_ack: 'cotizaciones',
+  quote_request_internal: 'cotizaciones',
   quoter_request_internal: 'cotizaciones',
   quoter_request_ack: 'cotizaciones',
   quoter_request_provider: 'cotizaciones',
@@ -22,7 +24,9 @@ export const MODULO_DE_CORREO: Record<string, ModuloAdmin> = {
   // El servicio en marcha: avances al cliente y ofertas/asignaciones al aliado.
   service_status: 'servicios',
   provider_offer: 'servicios',
+  provider_offer_reminder: 'servicios',
   provider_assigned: 'servicios',
+  provider_cancelled: 'servicios',
   provider_departure: 'servicios',
   provider_day_before: 'servicios',
   service_day_before: 'servicios',
@@ -43,6 +47,11 @@ export const MODULO_DE_CORREO: Record<string, ModuloAdmin> = {
   password_reset: 'comunidad',
   question_answered: 'comunidad',
   contact_reply: 'comunidad',
+  // Cobros y pagos (2026-10-22).
+  cobro_recordatorio: 'administracion',
+  factura_aliado_pendiente: 'administracion',
+  pago_aliado: 'administracion',
+  cierre_mes: 'administracion',
   // Del panel.
   admin_password_reset: 'admins',
   prueba: 'configuracion',

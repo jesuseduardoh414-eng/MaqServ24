@@ -1,4 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { catalogoCotizadorSchema, esCotizadorTipo } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
@@ -15,6 +16,24 @@ import { calcularSchema, cotizacionPanelSchema, partidasDe, primerError, tipoDe 
  * pide el cliente y la herramienta que fija el precio no son la misma
  * responsabilidad, y esta última lleva dentro el tabulador de tarifas.
  */
+
+const dinero = z.coerce.number().min(0, 'Un precio no puede ser negativo').max(100_000_000);
+
+/** El precio de una ficha en el cotizador, tal como lo manda su pantalla. */
+const fichaSchema = z.object({
+  oculto: z.boolean().default(false),
+  renglones: z.array(z.object({
+    id: z.string().max(40).optional(),
+    nombre: z.string().trim().min(2, 'Pon el nombre con el que sale en el cotizador').max(120),
+    tarifas: z.object({ dia: dinero, semana: dinero, mes: dinero }).optional(),
+    flete_tipo: z.string().trim().max(60).optional(),
+    precio: dinero.optional(),
+    cond: z.string().max(40).optional(),
+  })).max(30),
+  /** Tipos de flete creados desde la ficha: nombre → monto. */
+  fletesNuevos: z.record(z.string().trim().min(2).max(60), dinero).optional(),
+});
+
 @Controller('admin/quoter')
 @UseGuards(AdminGuard)
 @Modulo('cotizador')
@@ -93,6 +112,29 @@ export class AdminQuoterController {
     const cat = await this.quoter.restaurarCatalogo(tipo, req.adminEmail);
     await registrarAccion(req, 'cotizador', 'tabulador.restaurar', tipo, null);
     return cat;
+  }
+
+  /** A qué ficha de Inventario pertenece cada renglón (Tarifas ya solo los enseña). */
+  @Get('catalog/:kind/fichas')
+  fichasDeRenglones(@Param('kind') kind: string) {
+    return this.quoter.fichasDeRenglones(tipoDe(kind));
+  }
+
+  // ---- El precio de cada tipo, desde su ficha (2026-10-19) ----
+
+  @Get('ficha/:productId')
+  ficha(@Param('productId', ParseIntPipe) productId: number) {
+    return this.quoter.fichaEnCotizador(productId);
+  }
+
+  @Put('ficha/:productId')
+  async guardarFicha(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const parsed = fichaSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
+    const r = await this.quoter.guardarFicha(productId, parsed.data, req.adminEmail);
+    // Sensible como el tabulador: es el precio que se le cobra a todo el mundo.
+    await registrarAccion(req, 'cotizador', 'tabulador.ficha', r.tipo, r.nombre);
+    return r.ficha;
   }
 
   /**

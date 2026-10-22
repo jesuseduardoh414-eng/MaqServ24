@@ -149,7 +149,7 @@ export function correoCotizacionPorVencer(d: {
     html: marco(
       `${titulo(`Tu precio ${cuando}`)}
       <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
-      <p style="margin:0;">La cotización <strong style="color:${TINTA};">${esc(d.folio)}</strong> por ${esc(money(d.total))} se sostiene hasta el ${esc(d.validUntil)}.</p>
+      <p style="margin:0;">La cotización <strong style="color:${TINTA};">${esc(d.folio)}</strong>${d.total > 0 ? ` por ${esc(money(d.total))}` : ''} se sostiene hasta el ${esc(d.validUntil)}.</p>
       <p style="margin:12px 0 0;">Después de esa fecha ya no se puede aceptar y habría que volver a cotizarla — los precios de traslado y disponibilidad cambian.</p>
       ${boton('Aceptar ahora', `${SITIO}/cuenta/cotizaciones/${encodeURIComponent(d.folio)}`)}`,
     ),
@@ -210,6 +210,8 @@ export function correoOfertaAAliado(d: {
   detalle: string | null;
   /** Importe que el cliente ya vio y aceptó (solicitudes del cotizador). */
   total?: number | null;
+  /** Lo que se le paga a él (2026-10-22): manda sobre `total`, que es del cliente. */
+  pago?: { monto: number; masIva: boolean; comisionPct: number } | null;
   /** Las partidas de la cotización (2026-10-15): el aliado ve la cotización completa. */
   partidas?: Array<{ concepto: string; cantidad: string; importe: number }>;
   /** Folio del documento del cotizador (MQ-/TR-). */
@@ -222,7 +224,8 @@ export function correoOfertaAAliado(d: {
   const filas: Array<[string, string]> = [];
   if (d.categoria) filas.push(['Servicio', d.categoria]);
   if (d.zona) filas.push(['Dónde', d.zona]);
-  if (d.total != null && d.total > 0) filas.push(['Importe cotizado', money(d.total)]);
+  if (d.pago) filas.push(['Te pagamos', `${money(d.pago.monto)}${d.pago.masIva ? ' + IVA' : ''} (ya sin la comisión de ${d.pago.comisionPct}%)`]);
+  else if (d.total != null && d.total > 0) filas.push(['Importe cotizado', money(d.total)]);
   if (d.documento) filas.push(['Cotización', d.documento]);
   filas.push(['Folio', d.folio]);
   const partidas = d.partidas?.length
@@ -250,6 +253,42 @@ export function correoOfertaAAliado(d: {
       <p style="margin:16px 0 0;"><strong style="color:${TINTA};">Dinos si pueden tomarlo.</strong> Si no pueden, dinos por qué — nos sirve para saber qué le falta a la red y no volver a molestarlos con lo mismo.</p>
       ${d.url ? boton('Aceptar o rechazar en mi portal', d.url) : ''}
       <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">${d.url ? 'El botón abre tu portal de aliado sin contraseña; el enlace es personal, no lo compartas.' : 'Responde este correo o márcanos.'} Mientras no contesten, la solicitud sigue abierta para otro aliado.</p>`,
+      'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
+    ),
+  };
+}
+
+/**
+ * AL ALIADO: UNA OFERTA SIN CONTESTAR (2026-10-21).
+ *
+ * Sale una vez, a la mitad del tiempo que se le da para contestar (ver
+ * quotes/seguimiento-ofertas.ts). Dice cuánto queda: pasado ese tiempo el
+ * trabajo se le ofrece a más aliados y el primero que acepte se lo queda.
+ */
+export function correoRecordatorioOferta(d: {
+  aliado: string;
+  contacto: string | null;
+  folio: string;
+  categoria: string | null;
+  zona: string | null;
+  /** Cuánto lleva esperando, ya en palabras ("2 h"). */
+  esperando: string;
+  url?: string | null;
+}): { subject: string; html: string } {
+  const filas: Array<[string, string]> = [];
+  if (d.categoria) filas.push(['Servicio', d.categoria]);
+  if (d.zona) filas.push(['Dónde', d.zona]);
+  filas.push(['Folio', d.folio]);
+  return {
+    subject: `¿Pueden tomar la solicitud ${d.folio}?`,
+    html: marco(
+      `${titulo('Tienen una solicitud sin contestar')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : `Hola,`}</p>
+      <p style="margin:0;">Hace ${esc(d.esperando)} les mandamos esta solicitud y todavía no nos dicen si la pueden tomar.</p>
+      ${datos(filas)}
+      <p style="margin:0;padding:10px 12px;border-radius:3px;background:#FFF7E6;color:${TINTA};"><strong>Si no contestan pronto, se la ofrecemos a más aliados y el primero que acepte se la queda.</strong></p>
+      ${d.url ? boton('Aceptar o rechazar en mi portal', d.url) : ''}
+      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Si no pueden, rechácenla con el motivo: nos sirve para no volver a ofrecerles lo que no atienden.</p>`,
       'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
     ),
   };
@@ -411,6 +450,35 @@ export function correoAsignacionAAliado(d: {
   };
 }
 
+/**
+ * SE CANCELÓ UN SERVICIO QUE YA ERA SUYO (2026-10-22). Sin esto el aliado se
+ * enteraba al llegar a la obra.
+ */
+export function correoServicioCanceladoAliado(d: {
+  contacto: string | null;
+  folio: string;
+  categoria: string | null;
+  direccion: string | null;
+  motivo: string | null;
+}): { subject: string; html: string } {
+  const filas: Array<[string, string]> = [];
+  if (d.categoria) filas.push(['Servicio', d.categoria]);
+  if (d.direccion) filas.push(['Dirección', d.direccion]);
+  filas.push(['Folio', d.folio]);
+  if (d.motivo) filas.push(['Motivo', d.motivo]);
+  return {
+    subject: `Se canceló el servicio ${d.folio}: no salgan`,
+    html: marco(
+      `${titulo('Se canceló el servicio')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
+      <p style="margin:0;">Este servicio ya no va: <strong style="color:${TINTA};">no manden la unidad</strong>. Su equipo queda libre para otros trabajos.</p>
+      ${datos(filas)}
+      <p style="margin:16px 0 0;font-size:13px;color:${GRIS};">Si ya habían salido, llámennos para ver los gastos del traslado.</p>`,
+      'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
+    ),
+  };
+}
+
 export function correoAccesoAliado(d: {
   aliado: string;
   contacto: string | null;
@@ -475,7 +543,7 @@ export function correoRecordatorioAliado(d: {
       ? `<div style="margin:18px 0 0;padding:12px 14px;border:1px solid ${AZUL};border-radius:3px;background:#F0F7FF;">
            <div style="font-size:12px;color:${AZUL};font-weight:bold;letter-spacing:1px;margin-bottom:6px;">TUS PAPELES</div>
            ${d.documentos.map((x) => `<div style="color:${TINTA};font-size:14px;margin-bottom:3px;">${esc(x.texto)} — ${esc(x.nombre)}</div>`).join('')}
-           <div style="margin-top:6px;font-size:12.5px;color:${GRIS};">Un papel vencido te quita el sello de verificado y te saca de las propuestas. Mandanos el renovado y lo subimos.</div>
+           <div style="margin-top:6px;font-size:12.5px;color:${GRIS};">Sin tu constancia fiscal y tu póliza vigentes no tienes el sello de verificado y sales después en las propuestas. Súbelos desde tu portal con el botón de abajo.</div>
          </div>`
       : '';
 
@@ -912,7 +980,7 @@ export function correoAcuseSolicitud(d: {
   if (d.total != null && d.total > 0) filas.push(['Importe cotizado', money(d.total)]);
   const quien = d.proveedores?.length
     ? `Ya la tiene <strong style="color:${TINTA};">${esc(d.proveedores.join(' y '))}</strong> para revisarla. En cuanto la acepte te avisamos por correo y en tu cuenta.`
-    : 'La revisamos y te la confirmamos con precio por correo. Después la aceptas desde tu cuenta y asignamos al proveedor que la atiende.';
+    : 'Se la mandamos a los proveedores de tu zona y, en cuanto uno la acepte, te avisamos por correo y en tu cuenta. No tienes que hacer nada más.';
 
   return {
     subject: `Recibimos tu cotización ${d.folio}`,
@@ -924,6 +992,181 @@ export function correoAcuseSolicitud(d: {
       <p style="margin:0;">${quien}</p>
       ${d.url ? boton('Seguir mi solicitud', d.url) : ''}
       <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Si algo cambió —fechas, cantidades, la dirección de la obra— contesta este correo y lo ajustamos antes de que salga la unidad.</p>`,
+    ),
+  };
+}
+
+/**
+ * AL CLIENTE: SU PAGO (2026-10-22). Sale solo: el día que vence (o 3 días
+ * antes si tiene crédito) y cada semana mientras siga vencido. Lleva los datos
+ * para transferir cuando están capturados en Margen › Reglas.
+ */
+export function correoCobroRecordatorio(d: {
+  nombre: string;
+  folio: string;
+  servicio: string | null;
+  saldo: number;
+  vence: string;
+  /** Días: negativo = faltan; 0 = hoy; positivo = vencido. */
+  dias: number;
+  datosPago: { banco: string; clabe: string; beneficiario: string } | null;
+  url: string;
+}): { subject: string; html: string } {
+  const cuando = d.dias > 0 ? `venció hace ${d.dias} día${d.dias === 1 ? '' : 's'}` : d.dias === 0 ? 'vence hoy' : `vence el ${d.vence}`;
+  const filas: Array<[string, string]> = [['Servicio', `${d.folio}${d.servicio ? ` · ${d.servicio}` : ''}`], ['Por pagar', money(d.saldo)], ['Fecha límite', d.vence]];
+  if (d.datosPago) filas.push(['Banco', d.datosPago.banco], ['CLABE', d.datosPago.clabe], ['A nombre de', d.datosPago.beneficiario]);
+  return {
+    subject: `Tu pago de ${d.folio} ${cuando}`,
+    html: marco(
+      `${titulo(d.dias > 0 ? 'Tienes un pago pendiente' : 'Recordatorio de pago')}
+      <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
+      <p style="margin:0;">El pago de tu servicio <strong style="color:${TINTA};">${esc(d.folio)}</strong> ${esc(cuando)}.</p>
+      ${datos(filas)}
+      <p style="margin:0;">Si ya pagaste, contesta este correo con tu comprobante y lo registramos.</p>
+      ${boton('Ver mi servicio', d.url)}`,
+    ),
+  };
+}
+
+/** AL ALIADO: sube tu factura para que te paguemos (2026-10-22). */
+export function correoFacturaAliadoPendiente(d: {
+  contacto: string | null;
+  servicios: Array<{ folio: string; monto: number }>;
+  url: string | null;
+}): { subject: string; html: string } {
+  const total = d.servicios.reduce((a, s) => a + s.monto, 0);
+  const lista = d.servicios.map((s) => `<li style="margin:0 0 5px;color:${TINTA2};font-size:13.5px;">${esc(s.folio)} · ${money(s.monto)}</li>`).join('');
+  return {
+    subject: d.servicios.length === 1 ? `Sube tu factura de ${d.servicios[0].folio}` : `Sube tus facturas de ${d.servicios.length} servicios`,
+    html: marco(
+      `${titulo('Te falta subir tu factura')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
+      <p style="margin:0;">Para pagarte, sube en tu portal la factura (PDF y XML) de cada servicio terminado:</p>
+      <ul style="margin:12px 0;padding-left:20px;">${lista}</ul>
+      <p style="margin:0;">Total a facturar: <strong style="color:${TINTA};">${money(total)}</strong>. En cuanto el cliente pague y esté tu factura, te pagamos el siguiente día de pago.</p>
+      ${d.url ? boton('Subir mi factura', d.url) : ''}`,
+      'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
+    ),
+  };
+}
+
+/** AL ALIADO: ya le pagamos (2026-10-22). */
+export function correoPagoAliado(d: {
+  contacto: string | null;
+  servicios: Array<{ folio: string; monto: number }>;
+  referencia: string | null;
+  fecha: string;
+}): { subject: string; html: string } {
+  const total = d.servicios.reduce((a, s) => a + s.monto, 0);
+  const lista = d.servicios.map((s) => `<li style="margin:0 0 5px;color:${TINTA2};font-size:13.5px;">${esc(s.folio)} · ${money(s.monto)}</li>`).join('');
+  return {
+    subject: `Te pagamos ${money(total)}`,
+    html: marco(
+      `${titulo('Ya te pagamos')}
+      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
+      <p style="margin:0;">El ${esc(d.fecha)} te depositamos <strong style="color:${TINTA};">${money(total)}</strong>${d.referencia ? ` (referencia ${esc(d.referencia)})` : ''} por:</p>
+      <ul style="margin:12px 0 0;padding-left:20px;">${lista}</ul>`,
+      'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
+    ),
+  };
+}
+
+/** A DIRECCIÓN: el mes que cerró, en un correo (2026-10-22). Sale solo el día 1. */
+export function correoCierreMes(d: {
+  mes: string;
+  servicios: number;
+  ventas: number;
+  pagoAliados: number;
+  margen: number;
+  porCobrar: number;
+  vencido: number;
+  porPagar: number;
+  url: string;
+}): { subject: string; html: string } {
+  const pct = d.ventas > 0 ? `${((d.margen / d.ventas) * 100).toFixed(1)}%` : '—';
+  return {
+    subject: `Cierre de ${d.mes}: margen ${money(d.margen)}`,
+    html: marco(
+      `${titulo(`Cierre de ${d.mes}`)}
+      <p style="margin:0;">Servicios cerrados en el mes, sin IVA:</p>
+      ${datos(filas([
+        ['Servicios', String(d.servicios)],
+        ['Ventas', money(d.ventas)],
+        ['Pago a aliados', money(d.pagoAliados)],
+        ['Margen', `${money(d.margen)} (${pct})`],
+      ]))}
+      <p style="margin:0;">Hoy, con IVA:</p>
+      ${datos(filas([
+        ['Por cobrar', money(d.porCobrar)],
+        ['De eso, vencido', money(d.vencido)],
+        ['Por pagar a aliados', money(d.porPagar)],
+      ]))}
+      ${boton('Ver el margen', d.url)}`,
+    ),
+  };
+}
+
+/**
+ * AL CLIENTE: acuse de una solicitud A LA MEDIDA, la de /cotizar (2026-10-21).
+ *
+ * Antes solo sonaba su campana: quien no volvía a entrar a su cuenta no sabía
+ * si había llegado. Va sin importes, porque todavía no tiene precio.
+ */
+export function correoAcuseSolicitudAMedida(d: {
+  nombre: string;
+  folio: string;
+  /** Lo que pidió, en una línea. */
+  pidio: string | null;
+  url: string;
+}): { subject: string; html: string } {
+  const filas: Array<[string, string]> = [['Folio', d.folio]];
+  if (d.pidio) filas.push(['Lo que pediste', d.pidio]);
+  return {
+    subject: `Recibimos tu solicitud ${d.folio}`,
+    html: marco(
+      `${titulo('Recibimos tu solicitud')}
+      <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
+      <p style="margin:0;">Ya la tenemos. Guarda este folio para darle seguimiento:</p>
+      ${datos(filas)}
+      <p style="margin:0;">Un asesor de MAQSER24 la revisa y te mandamos la cotización con precio y vigencia por correo. Después la aceptas desde tu cuenta y asignamos al proveedor que te atiende.</p>
+      ${boton('Ver mi solicitud', d.url)}
+      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Si algo cambió —fechas, cantidades, la dirección de la obra— contesta este correo y lo ajustamos.</p>`,
+    ),
+  };
+}
+
+/** A MAQSER24: entró una solicitud a la medida (2026-10-21). Hay que ponerle precio. */
+export function correoSolicitudAMedidaInterna(d: {
+  folio: string;
+  cliente: string;
+  empresa: string | null;
+  correo: string | null;
+  telefono: string | null;
+  pidio: string | null;
+  direccion: string | null;
+  fecha: string | null;
+  comentarios: string | null;
+  url: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `Solicitud a la medida ${d.folio} · ${d.empresa || d.cliente}`,
+    html: marco(
+      `${titulo('Entró una solicitud a la medida')}
+      <p style="margin:0;">Llegó sin precio por el formulario "Cotizar". Hay que responderla en Solicitudes.</p>
+      ${datos(
+        filas([
+          ['Folio', d.folio],
+          ['Cliente', d.cliente],
+          ['Empresa', d.empresa],
+          ['Teléfono', d.telefono],
+          ['Correo', d.correo],
+          ['Pidió', d.pidio],
+          ['Dónde', d.direccion],
+          ['Para cuándo', d.fecha],
+        ]),
+      )}
+      ${d.comentarios ? `<p style="margin:0;color:${TINTA2};">${esc(d.comentarios)}</p>` : ''}
+      ${boton('Abrir en el panel', d.url)}`,
     ),
   };
 }
@@ -948,7 +1191,13 @@ export function correoCotizacionDelPanel(d: {
   condiciones: Array<{ titulo: string; puntos: string[] }>;
   notas: string | null;
   firma: { nombre: string; puesto: string; telefono: string } | null;
+  /** Enlace absoluto para aceptarla sin llamar (2026-10-22). Sin él, el correo no trae botón. */
+  aceptarUrl?: string | null;
 }): { subject: string; html: string } {
+  const aceptar = d.aceptarUrl
+    ? `${boton('Acepto la cotización', d.aceptarUrl)}
+      <p style="margin:6px 0 0;font-size:13px;color:${GRIS};">Al aceptarla asignamos al proveedor y te avisamos por correo quién va y cuándo. El botón vale 15 días.</p>`
+    : '';
   const totales = datos(
     filas([
       ['Subtotal', money(d.subtotal)],
@@ -986,6 +1235,7 @@ export function correoCotizacionDelPanel(d: {
       ${d.obra ? `<p style="margin:10px 0 0;font-size:13px;color:${GRIS};">Obra: ${esc(d.obra)}</p>` : ''}
       ${tablaCotizacion(d.renglones)}
       ${totales}
+      ${aceptar}
       ${notas}
       ${condiciones}
       ${firma}

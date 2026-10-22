@@ -55,11 +55,28 @@ export class AdminAnalyticsController {
       service_category: true, first_contact_at: true, first_contact_via: true,
     } as const;
 
+    /** Margen de los servicios cerrados entre dos fechas (con los filtros de línea y zona). */
+    const margenEntre = async (d: Date, h: Date) => {
+      const cerrados = await prisma.quotes.findMany({
+        where: { service_state: 'cerrado', service_closed_at: { gte: d, lte: h }, ...filtroCat, ...filtroZona },
+        select: { id: true },
+      });
+      const cuentas = cerrados.length
+        ? await prisma.service_money.findMany({ where: { quote_id: { in: cerrados.map((c) => c.id) } }, select: { subtotal: true, pago_aliado: true } })
+        : [];
+      return {
+        servicios: cuentas.length,
+        valor: cuentas.length ? Math.round(cuentas.reduce((a, c) => a + Number(c.subtotal) - Number(c.pago_aliado), 0)) : null,
+      };
+    };
+    const [margenAhora, margenAntes] = await Promise.all([margenEntre(desde, hasta), margenEntre(previo.desde, previo.hasta)]);
+
     const [solicitudes, previas, equipos, aliados] = await Promise.all([
       prisma.quotes.findMany({ where: enPeriodo(desde, hasta), select: campos }),
       prisma.quotes.findMany({ where: enPeriodo(previo.desde, previo.hasta), select: campos }),
+      // Las máquinas de aliados; la ficha del tipo no se confirma (2026-10-22).
       prisma.products.findMany({
-        where: { status: 1 },
+        where: { status: 1, provider_id: { not: null } },
         select: { id: true, availability_confirmed_at: true, provider_id: true },
       }),
       prisma.providers.count({ where: { status: 1 } }),
@@ -246,14 +263,20 @@ export class AdminAnalyticsController {
         subirEsBueno: true,
         nota: 'Clientes con más de una solicitud, en toda su historia y no sólo en este periodo: quien vuelve cada semestre también cuenta.',
       }),
-      noMedible({
+      // Medible desde el 2026-10-22 (Fase A): lo cotizado menos la parte del
+      // aliado, de los servicios CERRADOS en el periodo (money/).
+      indicador({
         clave: 'margen',
         label: 'Margen / contribución',
         revela: 'Sostenibilidad económica.',
+        valor: margenAhora.valor,
         formato: 'dinero',
-        bloqueado: true,
-        motivo:
-          'Falta definir cómo gana dinero la plataforma. El documento (sección 26) deja los porcentajes fuera a propósito: se definen por categoría y etapa. Hasta que exista esa definición, sólo se conoce el precio al cliente y no la contribución.',
+        muestra: margenAhora.servicios,
+        // Es una suma de dinero, no un porcentaje: con un solo servicio ya es cierta.
+        exigeMuestra: false,
+        anterior: margenAntes.valor,
+        subirEsBueno: true,
+        nota: `Lo cotizado sin IVA menos lo que le toca al aliado, de ${margenAhora.servicios} servicio(s) cerrado(s) en el periodo. Las reglas están en Administración › Margen.`,
       }),
       indicador({
         clave: 'no-cubierta',

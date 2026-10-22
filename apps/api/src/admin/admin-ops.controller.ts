@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, Controller, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, Query, Req, UseGuards,
+  ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
 import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/quote-validity';
@@ -11,8 +11,8 @@ import { MailerService } from '../notifications/mailer.service';
 import { correoCotizacionRespondida } from '../notifications/email-templates';
 import { DIAS_AVISO } from '../catalog/provider-trust';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
-import { PASOS, esEstado, estadoInicial } from '../quotes/service-flow';
-import { ServiceService } from '../quotes/service.service';
+import { PASOS, esEstado } from '../quotes/service-flow';
+import { ServiceService, guardarReglaAprobacion, reglaAprobacion } from '../quotes/service.service';
 import { registrarAccion } from './audit';
 import { sincronizarReserva } from '../quotes/reservas';
 
@@ -203,7 +203,6 @@ export class AdminOpsController {
     return { ok: true, yaEstaba: false, at: at.toISOString(), via: p.data.via ?? 'llamada' };
   }
 
-  /** Responder cotización: ajustar montos/condiciones y marcar completed. */
   @Modulo('cotizaciones')
   /**
    * APROBAR Y MANDAR A PROVEEDORES (2026-10-15).
@@ -217,57 +216,36 @@ export class AdminOpsController {
    */
   @Post('quotes/:id/aprobar')
   async aprobar(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
-    const q = await prisma.quotes.findUnique({ where: { id } });
-    if (!q) throw new NotFoundException();
-    const r = (q.requirements ?? {}) as { origen?: unknown; folio?: unknown; precioAjustado?: unknown };
-    if (r.origen !== 'cotizador') throw new BadRequestException('Solo las del cotizador del sitio se aprueban así; las demás se responden.');
-    if (r.precioAjustado) throw new BadRequestException('Le cambiaste el precio: respóndele para que el cliente la acepte.');
-    if (q.accepted_at || q.status !== 'pending') throw new BadRequestException('Esta cotización ya se había aprobado o respondido.');
-
-    // Todas las partes del mismo documento (el cotizador parte por línea).
-    const folio = typeof r.folio === 'string' && r.folio ? r.folio : null;
-    const partes = folio
-      ? await prisma.quotes.findMany({ where: { status: 'pending', accepted_at: null, requirements: { path: '$.folio', equals: folio } } })
-      : [q];
-    const ahora = new Date();
-    const vence = new Date(`${vigenciaPorDefecto()}T00:00:00Z`);
-    for (const p of partes) {
-      await prisma.quotes.update({
-        where: { id: p.id },
-        data: {
-          status: 'completed',
-          responded_at: ahora,
-          responded_by: req.adminNombre ?? null,
-          valid_until: vence,
-          accepted_at: ahora,
-          service_state: estadoInicial(),
-          ...(p.first_contact_at ? {} : { first_contact_at: ahora, first_contact_via: 'cotizacion' }),
-          updated_at: ahora,
-        },
-      });
-      await prisma.service_events.create({
-        data: { quote_id: p.id, admin_id: req.adminId, to_state: estadoInicial(), note: `MAQSER24 revisó la cotización${folio ? ` ${folio}` : ''} y la mandó a los aliados` },
-      });
-      await sincronizarReserva(Number(p.id));
-    }
-
-    const ofrecidos: string[] = [];
-    for (const p of partes) ofrecidos.push(...(await this.services.ofrecerATodos(Number(p.id))).ofrecidos);
-    const unicos = [...new Set(ofrecidos)];
-
-    if (q.user_id) {
-      await this.notifications.push({
-        userId: Number(q.user_id),
-        type: 'service_status',
-        title: `Revisamos tu cotización ${folio ?? q.quote_number}`,
-        body: 'Todo en orden: ya la estamos asignando a un proveedor. Te avisamos en cuanto quede autorizada.',
-        link: `/cuenta/cotizaciones/${q.quote_number}`,
-      });
-    }
-    await registrarAccion(req, 'cotizaciones', 'solicitud.aprobar', q.quote_number, unicos.length ? `ofrecida a ${unicos.join(', ')}` : 'ningún aliado llega a la obra');
-    return { ok: true, partes: partes.length, ofrecidos: unicos };
+    const r = await this.services.aprobarDelCotizador(id, { adminId: req.adminId ?? null, adminNombre: req.adminNombre ?? null });
+    await registrarAccion(req, 'cotizaciones', 'solicitud.aprobar', r.quoteNumber, r.ofrecidos.length ? `ofrecida a ${r.ofrecidos.join(', ')}` : 'ningún aliado llega a la obra');
+    return { ok: true, partes: r.partes, ofrecidos: r.ofrecidos };
   }
 
+  /** La regla de la aprobación automática (2026-10-22): encendida o no, y hasta qué total. */
+  @Modulo('cotizaciones')
+  @Get('quotes-aprobacion')
+  aprobacionAutomatica() {
+    return reglaAprobacion();
+  }
+
+  @Modulo('cotizaciones')
+  @Put('quotes-aprobacion')
+  async guardarAprobacionAutomatica(@Req() req: AdminRequest, @Body() body: unknown) {
+    const d = z.object({ activa: z.boolean(), montoMaximo: z.number().min(0).max(100_000_000) }).safeParse(body);
+    if (!d.success) throw new BadRequestException('Regla inválida');
+    await guardarReglaAprobacion(d.data, req.adminEmail ?? 'panel');
+    await registrarAccion(req, 'cotizaciones', 'aprobacion.automatica', 'regla', `${d.data.activa ? 'encendida' : 'apagada'} · hasta ${d.data.montoMaximo}`);
+    return { ok: true };
+  }
+
+  /**
+   * Responder cotización: ajustar montos/condiciones y marcar completed.
+   *
+   * Su @Modulo se había quedado arriba del de "Aprobar" cuando se insertó esa
+   * ruta (2026-10-15), y sin módulo el guard la deja solo a Dirección:
+   * Operaciones no podía responder. Corregido el 2026-10-22.
+   */
+  @Modulo('cotizaciones')
   @Patch('quotes/:id')
   async updateQuote(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
     const schema = z.object({
