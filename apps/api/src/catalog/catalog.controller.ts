@@ -1,3 +1,4 @@
+import { enteroDeUrl, textoDeUrl } from '../common/limpiar-entradas';
 import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { ProductsService } from './products.service';
@@ -40,11 +41,13 @@ export class CatalogController {
     // Valores fuera de catálogo se ignoran (no se filtra por basura de la URL).
     const avail = availability === 'now' || availability === 'rent' || availability === 'offer' ? availability : undefined;
     const order = sort === 'low' || sort === 'high' || sort === 'new' ? sort : undefined;
+    // Números y textos de la URL validados (auditoría 2026-10-23): `?page=abc`
+    // daba NaN y un 500, y `?search=a&search=b` llegaba como arreglo.
     return this.products.list({
-      page: page ? Number(page) : undefined,
-      search: search || undefined,
-      category: category || undefined,
-      subcategory: subcategory || undefined,
+      page: enteroDeUrl(page, 1, 10_000),
+      search: textoDeUrl(search),
+      category: textoDeUrl(category, 120),
+      subcategory: textoDeUrl(subcategory, 120),
       // 1 = solo destacados · 0 = sin destacados (la parrilla del catálogo, que
       // los enseña aparte en su carrusel) · sin él = todos.
       featured: featured === '1' || featured === 'true' ? true : featured === '0' || featured === 'false' ? false : undefined,

@@ -24,7 +24,8 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { mediaDir } from './common/media';
 import { TrimPipe } from './common/trim.pipe';
-import { ZodErrorFilter } from './common/zod-filter';
+import { ErroresSinDetalle } from './common/errores';
+import { LimpiarEntradas } from './common/limpiar-entradas';
 import { AppModule } from './app.module';
 
 /**
@@ -116,7 +117,10 @@ async function bootstrap() {
   // Espacios de los extremos fuera, en TODO lo que entra (ver trim.pipe.ts):
   // una contraseña pegada con un espacio al final no puede parecer incorrecta.
   app.useGlobalPipes(new TrimPipe());
-  app.useGlobalFilters(new ZodErrorFilter());
+  // Lo que escribe el público se guarda como texto, no como HTML (ver limpiar-entradas.ts).
+  app.useGlobalInterceptors(new LimpiarEntradas());
+  // Ningún error cuenta cómo está hecho el sistema (ver errores.ts).
+  app.useGlobalFilters(new ErroresSinDetalle());
 
   // Archivos subidos (MEDIA_DIR). En cPanel los sirve Apache desde el subdominio
   // media.* y esta ruta no se usa; en local y como respaldo, la API los sirve aquí.

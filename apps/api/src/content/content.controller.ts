@@ -1,3 +1,4 @@
+import { enteroDeUrl } from '../common/limpiar-entradas';
 import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ContentService } from './content.service';
@@ -28,7 +29,7 @@ export class ContentController {
 
   @Get('blogs')
   blogs(@Query('limit') limit?: string) {
-    return this.content.blogs(limit ? Number(limit) : undefined);
+    return this.content.blogs(enteroDeUrl(limit, 1, 50));
   }
 
   @Get('blogs/:id')
@@ -72,6 +73,6 @@ export class ContentController {
 
   @Get('reviews')
   reviews(@Query('limit') limit?: string) {
-    return this.content.reviews(limit ? Number(limit) : undefined);
+    return this.content.reviews(enteroDeUrl(limit, 1, 50));
   }
 }
