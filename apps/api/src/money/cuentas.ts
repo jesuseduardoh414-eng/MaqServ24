@@ -111,15 +111,19 @@ export async function programarPago(quoteId: number): Promise<string | null> {
  * Lo que se le paga al aliado por un servicio, ANTES de que cierre (2026-10-22):
  * es lo que ve en la oferta y en su portal, no el precio al cliente. La misma
  * cuenta que `abrirCuenta`: lo cotizado sin IVA (con fletes) menos la comisión.
+ *
+ * Sin el porcentaje de comisión (decisión de Dirección, 2026-10-23): el aliado
+ * no debe ver ni el precio al cliente ni cuánto se queda MAQSER24, que con su
+ * pago bastaba para sacar el otro.
  */
 export function parteDelAliado(
   q: { subtotal: unknown; freight_cost: unknown; tax: unknown; service_category: string | null },
   reglas: ReglasDinero,
-): { monto: number; masIva: boolean; comisionPct: number } | null {
+): { monto: number; masIva: boolean } | null {
   const base = r2(Number(q.subtotal ?? 0) + Number(q.freight_cost ?? 0));
   if (base <= 0) return null;
   const pct = comisionDe(reglas, q.service_category);
-  return { monto: r2(base * (1 - pct / 100)), masIva: Number(q.tax ?? 0) > 0, comisionPct: pct };
+  return { monto: r2(base * (1 - pct / 100)), masIva: Number(q.tax ?? 0) > 0 };
 }
 
 /** Lo que el aliado factura: su parte más IVA si el servicio llevó IVA. */

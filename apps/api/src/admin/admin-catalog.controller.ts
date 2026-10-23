@@ -30,7 +30,8 @@ function leerAtributos(v: string | undefined): object | null {
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
 import { QuoterService } from '../quoter/quoter.service';
-import { horarioSchema, tarifasDe } from '@maqserv/config';
+import { horarioSchema, puedeVerCon, tarifasDe } from '@maqserv/config';
+import { permisosVigentes } from './permisos';
 import { ESTADO_ELIMINADO } from '../catalog/ofertas';
 import { AJUSTE_MARGEN, guardarAjuste, margenAliadoPct } from '../common/platform-settings';
 import { imageUrl } from '../catalog/images';
@@ -95,6 +96,43 @@ const productSchema = z.object({
   /** JSON del horario; vacío = sin horario (atiende siempre). */
   horario: z.string().max(400).optional(),
 });
+
+/**
+ * LOS PRECIOS SOLO LOS CAMBIA QUIEN TIENE "TARIFAS" (decisión de Dirección,
+ * 2026-10-23; de fábrica, solo Dirección). Operaciones sigue dando de alta y
+ * editando fichas, pero lo que es precio al cliente —precio, tarifas, mínimo,
+ * flete, precio anterior y, al editar, la unidad con la que se cobra ("por
+ * viaje" → "por hora" cambia el precio aunque el número sea el mismo)— no se
+ * escribe aunque venga en el formulario. Al CREAR sí se pone la unidad: la
+ * ficha nace sin precio y Dirección lo pone después. Lo que cobra el aliado
+ * (`costoAliado`) sí se guarda: es un dato que da él.
+ */
+async function sinPreciosSiNoPuede<T extends { price?: number; tarifas?: string; minimo?: number; rentalFreight?: number; oldPrice?: number; priceUnit?: string }>(
+  req: AdminRequest,
+  d: T,
+  alCrear: boolean,
+): Promise<{ datos: T; puede: boolean }> {
+  if (puedeVerCon(req.adminRol, 'tarifas', await permisosVigentes())) return { datos: d, puede: true };
+  const { price: _p, tarifas: _t, minimo: _m, rentalFreight: _f, oldPrice: _o, ...resto } = d;
+  void _p; void _t; void _m; void _f; void _o;
+  const datos = { ...resto } as T;
+  if (!alCrear) delete datos.priceUnit;
+  return { datos, puede: false };
+}
+
+/** Lo que es precio de una ficha, comparable (vacío y 0 cuentan igual), para la bitácora. */
+function preciosDe(p: { cprice: unknown; tarifas: unknown; minimo: unknown; rental_freight: unknown; pprice: unknown; price_unit: string | null }): Record<string, string> {
+  const n = (v: unknown) => String(Number(v ?? 0) || 0);
+  const t = tarifasDe(p.tarifas);
+  return {
+    precio: n(p.cprice),
+    tarifas: JSON.stringify(Object.fromEntries(Object.entries(t).sort(([a], [b]) => a.localeCompare(b)))),
+    minimo: n(p.minimo),
+    flete: n(p.rental_freight),
+    anterior: n(p.pprice),
+    unidad: p.price_unit ?? '',
+  };
+}
 
 /** JSON de tarifas del formulario (texto) → objeto limpio; '' → {} (quitar precios). */
 function leerTarifas(v: string | undefined): Record<string, number> | undefined {
@@ -338,11 +376,13 @@ export class AdminCatalogController {
 
   @Post('products')
   @UseInterceptors(FileInterceptor('photo', { storage: photoStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
-  async createProduct(@Body() body: unknown, @UploadedFile() photo?: Express.Multer.File) {
+  async createProduct(@Body() body: unknown, @Req() req: AdminRequest, @UploadedFile() photo?: Express.Multer.File) {
     const parsed = productSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
     if (photo && !IMAGE_TYPES.test(photo.mimetype)) throw new BadRequestException('Foto inválida');
-    const d = parsed.data;
+    // Sin "Tarifas", la ficha nace sin precio: lo pone Dirección.
+    const { datos: sinPrecio } = await sinPreciosSiNoPuede(req, parsed.data, true);
+    const d = { ...sinPrecio, price: sinPrecio.price ?? 0 };
     const providerId = leerProveedor(d.providerId) ?? null;
     await exigirProveedor(providerId);
     // Solo una máquina de aliado lleva tipo; la ficha ES el tipo.
@@ -391,6 +431,7 @@ export class AdminCatalogController {
   async updateProduct(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: unknown,
+    @Req() req: AdminRequest,
     @UploadedFile() photo?: Express.Multer.File,
   ) {
     const exists = await prisma.products.findUnique({ where: { id } });
@@ -398,7 +439,8 @@ export class AdminCatalogController {
     const parsed = productSchema.partial().safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
     if (photo && !IMAGE_TYPES.test(photo.mimetype)) throw new BadRequestException('Foto inválida');
-    const d = parsed.data;
+    // Sin "Tarifas" los precios no se tocan (ver `sinPreciosSiNoPuede`).
+    const { datos: d, puede: puedePrecios } = await sinPreciosSiNoPuede(req, parsed.data, false);
     const providerId = leerProveedor(d.providerId);
     await exigirProveedor(providerId);
     // El tipo (2026-10-22): sin aliado no lleva; si cambia de línea y no
@@ -447,6 +489,14 @@ export class AdminCatalogController {
         updated_at: new Date(),
       },
     });
+    // Quien sí puede cambiar precios deja rastro de qué cambió (auditoría 2026-10-23).
+    if (puedePrecios) {
+      const despues = await prisma.products.findUnique({ where: { id }, select: { cprice: true, tarifas: true, minimo: true, rental_freight: true, pprice: true, price_unit: true } });
+      const a = preciosDe(exists);
+      const b = despues ? preciosDe(despues) : a;
+      const cambios = Object.keys(a).filter((k) => a[k] !== b[k]).map((k) => `${k}: ${a[k] || '—'} → ${b[k] || '—'}`);
+      if (cambios.length) await registrarAccion(req, 'tarifas', 'precio.ficha', exists.name, cambios.join(' · '));
+    }
     return { ok: true };
   }
 

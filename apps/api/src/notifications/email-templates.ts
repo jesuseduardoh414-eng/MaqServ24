@@ -214,9 +214,9 @@ export function correoOfertaAAliado(d: {
   /** Importe que el cliente ya vio y aceptó (solicitudes del cotizador). */
   total?: number | null;
   /** Lo que se le paga a él (2026-10-22): manda sobre `total`, que es del cliente. */
-  pago?: { monto: number; masIva: boolean; comisionPct: number } | null;
-  /** Las partidas de la cotización (2026-10-15): el aliado ve la cotización completa. */
-  partidas?: Array<{ concepto: string; cantidad: string; importe: number }>;
+  pago?: { monto: number; masIva: boolean } | null;
+  /** Las partidas de la cotización (2026-10-15): qué y cuánto, sin importes (2026-10-23). */
+  partidas?: Array<{ concepto: string; cantidad: string }>;
   /** Folio del documento del cotizador (MQ-/TR-). */
   documento?: string | null;
   /** Se le ofreció a varios a la vez: el primero que acepte se la queda. */
@@ -227,15 +227,14 @@ export function correoOfertaAAliado(d: {
   const filas: Array<[string, string]> = [];
   if (d.categoria) filas.push(['Servicio', d.categoria]);
   if (d.zona) filas.push(['Dónde', d.zona]);
-  if (d.pago) filas.push(['Te pagamos', `${money(d.pago.monto)}${d.pago.masIva ? ' + IVA' : ''} (ya sin la comisión de ${d.pago.comisionPct}%)`]);
-  else if (d.total != null && d.total > 0) filas.push(['Importe cotizado', money(d.total)]);
+  // Solo lo suyo: ni el precio al cliente ni la comisión (decisión de Dirección, 2026-10-23).
+  if (d.pago) filas.push(['Te pagamos', `${money(d.pago.monto)}${d.pago.masIva ? ' + IVA' : ''}`]);
   if (d.documento) filas.push(['Cotización', d.documento]);
   filas.push(['Folio', d.folio]);
   const partidas = d.partidas?.length
     ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;margin:14px 0 0;border-collapse:collapse;font-size:13.5px;">
         ${d.partidas.map((r) => `<tr>
           <td style="padding:6px 0;border-bottom:1px solid #E5E7EB;color:${TINTA};">${esc(r.concepto)}<div style="color:${GRIS};font-size:12.5px;">${esc(r.cantidad)}</div></td>
-          <td style="padding:6px 0;border-bottom:1px solid #E5E7EB;text-align:right;white-space:nowrap;color:${TINTA};">${money(r.importe)}</td>
         </tr>`).join('')}
       </table>`
     : '';
@@ -248,7 +247,7 @@ export function correoOfertaAAliado(d: {
     html: marco(
       `${titulo('Tenemos una solicitud para ustedes')}
       <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : `Hola,`}</p>
-      <p style="margin:0;">Nos entró un trabajo que corresponde a lo que ustedes atienden.${d.total != null && d.total > 0 ? ' El cliente ya vio el precio y lo aceptó: revisa que todo cuadre.' : ''}</p>
+      <p style="margin:0;">Nos entró un trabajo que corresponde a lo que ustedes atienden.${d.total != null && d.total > 0 ? ' El cliente ya lo aceptó: revisa que todo cuadre.' : ''}</p>
       ${datos(filas)}
       ${partidas}
       ${d.detalle ? `<p style="margin:12px 0 0;color:${TINTA2};">${esc(d.detalle)}</p>` : ''}

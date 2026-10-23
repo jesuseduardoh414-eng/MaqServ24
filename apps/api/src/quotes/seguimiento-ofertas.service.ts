@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
+import { zonaAproximada } from '../providers/pedido';
 import { prisma } from '@maqserv/db';
 import { MailerService } from '../notifications/mailer.service';
 import { correoRecordatorioOferta } from '../notifications/email-templates';
@@ -139,7 +140,8 @@ export class SeguimientoOfertasService implements OnModuleInit, OnModuleDestroy 
             contacto: p.contact_name,
             folio: q.quote_number,
             categoria: (q.service_category && lineas.get(q.service_category)) || q.service_category,
-            zona: q.address,
+            // Solo la zona: la oferta aún no es suya (ver "antes de aceptar" en providers/pedido.ts).
+            zona: zonaAproximada(q.address),
             esperando: legible(o.minutosEsperando),
             url,
           }),

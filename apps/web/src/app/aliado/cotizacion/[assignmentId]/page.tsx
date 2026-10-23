@@ -81,7 +81,7 @@ export default async function DocumentoParaAliado({ params }: { params: Promise<
                 {d.parcial
                   ? `Tu parte de la cotización que aceptó el cliente: solo lo de la solicitud ${d.quoteNumber}.`
                   : `La que recibió el cliente por la solicitud ${d.quoteNumber}.`}{' '}
-                Imprímela o guárdala en PDF con el botón de arriba del documento.
+                Sin importes; lo que te pagamos está en tu portal. Imprímela o guárdala en PDF con el botón de arriba del documento.
               </p>
             </div>
           </header>
@@ -99,7 +99,10 @@ export default async function DocumentoParaAliado({ params }: { params: Promise<
               firma: d.documento.firma,
               saludo: d.documento.saludo,
               calc: d.documento.calc,
-              mostrarPrecios: true,
+              // Sin importes: son el precio al cliente (decisión de Dirección,
+              // 2026-10-23). Lo suyo está en el portal como "Te pagamos".
+              mostrarPrecios: false,
+              notaSinPrecios: 'Los importes de la cotización no se muestran aquí. Lo que te pagamos por este servicio está en tu portal.',
               logo,
             }}
           />

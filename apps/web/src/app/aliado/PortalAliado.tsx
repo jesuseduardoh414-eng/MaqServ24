@@ -70,7 +70,8 @@ export interface DatosPortal {
     pago?: Pago | null;
     /** La cotización completa (2026-10-15): folio y partidas del documento. */
     documento?: string | null;
-    partidas?: Array<{ concepto: string; cantidad: string; importe: number }>;
+    /** Qué y cuánto, sin importes: esos son el precio al cliente (2026-10-23). */
+    partidas?: Array<{ concepto: string; cantidad: string }>;
   }>;
   enCurso: Array<{
     assignmentId?: number;
@@ -293,8 +294,8 @@ const AMBAR = 'var(--color-warning)';
 const ROJO = 'var(--color-error)';
 const AZUL = 'var(--color-primary)';
 
-/** Lo que se le paga al aliado por un servicio: su parte, sin la comisión. */
-type Pago = { monto: number; masIva: boolean; comisionPct: number };
+/** Lo que se le paga al aliado por un servicio. Ni el precio al cliente ni la comisión (2026-10-23). */
+type Pago = { monto: number; masIva: boolean };
 const pagoTexto = (p: Pago | null | undefined) => (p && p.monto > 0 ? `${dinero(p.monto)}${p.masIva ? ' + IVA' : ''}` : null);
 
 const dinero = (n: number | null | undefined) =>
@@ -701,16 +702,18 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                     <h3 className="al-card-t">{s.category ?? 'Servicio'}</h3>
                   </div>
                   {pagoTexto(s.pago) ? (
-                    <div className="al-importe" title={`Lo cotizado sin IVA, menos la comisión de MAQSER24 (${s.pago?.comisionPct}%)`}>
+                    <div className="al-importe" title="Lo que te pagamos por este servicio">
                       <span className="al-dato-l">Te pagamos</span>
                       <b>{pagoTexto(s.pago)}</b>
                     </div>
                   ) : null}
                 </div>
 
+                {/* Por contestar solo va la zona: la obra, la calle y el contacto se ven
+                    al aceptar (la oferta sale a varios aliados a la vez, 2026-10-23). */}
                 <div className="al-dos" style={{ marginTop: 16 }}>
-                  <Dato label="Obra" valor={s.site} />
-                  <Dato label="Dirección" valor={s.address ?? 'Por confirmar'} />
+                  <Dato label="Zona" valor={s.address ?? 'Por confirmar'} />
+                  <Dato label="Obra y contacto" valor="Los ves al aceptar" />
                 </div>
 
                 <LoQuePide pedido={s.pedido} />
@@ -724,8 +727,8 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                       <dl>
                         {s.partidas.map((p, i) => (
                           <div key={i}>
-                            <dt>{p.concepto}{p.cantidad ? <span style={{ display: 'block', fontWeight: 400, color: 'var(--color-text-muted)' }}>{p.cantidad}</span> : null}</dt>
-                            <dd className="ms-num" style={{ textAlign: 'right' }}>{dinero(p.importe)}</dd>
+                            <dt>{p.concepto}</dt>
+                            <dd style={{ textAlign: 'right', color: 'var(--color-text-muted)' }}>{p.cantidad}</dd>
                           </div>
                         ))}
                       </dl>

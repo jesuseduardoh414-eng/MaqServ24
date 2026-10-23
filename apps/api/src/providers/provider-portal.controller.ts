@@ -31,7 +31,7 @@ import { documentosQueAvisan, textoAviso } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial } from '../catalog/provider-history';
 import { ServiceService } from '../quotes/service.service';
 import { PASOS, avance, esEstado } from '../quotes/service-flow';
-import { parteDelDocumento, partidasParaAliado } from '../quoter/parte-del-documento';
+import { calcSinPrecios, parteDelDocumento, partidasParaAliado } from '../quoter/parte-del-documento';
 import { lista } from '../common/json-list';
 import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
@@ -572,8 +572,11 @@ export class ProviderPortalController {
     // Mientras no la acepte: ni quién es el cliente, ni la obra, ni a quién
     // buscar (ver "antes de aceptar" en pedido.ts); del documento, solo lo que
     // se pinta (partidas, empresa, firma), nada más del guardado.
+    // Nunca los importes: son el precio al cliente (decisión de Dirección,
+    // 2026-10-23). Lo suyo lo ve como "Te pagamos" en el portal.
+    const s = p.snapshot as Record<string, unknown>;
+    const documento = { calc: calcSinPrecios(p.snapshot.calc), emitida: s.emitida, empresa: s.empresa, firma: s.firma, saludo: s.saludo };
     if (a.state === 'propuesto') {
-      const s = p.snapshot as Record<string, unknown>;
       return {
         folio: p.doc.folio,
         tipo: p.doc.kind,
@@ -584,7 +587,7 @@ export class ProviderPortalController {
         municipio: p.doc.municipality,
         notas: sinContacto(p.doc.notes),
         parcial: p.parcial,
-        documento: { calc: p.snapshot.calc, emitida: s.emitida, empresa: s.empresa, firma: s.firma, saludo: s.saludo },
+        documento,
       };
     }
     return {
@@ -597,7 +600,7 @@ export class ProviderPortalController {
       municipio: p.doc.municipality,
       notas: p.doc.notes,
       parcial: p.parcial,
-      documento: p.snapshot,
+      documento,
     };
   }
 

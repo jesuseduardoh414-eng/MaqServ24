@@ -645,7 +645,7 @@ export function ProductForm({
                           </td>
                         ) : null}
                         <td>
-                          <input type="number" min={0} step="0.01" value={publico[u.clave] ?? ''} onChange={(e) => setPublico({ ...publico, [u.clave]: e.target.value })} placeholder="—" aria-label={`Precio al cliente por ${u.singular}`} className="adm-input adm-num" style={{ width: 130, height: 34 }} />
+                          <input type="number" min={0} step="0.01" value={publico[u.clave] ?? ''} onChange={(e) => setPublico({ ...publico, [u.clave]: e.target.value })} placeholder="—" aria-label={`Precio al cliente por ${u.singular}`} disabled={!puedeTarifas} className="adm-input adm-num" style={{ width: 130, height: 34 }} />
                         </td>
                         {proveedor ? (
                           <td className="adm-num" style={{ color: m === null ? 'var(--adm-muted)' : m < 0 ? 'var(--adm-bad)' : m < 10 ? 'var(--adm-warn)' : 'var(--adm-ok)', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -653,7 +653,7 @@ export function ProductForm({
                           </td>
                         ) : null}
                         <td style={{ textAlign: 'center' }}>
-                          <input type="radio" name="_principal" checked={unidad === u.clave} disabled={!tarifasNum[u.clave]} onChange={() => setUnidad(u.clave)} aria-label={`${u.singular} como unidad principal`} style={{ accentColor: 'var(--adm-accent)' }} />
+                          <input type="radio" name="_principal" checked={unidad === u.clave} disabled={!puedeTarifas || !tarifasNum[u.clave]} onChange={() => setUnidad(u.clave)} aria-label={`${u.singular} como unidad principal`} style={{ accentColor: 'var(--adm-accent)' }} />
                         </td>
                       </tr>
                     );
@@ -663,7 +663,7 @@ export function ProductForm({
             </div>
             {proveedor ? (
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <Btn size="sm" onClick={() => proponer(true)} disabled={margenPct === null || Object.keys(costoNum).length === 0}>
+                <Btn size="sm" onClick={() => proponer(true)} disabled={!puedeTarifas || margenPct === null || Object.keys(costoNum).length === 0}>
                   Proponer con margen{margenPct !== null ? ` de ${margenPct} %` : ''}
                 </Btn>
                 <span className="adm-help">
@@ -671,12 +671,17 @@ export function ProductForm({
                 </span>
               </div>
             ) : null}
+            {/* Precios solo con el permiso "Tarifas" (decisión de Dirección, 2026-10-23):
+                la API tampoco los guarda sin él. */}
+            {!puedeTarifas ? (
+              <span className="adm-help">Los precios al cliente solo los cambia Dirección (permiso «Tarifas»). Puedes guardar lo demás de la ficha.</span>
+            ) : null}
             </>
             )}
             <div className="pf-2">
               {tipoActual === 'servicio' ? null : (
                 <Campo etiqueta="Mínimo" nota={unidad ? `En ${unidadesPrecio.find((u) => u.clave === unidad)?.plural ?? 'unidades'}. 0 = sin mínimo.` : '0 = sin mínimo.'}>
-                  <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} className="adm-input" />
+                  <input type="number" min={0} step="1" value={minimo} onChange={(e) => setMinimo(e.target.value)} disabled={!puedeTarifas} className="adm-input" />
                 </Campo>
               )}
               {/* `grupo`: lleva varios botones; dentro de un <label>, tocar el texto pulsaba el primero. */}
@@ -714,11 +719,11 @@ export function ProductForm({
             <div className="pf-2">
               {tipoActual === 'servicio' ? null : isRental ? (
                 <Campo etiqueta="Flete por km" nota="Opcional. Vacío = tarifa general del traslado.">
-                  <input name="rentalFreight" type="number" step="0.01" min={0} defaultValue={initial.rentalFreight ?? ''} className="adm-input" />
+                  <input name="rentalFreight" type="number" step="0.01" min={0} defaultValue={initial.rentalFreight ?? ''} readOnly={!puedeTarifas} className="adm-input" />
                 </Campo>
               ) : (
                 <Campo etiqueta="Precio anterior" nota="Opcional, se muestra tachado como oferta.">
-                  <input name="oldPrice" type="number" step="0.01" min={0} defaultValue={initial.oldPrice ?? ''} className="adm-input" />
+                  <input name="oldPrice" type="number" step="0.01" min={0} defaultValue={initial.oldPrice ?? ''} readOnly={!puedeTarifas} className="adm-input" />
                 </Campo>
               )}
               <Campo etiqueta={isRental ? 'Unidades iguales' : 'Existencias'} nota={isRental ? 'Cuántas máquinas iguales tiene para rentar.' : 'Cuántas tiene para vender. Vacío = sin control.'}>

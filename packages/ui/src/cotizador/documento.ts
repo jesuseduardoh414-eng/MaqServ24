@@ -36,6 +36,8 @@ export interface DatosDocumento {
   calc: CalculoCotizacion;
   /** Con precios ocultos sale como "solicitud": conceptos sí, importes no. */
   mostrarPrecios: boolean;
+  /** La nota que va en lugar de los totales cuando no hay precios (por defecto, la de la solicitud del cliente). */
+  notaSinPrecios?: string;
   /** Logo para fondo claro. Sin él se imprime el nombre de la empresa. */
   logo?: string | null;
   acento?: string;
@@ -130,8 +132,8 @@ export function documentoCuerpo(d: DatosDocumento): string {
         ${calc.con_iva ? `<div class="tr"><span>I.V.A. ${Math.round(calc.iva_tasa * 100)}%</span><span>${money2(calc.iva)}</span></div>` : ''}
         <div class="tr g"><span>Total</span><span>${money2(calc.total)}</span></div>
       </div>`
-    : `<div class="czdoc-note">Esta solicitud no incluye importes. Un asesor le enviará la
-        cotización con precios y vigencia.</div>`;
+    : `<div class="czdoc-note">${d.notaSinPrecios ? esc(d.notaSinPrecios) : `Esta solicitud no incluye importes. Un asesor le enviará la
+        cotización con precios y vigencia.`}</div>`;
 
   const marca = d.logo
     ? `<img src="${esc(d.logo)}" alt="${esc(empresa.nombre)}">`

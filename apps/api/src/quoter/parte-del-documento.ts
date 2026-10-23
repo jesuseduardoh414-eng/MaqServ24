@@ -71,10 +71,26 @@ export async function parteDelDocumento(q: SolicitudDeLaParte): Promise<ParteDel
 export const claveDeRenglon = (r: Pick<RenglonCotizacion, 'clase' | 'id'>) => `${r.clase}:${r.id}`;
 
 /** Los renglones como se le enseñan al aliado en el correo y en su portal. */
-export function partidasParaAliado(calc: CalculoCotizacion): Array<{ concepto: string; cantidad: string; importe: number }> {
+/**
+ * Las partidas para el aliado: qué y cuánto, SIN importes (decisión de
+ * Dirección, 2026-10-23): esos son el precio al cliente. Lo suyo es "Te pagamos".
+ */
+export function partidasParaAliado(calc: CalculoCotizacion): Array<{ concepto: string; cantidad: string }> {
   return calc.renglones
     .filter((r) => r.concepto)
-    .map((r) => ({ concepto: String(r.concepto), cantidad: `${r.cantidad ?? ''} ${r.unidad ?? ''}`.trim(), importe: Number(r.importe ?? 0) }));
+    .map((r) => ({ concepto: String(r.concepto), cantidad: `${r.cantidad ?? ''} ${r.unidad ?? ''}`.trim() }));
+}
+
+/** El cálculo del documento sin ningún precio del cliente (para el aliado). */
+export function calcSinPrecios(calc: CalculoCotizacion): CalculoCotizacion {
+  return {
+    ...calc,
+    renglones: calc.renglones.map((r) => ({ ...r, pu: 0, importe: 0 })),
+    desglose: { renta: 0, servicios: 0, fletes: 0, materiales: 0 },
+    subtotal: 0,
+    iva: 0,
+    total: 0,
+  };
 }
 
 /** El cálculo con solo los renglones de esta parte y sus importes. */
