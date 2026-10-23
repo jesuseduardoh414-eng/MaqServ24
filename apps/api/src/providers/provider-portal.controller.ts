@@ -8,7 +8,9 @@ import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestj
 import { MoneyService } from '../money/money.service';
 import { aFacturarPorAliado, parteDelAliado } from '../money/cuentas';
 import { reglasDinero } from '../money/reglas';
-import { facturaStorage } from '../common/archivos-privados';
+import { promises as fs } from 'node:fs';
+import { Throttle } from '@nestjs/throttler';
+import { facturaStorage, rutaPrivada } from '../common/archivos-privados';
 import { atributosDe, esLineaServicio, horarioSchema, requestFormFor, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
 
 import { MailerService } from '../notifications/mailer.service';
@@ -20,6 +22,7 @@ import { sanitizeUserHtml } from '../common/sanitize';
 import { z } from 'zod';
 import { zCorreo, zTelefono } from '../common/campos';
 import { mediaStorage } from '../common/media-multer';
+import { borrarSubidas } from '../common/media';
 import { imageUrl } from '../catalog/images';
 import {
   estadoDocumentos, estaVerificado, mesesEnRed, papelesQueFaltan, papelesVigentes, DIAS_AVISO, DOC_LABEL, TIPOS_DOC, type TipoDoc,
@@ -113,6 +116,10 @@ const MAX_FOTOS_OFERTA = 6;
 const fecha = (v: string | null | undefined): Date | null =>
   v && v.trim() ? new Date(`${v}T00:00:00Z`) : null;
 
+/** `AAAA-MM-DD` que de verdad es una fecha (antes una mal escrita daba 500 y dejaba la foto suelta). */
+const fechaValida = (v: string | null | undefined): boolean =>
+  Boolean(v && /^\d{4}-\d{2}-\d{2}$/.test(v.trim()) && !Number.isNaN(fecha(v)?.getTime()));
+
 @Controller('aliado')
 @UseGuards(ProviderLinkGuard)
 export class ProviderPortalController {
@@ -127,6 +134,9 @@ export class ProviderPortalController {
    * XML, reconocidos por sus bytes y guardados fuera de lo público. En cuanto
    * el cliente pagó y está la factura, el pago se programa solo.
    */
+  // Cada subida escribe en disco antes de saber si el servicio es suyo: con
+  // tope, un enlace válido no puede llenar la cuota del hosting (auditoría 2026-10-23).
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('facturas/:quoteNumber')
   @UseInterceptors(FileFieldsInterceptor([{ name: 'pdf', maxCount: 1 }, { name: 'xml', maxCount: 1 }], { storage: facturaStorage(), limits: { fileSize: 5 * 1024 * 1024 } }))
   async subirFactura(
@@ -134,10 +144,15 @@ export class ProviderPortalController {
     @Param('quoteNumber') quoteNumber: string,
     @UploadedFiles() archivos?: { pdf?: Express.Multer.File[]; xml?: Express.Multer.File[] },
   ) {
-    return this.money.recibirFactura(req.providerId, quoteNumber, {
-      pdf: archivos?.pdf?.[0]?.filename,
-      xml: archivos?.xml?.[0]?.filename,
-    });
+    const pdf = archivos?.pdf?.[0]?.filename;
+    const xml = archivos?.xml?.[0]?.filename;
+    try {
+      return await this.money.recibirFactura(req.providerId, quoteNumber, { pdf, xml });
+    } catch (e) {
+      // No era suyo, ya estaba pagado…: lo subido no se queda huérfano en disco.
+      await Promise.all([pdf, xml].filter((r): r is string => Boolean(r)).map((r) => fs.unlink(rutaPrivada(r)).catch(() => undefined)));
+      throw e;
+    }
   }
 
   /** Todo lo que el aliado ve al abrir su enlace. */
@@ -674,6 +689,22 @@ export class ProviderPortalController {
     const d = p.data;
     const limpio = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim() || null);
 
+    /**
+     * El correo NO se cambia desde aquí si ya hay uno (auditoría 2026-10-23).
+     * A ese correo salen solos los enlaces nuevos (ofertas, recordatorios,
+     * pagos): quien tuviera un enlace reenviado ponía el suyo, y al revocarle
+     * el acceso el siguiente aviso le mandaba un enlace válido otra vez. Si no
+     * tenía correo, sí puede ponerlo; cambiarlo lo hace la oficina en el panel.
+     */
+    if (d.email !== undefined) {
+      const actual = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { email: true } });
+      const antes = (actual?.email ?? '').trim().toLowerCase();
+      const nuevo = (limpio(d.email) ?? '').toLowerCase();
+      if (antes && nuevo !== antes) {
+        throw new BadRequestException('Para cambiar tu correo pídelo a MAQSER24: por seguridad no se cambia desde aquí.');
+      }
+    }
+
     await prisma.providers.update({
       where: { id: req.providerId },
       data: {
@@ -710,6 +741,7 @@ export class ProviderPortalController {
    * lo ve en su portal, pero no sale en el sitio hasta que MAQSER24 lo publica.
    * Ver `catalog/ofertas.ts`.
    */
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('equipos')
   @UseInterceptors(FilesInterceptor('fotos', MAX_FOTOS_OFERTA, { storage: docStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
   async ofrecerEquipo(
@@ -851,6 +883,7 @@ export class ProviderPortalController {
     return { ok: true, id: creado.id };
   }
 
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('documentos')
   @UseInterceptors(FileInterceptor('file', { storage: docStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
   async subirDocumento(
@@ -859,8 +892,23 @@ export class ProviderPortalController {
     @UploadedFile() file?: Express.Multer.File,
   ) {
     const p = documentoSchema.safeParse(body);
-    if (!p.success) throw new BadRequestException('Elige qué documento es y hasta cuándo vale.');
-    const d = p.data;
+    // Un papel sin archivo, o una póliza sin vigencia, contaba como "al día" y
+    // devolvía el sello (auditoría 2026-10-23): se exige la foto o el PDF, y la
+    // fecha de la póliza.
+    const problema = !p.success
+      ? 'Elige qué documento es y hasta cuándo vale.'
+      : !file
+        ? 'Sube la foto o el PDF del documento.'
+        : p.data.expiresAt?.trim() && !fechaValida(p.data.expiresAt)
+          ? 'Escribe la fecha de vencimiento como AAAA-MM-DD.'
+          : p.data.kind === 'seguro' && !fechaValida(p.data.expiresAt)
+            ? 'Escribe hasta cuándo vale la póliza.'
+            : null;
+    if (problema) {
+      if (file) await borrarSubidas([`uploads/${file.filename}`]).catch(() => undefined);
+      throw new BadRequestException(problema);
+    }
+    const d = p.data!;
 
     const doc = await prisma.provider_documents.create({
       data: {

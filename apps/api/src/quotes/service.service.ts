@@ -11,6 +11,7 @@ import { confirmarEquipos, sincronizarReserva } from './reservas';
 import { abrirCuenta, parteDelAliado } from '../money/cuentas';
 import { reglasDinero } from '../money/reglas';
 import { MOTIVO_SE_BAJO } from '../catalog/provider-history';
+import { conCandado } from '../common/candado';
 import { MatchingService } from './matching.service';
 import { normalizarZona } from './matching';
 import { vigenciaPorDefecto } from './quote-validity';
@@ -695,40 +696,54 @@ export class ServiceService {
       );
     }
 
-    await prisma.service_assignments.update({
-      where: { id: assignmentId },
-      data: {
-        state: estado,
-        reason: opts.reason?.trim() || null,
-        responded_at: new Date(),
-        ...(estado === 'aceptado' && opts.committedAt ? { committed_at: opts.committedAt } : {}),
-      },
-    });
-
     const quoteId = Number(a.quote_id);
 
     /**
-     * EL PRIMERO QUE ACEPTA SE LA QUEDA (2026-10-15). A los demás aliados a
-     * los que se les ofreció y no han contestado se les retira la oferta
-     * ("tomado"): no es un rechazo suyo ni cuenta en su contra.
+     * Contestar y retirar a los demás van JUNTOS y de uno en uno por servicio
+     * (auditoría 2026-10-23). Antes se leía el estado y luego se escribía sin
+     * condición: dos aliados que aceptaban en el mismo instante quedaban los dos
+     * "aceptado", con los datos del cliente y el operador de cada uno.
      */
-    if (estado === 'aceptado') {
-      const otros = await prisma.service_assignments.findMany({
-        where: { quote_id: a.quote_id, state: 'propuesto', id: { not: assignmentId } },
-        select: { id: true },
+    await conCandado([`servicio:${quoteId}`], async () => {
+      const r = await prisma.service_assignments.updateMany({
+        where: { id: assignmentId, state: 'propuesto' },
+        data: {
+          state: estado,
+          reason: opts.reason?.trim() || null,
+          responded_at: new Date(),
+          ...(estado === 'aceptado' && opts.committedAt ? { committed_at: opts.committedAt } : {}),
+        },
       });
-      if (otros.length) {
-        await prisma.service_assignments.updateMany({
-          where: { id: { in: otros.map((o) => o.id) }, state: 'propuesto' },
-          // Sin responded_at: no contestó él, y contarlo como respuesta movería sus tiempos.
-          // Sin nombre: el motivo se ve en el portal de cada aliado, y no tiene por qué saber quién fue.
-          data: { state: 'tomado', reason: 'Lo tomó otro aliado' },
-        });
-        await prisma.service_events.create({
-          data: { quote_id: quoteId, to_state: 'tomado', note: `Se les retiró la oferta a ${otros.length} aliado(s): ya la tomó ${a.providers.name}` },
-        });
+      if (r.count !== 1) {
+        const ahora = await prisma.service_assignments.findUnique({ where: { id: assignmentId }, select: { state: true } });
+        throw new BadRequestException(
+          ahora?.state === 'tomado' ? 'Este servicio ya lo tomó otro aliado.' : 'Esta propuesta ya tenía respuesta.',
+        );
       }
-    }
+
+      /**
+       * EL PRIMERO QUE ACEPTA SE LA QUEDA (2026-10-15). A los demás aliados a
+       * los que se les ofreció y no han contestado se les retira la oferta
+       * ("tomado"): no es un rechazo suyo ni cuenta en su contra.
+       */
+      if (estado === 'aceptado') {
+        const otros = await prisma.service_assignments.findMany({
+          where: { quote_id: a.quote_id, state: 'propuesto', id: { not: assignmentId } },
+          select: { id: true },
+        });
+        if (otros.length) {
+          await prisma.service_assignments.updateMany({
+            where: { id: { in: otros.map((o) => o.id) }, state: 'propuesto' },
+            // Sin responded_at: no contestó él, y contarlo como respuesta movería sus tiempos.
+            // Sin nombre: el motivo se ve en el portal de cada aliado, y no tiene por qué saber quién fue.
+            data: { state: 'tomado', reason: 'Lo tomó otro aliado' },
+          });
+          await prisma.service_events.create({
+            data: { quote_id: quoteId, to_state: 'tomado', note: `Se les retiró la oferta a ${otros.length} aliado(s): ya la tomó ${a.providers.name}` },
+          });
+        }
+      }
+    });
 
     await prisma.service_events.create({
       data: {

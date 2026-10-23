@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { mismoSecreto } from './tasks-secret';
 
 /** Header con el que web/admin nos pasan la IP real del visitante. */
 export const CLIENT_IP_HEADER = 'x-client-ip';
@@ -44,7 +45,7 @@ export class ClientThrottlerGuard extends ThrottlerGuard {
         }
         return claimed;
       }
-      if (headers[PROXY_SECRET_HEADER] === secret) return claimed;
+      if (mismoSecreto(headers[PROXY_SECRET_HEADER], secret)) return claimed;
       // Header sin firma válida: no se cree. Se cuenta por la IP real de quien llama.
     }
     return req.ip ?? req.socket?.remoteAddress ?? 'desconocido';

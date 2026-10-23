@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { destinoSeguro } from '@/lib/google-auth';
 import { NOINDEX } from '@/lib/seo';
 import { redirect } from 'next/navigation';
 import { getTheme, t } from '@/lib/theme';
@@ -18,8 +19,8 @@ export default async function RegistroPage({ searchParams }: { searchParams: Pro
   const [theme, user, sp, proveedores] = await Promise.all([
     getTheme(), getSessionUser(), searchParams, getAuthProviders(),
   ]);
-  // Solo rutas internas y nunca `//otro-sitio` (ver destinoSeguro en google-auth).
-  const next = typeof sp.next === 'string' && sp.next.startsWith('/') && !sp.next.startsWith('//') ? sp.next : '/';
+  // Solo rutas internas (ver destinoSeguro en google-auth).
+  const next = destinoSeguro(typeof sp.next === 'string' ? sp.next : null);
   // Quien ya tiene sesión y llegó aquí con `next` (por ejemplo, desde el
   // candado de cotizar) sigue a donde iba, no al inicio.
   if (user) redirect(next);

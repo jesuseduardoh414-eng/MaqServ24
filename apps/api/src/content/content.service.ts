@@ -13,6 +13,7 @@ import type {
   WhyChooseUsItem,
 } from '@maqserv/types';
 import { imageUrl, normLegacyText } from '../catalog/images';
+import { sanitizeRichHtml, sanitizeUserHtml } from '../common/sanitize';
 import { PerfexService } from '../integrations/integrations.module';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseContacto, correoAcuseProveedor, correoContactoInterno, correoSolicitudProveedorInterno } from '../notifications/email-templates';
@@ -107,12 +108,14 @@ export class ContentService {
       id: Number(s.id),
       slug: productSlug(s.title, Number(s.id)),
       title: s.title,
-      description: s.description,
+      // El sitio pinta estos campos como HTML: se limpian al servir (auditoría
+      // 2026-10-23), así cubre también lo guardado antes.
+      description: sanitizeRichHtml(s.description),
       image: imageUrl(s.image),
-      trayectoria: s.trayectoria,
-      esencia: s.esencia,
-      servicios: s.servicios,
-      excelencia: s.excelencia,
+      trayectoria: sanitizeRichHtml(s.trayectoria),
+      esencia: sanitizeRichHtml(s.esencia),
+      servicios: sanitizeRichHtml(s.servicios),
+      excelencia: sanitizeRichHtml(s.excelencia),
       serviciosLista,
     };
   }
@@ -166,7 +169,7 @@ export class ContentService {
     void prisma.blogs.update({ where: { id }, data: { views: { increment: 1 } } }).catch(() => {});
     return {
       ...this.toBlogCard(b),
-      contentHtml: stripLeadingTitleHeading(b.details, b.title),
+      contentHtml: sanitizeRichHtml(stripLeadingTitleHeading(b.details, b.title)),
       metaTitle: b.meta_tag,
       metaDescription: b.meta_description,
     };
@@ -184,10 +187,10 @@ export class ContentService {
     return {
       frase: r.frase,
       titulo: r.titulo,
-      descripcion: normLegacyText(r.descripcion),
-      mision: normLegacyText(r.mision),
-      vision: normLegacyText(r.vision),
-      objetivos: normLegacyText(r.objetivos),
+      descripcion: sanitizeRichHtml(normLegacyText(r.descripcion)),
+      mision: sanitizeRichHtml(normLegacyText(r.mision)),
+      vision: sanitizeRichHtml(normLegacyText(r.vision)),
+      objetivos: sanitizeRichHtml(normLegacyText(r.objetivos)),
       imagenes,
     };
   }
@@ -216,6 +219,7 @@ export class ContentService {
     const telProblema = problemaTelefono(String(data.phone ?? ''));
     if (telProblema) throw new BadRequestException(telProblema);
     if (message.length < 4) throw new BadRequestException('Cuéntanos brevemente qué necesitas');
+    if (message.length > 4000) throw new BadRequestException('El mensaje es muy largo: resúmelo en menos de 4,000 caracteres.');
     const need = String(data.need ?? '').trim();
 
     const saved = await prisma.contact_messages.create({
@@ -256,11 +260,17 @@ export class ContentService {
         ...correoContactoInterno({ nombre: name, correo: email, telefono: phone, empresa: company, tema: need || null, mensaje: message, url: panel ? `${panel}/mensajes` : null }),
       });
     }
+    /**
+     * El acuse va a un correo que nadie comprobó: NO repite lo que se escribió
+     * (auditoría 2026-10-23). Repetirlo convertía el formulario en una forma de
+     * mandarle a cualquiera un correo con texto libre y remitente de MAQSER24
+     * ("tu cuenta será suspendida, entra aquí…"). Del nombre, solo la primera palabra.
+     */
     void this.mailer.enviar({
       kind: 'contact_ack',
       to: email,
       toName: name,
-      ...correoAcuseContacto({ nombre: name, mensaje: message, telefono: phone }),
+      ...correoAcuseContacto({ nombre: name.split(/\s+/)[0].slice(0, 30), mensaje: '', telefono: phone }),
     });
 
     // `crm_pushed` se sella solo si Perfex confirmó. Los que queden en false son
@@ -451,7 +461,9 @@ export class ContentService {
       // Todas: el home enseña 6 y /preguntas-frecuentes el resto, con buscador.
       take: 500,
     });
-    return rows.map((q) => ({ id: q.id, question: q.question, answer: q.answer ?? '' }));
+    // La respuesta la escribe Operaciones y el sitio la pinta como HTML: limpia
+    // al servir (auditoría 2026-10-23), también lo que ya estaba guardado.
+    return rows.map((q) => ({ id: q.id, question: q.question, answer: sanitizeUserHtml(q.answer ?? '') }));
   }
 
   /**

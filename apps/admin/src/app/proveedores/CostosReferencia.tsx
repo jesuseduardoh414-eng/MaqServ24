@@ -224,9 +224,15 @@ export function CostosReferencia({ providerId }: { providerId: number }) {
   );
 }
 
-/** Celda CSV: entre comillas si trae coma, comilla o salto de línea. */
+/**
+ * Celda CSV: entre comillas si trae coma, comilla o salto de línea. Un texto
+ * que empieza con = + - @ Excel lo ejecuta como fórmula, y los nombres y notas
+ * de un aliado vienen del registro público: se le antepone un apóstrofo
+ * (auditoría 2026-10-23). Los números negativos se quedan como están.
+ */
 const celda = (v: unknown) => {
-  const s = v == null ? '' : String(v);
+  const crudo = v == null ? '' : String(v);
+  const s = /^[=+\-@\t\r]/.test(crudo) && !/^-?\d+(\.\d+)?$/.test(crudo) ? `'${crudo}` : crudo;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const SITUACION: Record<number, string> = { 1: 'Activo en la red', [ESTADO_SOLICITUD_PROVEEDOR]: 'Solicitud por revisar', 0: 'Dado de baja' };

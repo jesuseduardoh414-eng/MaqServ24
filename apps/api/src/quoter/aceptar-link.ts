@@ -40,7 +40,7 @@ export async function firmarAceptacion(docId: number): Promise<string> {
 export async function leerAceptacion(token: string | null | undefined): Promise<number | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, algorithms: ['HS256'] });
     const id = Number(payload.sub);
     return Number.isInteger(id) && id > 0 ? id : null;
   } catch {

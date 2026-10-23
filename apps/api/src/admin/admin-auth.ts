@@ -9,7 +9,7 @@ import { prisma } from '@maqserv/db';
 import { problemaContrasena, rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 import {
   firmarRestablecimientoAdmin, hashPassword, huellaDeHash, leerRestablecimientoAdmin,
-  passwordGrant, RESTABLECER_ADMIN_MINUTOS, verifyAccessToken,
+  passwordGrant, perdonarIntentos, RESTABLECER_ADMIN_MINUTOS, verifyAccessToken,
 } from '../common/app-auth';
 import { MailerService } from '../notifications/mailer.service';
 import { correoRestablecerContrasena } from '../notifications/email-templates';
@@ -280,6 +280,7 @@ export class AdminAuthController {
     // La caché del guard guarda `role`, no el hash, pero se limpia igual: es
     // barato y evita cualquier sorpresa con una sesión a medio renovar.
     forgetAdmin(a.id);
+    perdonarIntentos('admin', a.email);
     // Queda en la bitácora como acción de la propia cuenta: quien restablece
     // es quien tiene el correo, y "¿quién cambió esta contraseña?" es una
     // pregunta que sí se hace.

@@ -61,13 +61,25 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
       { status: 504 },
     );
   }
-  // Archivos (la factura de un aliado, 2026-10-22): pasan tal cual, sin leerlos como JSON.
+  // Archivos (la factura de un aliado, 2026-10-22): pasan sin leerlos como JSON.
+  // Salen en el dominio DEL PANEL, con la sesión al lado: un archivo que el
+  // navegador abriera como página (un XML con <script>, auditoría 2026-10-23)
+  // correría como si fuera el panel. Solo el PDF se abre en línea; lo demás se
+  // descarga, sin adivinar el tipo y en una caja sin permisos.
   const tipo = apiRes.headers.get('content-type') ?? '';
   if (apiRes.ok && tipo && !tipo.includes('application/json')) {
-    const disposicion = apiRes.headers.get('content-disposition');
+    const esPdf = tipo.startsWith('application/pdf');
+    const disposicion = apiRes.headers.get('content-disposition') ?? '';
+    const nombre = /filename="[^"]*"/.exec(disposicion)?.[0];
     return new NextResponse(apiRes.body, {
       status: apiRes.status,
-      headers: { 'Content-Type': tipo, 'Cache-Control': 'private, no-store', ...(disposicion ? { 'Content-Disposition': disposicion } : {}) },
+      headers: {
+        'Content-Type': tipo,
+        'Cache-Control': 'private, no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': esPdf && disposicion ? disposicion : `attachment${nombre ? `; ${nombre}` : ''}`,
+        ...(esPdf ? {} : { 'Content-Security-Policy': "default-src 'none'; sandbox" }),
+      },
     });
   }
   const data = await apiRes.json().catch(() => null);

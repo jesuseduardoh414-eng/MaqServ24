@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE, ADMIN_REFRESH_COOKIE, API_URL } from '@/lib/cookies';
+import { peticionAjena } from '@/lib/mismo-origen';
+
+/** `admin.` + el dominio de SITE_URL (el panel no tiene variable con su propio dominio). */
+function hostDelPanel(): string | null {
+  try {
+    return process.env.SITE_URL ? `admin.${new URL(process.env.SITE_URL).hostname.replace(/^www\./, '')}` : null;
+  } catch {
+    return null;
+  }
+}
 
 const WEEK = 60 * 60 * 24 * 7;
 const REFRESH_SKEW = 120; // renovar cuando falten <2 min para expirar
@@ -39,6 +49,12 @@ function jwtExp(token: string): number | null {
  * Reutiliza /auth/refresh: el refresh token sabe que es de admin y la API preserva role=admin y app_admin_id.
  */
 export async function middleware(req: NextRequest) {
+  // Lo que cambia datos solo desde páginas del panel (ver mismo-origen.ts): un
+  // script plantado en el sitio público ya no puede usar la sesión del panel.
+  if (req.nextUrl.pathname.startsWith('/api/') && peticionAjena(req, [hostDelPanel()])) {
+    return NextResponse.json({ message: 'Petición no permitida desde otro sitio.' }, { status: 403 });
+  }
+
   // El logout borra las cookies en su propio handler; no renovar aquí.
   if (req.nextUrl.pathname === '/api/admin/logout') return NextResponse.next();
 

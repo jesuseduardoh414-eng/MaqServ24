@@ -107,7 +107,9 @@ export async function perfilDesdeCodigo(code: string, redirectUri: string): Prom
   return {
     sub: p.sub,
     email: p.email.trim().toLowerCase(),
-    emailVerificado: p.email_verified !== false,
+    // Solo un `true` explícito: si Google no lo dijera, no se enlaza con una
+    // cuenta existente de ese correo (sería quedarse con una cuenta ajena).
+    emailVerificado: p.email_verified === true,
     nombre: (p.name ?? p.email.split('@')[0]).slice(0, 190),
     foto: p.picture ?? null,
   };

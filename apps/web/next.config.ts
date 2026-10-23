@@ -123,6 +123,32 @@ const nextConfig: NextConfig = {
       { source: '/rastreo', destination: '/cuenta/cotizaciones', permanent: false },
     ];
   },
+  /** Sin `X-Powered-By: Next.js`: no hay por qué decirle a nadie con qué está hecho. */
+  poweredByHeader: false,
+  /**
+   * Cabeceras de seguridad (auditoría 2026-10-23). HSTS ya lo pone LiteSpeed.
+   * - frame-ancestors 'self': nadie mete el sitio en un iframe ajeno para
+   *   engañar clics ("Acepto la cotización"). /vista-previa queda fuera: la
+   *   enmarca el panel y su regla la pone el middleware.
+   * - Referrer-Policy: los enlaces del aliado, del operador o para aceptar
+   *   llevan el token en la URL; a otros sitios solo sale el dominio.
+   * - Permissions-Policy: ubicación solo para el propio sitio (el operador la
+   *   comparte); cámara, micrófono y pagos, para nadie.
+   */
+  async headers() {
+    return [
+      {
+        source: '/((?!vista-previa).*)',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'geolocation=(self), camera=(), microphone=(), payment=(), usb=()' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

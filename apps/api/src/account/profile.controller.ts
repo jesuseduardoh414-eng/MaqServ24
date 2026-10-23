@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, Patch, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import * as bcrypt from 'bcryptjs';
 import { prisma } from '@maqserv/db';
@@ -39,6 +40,9 @@ export class ProfileController {
     };
   }
 
+  // Pide la contraseña actual: con una sesión robada se podría probar a ciegas,
+  // y cada intento es un bcrypt (auditoría 2026-10-23).
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
   @Post('change-password')
   async changePassword(@Req() req: AuthedRequest, @Body() body: unknown) {
     const parsed = passwordSchema.safeParse(body);

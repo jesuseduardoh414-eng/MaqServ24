@@ -28,6 +28,24 @@ import { pedidoDe } from '../providers/pedido';
 const precioOculto = (q: { status: string; requirements?: unknown }) =>
   q.status === 'pending' && (q.requirements as { origen?: unknown } | null)?.origen !== 'cotizador';
 
+/**
+ * Claves de `requirements` que escribe SOLO el servidor (auditoría 2026-10-23).
+ * El formulario de /cotizar manda sus respuestas en ese mismo objeto, y antes
+ * se guardaba tal cual: con `folio` de otro documento (son consecutivos, se
+ * adivinan) el cliente leía el documento ajeno con precios y datos, y con
+ * `origen: 'cotizador'` veía el precio en preparación. Se quitan al entrar.
+ */
+const CLAVES_DEL_SERVIDOR = new Set([
+  'origen', 'cotizador', 'folio', 'quoterId', 'obra', 'productos', 'productId',
+  'precioAjustado', 'operadorAsignado', 'renglones', 'sin_reserva',
+]);
+
+function soloRespuestasDelCliente(r: Record<string, string> | undefined): Record<string, string> | undefined {
+  if (!r) return undefined;
+  const limpias = Object.fromEntries(Object.entries(r).filter(([k]) => !CLAVES_DEL_SERVIDOR.has(k)));
+  return Object.keys(limpias).length ? limpias : undefined;
+}
+
 /** Folio del documento del cotizador guardado en `requirements` (cotizador por tipo o por máquina). */
 function folioDocumento(requirements: unknown): string | null {
   const f = (requirements as Record<string, unknown> | null)?.folio;
@@ -347,7 +365,7 @@ export class QuotesService {
         acquisition_option: input.acquisitionOption ?? null,
         comments: input.comments ?? null,
         service_category: input.serviceCategory ?? null,
-        requirements: (input.requirements as never) ?? undefined,
+        requirements: (soloRespuestasDelCliente(input.requirements) as never) ?? undefined,
         address: input.address ?? null,
         cart_data: JSON.stringify(cartData),
         subtotal,
@@ -724,7 +742,11 @@ export class QuotesService {
     // Sin documento del cotizador todavía (2026-10-15): la SOLICITUD, con el
     // mismo formato y sin importes, para que el cliente la vea e imprima.
     if (!folio) return this.solicitudComoDocumento(userId, quoteNumber);
-    const d = await prisma.quoter_quotes.findUnique({ where: { folio } });
+    // El folio Y el id que ligó el servidor: un folio solo, escrito en la
+    // solicitud de otra forma, no abre ningún documento.
+    const quoterId = (q.requirements as { quoterId?: unknown } | null)?.quoterId;
+    if (typeof quoterId !== 'number') return this.solicitudComoDocumento(userId, quoteNumber);
+    const d = await prisma.quoter_quotes.findFirst({ where: { folio, id: quoterId } });
     if (!d) throw new NotFoundException('Documento no encontrado');
     return {
       folio: d.folio,

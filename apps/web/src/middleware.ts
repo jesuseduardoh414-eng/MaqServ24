@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, REFRESH_COOKIE, ALIADO_COOKIE, OPERADOR_COOKIE } from '@/lib/cookies';
 import { hostPublico } from '@/lib/origen';
+import { peticionAjena } from '@/lib/mismo-origen';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 const WEEK = 60 * 60 * 24 * 7;
@@ -29,6 +30,15 @@ function jwtExp(token: string): number | null {
  * fresco en la misma petición.
  */
 export async function middleware(req: NextRequest) {
+  // Lo que cambia datos solo desde páginas de este sitio (ver mismo-origen.ts).
+  // /api/revalidate lo llama la API de servidor a servidor, con su secreto.
+  if (req.nextUrl.pathname.startsWith('/api/') && req.nextUrl.pathname !== '/api/revalidate') {
+    const apexCsrf = hostPublico();
+    if (peticionAjena(req, apexCsrf ? [apexCsrf, `www.${apexCsrf}`] : [])) {
+      return NextResponse.json({ message: 'Petición no permitida desde otro sitio.' }, { status: 403 });
+    }
+  }
+
   /**
    * UN SOLO HOST: `www.` va al dominio de SITE_URL.
    *

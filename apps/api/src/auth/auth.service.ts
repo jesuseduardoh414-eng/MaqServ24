@@ -11,6 +11,7 @@ import {
   passwordGrant,
   refreshGrant,
   restablecerConToken,
+  rutaInterna,
   tokensPara,
 } from '../common/app-auth';
 import { MailerService } from '../notifications/mailer.service';
@@ -79,7 +80,7 @@ export class AuthService {
 
   /** El correo con el enlace de confirmación. Nunca lanza: si no sale, queda en la bitácora. */
   private async mandarConfirmacion(u: { id: number; name: string; email: string }, next?: string): Promise<void> {
-    const destino = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+    const destino = rutaInterna(next);
     const token = await firmarVerificacionCorreo(u.id, u.email, destino);
     const url = `${sitio()}/api/auth/verificar?t=${encodeURIComponent(token)}&next=${encodeURIComponent(destino)}`;
     const correo = correoConfirmarCuenta({ nombre: u.name, url, horas: VERIFICACION_HORAS });
@@ -271,11 +272,10 @@ export class AuthService {
    * no está configurado, el intento queda en `email_log` como "simulado" — igual
    * que el resto de avisos — y el panel lo muestra.
    */
-  async forgotPassword(email: string, redirectTo?: string): Promise<{ ok: boolean }> {
+  async forgotPassword(email: string): Promise<{ ok: boolean }> {
     const r = await crearRestablecimiento(email);
     if (!r) return { ok: true };
-    const base = (redirectTo ?? process.env.SITE_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-    const url = `${base}/restablecer?token=${r.token}`;
+    const url = `${sitio()}/restablecer?token=${r.token}`;
     const correo = correoRestablecerContrasena({ nombre: r.name, url, minutos: 60 });
     const estado = await this.mailer.enviar({ kind: 'password_reset', to: r.email, toName: r.name, ...correo });
     if (estado !== 'enviado') {

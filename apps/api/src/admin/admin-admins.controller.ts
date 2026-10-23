@@ -67,6 +67,11 @@ const ACCIONES: Record<string, string> = {
   'cotizacion.enviar': 'envío de cotización',
   'cotizacion.eliminar': 'eliminar cotización',
   'contrasena.restablecer': 'restablecer contraseña (por correo)',
+  'tabulador.ficha': 'precio de una ficha en el cotizador',
+  'margen.cambiar': 'cambio del margen sobre el costo del aliado',
+  'aliado.acceso': 'enlace de acceso de un aliado',
+  'aliado.revocar': 'revocar enlaces de un aliado',
+  'reglas.dinero': 'reglas de cobro y pago',
 };
 
 const plano = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();

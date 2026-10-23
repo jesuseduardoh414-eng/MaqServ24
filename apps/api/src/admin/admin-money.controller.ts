@@ -194,9 +194,12 @@ export class AdminMoneyController {
     const abs = rutaPrivada(rel);
     if (!existsSync(abs)) throw new NotFoundException('El archivo ya no está.');
     const pdf = rel.endsWith('.pdf');
+    // El XML se DESCARGA, nunca se abre (auditoría 2026-10-23): abierto en el
+    // panel, un XML con <script> corría con la sesión de quien lo abría. Las
+    // subidas de antes del filtro de archivos-privados.ts siguen en disco.
     return new StreamableFile(createReadStream(abs), {
       type: pdf ? 'application/pdf' : 'application/xml',
-      disposition: `inline; filename="factura-${quoteId}.${pdf ? 'pdf' : 'xml'}"`,
+      disposition: `${pdf ? 'inline' : 'attachment'}; filename="factura-${quoteId}.${pdf ? 'pdf' : 'xml'}"`,
     });
   }
 
@@ -227,8 +230,14 @@ export class AdminMoneyController {
   async guardarReglas(@Body() body: unknown, @Req() req: AdminRequest) {
     const d = reglasSchema.safeParse(body);
     if (!d.success) throw new BadRequestException(d.error.issues[0]?.message ?? 'Reglas inválidas');
+    const antes = await reglasDinero();
     await guardarReglasDinero(d.data, req.adminEmail ?? 'panel');
-    await registrarAccion(req, 'administracion', 'reglas.dinero', 'reglas', `comisión ${d.data.comisionPct}%`);
+    // La cuenta a la que pagan los clientes es lo que más se querría cambiar a
+    // escondidas: queda el antes y el después (auditoría 2026-10-23).
+    const cuenta = (x: { datosPago?: { banco: string; clabe: string; beneficiario: string } | null } | null | undefined) =>
+      x?.datosPago?.clabe ? `${x.datosPago.banco} · CLABE ${x.datosPago.clabe} · ${x.datosPago.beneficiario}` : 'sin cuenta';
+    const cambioCuenta = cuenta(antes) !== cuenta(d.data) ? ` · cuenta de cobro: ${cuenta(antes)} → ${cuenta(d.data)}` : '';
+    await registrarAccion(req, 'administracion', 'reglas.dinero', 'reglas', `comisión ${d.data.comisionPct}%${cambioCuenta}`);
     return { ok: true };
   }
 }

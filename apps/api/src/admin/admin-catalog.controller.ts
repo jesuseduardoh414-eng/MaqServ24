@@ -28,6 +28,7 @@ function leerAtributos(v: string | undefined): object | null {
   }
 }
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
+import { registrarAccion } from './audit';
 import { QuoterService } from '../quoter/quoter.service';
 import { horarioSchema, tarifasDe } from '@maqserv/config';
 import { ESTADO_ELIMINADO } from '../catalog/ofertas';
@@ -248,14 +249,18 @@ export class AdminCatalogController {
   }
 
   // Cambiar el margen mueve el precio al cliente de TODO lo publicado: es una
-  // herramienta de precio (módulo cotizador), no de catálogo. Leerlo sí queda
-  // en catálogo, para el "Proponer con margen" de la ficha (QA 2026-09-25).
-  @Modulo('cotizador')
+  // herramienta de precio, no de catálogo. Leerlo sí queda en catálogo, para el
+  // "Proponer con margen" de la ficha (QA 2026-09-25). Guardarlo es de
+  // 'tarifas', como el resto de los precios (solo Dirección, 2026-10-22; antes
+  // 'cotizador' dejaba a Operaciones cambiarlo sin rastro, auditoría 2026-10-23).
+  @Modulo('tarifas')
   @Patch('ajustes')
   async guardarAjustes(@Body() body: unknown, @Req() req: AdminRequest) {
     const p = z.object({ margenPct: z.coerce.number().min(0).max(300) }).safeParse(body);
     if (!p.success) throw new BadRequestException('Margen inválido (0 a 300 %)');
+    const antes = await margenAliadoPct();
     await guardarAjuste(AJUSTE_MARGEN, p.data.margenPct, req.adminEmail);
+    await registrarAccion(req, 'tarifas', 'margen.cambiar', 'Margen sobre el costo del aliado', `antes: ${antes} % · ahora: ${p.data.margenPct} %`);
     return { margenPct: p.data.margenPct };
   }
 

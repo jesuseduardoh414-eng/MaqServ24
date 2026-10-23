@@ -18,8 +18,11 @@ export async function revalidarSitio(): Promise<{ revalidated: boolean; revalida
     revalidateError = 'REVALIDATE_SECRET no está configurado en la API: el sitio se actualizará solo por caducidad de caché (~1 min).';
   } else {
     try {
-      const res = await fetch(`${SITE_URL}/api/revalidate?secret=${encodeURIComponent(secret)}&path=/`, {
+      // El secreto en una cabecera, no en la URL: el query string queda en los
+      // logs de acceso del servidor (auditoría 2026-10-23).
+      const res = await fetch(`${SITE_URL}/api/revalidate?path=/`, {
         method: 'POST',
+        headers: { 'x-revalidate-secret': secret },
         signal: AbortSignal.timeout(8_000),
       });
       if (res.ok) return { revalidated: true, revalidateError: null };

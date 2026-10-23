@@ -75,6 +75,7 @@ export {
   modulosDe,
   // Permisos editables desde el panel (overrides guardados en BD).
   MODULOS_OBLIGATORIOS,
+  MODULOS_SOLO_DIRECCION,
   ROLES_FIJOS,
   esRolFijo,
   normalizarModulos,

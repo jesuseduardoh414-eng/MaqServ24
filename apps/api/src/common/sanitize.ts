@@ -29,3 +29,40 @@ export function sanitizeUserHtml(dirty: string): string {
     disallowedTagsMode: 'discard',
   });
 }
+
+/**
+ * Limpia el HTML que escriben los ADMINISTRADORES y el sitio pinta tal cual:
+ * blog, sectores, Quiénes somos (auditoría 2026-10-23).
+ *
+ * "Lo escribe alguien del equipo" no basta: la respuesta de una pregunta
+ * frecuente la escribe Operaciones, y un `<img onerror>` ahí corría en el
+ * navegador de cada visitante —y en el de Dirección, que entra al sitio con la
+ * sesión del panel abierta en el mismo dominio—. Una cuenta del panel robada
+ * tampoco debe poder plantar código en el sitio.
+ *
+ * Un poco más que `sanitizeUserHtml` (títulos, citas, imágenes, tablas) porque
+ * el blog se escribe en HTML a mano. Lo guardado hoy solo usa <p> y <h2>.
+ */
+export function sanitizeRichHtml(dirty: string | null | undefined): string {
+  if (!dirty) return '';
+  return sanitizeHtml(dirty, {
+    allowedTags: [
+      'p', 'br', 'hr', 'b', 'strong', 'i', 'em', 'u', 's', 'sub', 'sup', 'small', 'span', 'div',
+      'h2', 'h3', 'h4', 'h5', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a',
+      'img', 'figure', 'figcaption', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    ],
+    allowedAttributes: {
+      a: ['href', 'title', 'target', 'rel'],
+      img: ['src', 'alt', 'width', 'height', 'loading'],
+      th: ['colspan', 'rowspan'],
+      td: ['colspan', 'rowspan'],
+    },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    allowedSchemesByTag: { img: ['http', 'https'] },
+    allowProtocolRelative: false,
+    transformTags: {
+      a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }),
+    },
+    disallowedTagsMode: 'discard',
+  });
+}

@@ -123,7 +123,10 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
   function exportCsv() {
     const head = ['Tipo', 'Folio', 'Autor', 'Servicio o producto', 'Aliado', 'Calificación', 'Reseña', 'Estado', 'Fecha'];
     const rows = reviews.map((r) => [r.fuente === 'servicio' ? 'Servicio' : 'Producto', r.folio ?? '', r.author, r.product, r.aliado ?? '', String(r.rating), r.review, statusMeta(r).label, fmtDate(r.createdAt)]);
-    const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\r\n');
+    // Una reseña que empieza con = + - @ Excel la ejecuta como fórmula: se le
+    // antepone un apóstrofo (auditoría 2026-10-23).
+    const seguro = (c: string) => (/^[=+\-@\t\r]/.test(c) && !/^-?\d+(\.\d+)?$/.test(c) ? `'${c}` : c);
+    const csv = [head, ...rows].map((r) => r.map((c) => `"${seguro(String(c)).replace(/"/g, '""')}"`).join(',')).join('\r\n');
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'resenas.csv'; a.click(); URL.revokeObjectURL(url);

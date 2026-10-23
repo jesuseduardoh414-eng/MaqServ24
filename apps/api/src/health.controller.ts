@@ -49,11 +49,15 @@ export class HealthController {
       const e = err as { message?: string; code?: string; errorCode?: string };
       const texto = (e?.message ?? String(err)).replace(/\s+/g, ' ').trim();
       const codigo = e?.code ?? e?.errorCode;
-      const motivo = `${codigo ? `${codigo}: ` : ''}${texto}`.slice(0, 300) || 'sin detalle';
+      // /health es público: hacia fuera solo el CÓDIGO (dice qué arreglar). El
+      // texto de Prisma trae host y usuario de la base, y ese va al log
+      // (stderr.log en cPanel), no a cualquiera que lo consulte (auditoría 2026-10-23).
+      console.error(`/health: la base no responde: ${`${codigo ? `${codigo}: ` : ''}${texto}`.slice(0, 500)}`);
+      const motivo = codigo ?? 'sin código (ver el log de la API)';
       return {
         status: 'degraded',
         db: 'unreachable',
-        hint: 'Revisa DATABASE_URL: host, usuario, contraseña (percent-encoded) y que el usuario tenga permisos sobre la base.',
+        hint: 'Revisa DATABASE_URL: host, usuario, contraseña (percent-encoded) y que el usuario tenga permisos sobre la base. El detalle está en el log de la API.',
         motivo,
         ts: new Date().toISOString(),
       };

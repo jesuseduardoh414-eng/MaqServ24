@@ -204,6 +204,14 @@ export type PermisosOverride = Partial<Record<RolAdmin, readonly string[]>>;
 /** No se le puede quitar a nadie (ver arriba). */
 export const MODULOS_OBLIGATORIOS: readonly ModuloAdmin[] = ['inicio'];
 
+/**
+ * Solo Dirección, nunca se delega (auditoría 2026-10-23). Quien tiene
+ * "Administradores" reparte permisos: dárselo a Operaciones era dejar que
+ * cualquiera de esa cuenta se concediera todo lo demás, se creara cuentas o
+ * cambiara contraseñas ajenas.
+ */
+export const MODULOS_SOLO_DIRECCION: readonly ModuloAdmin[] = ['admins'];
+
 /** Roles cuya lista no se edita. */
 export const ROLES_FIJOS: readonly RolAdmin[] = ['direccion'];
 
@@ -219,6 +227,9 @@ export function normalizarModulos(lista: readonly string[]): ModuloAdmin[] {
   const set = new Set<ModuloAdmin>(
     lista.filter((m): m is ModuloAdmin => (MODULOS_ADMIN as readonly string[]).includes(m)),
   );
+  // Solo se normalizan listas de roles NO fijos: ahí lo exclusivo de Dirección
+  // no entra aunque venga guardado de antes.
+  for (const m of MODULOS_SOLO_DIRECCION) set.delete(m);
   for (const m of MODULOS_OBLIGATORIOS) set.add(m);
   // Un módulo apagado no se concede aunque venga guardado de cuando existía.
   return MODULOS_VISIBLES.filter((m) => set.has(m));

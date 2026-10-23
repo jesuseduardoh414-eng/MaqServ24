@@ -364,7 +364,7 @@ export class AdminProvidersController {
     let acceso: { estado: string; url: string; mensaje: string } | null = null;
     if (p.email?.trim()) {
       try {
-        acceso = await this.enviarAcceso(id);
+        acceso = await this.enviarAcceso(id, req);
       } catch (e) {
         acceso = { estado: 'fallido', url: '', mensaje: `No se pudo mandar su enlace: ${(e as Error).message}` };
       }
@@ -373,7 +373,7 @@ export class AdminProvidersController {
   }
 
   @Post(':id/acceso')
-  async enviarAcceso(@Param('id', ParseIntPipe) id: number) {
+  async enviarAcceso(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
     const p = await prisma.providers.findUnique({
       where: { id },
       select: { id: true, name: true, email: true, contact_name: true, status: true, access_version: true },
@@ -383,6 +383,9 @@ export class AdminProvidersController {
 
     const token = await firmarAcceso(p.id, p.access_version);
     const url = urlDeAcceso(token);
+    // El enlace deja entrar como el aliado 30 días: queda en la bitácora quién
+    // lo pidió (auditoría 2026-10-23).
+    await registrarAccion(req, 'proveedores', 'aliado.acceso', p.name, p.email?.trim() ? `enviado a ${p.email}` : 'sin correo: enlace copiado en el panel');
 
     if (!p.email?.trim()) {
       await prisma.providers.update({ where: { id }, data: { access_sent_at: new Date() } });
@@ -432,13 +435,14 @@ export class AdminProvidersController {
    * el encargado con el correo en el telefono.
    */
   @Post(':id/revocar-acceso')
-  async revocarAcceso(@Param('id', ParseIntPipe) id: number) {
-    const p = await prisma.providers.findUnique({ where: { id }, select: { access_version: true } });
+  async revocarAcceso(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
+    const p = await prisma.providers.findUnique({ where: { id }, select: { access_version: true, name: true } });
     if (!p) throw new NotFoundException('Aliado no encontrado');
     await prisma.providers.update({
       where: { id },
       data: { access_version: p.access_version + 1, updated_at: new Date() },
     });
+    await registrarAccion(req, 'proveedores', 'aliado.revocar', p.name, 'Los enlaces anteriores dejan de servir');
     return { ok: true, mensaje: 'Los enlaces que se le hayan mandado antes ya no sirven.' };
   }
 
@@ -554,7 +558,7 @@ export class AdminProvidersController {
   }
 
   @Post()
-  async create(@Body() body: unknown) {
+  async create(@Body() body: unknown, @Req() req: AdminRequest) {
     const parsed = providerSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
     const d = parsed.data;
@@ -614,7 +618,7 @@ export class AdminProvidersController {
     let acceso: { estado: string; url: string; mensaje: string } | null = null;
     if (quiereAcceso && d.email?.trim() && (d.status ?? 1) === 1) {
       try {
-        acceso = await this.enviarAcceso(creado.id);
+        acceso = await this.enviarAcceso(creado.id, req);
       } catch (e) {
         acceso = { estado: 'fallido', url: '', mensaje: `No se pudo mandar su enlace: ${(e as Error).message}` };
       }

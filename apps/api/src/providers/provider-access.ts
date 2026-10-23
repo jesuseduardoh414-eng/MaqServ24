@@ -78,7 +78,7 @@ export interface AccesoValido {
 export async function validarAcceso(token: string | null | undefined): Promise<AccesoValido | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, algorithms: ['HS256'] });
     const id = Number(payload.sub);
     if (!Number.isInteger(id) || id <= 0) return null;
 

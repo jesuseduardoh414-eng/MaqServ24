@@ -1,3 +1,5 @@
+import { promises as fs } from 'node:fs';
+import { rutaPrivada } from '../common/archivos-privados';
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
 import { rolDeAdmin } from '@maqserv/config';
@@ -102,6 +104,9 @@ export class MoneyService {
         updated_at: new Date(),
       },
     });
+    // La que se reemplazó ya no la abre nadie: fuera del disco.
+    const viejas = [archivos.pdf ? m.factura_aliado : null, archivos.xml ? m.factura_aliado_xml : null];
+    await Promise.all(viejas.filter((r): r is string => Boolean(r)).map((r) => fs.unlink(rutaPrivada(r)).catch(() => undefined)));
     const pagarEl = await programarPago(Number(m.quote_id));
     return { ok: true, pagarEl };
   }

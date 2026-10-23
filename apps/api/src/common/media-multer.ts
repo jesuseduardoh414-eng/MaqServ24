@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
 import { BadRequestException } from '@nestjs/common';
@@ -60,7 +61,10 @@ export function mediaStorage(allowed: RegExp = RASTER, resolve = resolveImageMim
         // base, como referencia legible.
         const ext = EXTENSION[resolved.mime] ?? 'bin';
         const base = file.originalname.replace(/\.[^.]*$/, '').replace(/[^a-zA-Z0-9]+/g, '-').slice(-50) || 'archivo';
-        const filename = `${Date.now()}-${base}.${ext}`;
+        // Con una parte al azar (auditoría 2026-10-23): iOS llama "image.jpg" a
+        // todas las fotos y dos en el mismo milisegundo se pisaban; y los papeles
+        // de un aliado no deben poder adivinarse probando nombres.
+        const filename = `${Date.now()}-${randomBytes(6).toString('hex')}-${base}.${ext}`;
         const rel = sanitizeKey(`uploads/${filename}`);
         const abs = join(mediaDir(), rel);
         fs.mkdir(join(mediaDir(), 'uploads'), { recursive: true })

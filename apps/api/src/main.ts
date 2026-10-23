@@ -66,8 +66,22 @@ async function bootstrap() {
 
   // Cabeceras de seguridad. La API devuelve JSON y además sirve `/media/`: lo que
   // más pesa aquí es `nosniff` (que el navegador no adivine el tipo de un archivo
-  // subido y lo ejecute como HTML). CSP va apagado: no servimos páginas.
-  app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+  // subido y lo ejecute como HTML). CSP "nada de nada" (auditoría 2026-10-23): no
+  // servimos páginas, así que si alguna respuesta llegara a abrirse como HTML no
+  // ejecuta scripts ni se deja enmarcar. No afecta a <img>/<video> de otros dominios.
+  app.use(
+    helmet({
+      contentSecurityPolicy: { useDefaults: false, directives: { 'default-src': ["'none'"], 'frame-ancestors': ["'none'"] } },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
+  // Sin PROXY_SECRET, cualquiera que llame directo a la API puede inventarse
+  // `x-client-ip` en cada petición y saltarse TODOS los límites por IP (login,
+  // contacto, cotizar). Se dice al arrancar, no solo con la primera visita.
+  if (isProd && !process.env.PROXY_SECRET?.trim()) {
+    console.error('SEGURIDAD: falta PROXY_SECRET en producción; los límites por IP se pueden evadir. Configúralo en api, web y admin.');
+  }
 
   /**
    * Orígenes permitidos por CORS. En prod se pasan por CORS_ORIGINS (coma-separado:
@@ -116,5 +130,16 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   console.log(`API escuchando en el puerto ${port}`);
 }
+
+/**
+ * Una promesa rechazada que nadie atrapó (un aviso en segundo plano, un `void`
+ * que falla) tumba el proceso en Node ≥ 15. Con la API como una sola instancia,
+ * eso es una caída para todos provocable desde fuera si alguna ruta la dispara.
+ * Se registra y se sigue; un error síncrono no atrapado sí deja caer el proceso
+ * (el estado ya no es confiable) y Passenger lo levanta.
+ */
+process.on('unhandledRejection', (motivo) => {
+  console.error('Promesa rechazada sin atrapar:', motivo instanceof Error ? motivo.stack : motivo);
+});
 
 bootstrap();

@@ -55,6 +55,27 @@ const nextConfig: NextConfig = {
       { protocol: 'http', hostname: 'localhost', port: '4000', pathname: '/media/**' },
     ],
   },
+  poweredByHeader: false,
+  /**
+   * Cabeceras de seguridad del panel (auditoría 2026-10-23). Nadie lo enmarca
+   * (engañar clics de alguien con sesión), no lo indexa nadie, y a otros
+   * sitios no sale ni la ruta en el Referer. HSTS ya lo pone LiteSpeed.
+   */
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'same-origin' },
+          { key: 'Permissions-Policy', value: 'geolocation=(), camera=(), microphone=(), payment=(), usb=()' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

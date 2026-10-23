@@ -36,9 +36,14 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+/**
+ * Sin `redirectTo` (auditoría 2026-10-23): la API es pública, y con él
+ * cualquiera podía pedir el restablecimiento de OTRA persona con un dominio
+ * propio; el correo legítimo le llegaba a la víctima con un enlace que
+ * entregaba el token al atacante. El enlace sale siempre de SITE_URL.
+ */
 const forgotSchema = z.object({
   email: z.string().email(),
-  redirectTo: z.string().url().optional(),
 });
 
 const googleSchema = z.object({
@@ -128,7 +133,7 @@ export class AuthController {
   forgotPassword(@Body() body: unknown) {
     const parsed = forgotSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Correo inválido');
-    return this.auth.forgotPassword(parsed.data.email, parsed.data.redirectTo);
+    return this.auth.forgotPassword(parsed.data.email);
   }
 
   // Segundo paso de "olvidé mi contraseña": el token viene del enlace del correo.

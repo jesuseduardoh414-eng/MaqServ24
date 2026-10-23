@@ -70,11 +70,14 @@ function titulo(t: string): string {
 }
 
 function boton(texto: string, url: string): string {
+  // Escapado y solo http(s)/mailto (auditoría 2026-10-23): hoy todas las URL las
+  // arma el servidor, pero por aquí entró el `redirectTo` del restablecimiento.
+  const destino = /^(https?:\/\/|mailto:)/i.test(url) ? esc(url) : '#';
   // Sin border-radius grande y con padding en el <a>: Outlook ignora el radio y
   // no hereda el padding de la celda.
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 6px;">
     <tr><td style="background:${AZUL};border-radius:3px;">
-      <a href="${url}" style="display:inline-block;padding:12px 22px;color:#FFFFFF;font-size:15px;font-weight:bold;text-decoration:none;">${esc(texto)}</a>
+      <a href="${destino}" style="display:inline-block;padding:12px 22px;color:#FFFFFF;font-size:15px;font-weight:bold;text-decoration:none;">${esc(texto)}</a>
     </td></tr>
   </table>`;
 }
@@ -725,8 +728,6 @@ export function correoAcuseContacto(d: { nombre: string; mensaje: string; telefo
     html: marco(
       `${titulo(`Hola, ${d.nombre}`)}
       <p style="margin:0 0 12px;">Recibimos tu mensaje. Un asesor de MAQSER24 te contesta en horario de atención, de lunes a sábado de 8:00 a 18:00.</p>
-      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Esto fue lo que nos escribiste:</p>
-      <div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${BORDE};background:${FONDO};color:${TINTA2};white-space:pre-wrap;">${esc(d.mensaje)}</div>
       ${d.telefono ? '' : `<p style="margin:14px 0 0;">Si nos dejas un teléfono respondiendo a este correo, podemos llamarte.</p>`}`,
       `Si no escribiste en ${DOMINIO}, ignora este correo.`,
     ),

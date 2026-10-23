@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { HttpException, HttpStatus } from '@nestjs/common';
 import bcrypt from 'bcryptjs';
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 import { prisma } from '@maqserv/db';
+import { MINUTOS_DE_BLOQUEO, anotarFallo, estaBloqueada, limpiarFallos } from './intentos';
 
 /**
  * AUTENTICACIÓN PROPIA (clientes y administradores).
@@ -50,6 +52,13 @@ function llave(): Uint8Array {
   }
   return new TextEncoder().encode(s);
 }
+
+/**
+ * Solo HS256. jose ya rechaza `alg: none` y los asimétricos con una llave de
+ * bytes, pero fijarlo no depende de ese detalle de la librería (auditoría
+ * 2026-10-23). Lo usan también los enlaces firmados (aliado, operador…).
+ */
+export const ALGORITMOS = ['HS256'];
 
 /** Huella corta del hash: cambia cuando cambia la contraseña. */
 const versionDe = (hash: string) => createHash('sha256').update(hash).digest('hex').slice(0, 16);
@@ -112,7 +121,7 @@ export const tokensPara = (identidad: Identidad): Promise<Tokens> => firmar(iden
  * `audience` fija: un refresh token nunca pasa por aquí como acceso.
  */
 export async function verifyAccessToken(token: string): Promise<AppClaims> {
-  const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, audience: AUDIENCIA });
+  const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, audience: AUDIENCIA, algorithms: ALGORITMOS });
   return payload as AppClaims;
 }
 
@@ -151,11 +160,31 @@ export interface Sesion extends Tokens {
  * distinguir, para no revelar qué correos existen.
  */
 export async function passwordGrant(rol: Rol, email: string, password: string): Promise<Sesion | null> {
+  const llaveIntentos = `${rol}:${email.trim().toLowerCase()}`;
+  if (estaBloqueada(llaveIntentos)) {
+    throw new HttpException(
+      `Demasiados intentos fallidos con este correo. Espera ${MINUTOS_DE_BLOQUEO} minutos o usa "¿Olvidaste tu contraseña?".`,
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
   const fila = await porCorreo(rol, email);
-  if (!fila || !fila.activo || !fila.hash) return null;
-  if (!(await verifyPassword(password, fila.hash))) return null;
+  // Sin cuenta también se paga un bcrypt: si no, lo rápido de la respuesta
+  // delataría qué correos existen.
+  const valida = await verifyPassword(password, fila?.activo && fila.hash ? fila.hash : await hashFicticio());
+  if (!fila || !fila.activo || !fila.hash || !valida) {
+    anotarFallo(llaveIntentos);
+    return null;
+  }
+  limpiarFallos(llaveIntentos);
   return { id: fila.id, ...(await firmar({ rol, id: fila.id, hash: fila.hash })) };
 }
+
+/** Un hash que no corresponde a ninguna cuenta, para igualar el tiempo del login. */
+let ficticio: Promise<string> | null = null;
+const hashFicticio = (): Promise<string> => (ficticio ??= hashPassword(randomBytes(16).toString('hex')));
+
+/** Quien restablece su contraseña ya demostró ser el dueño: se le quita el bloqueo. */
+export const perdonarIntentos = (rol: Rol, email: string): void => limpiarFallos(`${rol}:${email.trim().toLowerCase()}`);
 
 /**
  * Renueva la pareja a partir del refresh token. Null si no vale: vencido, de
@@ -164,7 +193,7 @@ export async function passwordGrant(rol: Rol, email: string, password: string): 
 export async function refreshGrant(token: string): Promise<Sesion | null> {
   let payload: JWTPayload;
   try {
-    ({ payload } = await jwtVerify(token, llave(), { issuer: EMISOR }));
+    ({ payload } = await jwtVerify(token, llave(), { issuer: EMISOR, algorithms: ALGORITMOS }));
   } catch {
     return null;
   }
@@ -207,13 +236,14 @@ export async function restablecerConToken(token: string, nueva: string): Promise
   const huella = createHash('sha256').update(token).digest('hex');
   const u = await prisma.users.findFirst({
     where: { reset_token: huella, reset_token_expiry: { gt: new Date() } },
-    select: { id: true },
+    select: { id: true, email: true },
   });
   if (!u) return false;
   await prisma.users.update({
     where: { id: u.id },
     data: { password: await hashPassword(nueva), reset_token: null, reset_token_expiry: null, updated_at: new Date() },
   });
+  perdonarIntentos('customer', u.email);
   return true;
 }
 
@@ -266,7 +296,7 @@ export async function leerRestablecimientoAdmin(token: string): Promise<LecturaR
   const ajeno = { ok: false, motivo: 'ajeno' } as const;
   if (!token) return ajeno;
   try {
-    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, algorithms: ALGORITMOS });
     if (payload.typ !== 'reset-admin' || typeof payload.sub !== 'string' || !payload.sub.startsWith('admin:')) {
       return ajeno;
     }
@@ -293,6 +323,16 @@ export async function leerRestablecimientoAdmin(token: string): Promise<LecturaR
 
 export const VERIFICACION_HORAS = 24;
 
+/**
+ * ¿Es una ruta de ESTE sitio? `//evil.com`, `/\evil.com` y `/<tab>/evil.com`
+ * el navegador los toma como otro dominio (auditoría 2026-10-23). La web
+ * vuelve a validarlo con `destinoSeguro` antes de redirigir.
+ */
+export function rutaInterna(v: unknown): string {
+  if (typeof v !== 'string' || !v.startsWith('/') || /^\/[\/\\]/.test(v) || /[\\\u0000-\u001f\u007f]/.test(v)) return '/';
+  return v;
+}
+
 export async function firmarVerificacionCorreo(userId: number, email: string, next: string): Promise<string> {
   return new SignJWT({ typ: 'verify-email', email: email.trim().toLowerCase(), next })
     .setProtectedHeader({ alg: 'HS256' })
@@ -311,13 +351,13 @@ export async function leerVerificacionCorreo(token: string): Promise<LecturaVeri
   const ajeno = { ok: false, motivo: 'ajeno' } as const;
   if (!token) return ajeno;
   try {
-    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, algorithms: ALGORITMOS });
     if (payload.typ !== 'verify-email' || typeof payload.sub !== 'string' || !payload.sub.startsWith('user:')) {
       return ajeno;
     }
     const userId = Number(payload.sub.slice('user:'.length));
     if (!Number.isInteger(userId) || typeof payload.email !== 'string') return ajeno;
-    const next = typeof payload.next === 'string' && payload.next.startsWith('/') && !payload.next.startsWith('//') ? payload.next : '/';
+    const next = rutaInterna(payload.next);
     return { ok: true, userId, email: payload.email, next };
   } catch (e) {
     return (e as { code?: string })?.code === 'ERR_JWT_EXPIRED' ? { ok: false, motivo: 'caducado' } : ajeno;

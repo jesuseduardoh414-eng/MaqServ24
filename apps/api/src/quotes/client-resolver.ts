@@ -74,6 +74,26 @@ export interface Resuelto {
 type Ref = { id: number; user_id: number | null };
 
 /**
+ * ¿Se puede ligar a esta cuenta un cliente que existía sin cuenta?
+ *
+ * Solo si el correo del cliente es el de la cuenta (auditoría 2026-10-23).
+ * Antes bastaba con escribir el NOMBRE de la empresa en una solicitud: quien
+ * pusiera "Constructora Real" se quedaba con ese cliente del panel y veía sus
+ * obras, con dirección y teléfono del residente. El correo de la cuenta sí está
+ * comprobado (no se entra sin confirmarlo, o lo acreditó Google). Si no
+ * coincide, la solicitud se archiva igual bajo esa empresa, sin ligarla.
+ */
+async function puedeLigar(clientId: number, userId: number): Promise<boolean> {
+  const [c, u] = await Promise.all([
+    prisma.clients.findUnique({ where: { id: clientId }, select: { email: true, user_id: true } }),
+    prisma.users.findUnique({ where: { id: userId }, select: { email: true } }),
+  ]);
+  if (!c || !u || c.user_id !== null) return false;
+  const correo = (c.email ?? '').trim().toLowerCase();
+  return correo !== '' && correo === u.email.trim().toLowerCase();
+}
+
+/**
  * El cliente con ese nombre de empresa. La comparación exacta es salvo
  * mayúsculas, así que "Constructora del Norte SA de CV" y "Constructora del
  * Norte" quedarían separadas: se hace una segunda pasada normalizada sobre los
@@ -171,8 +191,9 @@ async function deLaCuenta(userId: number, empresa: string, clave: string): Promi
   if (existente && existente.id !== provisional.id) {
     // La empresa ya estaba: el de la cuenta no tenía nada, se va.
     await prisma.clients.deleteMany({ where: { id: provisional.id } });
-    if (existente.user_id === null) {
+    if (await puedeLigar(existente.id, userId)) {
       await prisma.clients.update({ where: { id: existente.id }, data: { user_id: userId } });
+      return { ...existente, user_id: userId };
     }
     return existente;
   }
@@ -189,10 +210,13 @@ async function deLaCuenta(userId: number, empresa: string, clave: string): Promi
  */
 export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto> {
   try {
-    // Si el cliente eligió su obra, no hay nada que adivinar.
-    if (d.siteId) {
-      const obra = await prisma.client_sites.findUnique({
-        where: { id: d.siteId },
+    // Si el cliente eligió su obra, no hay nada que adivinar. Tiene que ser
+    // SUYA (auditoría 2026-10-23): los id son consecutivos, y con uno ajeno la
+    // solicitud quedaba dentro del cliente y la obra de otro. Si no lo es, se
+    // ignora y se resuelve como si no hubiera elegido.
+    if (d.siteId && d.userId) {
+      const obra = await prisma.client_sites.findFirst({
+        where: { id: d.siteId, clients: { user_id: d.userId } },
         select: { id: true, client_id: true },
       });
       if (obra) return { clientId: obra.client_id, siteId: obra.id };
@@ -230,9 +254,10 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
         select: { id: true, user_id: true },
       });
       cliente = creado;
-    } else if (cliente.user_id === null && d.userId) {
-      // El cliente ya existía sin cuenta y ahora cotiza desde una: se enlazan,
-      // que es lo que permite ofrecerle sus obras la próxima vez.
+    } else if (cliente.user_id === null && d.userId && (await puedeLigar(cliente.id, d.userId))) {
+      // El cliente ya existía sin cuenta y ahora cotiza desde una con SU
+      // correo: se enlazan, que es lo que permite ofrecerle sus obras la
+      // próxima vez. Con otro correo no (ver `puedeLigar`).
       await prisma.clients.update({ where: { id: cliente.id }, data: { user_id: d.userId } });
     }
 

@@ -29,6 +29,15 @@ import {
  * Va dentro de <Suspense> en el layout: `useSearchParams` lo exige en las
  * páginas estáticas.
  */
+/** Parámetros que son credenciales (enlaces firmados del correo): nunca salen a terceros. */
+const PARAMETROS_SECRETOS = ['t', 'token', 'code', 'state'];
+
+function sinTokens(qs: string): string {
+  const p = new URLSearchParams(qs);
+  for (const k of PARAMETROS_SECRETOS) p.delete(k);
+  return p.toString();
+}
+
 export function Analitica() {
   const pathname = usePathname();
   const search = useSearchParams();
@@ -48,7 +57,10 @@ export function Analitica() {
     if (consentimiento === 'aceptado') cargarGtm();
   }, [consentimiento]);
 
-  const qs = search?.toString() ?? '';
+  // Sin los tokens de los enlaces del correo (aceptar, reseña, restablecer):
+  // irían a Google Analytics y a cada etiqueta de GTM, y el de restablecer
+  // deja entrar a la cuenta (auditoría 2026-10-23).
+  const qs = sinTokens(search?.toString() ?? '');
   useEffect(() => {
     if (!ANALITICA_ACTIVA) return;
     // Un tic después: el <title> de la ruta nueva ya está puesto.
@@ -56,7 +68,7 @@ export function Analitica() {
       (window.dataLayer ??= []).push({
         event: EVENTO_VISTA,
         page_path: pathname + (qs ? `?${qs}` : ''),
-        page_location: window.location.href,
+        page_location: window.location.origin + pathname + (qs ? `?${qs}` : ''),
         page_title: document.title,
       });
     }, 0);

@@ -7,7 +7,9 @@ import type { NextRequest } from 'next/server';
  * API que el header viene de aquí.
  */
 export function clientIpHeaders(req: NextRequest): Record<string, string> {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  // La ÚLTIMA de `x-forwarded-for`, la que agrega nuestro proxy, no la primera,
+  // que la escribe quien llama (auditoría 2026-10-23; ver la de la web).
+  const ip = req.headers.get('x-forwarded-for')?.split(',').map((s) => s.trim()).filter(Boolean).pop()
     || req.headers.get('x-real-ip')?.trim();
   const secret = process.env.PROXY_SECRET?.trim();
   return {

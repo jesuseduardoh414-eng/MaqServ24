@@ -32,7 +32,16 @@ export function redirectUriGoogle(origenPeticion: string): string {
  */
 export function destinoSeguro(valor: string | null | undefined): string {
   if (!valor) return '/';
-  // `//evil.com` es una URL absoluta para el navegador aunque no lo parezca.
-  if (!valor.startsWith('/') || valor.startsWith('//')) return '/';
+  // `//evil.com` es una URL absoluta para el navegador aunque no lo parezca, y
+  // también `/\evil.com` o `/<tabulador>/evil.com`: el navegador trata la barra
+  // invertida como normal y se come tabuladores y saltos (auditoría 2026-10-23).
+  if (!valor.startsWith('/') || /^\/[\/\\]/.test(valor) || /[\\\u0000-\u001f\u007f]/.test(valor)) return '/';
+  // Última prueba: resuelta contra un origen cualquiera, tiene que quedarse en él.
+  try {
+    const base = 'https://maqser24.invalid';
+    if (new URL(valor, base).origin !== base) return '/';
+  } catch {
+    return '/';
+  }
   return valor;
 }

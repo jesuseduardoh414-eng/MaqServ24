@@ -55,7 +55,7 @@ export async function firmarOperador(quoteId: number, version: number): Promise<
 export async function validarOperador(token: string | null | undefined): Promise<{ quoteId: number } | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, algorithms: ['HS256'] });
     const id = Number(payload.sub);
     if (!Number.isInteger(id) || id <= 0) return null;
     const q = await prisma.quotes.findUnique({ where: { id: BigInt(id) }, select: { requirements: true, service_state: true } });

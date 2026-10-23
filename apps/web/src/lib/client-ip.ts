@@ -11,8 +11,11 @@ import type { NextRequest } from 'next/server';
  * acepta igual y avisa en su log).
  */
 export function clientIpHeaders(req: NextRequest): Record<string, string> {
-  // `x-forwarded-for` lo pone Vercel con la IP real del visitante al frente.
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  // La ÚLTIMA de `x-forwarded-for`, la que agrega nuestro proxy (LiteSpeed),
+  // y no la primera (auditoría 2026-10-23): la primera la escribe quien llama,
+  // y con una distinta en cada intento se saltaba el límite de 5 logins por
+  // minuto. Es el mismo criterio que la API (`trust proxy 1`).
+  const ip = req.headers.get('x-forwarded-for')?.split(',').map((s) => s.trim()).filter(Boolean).pop()
     || req.headers.get('x-real-ip')?.trim();
   const secret = process.env.PROXY_SECRET?.trim();
   return {

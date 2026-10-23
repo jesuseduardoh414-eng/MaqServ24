@@ -1,4 +1,4 @@
-import { Injectable, type ArgumentMetadata, type PipeTransform } from '@nestjs/common';
+import { BadRequestException, Injectable, type ArgumentMetadata, type PipeTransform } from '@nestjs/common';
 
 /**
  * RECORTA LOS ESPACIOS DE LOS EXTREMOS EN TODO LO QUE ENTRA.
@@ -23,16 +23,28 @@ import { Injectable, type ArgumentMetadata, type PipeTransform } from '@nestjs/c
  * 2. Sólo los extremos. Los espacios de en medio no se tocan: "Torre A 2"
  *    sigue siendo eso, y un texto de blog conserva su formato.
  */
-const recortar = (valor: unknown): unknown => {
+/**
+ * Auditoría 2026-10-23: `__proto__` y compañía no se copian (asignarlos cambia
+ * el prototipo del objeto de salida), y un JSON anidado miles de niveles ya no
+ * revienta la pila con un 500: ningún formulario pasa de unos pocos niveles.
+ */
+const CLAVES_PELIGROSAS = new Set(['__proto__', 'constructor', 'prototype']);
+const PROFUNDIDAD_MAXIMA = 32;
+
+const recortar = (valor: unknown, nivel = 0): unknown => {
   if (typeof valor === 'string') return valor.trim();
-  if (Array.isArray(valor)) return valor.map(recortar);
+  if (nivel > PROFUNDIDAD_MAXIMA && valor !== null && typeof valor === 'object') {
+    throw new BadRequestException('Datos demasiado anidados.');
+  }
+  if (Array.isArray(valor)) return valor.map((v) => recortar(v, nivel + 1));
   // Sólo objetos "planos": un Buffer de una subida o una Date no se recorren.
   if (valor !== null && typeof valor === 'object') {
     const proto = Object.getPrototypeOf(valor);
     if (proto === Object.prototype || proto === null) {
       const salida: Record<string, unknown> = {};
       for (const [clave, v] of Object.entries(valor as Record<string, unknown>)) {
-        salida[clave] = recortar(v);
+        if (CLAVES_PELIGROSAS.has(clave)) continue;
+        salida[clave] = recortar(v, nivel + 1);
       }
       return salida;
     }
@@ -44,6 +56,6 @@ const recortar = (valor: unknown): unknown => {
 export class TrimPipe implements PipeTransform {
   transform(valor: unknown, metadata: ArgumentMetadata): unknown {
     if (metadata.type !== 'body' && metadata.type !== 'query') return valor;
-    return recortar(valor);
+    return recortar(valor, 0);
   }
 }

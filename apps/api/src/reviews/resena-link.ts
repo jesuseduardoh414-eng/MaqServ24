@@ -38,7 +38,7 @@ export async function firmarResena(quoteId: number): Promise<string> {
 export async function leerResena(token: string | null | undefined): Promise<number | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR });
+    const { payload } = await jwtVerify(token, llave(), { issuer: EMISOR, algorithms: ['HS256'] });
     const id = Number(payload.sub);
     return Number.isInteger(id) && id > 0 ? id : null;
   } catch {
