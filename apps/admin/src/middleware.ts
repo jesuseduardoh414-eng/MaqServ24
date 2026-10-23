@@ -2,13 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE, ADMIN_REFRESH_COOKIE, API_URL } from '@/lib/cookies';
 import { peticionAjena } from '@/lib/mismo-origen';
 
-/** `admin.` + el dominio de SITE_URL (el panel no tiene variable con su propio dominio). */
-function hostDelPanel(): string | null {
+/**
+ * `admin.` + el dominio público (el panel no tiene variable con su propio
+ * dominio): de SITE_URL si está, si no de API_URL (`api.x` → `admin.x`), que
+ * el panel siempre tiene. Solo lo usan los navegadores viejos que no mandan
+ * Sec-Fetch-Site (ver mismo-origen.ts).
+ */
+function hostDelPanel(): string[] {
+  const hosts: string[] = [];
   try {
-    return process.env.SITE_URL ? `admin.${new URL(process.env.SITE_URL).hostname.replace(/^www\./, '')}` : null;
-  } catch {
-    return null;
-  }
+    if (process.env.SITE_URL) hosts.push(`admin.${new URL(process.env.SITE_URL).hostname.replace(/^www\./, '')}`);
+  } catch { /* SITE_URL mal escrita */ }
+  try {
+    const api = new URL(API_URL).hostname;
+    if (api.startsWith('api.')) hosts.push(`admin.${api.slice(4)}`);
+  } catch { /* API_URL mal escrita */ }
+  return hosts;
 }
 
 const WEEK = 60 * 60 * 24 * 7;
@@ -51,7 +60,7 @@ function jwtExp(token: string): number | null {
 export async function middleware(req: NextRequest) {
   // Lo que cambia datos solo desde páginas del panel (ver mismo-origen.ts): un
   // script plantado en el sitio público ya no puede usar la sesión del panel.
-  if (req.nextUrl.pathname.startsWith('/api/') && peticionAjena(req, [hostDelPanel()])) {
+  if (req.nextUrl.pathname.startsWith('/api/') && peticionAjena(req, hostDelPanel())) {
     return NextResponse.json({ message: 'Petición no permitida desde otro sitio.' }, { status: 403 });
   }
 

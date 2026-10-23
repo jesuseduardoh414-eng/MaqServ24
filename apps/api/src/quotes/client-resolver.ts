@@ -189,12 +189,16 @@ async function deLaCuenta(userId: number, empresa: string, clave: string): Promi
 
   const existente = await porEmpresa(empresa, clave);
   if (existente && existente.id !== provisional.id) {
-    // La empresa ya estaba: el de la cuenta no tenía nada, se va.
-    await prisma.clients.deleteMany({ where: { id: provisional.id } });
+    // La empresa ya estaba y es SUYA (mismo correo): el de la cuenta no tenía
+    // nada, se va, y la cuenta queda ligada a la empresa.
     if (await puedeLigar(existente.id, userId)) {
+      await prisma.clients.deleteMany({ where: { id: provisional.id } });
       await prisma.clients.update({ where: { id: existente.id }, data: { user_id: userId } });
       return { ...existente, user_id: userId };
     }
+    // Con otro correo la solicitud se archiva bajo esa empresa, pero la cuenta
+    // se queda con su propio cliente: si se borrara, quedaba sin cliente ni obras
+    // y dejaba de salir en Clientes y obras (revisión 2026-10-23).
     return existente;
   }
   await prisma.clients.update({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, REFRESH_COOKIE } from '@/lib/session';
+import { VERIFICACION_COOKIE } from '@/lib/cookies';
 import { clientIpHeaders } from '@/lib/client-ip';
 import { destinoSeguro } from '@/lib/google-auth';
 import { origenPublico } from '@/lib/origen';
@@ -36,13 +37,16 @@ export async function GET(req: NextRequest) {
     apiRes = await fetch(`${API_URL}/auth/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
-      body: JSON.stringify({ token }),
+      // La llave de este navegador: sin ella (otro equipo, otro navegador) el
+      // enlace no da sesión (ver /api/auth/[action], `llaveNavegador`).
+      body: JSON.stringify({ token, navegador: req.cookies.get(VERIFICACION_COOKIE)?.value }),
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
     return alLogin('servidor');
   }
   const data = await apiRes.json().catch(() => null);
+  if (apiRes.status === 403 && data?.code === 'otro_navegador') return alLogin('otro-navegador');
   if (!apiRes.ok || !data?.token) return alLogin('verificacion');
 
   const res = NextResponse.redirect(new URL(next, origen));
@@ -57,5 +61,6 @@ export async function GET(req: NextRequest) {
   };
   res.cookies.set(SESSION_COOKIE, data.token, opts);
   if (data.refresh_token) res.cookies.set(REFRESH_COOKIE, data.refresh_token, opts);
+  res.cookies.delete(VERIFICACION_COOKIE);
   return res;
 }

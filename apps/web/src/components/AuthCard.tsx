@@ -29,6 +29,7 @@ const ERRORES: Record<string, string> = {
   google_cuenta_existente: 'Ya existe una cuenta con ese correo. Entra con tu contraseña.',
   servidor: 'El servidor no respondió. Espera unos segundos e inténtalo de nuevo.',
   verificacion: 'Ese enlace de confirmación ya no sirve. Entra con tu correo y contraseña y te mandamos uno nuevo.',
+  'otro-navegador': 'Por seguridad, el enlace de confirmación solo funciona en el navegador donde te registraste. Si estás en otro, entra aquí con tu correo y contraseña y te mandamos un enlace para este.',
 };
 
 /** Con qué contesta la API cuando la cuenta existe pero no ha confirmado su correo. */

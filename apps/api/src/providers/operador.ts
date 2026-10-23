@@ -62,6 +62,13 @@ export async function validarOperador(token: string | null | undefined): Promise
     if (!q || !q.service_state || TERMINADOS.has(q.service_state)) return null;
     // La versión revoca los enlaces anteriores (cambio de operador o reenvío).
     if (operadorDe(q.requirements)?.v !== payload.v) return null;
+    // El aliado que tomó el servicio tiene que seguir activo (auditoría
+    // 2026-10-23): dar de baja a un aliado corta también el enlace de su
+    // operador, que si no seguía 15 días viendo la obra y el contacto.
+    const aliadoActivo = await prisma.service_assignments.count({
+      where: { quote_id: BigInt(id), state: 'aceptado', providers: { status: 1 } },
+    });
+    if (!aliadoActivo) return null;
     return { quoteId: id };
   } catch {
     return null;

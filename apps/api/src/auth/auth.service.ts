@@ -7,6 +7,7 @@ import {
   crearRestablecimiento,
   firmarVerificacionCorreo,
   hashPassword,
+  huellaNavegador,
   leerVerificacionCorreo,
   passwordGrant,
   refreshGrant,
@@ -19,6 +20,8 @@ import { correoBienvenida, correoConfirmarCuenta, correoRestablecerContrasena } 
 
 /** Con qué contesta el login cuando la cuenta existe pero no confirmó su correo. */
 export const CODIGO_NO_VERIFICADO = 'email_no_verificado';
+/** El enlace de confirmación se abrió en otro navegador (ver `verificarCorreo`). */
+export const CODIGO_OTRO_NAVEGADOR = 'otro_navegador';
 
 const sitio = () => (process.env.SITE_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 import type { PerfilGoogle } from './google';
@@ -65,7 +68,7 @@ export class AuthService {
    * cualquier correo, real o no. Se devuelve `verificar: true` y no tokens; la
    * sesión la da el enlace de confirmación (`verificarCorreo`).
    */
-  async register(input: { name: string; email: string; password: string; next?: string }): Promise<{ verificar: true; email: string }> {
+  async register(input: { name: string; email: string; password: string; next?: string; navegador?: string }): Promise<{ verificar: true; email: string }> {
     const email = input.email.trim().toLowerCase();
     const exists = await prisma.users.findFirst({ where: { email } });
     if (exists) throw new ConflictException('Ya existe una cuenta con ese correo');
@@ -74,16 +77,18 @@ export class AuthService {
     const u = await prisma.users.create({
       data: { name: input.name, email, password: hash, email_verified_at: null, created_at: new Date(), updated_at: new Date() },
     });
-    await this.mandarConfirmacion({ id: u.id, name: u.name, email: u.email }, input.next);
+    await this.mandarConfirmacion({ id: u.id, name: u.name, email: u.email }, input.next, input.navegador);
     return { verificar: true, email: u.email };
   }
 
   /** El correo con el enlace de confirmación. Nunca lanza: si no sale, queda en la bitácora. */
-  private async mandarConfirmacion(u: { id: number; name: string; email: string }, next?: string): Promise<void> {
+  private async mandarConfirmacion(u: { id: number; name: string; email: string }, next?: string, navegador?: string): Promise<void> {
     const destino = rutaInterna(next);
-    const token = await firmarVerificacionCorreo(u.id, u.email, destino);
+    const token = await firmarVerificacionCorreo(u.id, u.email, destino, navegador);
     const url = `${sitio()}/api/auth/verificar?t=${encodeURIComponent(token)}&next=${encodeURIComponent(destino)}`;
-    const correo = correoConfirmarCuenta({ nombre: u.name, url, horas: VERIFICACION_HORAS });
+    // Solo la primera palabra del nombre: el correo va a una dirección que
+    // nadie ha comprobado todavía, y no debe repetir texto libre (auditoría 2026-10-23).
+    const correo = correoConfirmarCuenta({ nombre: u.name.split(/\s+/)[0].slice(0, 30), url, horas: VERIFICACION_HORAS });
     const estado = await this.mailer.enviar({ kind: 'email_verification', to: u.email, toName: u.name, ...correo });
     if (estado !== 'enviado') this.logger.warn(`Confirmación de ${u.email}: el correo quedó como "${estado}"`);
   }
@@ -93,7 +98,7 @@ export class AuthService {
    * devuelve la sesión, para que confirmar sea entrar. Idempotente: abrir el
    * enlace dos veces no falla, vuelve a dar sesión.
    */
-  async verificarCorreo(token: string): Promise<AuthResponse> {
+  async verificarCorreo(token: string, navegador?: string): Promise<AuthResponse> {
     const lectura = await leerVerificacionCorreo(token);
     if (!lectura.ok) {
       throw new UnauthorizedException(
@@ -101,6 +106,20 @@ export class AuthService {
           ? 'El enlace ya caducó. Entra con tu correo y contraseña y te mandamos uno nuevo.'
           : 'Ese enlace no sirve. Entra con tu correo y contraseña y te mandamos uno nuevo.',
       );
+    }
+    /**
+     * Solo en el navegador donde se pidió (ver `huellaNavegador`). En otro ni
+     * se confirma ni se entra: confirmar exige el buzón Y la contraseña. Quien
+     * esté en otro equipo entra con su contraseña y pide un enlace para ese.
+     * Así tampoco sirve abrir sin pensar el correo de un registro que hizo otra
+     * persona con tu dirección.
+     */
+    if (!lectura.navegador || !navegador || huellaNavegador(navegador) !== lectura.navegador) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: CODIGO_OTRO_NAVEGADOR,
+        message: 'Abre el enlace en el navegador donde te registraste, o entra con tu correo y contraseña y te mandamos uno nuevo.',
+      });
     }
     const u = await prisma.users.findUnique({ where: { id: lectura.userId } });
     // El enlace vale para el correo con el que se firmó: si lo cambió, no.
@@ -121,12 +140,12 @@ export class AuthService {
   }
 
   /** Reenviar el enlace. Siempre ok, exista o no el correo (anti-enumeración). */
-  async reenviarVerificacion(email: string, next?: string): Promise<{ ok: boolean }> {
+  async reenviarVerificacion(email: string, next?: string, navegador?: string): Promise<{ ok: boolean }> {
     const u = await prisma.users.findFirst({
       where: { email: email.trim().toLowerCase() },
       select: { id: true, name: true, email: true, email_verified_at: true },
     });
-    if (u && !u.email_verified_at) await this.mandarConfirmacion(u, next);
+    if (u && !u.email_verified_at) await this.mandarConfirmacion(u, next, navegador);
     return { ok: true };
   }
 
@@ -189,12 +208,35 @@ export class AuthService {
           );
         }
         usuario = porCorreo;
-        // Google acaba de acreditar que ese correo es suyo: si la cuenta con
-        // contraseña seguía sin confirmar, queda confirmada aquí mismo.
-        if (!usuario.email_verified_at) {
-          await prisma.users.update({ where: { id: usuario.id }, data: { email_verified_at: new Date(), updated_at: new Date() } });
-        }
+        /**
+         * Google acaba de acreditar que ese correo es suyo: si la cuenta con
+         * contraseña seguía sin confirmar, queda confirmada aquí mismo.
+         *
+         * Y su contraseña se TIRA, esté o no confirmada (auditoría
+         * 2026-10-23): la pudo poner cualquiera que registró este correo antes
+         * que su dueña, esperando a que ella entrara con Google; y un enlace de
+         * confirmación abierto sin pensar la dejaba confirmada. Con el hash
+         * nuevo cambia `pv` y mueren las sesiones de quien la puso. Pasa una
+         * sola vez, al enlazar; quien quiera también contraseña usa
+         * "¿Olvidaste tu contraseña?".
+         */
+        usuario = await prisma.users.update({
+          where: { id: usuario.id },
+          data: {
+            ...(usuario.email_verified_at ? {} : { email_verified_at: new Date() }),
+            password: await hashPassword(randomUUID() + randomUUID()),
+            reset_token: null,
+            reset_token_expiry: null,
+            updated_at: new Date(),
+          },
+        });
       } else {
+        // Una cuenta NUEVA nace confirmada solo si Google confirmó el correo: si
+        // no, cualquiera con una cuenta de Google con el correo de otra persona
+        // se quedaba con su ficha de cliente y sus obras (auditoría 2026-10-23).
+        if (!perfil.emailVerificado) {
+          throw new UnauthorizedException('Tu cuenta de Google no tiene el correo verificado. Verifícalo en Google o regístrate con correo y contraseña.');
+        }
         const hash = await hashPassword(randomUUID() + randomUUID());
         usuario = await prisma.users.create({
           data: {

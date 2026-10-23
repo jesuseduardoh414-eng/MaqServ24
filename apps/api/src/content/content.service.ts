@@ -14,6 +14,7 @@ import type {
 } from '@maqserv/types';
 import { imageUrl, normLegacyText } from '../catalog/images';
 import { sanitizeRichHtml, sanitizeUserHtml } from '../common/sanitize';
+import { nombreCorto } from '../common/nombre-corto';
 import { PerfexService } from '../integrations/integrations.module';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseContacto, correoAcuseProveedor, correoContactoInterno, correoSolicitudProveedorInterno } from '../notifications/email-templates';
@@ -418,7 +419,9 @@ export class ContentService {
       });
     }
     if (correo) {
-      void this.mailer.enviar({ kind: 'provider_signup_ack', to: correo, toName: contacto ?? nombre, ...correoAcuseProveedor({ nombre: contacto ?? nombre }) });
+      // Del nombre, solo la primera palabra: va a un correo que nadie comprobó y
+      // no debe repetir texto libre (auditoría 2026-10-23).
+      void this.mailer.enviar({ kind: 'provider_signup_ack', to: correo, toName: contacto ?? nombre, ...correoAcuseProveedor({ nombre: (contacto ?? nombre).split(/\s+/)[0].slice(0, 30) }) });
     }
     return { ok: true };
   }
@@ -490,7 +493,7 @@ export class ContentService {
       id: r.id,
       rating: Math.max(1, Math.min(5, r.rating ?? 5)),
       review: r.text,
-      author: names.get(r.user_id) ?? 'Cliente',
+      author: nombreCorto(names.get(r.user_id)),
       product: prods.get(r.product_id) ?? null,
       date: r.created_at ? r.created_at.toISOString() : null,
     }));
@@ -511,9 +514,3 @@ export class ContentService {
   }
 }
 
-/** "Juan Pérez López" → "Juan P.": en el sitio público no va el nombre completo de un cliente. */
-function nombreCorto(nombre: string): string {
-  const [primero, segundo] = nombre.trim().split(/\s+/);
-  if (!primero) return 'Cliente';
-  return segundo ? `${primero} ${segundo[0].toUpperCase()}.` : primero;
-}

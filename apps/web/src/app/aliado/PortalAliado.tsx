@@ -1065,13 +1065,14 @@ export function PortalAliado({ datos, contacto }: { datos: DatosPortal; contacto
                 </label>
                 <div className="ms-field">
                   <span className="ms-label">¿Hasta cuándo vale?</span>
-                  <ShDatePicker name="expiresAt" defaultValue="" placeholder="No vence" aria-label="¿Hasta cuándo vale?" />
-                  <span className="ms-hint">Si no vence, déjalo vacío.</span>
+                  <ShDatePicker name="expiresAt" defaultValue="" placeholder={tipoDoc === 'seguro' ? 'Elige la fecha' : 'No vence'} aria-label="¿Hasta cuándo vale?" />
+                  <span className="ms-hint">{tipoDoc === 'seguro' ? 'La póliza siempre tiene vigencia: pon hasta cuándo vale.' : 'Si no vence, déjalo vacío.'}</span>
                 </div>
                 <label className="ms-field">
-                  <span className="ms-label">Foto del documento</span>
-                  {/* Foto y no archivo: en obra se le toma foto a la póliza. */}
-                  <input type="file" name="file" accept="image/*" className="ms-input" style={{ padding: '10px 13px' }} />
+                  <span className="ms-label">Foto o PDF del documento</span>
+                  {/* En obra se le toma foto a la póliza; en oficina suele haber PDF. Se
+                      guarda en una carpeta privada: solo lo ve MAQSER24. */}
+                  <input type="file" name="file" accept="image/*,application/pdf" required className="ms-input" style={{ padding: '10px 13px' }} />
                 </label>
                 <div className="al-acciones" style={{ marginTop: 0 }}>
                   <button type="submit" className="ms-btn" disabled={guardando}>

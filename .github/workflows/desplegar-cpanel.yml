@@ -160,3 +160,46 @@ jobs:
             echo "✅ $app responde ($url)"
           done
           echo "Despliegue completo: $APPS"
+
+      # media.maqser24.com sirve la carpeta ~/media tal cual (fotos, videos, papeles
+      # de aliados). Su .htaccess se ponía a mano y no tenía `nosniff`: un archivo
+      # viejo con contenido de página se abría como página en un subdominio nuestro
+      # (auditoría 2026-10-23). Aquí se escribe solo en cada despliegue: nada que no
+      # sea imagen/video/PDF se abre en línea, nada se ejecuta, y si después de
+      # escribirlo una imagen deja de abrir, se regresa el anterior y solo se avisa.
+      - name: Proteger la carpeta de archivos (media)
+        env:
+          MEDIA_URL: ${{ vars.DEPLOY_MEDIA_URL || 'https://media.maqser24.com' }}
+        run: |
+          set -uo pipefail
+          SSH="ssh -p $PUERTO -i ~/.ssh/despliegue -o BatchMode=yes $USUARIO@$HOST"
+          $SSH "test -d media" || { echo "::warning::No existe ~/media en el servidor; no se toca nada."; exit 0; }
+          $SSH "cat > media/.htaccess.nuevo" <<'HTACCESS'
+          # Lo escribe el despliegue (.github/workflows/desplegar-cpanel.yml) en cada subida.
+          # No lo edites aquí: cámbialo en el workflow.
+          Options -Indexes
+          <IfModule mod_headers.c>
+            Header set Cache-Control "public, max-age=604800"
+            Header set X-Content-Type-Options "nosniff"
+            <FilesMatch "\.(?i:svgz?|html?|xhtml|xml|xsl|js|mjs|json|txt|css)$">
+              Header set Content-Security-Policy "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox"
+              Header set Content-Disposition "attachment"
+            </FilesMatch>
+          </IfModule>
+          <FilesMatch "\.(?i:php[0-9]?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp)$">
+            Require all denied
+          </FilesMatch>
+          HTACCESS
+          # Respaldo del que había (una vez por despliegue) y cambio.
+          $SSH "cd media && { [ -f .htaccess ] && cp -p .htaccess .htaccess.antes || true; } && mv .htaccess.nuevo .htaccess"
+          # Comprobación con un archivo real.
+          prueba=$($SSH "ls media/uploads 2>/dev/null | grep -iE '\.(png|jpe?g|webp)$' | head -n1" || true)
+          if [ -z "$prueba" ]; then echo "::warning::No hay imágenes en media/uploads para comprobar; se deja el .htaccess nuevo."; exit 0; fi
+          cabeceras=$($SSH "curl -sI --max-time 30 '$MEDIA_URL/uploads/$prueba'" || true)
+          if printf '%s' "$cabeceras" | head -n1 | grep -q ' 200' && printf '%s' "$cabeceras" | grep -qi 'x-content-type-options: *nosniff'; then
+            echo "✅ media protegida ($prueba abre y lleva nosniff)"
+          else
+            echo "::warning::Con el .htaccess nuevo, $MEDIA_URL/uploads/$prueba no respondió como se esperaba; se regresa el anterior."
+            printf '%s\n' "$cabeceras" | head -n5
+            $SSH "cd media && { [ -f .htaccess.antes ] && mv .htaccess.antes .htaccess || rm -f .htaccess; }"
+          fi

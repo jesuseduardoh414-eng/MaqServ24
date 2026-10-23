@@ -95,7 +95,9 @@ export const REQUEST_FORMS: RequestForm[] = [
             { key: 'volumen', label: 'Volumen estimado', type: 'texto', unit: 'm³', hint: 'Si no lo sabes, describe el frente de trabajo' },
       { key: 'capacidad_unidad', label: 'Capacidad del camión', type: 'opcion', options: ['14 m³', '28 m³', 'La que convenga'], hint: 'Solo para material de banco o retiros' },
       // --- Comunes al viaje ---
-      { key: 'origen', label: 'Punto de carga', type: 'texto', hint: 'Si no tienes, el proveedor propone uno' },
+      // `punto_carga` y no `origen` (2026-10-23): `origen` es clave interna del servidor
+      // (de dónde vino la solicitud) y se quitaba de lo que manda el cliente.
+      { key: 'punto_carga', label: 'Punto de carga', type: 'texto', hint: 'Si no tienes, el proveedor propone uno' },
       { key: 'destino', label: 'Destino', type: 'texto', required: true, hint: 'La obra, un tiro autorizado o un banco' },
       { key: 'viajes', label: 'Viajes estimados', type: 'numero', required: true, hint: 'Por día, o en total' },
       { key: 'frecuencia', label: 'Frecuencia', type: 'opcion', options: ['Una sola vez', 'Diaria', 'Varias veces por semana', 'Continua durante semanas'], required: true },

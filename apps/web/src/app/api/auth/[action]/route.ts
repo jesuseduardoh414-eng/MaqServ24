@@ -1,6 +1,30 @@
+import { randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { SESSION_COOKIE, REFRESH_COOKIE } from '@/lib/session';
+import { VERIFICACION_COOKIE } from '@/lib/cookies';
 import { clientIpHeaders } from '@/lib/client-ip';
+
+/**
+ * La llave de ESTE navegador para el enlace "Confirma tu cuenta" (auditoría
+ * 2026-10-23): la API mete su huella en el enlace y solo da sesión si se abre
+ * aquí (ver /api/auth/verificar). Se reutiliza la que ya hubiera, para que
+ * sirvan todos los enlaces pedidos desde este navegador.
+ */
+function llaveNavegador(req: NextRequest): string {
+  const ya = req.cookies.get(VERIFICACION_COOKIE)?.value;
+  return ya && /^[a-f0-9]{64}$/.test(ya) ? ya : randomBytes(32).toString('hex');
+}
+
+function guardarLlave(res: NextResponse, llave: string): NextResponse {
+  res.cookies.set(VERIFICACION_COOKIE, llave, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60 * 24,
+  });
+  return res;
+}
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
@@ -78,15 +102,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
   // Reenviar el correo de confirmación. Siempre ok (anti-enumeración).
   if (action === 'resend') {
     const body = await req.json().catch(() => null);
+    const llave = llaveNavegador(req);
     try {
       const apiRes = await fetch(`${API_URL}/auth/resend-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
-        body: JSON.stringify({ email: body?.email, next: body?.next }),
+        body: JSON.stringify({ email: body?.email, next: body?.next, navegador: llave }),
         signal: AbortSignal.timeout(15_000),
       });
       const data = await apiRes.json().catch(() => ({ ok: true }));
-      return NextResponse.json(data, { status: apiRes.ok ? 200 : apiRes.status });
+      return guardarLlave(NextResponse.json(data, { status: apiRes.ok ? 200 : apiRes.status }), llave);
     } catch {
       return NextResponse.json({ ok: true });
     }
@@ -98,6 +123,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
 
   const body = await req.json().catch(() => null);
   const remember = body?.remember !== false; // login: casilla; register: siempre recuerda
+  const llave = action === 'register' ? llaveNavegador(req) : null;
   let apiRes: Response;
   try {
     // Tope explícito: con Render despertando, el fetch colgado dejaba al login
@@ -105,7 +131,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
     apiRes = await fetch(`${API_URL}/auth/${action}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...clientIpHeaders(req) },
-      body: JSON.stringify(body),
+      body: JSON.stringify(llave ? { ...(body ?? {}), navegador: llave } : body),
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
@@ -133,7 +159,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ action: st
    * escribiría una cookie basura que el middleware tomaría por sesión.
    */
   if (data?.verificar) {
-    return NextResponse.json({ verificar: true, email: data.email });
+    const res = NextResponse.json({ verificar: true, email: data.email });
+    return llave ? guardarLlave(res, llave) : res;
   }
 
   const res = NextResponse.json({ user: data.user });

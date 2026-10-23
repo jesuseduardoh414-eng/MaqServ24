@@ -82,6 +82,18 @@ async function bootstrap() {
   if (isProd && !process.env.PROXY_SECRET?.trim()) {
     console.error('SEGURIDAD: falta PROXY_SECRET en producción; los límites por IP se pueden evadir. Configúralo en api, web y admin.');
   }
+  // Las sesiones (AUTH_SECRET) y los enlaces que se reparten afuera
+  // (PROVIDER_LINK_SECRET: aliado, operador, aceptar, reseña) deben firmarse con
+  // llaves DISTINTAS y largas: si caen a la misma JWT_SECRET, cada enlace que
+  // sale por correo es una muestra de la llave que firma las sesiones del panel.
+  // Se avisa y no se detiene el arranque: tumbar la API por esto sería peor.
+  if (isProd) {
+    const sesiones = process.env.AUTH_SECRET ?? process.env.JWT_SECRET ?? '';
+    const enlaces = process.env.PROVIDER_LINK_SECRET ?? process.env.JWT_SECRET ?? '';
+    if (!process.env.AUTH_SECRET || !process.env.PROVIDER_LINK_SECRET || sesiones === enlaces || sesiones.length < 32 || enlaces.length < 32) {
+      console.error('SEGURIDAD: AUTH_SECRET y PROVIDER_LINK_SECRET deben existir, ser distintas y tener 32+ caracteres cada una.');
+    }
+  }
 
   /**
    * Orígenes permitidos por CORS. En prod se pasan por CORS_ORIGINS (coma-separado:

@@ -11,13 +11,17 @@ import {
   Patch,
   Post,
   Req,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
+import { createReadStream, existsSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { prisma } from '@maqserv/db';
 import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, esLineaServicio, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
 import { margenAliadoPct } from '../common/platform-settings';
 import { coordenadasDe } from '../freight/direccion';
-import { borrarSubidas } from '../common/media';
+import { borrarSubidas, mediaDir } from '../common/media';
+import { borrarPrivado, esPrivado, moverPapelAPrivado, rutaDePrivado, tipoDePapel } from '../common/archivos-privados';
 import { disponibilidadDe } from '../catalog/availability';
 import { lista } from '../common/json-list';
 import { z } from 'zod';
@@ -550,8 +554,9 @@ export class AdminProvidersController {
       reemplazado: fuera.has(d),
       file: d.file,
       // La foto que subió el aliado desde su portal, lista para abrirse: es lo
-      // que se revisa antes de subirlo a "validado".
-      fileUrl: imageUrl(d.file),
+      // que se revisa antes de subirlo a "validado". Por la API y con sesión
+      // del panel (auditoría 2026-10-23): el papel ya no tiene dirección pública.
+      fileUrl: d.file ? `/api/admin/providers/documents/${d.id}/archivo` : null,
       issuedAt: d.issued_at ? d.issued_at.toISOString().slice(0, 10) : null,
       expiresAt: d.expires_at ? d.expires_at.toISOString().slice(0, 10) : null,
     }));
@@ -689,12 +694,15 @@ export class AdminProvidersController {
     if (!existe) throw new NotFoundException('Aliado no encontrado');
     const d = parsed.data;
 
+    // Un archivo que se haya subido aparte a `uploads/` (públicos) se trae a la
+    // carpeta privada; cualquier otra ruta no se acepta.
+    const archivo = d.file?.startsWith('uploads/') ? await moverPapelAPrivado(d.file) : null;
     const doc = await prisma.provider_documents.create({
       data: {
         provider_id: id,
         kind: d.kind,
         name: d.name ?? null,
-        file: d.file ?? null,
+        file: archivo,
         issued_at: fecha(d.issuedAt),
         expires_at: fecha(d.expiresAt),
       },
@@ -788,8 +796,32 @@ export class AdminProvidersController {
 
   @Delete('documents/:docId')
   async removeDocument(@Param('docId', ParseIntPipe) docId: number) {
+    const doc = await prisma.provider_documents.findUnique({ where: { id: docId }, select: { file: true } });
     await prisma.provider_documents.deleteMany({ where: { id: docId } });
+    await borrarPrivado(doc?.file);
     return { ok: true };
+  }
+
+  /**
+   * El archivo de un papel, solo para el panel con el módulo Proveedores. Los
+   * privados salen de la carpeta privada; uno viejo que siga en `uploads/` (aún
+   * sin mover) se sirve igual desde aquí. Fotos y PDF se abren en la pestaña;
+   * con `nosniff`, nada se toma por página.
+   */
+  @Get('documents/:docId/archivo')
+  async archivoDocumento(@Param('docId', ParseIntPipe) docId: number) {
+    const doc = await prisma.provider_documents.findUnique({ where: { id: docId }, select: { file: true } });
+    if (!doc?.file) throw new NotFoundException('Ese papel no tiene archivo.');
+    const abs = esPrivado(doc.file)
+      ? rutaDePrivado(doc.file)
+      : doc.file.startsWith('uploads/') ? join(mediaDir(), 'uploads', basename(doc.file)) : null;
+    if (!abs || !existsSync(abs)) throw new NotFoundException('El archivo ya no está.');
+    const tipo = tipoDePapel(abs);
+    const ext = tipo === 'application/octet-stream' ? 'bin' : abs.split('.').pop();
+    return new StreamableFile(createReadStream(abs), {
+      type: tipo,
+      disposition: `${tipo === 'application/octet-stream' ? 'attachment' : 'inline'}; filename="papel-${docId}.${ext}"`,
+    });
   }
 
   /**

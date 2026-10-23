@@ -3,6 +3,7 @@ import { ProviderPortalController } from './provider-portal.controller';
 import { OperadorController } from './operador.controller';
 import { ServiceService } from '../quotes/service.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PapelesPrivados } from './papeles-privados';
 
 /**
  * EL PORTAL DEL ALIADO (documento institucional, sección 20).
@@ -15,6 +16,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
   imports: [NotificationsModule],
   // El enlace del operador de la unidad (2026-10-15): un servicio, sin lo del aliado.
   controllers: [ProviderPortalController, OperadorController],
-  providers: [ServiceService],
+  // PapelesPrivados: al arrancar, muda a la carpeta privada los papeles viejos (2026-10-23).
+  providers: [ServiceService, PapelesPrivados],
 })
 export class ProvidersModule {}

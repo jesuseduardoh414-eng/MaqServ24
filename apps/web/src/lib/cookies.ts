@@ -14,3 +14,5 @@ export const REFRESH_COOKIE = 'servmaq_refresh';
 export const ALIADO_COOKIE = 'servmaq_aliado';
 /** Enlace firmado del operador de la unidad (2026-10-15): un servicio, 15 días. */
 export const OPERADOR_COOKIE = 'servmaq_operador';
+/** Llave del navegador para el enlace "Confirma tu cuenta" (2026-10-23): ese enlace solo da sesión donde se pidió. */
+export const VERIFICACION_COOKIE = 'servmaq_verif';

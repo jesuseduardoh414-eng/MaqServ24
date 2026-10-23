@@ -24,11 +24,14 @@ const registerSchema = z.object({
   password: z.string().min(8).max(100),
   /** A dónde volver al confirmar el correo (ruta interna). */
   next: z.string().max(300).optional(),
+  /** Llave del navegador que se registra (la pone la web en una cookie): el enlace solo da sesión ahí. */
+  navegador: z.string().min(32).max(128).optional(),
 });
 
 const resendSchema = z.object({
   email: z.string().email().max(190),
   next: z.string().max(300).optional(),
+  navegador: z.string().min(32).max(128).optional(),
 });
 
 const loginSchema = z.object({
@@ -104,9 +107,9 @@ export class AuthController {
   @Throttle(AUTH_LIMIT)
   @Post('verify')
   verify(@Body() body: unknown) {
-    const parsed = z.object({ token: z.string().min(32).max(2048) }).safeParse(body);
+    const parsed = z.object({ token: z.string().min(32).max(2048), navegador: z.string().max(128).optional() }).safeParse(body);
     if (!parsed.success) throw new BadRequestException('Enlace inválido');
-    return this.auth.verificarCorreo(parsed.data.token);
+    return this.auth.verificarCorreo(parsed.data.token, parsed.data.navegador);
   }
 
   // Cada intento manda un correo: mismo freno que "olvidé mi contraseña".
@@ -115,7 +118,7 @@ export class AuthController {
   resendVerification(@Body() body: unknown) {
     const parsed = resendSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Correo inválido');
-    return this.auth.reenviarVerificacion(parsed.data.email, parsed.data.next);
+    return this.auth.reenviarVerificacion(parsed.data.email, parsed.data.next, parsed.data.navegador);
   }
 
   @Throttle(AUTH_LIMIT)

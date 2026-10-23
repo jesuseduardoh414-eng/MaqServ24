@@ -35,10 +35,13 @@ export default function AdminLoginPage() {
     setLoading(false);
     if (!res.ok) {
       const data = await res.json().catch(() => null);
+      // Dos 429 distintos: el límite por minuto (mensaje en inglés de Nest) y el
+      // bloqueo de 15 minutos de ese correo tras 8 fallos, que trae su propio texto.
+      const mensaje = typeof data?.message === 'string' ? data.message : null;
       setError(
-        res.status === 429
+        res.status === 429 && !mensaje?.startsWith('Demasiados')
           ? 'Demasiados intentos seguidos. Espera un minuto y vuelve a probar.'
-          : typeof data?.message === 'string' ? data.message : 'Error al iniciar sesión',
+          : mensaje ?? 'Error al iniciar sesión',
       );
       return;
     }

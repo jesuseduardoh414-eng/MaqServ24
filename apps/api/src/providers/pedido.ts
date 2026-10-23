@@ -19,6 +19,45 @@ const INTERNAS = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'o
  * respuestas del formulario de SU línea, con su etiqueta, y los conceptos que
  * armó el cotizador ("Retroexcavadora c/ cucharón · 3 días").
  */
+/* ============================================================
+   ANTES DE ACEPTAR (auditoría 2026-10-23)
+   ------------------------------------------------------------
+   La oferta sale a varios aliados a la vez y solo uno se queda con el
+   trabajo. Los demás no deben irse sabiendo quién es el cliente y cómo
+   llamarle (es la forma de brincarse a MAQSER24): mientras la oferta está
+   "por contestar" ven la zona y lo que se pide, no la calle, el nombre de la
+   obra ni a quién buscar. Al aceptar lo ven todo, como siempre.
+
+   Y lo que escribió el cliente no viaja tal cual en un correo oficial a
+   terceros: sin correos, teléfonos ni enlaces (un "actualiza tu CLABE en
+   pagos-maqser.com" con el remitente de MAQSER24 sería un engaño perfecto).
+   ============================================================ */
+
+const OCULTO = '[se ve al aceptar]';
+
+/** Lo escrito por el cliente, sin "Atención:", correos, teléfonos ni enlaces. */
+export function sinContacto(texto: string | null | undefined): string | null {
+  if (!texto) return null;
+  const limpio = texto
+    .split('\n')
+    .filter((l) => !/^\s*Atenci[oó]n\s*:/i.test(l))
+    .join('\n')
+    .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, OCULTO)
+    .replace(/\bhttps?:\/\/\S+|\bwww\.\S+/gi, '[enlace quitado]')
+    .replace(/\b[\w-]+(\.[\w-]+)*\.(com|mx|net|org|info|io|app|co|xyz|online|site|link|me|biz)(\.[a-z]{2})?\b/gi, '[enlace quitado]')
+    // Teléfono = 10 dígitos o más; una fecha o una cantidad se quedan.
+    .replace(/\(?\+?\d[\d\s().-]{8,}\d/g, (m) => (m.replace(/\D/g, '').length >= 10 ? OCULTO : m))
+    .trim();
+  return limpio || null;
+}
+
+/** La colonia y el municipio, sin la calle ni el número (el primer tramo de la dirección). */
+export function zonaAproximada(direccion: string | null | undefined, municipio?: string | null): string | null {
+  const partes = (direccion ?? '').split(',').map((p) => p.trim()).filter(Boolean);
+  const zona = partes.length >= 2 ? partes.slice(1).join(', ') : municipio?.trim() || null;
+  return zona ? sinContacto(zona) : null;
+}
+
 /**
  * Las notas sueltas del comentario (lo que escribió el cliente aparte del
  * formulario). El resto del comentario repite lo que ya va en `pedido`.

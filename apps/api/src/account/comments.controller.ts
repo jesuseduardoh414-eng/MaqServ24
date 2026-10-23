@@ -1,3 +1,4 @@
+import { nombreCorto } from '../common/nombre-corto';
 import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import type { ProductComment, ProductCommentsSummary } from '@maqserv/types';
@@ -28,7 +29,8 @@ export class CommentsController {
 
     const items: ProductComment[] = rows.map((r) => ({
       id: r.id,
-      author: names.get(r.user_id) ?? 'Cliente',
+      // Solo nombre e inicial del apellido: es público (auditoría 2026-10-23).
+      author: nombreCorto(names.get(r.user_id)),
       rating: Math.max(1, Math.min(5, r.rating ?? 5)),
       text: r.text,
       date: r.created_at ? r.created_at.toISOString() : null,

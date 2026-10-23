@@ -1,3 +1,4 @@
+import { nombreCorto } from '../common/nombre-corto';
 import { BadRequestException, Body, Controller, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
@@ -28,7 +29,8 @@ export class ProductQuestionsController {
     const names = new Map(users.map((u) => [u.id, u.name]));
     return rows.map((r) => ({
       id: r.id,
-      author: (r.user_id ? names.get(r.user_id) : null) ?? r.asker_name ?? 'Cliente',
+      // Solo nombre e inicial del apellido: es público (auditoría 2026-10-23).
+      author: nombreCorto((r.user_id ? names.get(r.user_id) : null) ?? r.asker_name),
       question: r.question,
       answer: r.answer,
       date: r.created_at ? r.created_at.toISOString() : null,

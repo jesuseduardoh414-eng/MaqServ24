@@ -30,7 +30,12 @@ import { ReviewsModule } from './reviews/reviews.module';
     // Sin `name`: queda como el throttler "default", que es justo al que apuntan los
     // `@Throttle({ default: ... })` de cada endpoint. Ponerle nombre propio hacía que
     // esos decoradores no coincidieran con nada y NINGÚN límite por ruta se aplicara.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    // En español: el texto llega tal cual a la pantalla de login (antes salía
+    // "ThrottlerException: Too Many Requests").
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60_000, limit: 300 }],
+      errorMessage: 'Demasiados intentos seguidos. Espera un minuto y vuelve a probar.',
+    }),
     AuthModule, ThemeModule, CatalogModule, SettingsModule, ContentModule, QuotesModule, QuoterModule, ProvidersModule, FreightModule, NotificationsModule, AccountModule, AdminModule, IntegrationsModule, ReviewsModule,
   ],
   controllers: [HealthController],

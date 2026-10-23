@@ -31,7 +31,7 @@ export function hoyLocal(): string {
 }
 
 /** Claves que el asistente saca a sus propios pasos (ubicación y fecha). */
-export const CLAVES_UBICACION = ['obra_ubicacion', 'destino', 'origen'];
+export const CLAVES_UBICACION = ['obra_ubicacion', 'destino', 'punto_carga'];
 export const CLAVES_FECHA = ['fecha_inicio', 'duracion', 'periodo', 'ventana', 'frecuencia', 'horario', 'horarios'];
 
 export function RequirementFields({

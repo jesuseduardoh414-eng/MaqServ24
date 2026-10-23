@@ -64,11 +64,12 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
   // Archivos (la factura de un aliado, 2026-10-22): pasan sin leerlos como JSON.
   // Salen en el dominio DEL PANEL, con la sesión al lado: un archivo que el
   // navegador abriera como página (un XML con <script>, auditoría 2026-10-23)
-  // correría como si fuera el panel. Solo el PDF se abre en línea; lo demás se
-  // descarga, sin adivinar el tipo y en una caja sin permisos.
+  // correría como si fuera el panel. Solo el PDF y las fotos (sin SVG, que puede
+  // traer código) se abren en línea; lo demás se descarga, sin adivinar el tipo
+  // y en una caja sin permisos.
   const tipo = apiRes.headers.get('content-type') ?? '';
   if (apiRes.ok && tipo && !tipo.includes('application/json')) {
-    const esPdf = tipo.startsWith('application/pdf');
+    const enLinea = /^(application\/pdf|image\/(png|jpeg|webp|gif|avif))(;|$)/i.test(tipo);
     const disposicion = apiRes.headers.get('content-disposition') ?? '';
     const nombre = /filename="[^"]*"/.exec(disposicion)?.[0];
     return new NextResponse(apiRes.body, {
@@ -77,8 +78,8 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
         'Content-Type': tipo,
         'Cache-Control': 'private, no-store',
         'X-Content-Type-Options': 'nosniff',
-        'Content-Disposition': esPdf && disposicion ? disposicion : `attachment${nombre ? `; ${nombre}` : ''}`,
-        ...(esPdf ? {} : { 'Content-Security-Policy': "default-src 'none'; sandbox" }),
+        'Content-Disposition': enLinea && disposicion ? disposicion : `attachment${nombre ? `; ${nombre}` : ''}`,
+        ...(enLinea ? {} : { 'Content-Security-Policy': "default-src 'none'; sandbox" }),
       },
     });
   }

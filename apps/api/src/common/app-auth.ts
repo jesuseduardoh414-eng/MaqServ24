@@ -333,8 +333,17 @@ export function rutaInterna(v: unknown): string {
   return v;
 }
 
-export async function firmarVerificacionCorreo(userId: number, email: string, next: string): Promise<string> {
-  return new SignJWT({ typ: 'verify-email', email: email.trim().toLowerCase(), next })
+/**
+ * Huella de la llave del navegador donde se pidió el enlace (auditoría
+ * 2026-10-23). El enlace solo da sesión si se abre en ESE navegador: antes,
+ * cualquiera podía mandarle a otra persona el enlace de una cuenta suya, ella
+ * quedaba dentro sin saberlo, y lo que capturara (obra, teléfono) lo veía él.
+ */
+export const huellaNavegador = (llaveNavegador: string): string =>
+  createHash('sha256').update(`verify-email:${llaveNavegador}`).digest('hex').slice(0, 32);
+
+export async function firmarVerificacionCorreo(userId: number, email: string, next: string, llaveNavegador?: string): Promise<string> {
+  return new SignJWT({ typ: 'verify-email', email: email.trim().toLowerCase(), next, ...(llaveNavegador ? { nb: huellaNavegador(llaveNavegador) } : {}) })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer(EMISOR)
     .setSubject(`user:${userId}`)
@@ -344,7 +353,7 @@ export async function firmarVerificacionCorreo(userId: number, email: string, ne
 }
 
 export type LecturaVerificacionCorreo =
-  | { ok: true; userId: number; email: string; next: string }
+  | { ok: true; userId: number; email: string; next: string; navegador: string | null }
   | { ok: false; motivo: 'caducado' | 'ajeno' };
 
 export async function leerVerificacionCorreo(token: string): Promise<LecturaVerificacionCorreo> {
@@ -358,7 +367,7 @@ export async function leerVerificacionCorreo(token: string): Promise<LecturaVeri
     const userId = Number(payload.sub.slice('user:'.length));
     if (!Number.isInteger(userId) || typeof payload.email !== 'string') return ajeno;
     const next = rutaInterna(payload.next);
-    return { ok: true, userId, email: payload.email, next };
+    return { ok: true, userId, email: payload.email, next, navegador: typeof payload.nb === 'string' ? payload.nb : null };
   } catch (e) {
     return (e as { code?: string })?.code === 'ERR_JWT_EXPIRED' ? { ok: false, motivo: 'caducado' } : ajeno;
   }

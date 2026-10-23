@@ -10,11 +10,11 @@ import { aFacturarPorAliado, parteDelAliado } from '../money/cuentas';
 import { reglasDinero } from '../money/reglas';
 import { promises as fs } from 'node:fs';
 import { Throttle } from '@nestjs/throttler';
-import { facturaStorage, rutaPrivada } from '../common/archivos-privados';
+import { PREFIJO_PRIVADO, borrarPrivado, facturaStorage, papelStorage, rutaPrivada } from '../common/archivos-privados';
 import { atributosDe, esLineaServicio, horarioSchema, requestFormFor, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
 
 import { MailerService } from '../notifications/mailer.service';
-import { notasDe, pedidoDe } from './pedido';
+import { notasDe, pedidoDe, sinContacto, zonaAproximada } from './pedido';
 import { avisarPanel } from '../notifications/panel';
 import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
@@ -22,7 +22,6 @@ import { sanitizeUserHtml } from '../common/sanitize';
 import { z } from 'zod';
 import { zCorreo, zTelefono } from '../common/campos';
 import { mediaStorage } from '../common/media-multer';
-import { borrarSubidas } from '../common/media';
 import { imageUrl } from '../catalog/images';
 import {
   estadoDocumentos, estaVerificado, mesesEnRed, papelesQueFaltan, papelesVigentes, DIAS_AVISO, DOC_LABEL, TIPOS_DOC, type TipoDoc,
@@ -84,8 +83,15 @@ const documentoSchema = z.object({
   expiresAt: z.string().max(20).optional(),
 });
 
-/** Foto del papel: en campo se le toma foto a la póliza, no se escanea. */
-const docStorage = mediaStorage();
+/**
+ * Foto (o PDF) del papel: en campo se le toma foto a la póliza, no se escanea.
+ * A la carpeta PRIVADA (auditoría 2026-10-23): trae RFC, domicilio y pólizas, y
+ * en `uploads/` quedaba pública en media.maqser24.com.
+ */
+const docStorage = papelStorage();
+
+/** Fotos de los equipos que ofrece: esas SÍ son públicas (salen en el catálogo una vez publicado). */
+const fotoStorage = mediaStorage();
 
 /**
  * Lo que manda el aliado al ofrecer un equipo. Llega en multipart (trae
@@ -150,7 +156,12 @@ export class ProviderPortalController {
       return await this.money.recibirFactura(req.providerId, quoteNumber, { pdf, xml });
     } catch (e) {
       // No era suyo, ya estaba pagado…: lo subido no se queda huérfano en disco.
-      await Promise.all([pdf, xml].filter((r): r is string => Boolean(r)).map((r) => fs.unlink(rutaPrivada(r)).catch(() => undefined)));
+      // Solo con esos rechazos (400/404), que salen ANTES de guardar: con un fallo
+      // posterior la base ya apunta al archivo nuevo y borrarlo lo dejaría colgado.
+      const estado = (e as { getStatus?: () => number }).getStatus?.();
+      if (estado === 400 || estado === 404) {
+        await Promise.all([pdf, xml].filter((r): r is string => Boolean(r)).map((r) => fs.unlink(rutaPrivada(r)).catch(() => undefined)));
+      }
       throw e;
     }
   }
@@ -180,7 +191,7 @@ export class ProviderPortalController {
               // Para recortarle su parte del documento del cotizador.
               subtotal: true, freight_cost: true, tax: true, conditions: true,
               client_sites: {
-                select: { name: true, address: true, contact_name: true, contact_phone: true, requirements: true },
+                select: { name: true, address: true, municipality: true, contact_name: true, contact_phone: true, requirements: true },
               },
             },
           },
@@ -341,16 +352,18 @@ export class ProviderPortalController {
           assignmentId: a.id,
           quoteNumber: a.quotes.quote_number,
           category: cat(a.quotes.service_category),
-          // La dirección de la obra manda sobre la escrita a mano: la de la
-          // obra ya la revisó alguien.
-          address: a.quotes.client_sites?.address ?? a.quotes.address,
-          site: a.quotes.client_sites?.name ?? null,
+          // Por contestar, solo la ZONA: la calle, el nombre de la obra y a quién
+          // buscar se ven al aceptar (ver "antes de aceptar" en pedido.ts). La de
+          // la obra manda sobre la escrita a mano: esa ya la revisó alguien.
+          address: zonaAproximada(a.quotes.client_sites?.address ?? a.quotes.address, a.quotes.client_sites?.municipality),
+          site: null,
           // El alcance que escribió MAQSER24 y, debajo, las notas del cliente
-          // (acceso, terreno…); lo demás ya viene ordenado en `pedido`.
-          detail: [a.scope, notasDe(a.quotes.comments)].filter(Boolean).join('\n')
-            || (pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments).length ? null : a.quotes.comments),
+          // (acceso, terreno…), sin datos de contacto; lo demás va en `pedido`.
+          detail: sinContacto([a.scope, notasDe(a.quotes.comments)].filter(Boolean).join('\n')
+            || (pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments).length ? null : a.quotes.comments)),
           requirements: a.quotes.client_sites?.requirements ?? [],
-          pedido: pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments),
+          pedido: pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments)
+            .map((x) => ({ ...x, valor: sinContacto(x.valor) ?? '' })),
           offeredAt: a.offered_at,
           // Lo que se le paga (2026-10-22): es lo primero que pregunta antes de
           // decir que sí. Su parte, ya sin la comisión; no el precio al cliente.
@@ -548,6 +561,7 @@ export class ProviderPortalController {
     const a = await prisma.service_assignments.findFirst({
       where: { id: assignmentId, provider_id: req.providerId, state: { in: ['propuesto', 'aceptado'] } },
       select: {
+        state: true,
         quotes: {
           select: { quote_number: true, requirements: true, subtotal: true, freight_cost: true, tax: true, total: true, conditions: true },
         },
@@ -555,6 +569,24 @@ export class ProviderPortalController {
     });
     const p = a ? await parteDelDocumento(a.quotes) : null;
     if (!a || !p) throw new NotFoundException('Esta solicitud no tiene documento de cotización.');
+    // Mientras no la acepte: ni quién es el cliente, ni la obra, ni a quién
+    // buscar (ver "antes de aceptar" en pedido.ts); del documento, solo lo que
+    // se pinta (partidas, empresa, firma), nada más del guardado.
+    if (a.state === 'propuesto') {
+      const s = p.snapshot as Record<string, unknown>;
+      return {
+        folio: p.doc.folio,
+        tipo: p.doc.kind,
+        quoteNumber: a.quotes.quote_number,
+        cliente: 'Se muestra al aceptar',
+        obra: null,
+        atencion: null,
+        municipio: p.doc.municipality,
+        notas: sinContacto(p.doc.notes),
+        parcial: p.parcial,
+        documento: { calc: p.snapshot.calc, emitida: s.emitida, empresa: s.empresa, firma: s.firma, saludo: s.saludo },
+      };
+    }
     return {
       folio: p.doc.folio,
       tipo: p.doc.kind,
@@ -743,7 +775,7 @@ export class ProviderPortalController {
    */
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('equipos')
-  @UseInterceptors(FilesInterceptor('fotos', MAX_FOTOS_OFERTA, { storage: docStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
+  @UseInterceptors(FilesInterceptor('fotos', MAX_FOTOS_OFERTA, { storage: fotoStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
   async ofrecerEquipo(
     @Req() req: AliadoRequest,
     @Body() body: unknown,
@@ -905,7 +937,7 @@ export class ProviderPortalController {
             ? 'Escribe hasta cuándo vale la póliza.'
             : null;
     if (problema) {
-      if (file) await borrarSubidas([`uploads/${file.filename}`]).catch(() => undefined);
+      if (file) await borrarPrivado(`${PREFIJO_PRIVADO}${file.filename}`);
       throw new BadRequestException(problema);
     }
     const d = p.data!;
@@ -915,7 +947,7 @@ export class ProviderPortalController {
         provider_id: req.providerId,
         kind: d.kind,
         name: d.name?.trim() || DOC_LABEL[d.kind],
-        file: file ? `uploads/${file.filename}` : null,
+        file: file ? `${PREFIJO_PRIVADO}${file.filename}` : null,
         issued_at: new Date(),
         expires_at: fecha(d.expiresAt),
       },
@@ -937,7 +969,8 @@ export class ProviderPortalController {
         kindLabel: DOC_LABEL[doc.kind as TipoDoc] ?? doc.kind,
         name: doc.name,
         expiresAt: doc.expires_at ? doc.expires_at.toISOString().slice(0, 10) : null,
-        file: imageUrl(doc.file),
+        // El archivo ya no tiene dirección pública: el aliado solo sabe que lo entregó.
+        tieneArchivo: Boolean(doc.file),
       },
       estadoDocumentos: estadoDocumentos(todos),
     };

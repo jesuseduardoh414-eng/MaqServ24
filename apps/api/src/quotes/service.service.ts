@@ -12,6 +12,7 @@ import { abrirCuenta, parteDelAliado } from '../money/cuentas';
 import { reglasDinero } from '../money/reglas';
 import { MOTIVO_SE_BAJO } from '../catalog/provider-history';
 import { conCandado } from '../common/candado';
+import { sinContacto, zonaAproximada } from '../providers/pedido';
 import { MatchingService } from './matching.service';
 import { normalizarZona } from './matching';
 import { vigenciaPorDefecto } from './quote-validity';
@@ -611,6 +612,7 @@ export class ServiceService {
       select: {
         quote_number: true, service_category: true, address: true, comments: true, requirements: true,
         subtotal: true, freight_cost: true, tax: true, total: true, conditions: true,
+        client_sites: { select: { address: true, municipality: true } },
       },
     });
     // Las partidas del documento (2026-10-15), pero solo las SUYAS
@@ -640,9 +642,11 @@ export class ServiceService {
         aliado: p.name,
         contacto: contacto.contact_name,
         categoria: linea?.cat_name ?? datos.service_category,
-        zona: datos.address,
+        // Solo la zona y sin datos de contacto ni enlaces: la oferta va a varios
+        // aliados y aún no es de nadie (ver "antes de aceptar" en providers/pedido.ts).
+        zona: zonaAproximada(datos.client_sites?.address ?? datos.address, datos.client_sites?.municipality),
         folio: datos.quote_number,
-        detalle: opts.scope?.trim() || datos.comments,
+        detalle: opts.scope?.trim() || sinContacto(datos.comments),
         total: opts.total ?? (Number(datos.total) > 0 ? Number(datos.total) : null),
         pago: parteDelAliado(datos, await reglasDinero()),
         partidas,
