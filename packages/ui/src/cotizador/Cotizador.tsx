@@ -104,6 +104,12 @@ export interface CotizadorProps {
   clientesPanel?: { lista: ClientePanel[]; obras: (clienteId: number) => Promise<EmpresaCliente['sites']> };
   /** Logo para el documento (fondo claro). */
   logo?: string | null;
+  /**
+   * Sin el campo de la ubicación en Google Maps (2026-10-29): el acceso
+   * directo instalado en el celular del encargado no lo pide. El panel y el
+   * sitio sí (en el panel es opcional).
+   */
+  sinUbicacion?: boolean;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
 }
 
@@ -124,7 +130,7 @@ export interface CotizadorProps {
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
   const pasos = pasosDe(tipo);
   const esPanel = variante === 'panel';
@@ -536,7 +542,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               editarPrecios={editarPrecios}
               alternarMaterial={alternarMaterial}
               ubicacion={ctx.ubicacion}
-              ponerUbicacion={(ubicacion) => setCtx((c) => ({ ...c, ubicacion }))}
+              ponerUbicacion={sinUbicacion ? undefined : (ubicacion) => setCtx((c) => ({ ...c, ubicacion }))}
               ubicacionObligatoria={!esPanel}
               preciosAlFinal={preciosAlFinal}
               permitirOtro={esPanel}

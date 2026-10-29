@@ -515,6 +515,9 @@ export function zonaDelMunicipio(cat: CatalogoTriturados, municipio: string | nu
  * renglones; "recoger en planta" lo deja en cero. Un área escrita a mano en
  * una cotización vieja se respeta como una tarjeta más.
  */
+/** Valor del seleccionador cuando la zona se escribió a mano (cotizaciones viejas). */
+const OTRA_ZONA = '__otra';
+
 function ZonaEntrega({ cat, materiales, aTodos, tocado, municipio, mostrarPrecios, quiereFlete, ponerQuiereFlete }: {
   cat: CatalogoTriturados;
   materiales: LineaMaterial[];
@@ -564,26 +567,33 @@ function ZonaEntrega({ cat, materiales, aTodos, tocado, municipio, mostrarPrecio
       </div>
       {falta && !aObra ? <p className="cz-err">Elige si lo recogen en planta o si lo llevamos a la obra.</p> : null}
       {aObra ? (
+        // La zona, de un seleccionador (2026-10-29, pedido del dueño: "la opción
+        // de flete sí es tarjeta, lo demás como antes"): en el celular, una
+        // tarjeta por zona era una pantalla entera de bajar.
         <div className="cz-entrega-zonas">
-          <span className="cz-lbl">¿A qué zona? <i aria-hidden>*</i></span>
-          <div className="cz-cards">
-            {cat.zonas.map((z) => {
-              const [km, ...donde] = z.nombre.split(' · ');
-              const porTon = fleteTonDeZona(cat, z);
-              return (
-                <Tarjeta
-                  key={z.id}
-                  icono="zona"
-                  titulo={km}
-                  nota={[donde.join(' · '), mostrarPrecios && porTon > 0 ? `${money(porTon)} / ton` : ''].filter(Boolean).join(' · ')}
-                  modo="opcion"
-                  n={zona?.id === z.id ? 1 : 0}
-                  onClick={() => usar(z)}
-                />
-              );
-            })}
-            {otra ? <Tarjeta icono="zona" titulo={nombreZona || 'Otra área'} nota="Área escrita a mano" modo="opcion" n={1} onClick={() => undefined} /> : null}
-          </div>
+          <label className="cz-lbl" htmlFor="cz-zona-flete">¿A qué zona? <i aria-hidden>*</i></label>
+          <ShSelect
+            value={zona ? zona.id : otra ? OTRA_ZONA : ''}
+            onValueChange={(v) => {
+              const z = cat.zonas.find((x) => x.id === v);
+              if (z) usar(z);
+            }}
+          >
+            <ShSelectTrigger id="cz-zona-flete" aria-label="Zona de la obra" aria-invalid={(falta && !zona && !otra) || undefined} className="max-w-md">
+              <ShSelectValue placeholder="Elige la zona de la obra" />
+            </ShSelectTrigger>
+            <ShSelectContent>
+              {cat.zonas.map((z) => {
+                const porTon = fleteTonDeZona(cat, z);
+                return (
+                  <ShSelectItem key={z.id} value={z.id}>
+                    {z.nombre}{mostrarPrecios && porTon > 0 ? ` · ${money(porTon)} / ton` : ''}
+                  </ShSelectItem>
+                );
+              })}
+              {otra ? <ShSelectItem value={OTRA_ZONA}>{nombreZona || 'Otra área'}</ShSelectItem> : null}
+            </ShSelectContent>
+          </ShSelect>
           {sugerida ? (
             <button type="button" className="cz-sugerencia" onClick={() => usar(sugerida)}>
               <MapPin className="size-4" aria-hidden />

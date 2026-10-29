@@ -181,6 +181,17 @@ export const COTIZADOR_CSS = `
 .cz-pick .pu{ font-size:12.5px; font-weight:500; color:var(--cz-muted); }
 /* En el panel la nota es el precio ("desde $5,600 / día"): va en color. En el sitio no hay precios. */
 .cz[data-variante="panel"] .cz-pick .pu{ font-weight:600; color:var(--cz-accent); }
+/* En el celular, dos por fila (2026-10-29, pedido del dueño): una por fila
+   eran pantallas enteras de bajar. La tarjeta se compacta para que quepa. */
+@media (max-width: 640px){
+  .cz-cards, .cz-cards-2{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
+  .cz-pick{ padding:12px 11px; gap:6px; }
+  .cz-pick:hover{ transform:none; }
+  .cz-pick .ico{ width:38px; height:38px; border-radius:10px; }
+  .cz-pick .ico svg{ width:24px; height:24px; }
+  .cz-pick b{ font-size:13.5px; overflow-wrap:anywhere; }
+  .cz-pick .pu{ font-size:12px; }
+}
 /* Dice en palabras lo que hace el segundo toque: el color por sí solo no
    distingue "elegido" de "elegido y se puede quitar". */
 .cz-pick-quitar{ display:inline-flex; align-items:center; gap:4px; margin-top:2px;
