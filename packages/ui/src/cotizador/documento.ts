@@ -238,7 +238,7 @@ export function documentoCuerpo(d: DatosDocumento): string {
     ${notas}
     ${condiciones}
     ${firmaHtml}
-    <div class="czdoc-foot">Documento generado por ${esc(empresa.nombre)} · ${esc(d.folio)}</div>
+    <div class="czdoc-foot">Documento generado por ${esc(empresa.nombre)}${d.folio ? ` · ${esc(d.folio)}` : ''}</div>
   </div>`;
 }
 

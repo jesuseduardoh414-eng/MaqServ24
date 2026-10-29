@@ -18,9 +18,10 @@ import {
   type OpcionesCotizador,
   type PartidaCotizador,
 } from '@maqserv/config';
-import { ArrowLeft, ArrowRight, Check, Printer, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Download, MessageCircle, Printer, RotateCcw } from 'lucide-react';
 import { COTIZADOR_CSS } from './estilos';
 import { DOCUMENTO_CSS, documentoCuerpo, imprimirDocumento, type DatosDocumento } from './documento';
+import { compartirArchivo, descargarArchivo, documentoPdf } from './pdf';
 import { money } from './formato';
 import { IconoCotizador } from './iconos';
 import { Aviso, Campo } from './piezas';
@@ -115,6 +116,10 @@ export interface CotizadorProps {
    * acceso directo solo se quiere sacar el documento, no levantar el pedido
    * de un cliente. Empieza en el equipo o el material; la zona del agua y la
    * del flete se eligen a mano en su paso.
+   *
+   * Y no se guarda nada (2026-10-29: "no debe aparecer el botón de guardar,
+   * solo es para saber precios"): al final el documento, sin folio, se manda
+   * por WhatsApp o se descarga en PDF.
    */
   sinCliente?: boolean;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
@@ -360,6 +365,45 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
       return saltar(n) ? Math.max(0, n - 1) : n;
     });
   };
+
+  // ---- solo precios (acceso directo): el documento en PDF, para WhatsApp o descargarlo ----
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [avisoPdf, setAvisoPdf] = useState<string | null>(null);
+  const enElUltimo = paso === pasos.length - 1;
+  const huellaDoc = sinCliente && enElUltimo ? JSON.stringify([calcVista.renglones, calcVista.total, calcVista.con_iva, ctx.notas]) : '';
+  useEffect(() => {
+    setArchivo(null);
+    setAvisoPdf(null);
+    if (!huellaDoc) return;
+    let vigente = true;
+    const t = window.setTimeout(() => {
+      documentoPdf(datosDoc(''))
+        .then((blob) => {
+          if (!vigente) return;
+          const hoy = new Date();
+          const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+          setArchivo(new File([blob], `Cotizacion-${catalogo.empresa.nombre.replace(/[^A-Za-z0-9]+/g, '')}-${tipo}-${fecha}.pdf`, { type: 'application/pdf' }));
+        })
+        .catch(() => { if (vigente) setAvisoPdf('No se pudo preparar el PDF. Regresa un paso y vuelve a entrar para intentarlo otra vez.'); });
+    }, 500);
+    return () => { vigente = false; window.clearTimeout(t); };
+    // datosDoc se rehace en cada pintada; lo que cambia el documento está en la huella.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [huellaDoc]);
+
+  async function mandarPorWhatsapp() {
+    if (!archivo) return;
+    setAvisoPdf(null);
+    try {
+      const r = await compartirArchivo(archivo);
+      if (r === 'sin-soporte') {
+        descargarArchivo(archivo);
+        setAvisoPdf('Este navegador no deja mandar archivos directo: se descargó el PDF, adjúntalo en WhatsApp.');
+      }
+    } catch {
+      setAvisoPdf('No se pudo abrir el menú para compartir. Descarga el PDF y mándalo desde WhatsApp.');
+    }
+  }
 
   // ---- documento ----
   const datosDoc = (folio: string): DatosDocumento => ({
@@ -655,10 +699,22 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                 </Campo>
               </div>
 
+              {sinCliente ? (
+                <div className="cz-compartir">
+                  <ShButton onClick={mandarPorWhatsapp} disabled={!archivo}>
+                    <MessageCircle className="size-4" /> {archivo ? 'Mandar por WhatsApp' : 'Preparando PDF…'}
+                  </ShButton>
+                  <ShButton variant="outline" onClick={() => archivo && descargarArchivo(archivo)} disabled={!archivo}>
+                    <Download className="size-4" /> Descargar PDF
+                  </ShButton>
+                  {avisoPdf ? <p className="cz-help cz-compartir-aviso">{avisoPdf}</p> : null}
+                </div>
+              ) : null}
+
               <div className="cz-preview" style={{ marginTop: 16 }}>
                 {/* El MISMO generador que la impresión: lo que se ve aquí es,
                     literalmente, lo que sale por la impresora. */}
-                <div dangerouslySetInnerHTML={{ __html: `<style>${DOCUMENTO_CSS}</style>${documentoCuerpo(datosDoc('BORRADOR'))}` }} />
+                <div dangerouslySetInnerHTML={{ __html: `<style>${DOCUMENTO_CSS}</style>${documentoCuerpo(datosDoc(sinCliente ? '' : 'BORRADOR'))}` }} />
               </div>
 
               {!esPanel ? (
@@ -690,7 +746,12 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
             <ShButton variant="outline" onClick={retroceder} disabled={paso === 0 || enviando}>
               <ArrowLeft className="size-4" /> Atrás
             </ShButton>
-            {esUltimo ? (
+            {esUltimo && sinCliente ? (
+              // Solo precios: no se guarda nada; se empieza otra.
+              <ShButton variant="outline" onClick={reiniciar}>
+                <RotateCcw className="size-4" /> Nueva cotización
+              </ShButton>
+            ) : esUltimo ? (
               <ShButton onClick={enviar} disabled={enviando}>
                 {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Pedir cotización'}
               </ShButton>

@@ -351,6 +351,12 @@ export const COTIZADOR_CSS = `
 .cz-total .d{ margin:0; font-size:12px; color:var(--cz-muted); text-align:right; }
 @media (max-width:560px){ .cz-total .d{ text-align:left; } }
 
+/* Solo precios (acceso directo, 2026-10-29): mandar por WhatsApp o descargar el PDF. */
+.cz-compartir{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:16px; }
+.cz-compartir > button{ width:100%; min-height:46px; }
+.cz-compartir-aviso{ grid-column:1 / -1; margin:0; }
+@media (max-width: 420px){ .cz-compartir{ grid-template-columns:1fr; } }
+
 /* ---- Vista previa del documento ---- */
 .cz-preview{ border:1px solid var(--cz-border); border-radius:var(--cz-radius); overflow:auto; background:#fff; }
 /* En el teléfono ya no se encoge (salía diminuto y cortado): el documento se
