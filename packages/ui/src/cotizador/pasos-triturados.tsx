@@ -637,7 +637,6 @@ function FleteTonelada({
   const distintos = materiales.some((l) => l.fleteTon !== primero.fleteTon);
   const ton = materiales.reduce((s, l) => s + num(l.toneladas), 0);
   const aTodos = (patch: Partial<LineaMaterial>) => materiales.forEach((l) => actualizar(l.uid, patch));
-  const sugerida = fleteTonDeZona(cat, cat.zonas.find((z) => z.nombre === primero.fleteZona.trim()));
 
   return (
     <div className="cz-flete">
@@ -645,63 +644,18 @@ function FleteTonelada({
         <b>¿Lo llevamos a obra?</b>
         <span>
           {editarPrecios
-            ? 'Es opcional. Con flete, la zona pone la tarifa por tonelada; puedes ajustarla abajo.'
+            ? 'Es opcional. Con flete, la zona pone la tarifa por tonelada.'
             : 'Es opcional. Si lo llevamos, el flete se suma por tonelada según la zona de tu obra.'}
         </span>
       </div>
       <ZonaEntrega cat={cat} materiales={materiales} aTodos={aTodos} tocado={tocado} municipio={municipio} mostrarPrecios={mostrarPrecios} quiereFlete={quiereFlete} ponerQuiereFlete={ponerQuiereFlete} />
-      {mostrarPrecios && primero.fleteTon > 0 ? (
-        <>
-          {editarPrecios ? <TarifaFlete cat={cat} valor={distintos ? null : primero.fleteTon} elegir={(fleteTon) => aTodos({ fleteTon })} extra={sugerida} /> : null}
-          {distintos && editarPrecios ? <p className="cz-help">Los materiales traían fletes distintos; al elegir uno se aplica a todos.</p> : null}
-          {!distintos ? (
-            <Importe texto={`Flete · ${ton.toLocaleString('es-MX')} ton × ${money(primero.fleteTon)}`} valor={money(primero.fleteTon * ton)} />
-          ) : null}
-        </>
+      {/* Sin «Flete por tonelada» a mano (2026-10-29, pedido del dueño: «eso no
+          es parte del cotizador»): la tarifa la pone la zona, también en el panel. */}
+      {mostrarPrecios && primero.fleteTon > 0 && !distintos ? (
+        <Importe texto={`Flete · ${ton.toLocaleString('es-MX')} ton × ${money(primero.fleteTon)}`} valor={money(primero.fleteTon * ton)} />
       ) : null}
       {ubicacion}
     </div>
-  );
-}
-
-/**
- * Ajuste a mano de la tarifa del flete por tonelada (solo el panel; la zona ya
- * propone una). Con pocas tarifas, botones (un toque); con muchas —el
- * tabulador trae once, de $50 a $300— un desplegable: once botones ocupaban
- * dos renglones y se leían como ruido. La sugerida por la zona ($120, $145…)
- * no suele estar en esa lista de 25 en 25: va aparte, primero.
- * "Recoge en planta" ya no está aquí: se elige en la zona.
- */
-function TarifaFlete({ cat, valor, elegir, extra = 0 }: { cat: CatalogoTriturados; valor: number | null; elegir: (v: number) => void; extra?: number }) {
-  const lista = cat.fletes_ton.filter((v) => v > 0 && v !== extra);
-  // Una tarifa guardada que no está en la lista (una cotización vieja) también se enseña.
-  const suelta = valor !== null && valor > 0 && valor !== extra && !lista.includes(valor) ? valor : null;
-  const etiqueta = (v: number) => (v === extra ? `${money(v)} / ton · la de la zona` : `${money(v)} / ton`);
-  const opciones = [...(extra > 0 ? [extra] : []), ...(suelta !== null ? [suelta] : []), ...lista];
-  if (opciones.length <= 6) {
-    return (
-      <div className="cz-chips" role="group" aria-label="Flete por tonelada">
-        {opciones.map((v) => (
-          <Chip key={v} on={valor === v} onClick={() => elegir(v)}>{etiqueta(v)}</Chip>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <Campo label="Flete por tonelada">
-      {(id) => (
-        <ShSelect value={valor === null ? '' : String(valor)} onValueChange={(v) => elegir(Number(v))}>
-          <ShSelectTrigger id={id} aria-label="Flete por tonelada" className="max-w-sm">
-            <ShSelectValue placeholder="Distinto en cada material" />
-          </ShSelectTrigger>
-          <ShSelectContent>
-            {opciones.map((v) => (
-              <ShSelectItem key={v} value={String(v)}>{etiqueta(v)}</ShSelectItem>
-            ))}
-          </ShSelectContent>
-        </ShSelect>
-      )}
-    </Campo>
   );
 }
 
