@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { avisarNavegacion } from '@/components/Enlace';
 import { LANDINGS } from '@/lib/landings';
 import { Icon, type IconName } from '@/components/Icon';
 
@@ -124,6 +125,7 @@ export function BuscadorGlobal({ onClose, placeholder }: { onClose: () => void; 
 
   function ir(href: string) {
     onClose();
+    avisarNavegacion(href);
     router.push(href);
   }
   function verTodo() {

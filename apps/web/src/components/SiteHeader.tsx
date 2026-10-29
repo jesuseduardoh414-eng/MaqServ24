@@ -102,8 +102,9 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
         </div>
       </div>
 
-      {/* Header sticky */}
+      {/* Header sticky. `data-encabezado-sitio`: la pantalla de carga se pone justo debajo (CargaDePagina). */}
       <header
+        data-encabezado-sitio
         style={{
           position: 'sticky',
           top: 0,

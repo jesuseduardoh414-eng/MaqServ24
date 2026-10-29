@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
+import { avisarNavegacion } from '@/components/Enlace';
 import { unidadesDe, atributosDe, tipoDeCatalogo, type TipoCatalogo } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
 import { NuevosDeAliados } from './NuevosDeAliados';
@@ -159,11 +160,16 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
     flash(`«${p.name}» eliminado`, 'trash');
   }
 
+  /** Con el esqueleto de la pantalla que viene, como un enlace. */
+  function ir(href: string) {
+    avisarNavegacion(href);
+    router.push(href);
+  }
   function openNew() {
-    router.push(`/productos/nuevo?tipo=${tipo}`);
+    ir(`/productos/nuevo?tipo=${tipo}`);
   }
   async function openEdit(p: ProductRow) {
-    router.push(`/productos/editar/${p.id}`);
+    ir(`/productos/editar/${p.id}`);
     return;
     // Modal viejo, sin uso: se conserva hasta retirar el resto del código.
     // eslint-disable-next-line no-unreachable
@@ -314,7 +320,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
           <>
             {/* Solo si hay alguna categoría de productos (precio fijo). */}
             {tipo === 'servicio' && hayProductos ? (
-              <Btn icon="ph-plus" onClick={() => router.push('/productos/nuevo?tipo=producto')}>Nuevo producto</Btn>
+              <Btn icon="ph-plus" onClick={() => ir('/productos/nuevo?tipo=producto')}>Nuevo producto</Btn>
             ) : null}
             <Btn variant="primary" icon="ph-plus" onClick={openNew}>Nuevo {singular}</Btn>
           </>

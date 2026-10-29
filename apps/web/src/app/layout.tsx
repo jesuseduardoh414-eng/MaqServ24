@@ -14,6 +14,7 @@ import './globals.css';
 import { FiltroDeCampos, ResultadosHost } from '@maqserv/ui';
 import { EstilosSistema } from '@/components/EstilosSistema';
 import { DialogosHost } from '@/components/Dialogos';
+import { CargaDePagina } from '@/components/CargaDePagina';
 
 /**
  * CADUCIDAD DE LAS PÁGINAS (red de seguridad del panel).
@@ -107,6 +108,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* Qué entra en cada campo: filtra por tipo (una letra no entra en un teléfono) y recorta espacios. */}
         <FiltroDeCampos />
         <CartProvider>{children}</CartProvider>
+        {/* El esqueleto de la página que viene, en cuanto se toca un enlace. */}
+        <CargaDePagina />
         {/* confirmar / pedirTexto: en lugar de los diálogos del navegador. */}
         <DialogosHost />
         {/* "Sí se hizo / no se hizo" tras cada cambio de la persona (perfil, favoritos, portal de aliado, formularios). Entrar/salir y marcar avisos leídos no avisan: ya tienen su propia respuesta. */}

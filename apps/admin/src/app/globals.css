@@ -782,3 +782,38 @@ input:-webkit-autofill:focus {
 :root[data-theme="light"] .adm-status:is(.t-ok, .t-warn, .t-info, .t-accent) { color: color-mix(in srgb, var(--tone) 85%, #000); }
 /* Los filtros de Disponibilidad sin equipos (desactivados) se leen, sin parecer activos. */
 :root[data-theme="light"] .av-ley:disabled { opacity: .62; }
+
+/* ============================================================
+   PANTALLA DE CARGA (2026-10-29): siluetas grises —esqueleto— de la
+   pantalla que viene, en el área de trabajo, mientras llega del servidor.
+   La pinta CargaDelPanel; mientras tanto lo anterior se esconde sin
+   desmontarse (si la pantalla no llega, vuelve tal cual).
+   ============================================================ */
+html[data-cargando] .adm-content-inner { display: none; }
+.adm-esq-pantalla { max-width: 1240px; margin: 0 auto; display: grid; gap: 22px; animation: admFadeIn .18s ease both; }
+.adm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.adm-esq { display: block; position: relative; overflow: hidden; border-radius: 6px; background: rgba(var(--adm-ink), 0.07); }
+.adm-esq::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(var(--adm-ink), 0.07), transparent);
+  animation: admEsqBrillo 1.3s ease-in-out infinite;
+}
+@keyframes admEsqBrillo { to { transform: translateX(100%); } }
+.adm-esq-cab { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--adm-border); }
+.adm-esq-col { display: grid; gap: 9px; min-width: 0; }
+.adm-esq-fila { display: flex; gap: 10px; flex-wrap: wrap; }
+.adm-esq-caja { display: grid; gap: 12px; padding: 18px; background: var(--adm-card); border: 1px solid var(--adm-border); border-radius: var(--adm-radius); }
+.adm-esq-cuatro { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.adm-esq-dos { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; align-items: start; }
+.adm-esq-campos { grid-template-columns: 1fr 1fr; gap: 18px 20px; }
+.adm-esq-par { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; }
+.adm-esq-renglon { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--adm-border); }
+.adm-esq-renglon:last-child { border-bottom: 0; }
+@media (max-width: 900px) {
+  .adm-esq-cuatro { grid-template-columns: 1fr 1fr; }
+  .adm-esq-dos, .adm-esq-campos { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .adm-esq::after { animation: none; }
+  .adm-esq-pantalla { animation: none; }
+}

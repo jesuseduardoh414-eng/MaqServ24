@@ -1,6 +1,6 @@
 'use client';
 
-import Link from '@/components/Enlace';
+import Link, { EVENTO_NAVEGAR } from '@/components/Enlace';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -127,6 +127,12 @@ export function MobileNav({
 
   // El drawer se cierra al navegar (la ruta cambia sin desmontar el header).
   useEffect(() => { setOpen(false); }, [pathname]);
+  // Al tocar un enlace se cierra ya, sin esperar a la página: debajo está su esqueleto (CargaDePagina).
+  useEffect(() => {
+    const cerrar = () => setOpen(false);
+    window.addEventListener(EVENTO_NAVEGAR, cerrar);
+    return () => window.removeEventListener(EVENTO_NAVEGAR, cerrar);
+  }, []);
 
   // Con el panel abierto: sin scroll de fondo y Escape cierra.
   useEffect(() => {

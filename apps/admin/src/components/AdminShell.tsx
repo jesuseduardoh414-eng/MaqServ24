@@ -9,6 +9,7 @@ import { MiCuenta } from './MiCuenta';
 import { DialogosHost } from './Dialogos';
 import { ResultadosHost } from '@maqserv/ui';
 import { useBranding } from './branding';
+import { CargaDelPanel } from './CargaDelPanel';
 import type { ModuloAdmin, RolAdmin } from '@maqserv/config';
 
 const COLLAPSE_KEY = 'maqserv_admin_sidebar_collapsed';
@@ -186,6 +187,8 @@ export function AdminShell({
         </header>
 
         <div className="adm-content">
+          {/* Silueta de la pantalla que viene, en cuanto se toca un enlace. */}
+          <CargaDelPanel />
           <div className="adm-content-inner">{children}</div>
         </div>
       </main>

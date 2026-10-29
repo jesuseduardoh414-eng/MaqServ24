@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { avisarNavegacion } from './Enlace';
 import { createPortal } from 'react-dom';
 import { D } from './design-tokens';
 import { usePonerAlDia } from './usePonerAlDia';
@@ -221,7 +222,10 @@ export function AvisosBell() {
     if (!a.isRead) void marcar(a.id);
     setAbierto(false);
     setLetrero(null);
-    if (a.link) router.push(a.link);
+    if (a.link) {
+      avisarNavegacion(a.link);
+      router.push(a.link);
+    }
   }
 
   async function activarEscritorio() {
