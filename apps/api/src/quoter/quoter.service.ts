@@ -471,6 +471,8 @@ export class QuoterService {
     fecha?: string | null;
     /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. Sale en el documento y pasa al servicio. */
     ubicacion?: string | null;
+    /** Del acceso directo, sin cliente (2026-10-29): el nombre se queda vacío y el documento no lo imprime. */
+    sinCliente?: boolean;
   }) {
     const cat = await this.catalogo(entrada.tipo);
     const calc = calcularCotizacion(cat, entrada.partidas, entrada.opciones);
@@ -494,7 +496,7 @@ export class QuoterService {
       kind: entrada.tipo,
       origin: contexto.origen,
       state: contexto.estado,
-      client_name: (entrada.cliente || 'Sin nombre').slice(0, 190),
+      client_name: (entrada.cliente || (contexto.sinCliente ? '' : 'Sin nombre')).slice(0, 190),
       work: entrada.obra?.slice(0, 190) || null,
       attention: entrada.atencion?.slice(0, 190) || null,
       municipality: entrada.municipio?.slice(0, 90) || null,

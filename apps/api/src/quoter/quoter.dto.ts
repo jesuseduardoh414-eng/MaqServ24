@@ -43,6 +43,11 @@ export const calcularSchema = z.object({
 });
 
 export const cotizacionPanelSchema = contactoSchema.extend({
+  /**
+   * Opcional aquí (2026-10-29): el acceso directo solo saca el documento y no
+   * lo pide. Para el resto del panel lo exige la ruta (admin-quoter).
+   */
+  cliente: z.string().trim().max(190).optional().default(''),
   correo: zCorreo().optional().default(''),
   telefono: zTelefono().optional().default(''),
   opciones: opcionesCotizadorSchema.partial().optional().default({}),

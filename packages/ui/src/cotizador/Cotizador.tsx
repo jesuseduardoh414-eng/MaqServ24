@@ -110,6 +110,13 @@ export interface CotizadorProps {
    * sitio sí (en el panel es opcional).
    */
   sinUbicacion?: boolean;
+  /**
+   * Sin el paso «Datos de la obra» (2026-10-29, pedido del dueño): en el
+   * acceso directo solo se quiere sacar el documento, no levantar el pedido
+   * de un cliente. Empieza en el equipo o el material; la zona del agua y la
+   * del flete se eligen a mano en su paso.
+   */
+  sinCliente?: boolean;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
 }
 
@@ -130,9 +137,9 @@ export interface CotizadorProps {
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, sinCliente = false, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
-  const pasos = pasosDe(tipo);
+  const pasos = useMemo(() => (sinCliente ? pasosDe(tipo).filter((p) => p.clave !== 'obra') : pasosDe(tipo)), [tipo, sinCliente]);
   const esPanel = variante === 'panel';
 
   /**
@@ -423,7 +430,9 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
           <div className="mark"><Check className="size-8" /></div>
           <h2>{esPanel ? 'Cotización guardada' : 'Solicitud enviada'}</h2>
           <p>
-            {esPanel
+            {sinCliente
+              ? 'Ya está en el historial del cotizador. Imprímela o guárdala en PDF para mandarla.'
+              : esPanel
               ? 'Ya está en el historial del cotizador. Mándasela al cliente por correo (con el botón para aceptarla) o imprímela.'
               : sitioConPrecios
                 ? 'Recibimos tu solicitud. Confirmamos disponibilidad y te mandamos la cotización por correo; la aceptas desde tu cuenta y entonces asignamos al proveedor que te atiende. Guarda tu folio.'

@@ -64,7 +64,7 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
         }
         subtitle={
           <>
-            {meta?.titulo ?? cot.tipo} · {cot.cliente}
+            {meta?.titulo ?? cot.tipo} · {cot.cliente || 'Sin cliente'}
             {cot.origen === 'sitio' ? ' · solicitada desde el sitio' : cot.admin ? ` · capturada por ${cot.admin}` : ''}
             {/* El tabulador con el que se emitió. Si hoy es otro, esta cotización
                 sigue valiendo lo que decía — por eso se guarda la versión. */}

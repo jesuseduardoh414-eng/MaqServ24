@@ -158,7 +158,7 @@ export function HistorialTabla({
                         </Link>
                       </td>
                       <td className="hi-cli">
-                        <div className="adm-cell-title">{q.cliente}</div>
+                        <div className="adm-cell-title">{q.cliente || 'Sin cliente'}</div>
                         {q.obra ? <div className="adm-cell-sub">{q.obra}</div> : null}
                         {q.correo || q.telefono ? (
                           <div className="adm-cell-sub">{[q.correo, q.telefono].filter(Boolean).join(' · ')}</div>

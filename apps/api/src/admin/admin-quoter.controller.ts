@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { catalogoCotizadorSchema, conZonaDeLaObra, esCotizadorTipo, faltaZona, llevaFlete, normalizarNombre } from '@maqserv/config';
+import { catalogoCotizadorSchema, conZonaDeLaObra, esAccesoDirecto, esCotizadorTipo, faltaZona, llevaFlete, normalizarNombre } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
 import { revisarCampos } from '../common/campos';
@@ -218,6 +218,12 @@ export class AdminQuoterController {
     const parsed = cotizacionPanelSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
     const d = parsed.data;
+    /**
+     * El acceso directo (2026-10-29) solo saca el documento: no pide cliente ni
+     * obra y no da de alta a nadie. Para todos los demás el cliente se exige.
+     */
+    const directo = esAccesoDirecto(req.adminEmail);
+    if (!directo && d.cliente.length < 2) throw new BadRequestException('Falta el nombre del cliente');
     // Cotizando una solicitud del formulario: se revisa ANTES de emitir, para
     // no dejar un folio suelto si la solicitud ya no admite precio nuevo.
     const solicitudId = Number((body as { solicitudId?: unknown } | null)?.solicitudId) || null;
@@ -254,7 +260,7 @@ export class AdminQuoterController {
     if (d.fecha && d.fecha < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date())) {
       throw new BadRequestException('La fecha ya pasó. Elige hoy o una fecha posterior.');
     }
-    const destino = solicitud
+    const destino = solicitud || (directo && !d.cliente)
       ? null
       : await resolverClienteYObra({
           companyName: d.cliente,
@@ -290,6 +296,7 @@ export class AdminQuoterController {
         fecha: d.fecha || null,
         // Triturados con flete: la ubicación en Google Maps, si la pegaron (2026-10-29).
         ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? d.ubicacion || null : null,
+        sinCliente: directo && !d.cliente,
       },
     );
     if (solicitud) {
