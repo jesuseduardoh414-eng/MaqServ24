@@ -31,6 +31,8 @@ interface CotizacionDetalle {
     emitida: string;
     /** Fecha de inicio o entrega (2026-10-23). */
     fecha?: string;
+    /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. */
+    ubicacion?: string;
   };
   admin: string | null;
   fecha: string | null;
@@ -90,12 +92,16 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
             firma: cot.documento.firma,
             saludo: cot.documento.saludo,
             calc: cot.documento.calc,
-            ...(cot.documento.fecha
+            ...(cot.documento.fecha || cot.documento.ubicacion
               ? {
-                  detalle: [{
-                    label: cot.tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega',
-                    valor: new Date(`${cot.documento.fecha}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
-                  }],
+                  detalle: [
+                    ...(cot.documento.fecha ? [{
+                      label: cot.tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega',
+                      valor: new Date(`${cot.documento.fecha}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
+                    }] : []),
+                    // Triturados con flete (2026-10-29): dónde medir los km.
+                    ...(cot.documento.ubicacion ? [{ label: 'Ubicación (Google Maps)', valor: cot.documento.ubicacion }] : []),
+                  ],
                 }
               : {}),
             mostrarPrecios: true,

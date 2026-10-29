@@ -5,6 +5,8 @@ import {
   alinearATarifa,
   analizarPartidas,
   calcularCotizacion,
+  conZonaDeLaObra,
+  faltaZona,
   filasDelDocumento,
   ponerPrecio,
   quitarPrecio,
@@ -202,8 +204,11 @@ export class Recotizar {
       return { folio: null, total: Number(fresca?.total ?? 0), nuevaVersion: false };
     }
     const tipo = doc.kind as CotizadorTipo;
-    const partidas = partidasDe(tipo, crudas ?? ((doc.items ?? []) as unknown[]));
+    // El agua sin zona elegida toma la del municipio de la obra (2026-10-29).
+    const partidas = conZonaDeLaObra(await this.quoter.catalogo(tipo), partidasDe(tipo, crudas ?? ((doc.items ?? []) as unknown[])), doc.municipality);
     if (!partidas.length) throw new BadRequestException('La cotización se quedó sin partidas.');
+    const sinZona = faltaZona(await this.quoter.catalogo(tipo), partidas, doc.municipality);
+    if (sinZona) throw new BadRequestException(sinZona);
     const pendiente = q.status === 'pending' && !q.accepted_at;
     if (pendiente && EDITABLES.includes(doc.state)) {
       const r = await this.recalcular(doc.id, { partidas, opciones, adminNombre: por.adminNombre });
@@ -644,10 +649,10 @@ export class Recotizar {
       // La maquinaria se cobra por hora desde 2026-10-29; lo pedido antes trae su precio por día (`tramo`).
       const ref: RefTarifa = rg.clase === 'equipo' && cat.tipo === 'maquinaria'
         ? { clase: 'equipo', id: rg.id, ...(entrada.porHora ? {} : { tramo: 'dia' }) }
-        : rg.clase === 'servicio' ? { clase: 'servicio', id: rg.id } : { clase: 'material', id: rg.id };
+        : rg.clase === 'servicio' ? { clase: 'servicio', id: rg.id, ...(rg.zona ? { zona: rg.zona } : {}) } : { clase: 'material', id: rg.id };
       const t = await this.quoter.corregirTarifa(rg.tipo, ref, valor, correo);
       await guardarCarrito(q, { ...carrito, [clave]: conPrecio(entrada, valor, false, unidades) });
-      const deFormulario = await this.alinearFormularios(q.id, (e) => e.fuente === 'tabulador' && e.renglon?.tipo === rg.tipo && e.renglon.clase === rg.clase && e.renglon.id === rg.id && !!e.porHora === !!entrada.porHora && Math.abs(Number(e.item?.cprice ?? 0) - (t.antes ?? NaN)) < 0.005, valor);
+      const deFormulario = await this.alinearFormularios(q.id, (e) => e.fuente === 'tabulador' && e.renglon?.tipo === rg.tipo && e.renglon.clase === rg.clase && e.renglon.id === rg.id && e.renglon.zona === rg.zona && !!e.porHora === !!entrada.porHora && Math.abs(Number(e.item?.cprice ?? 0) - (t.antes ?? NaN)) < 0.005, valor);
       const deDocumentos = await this.recalcularPendientes(rg.tipo, ref, t.antes, valor, -1);
       return { concepto: f.concepto, antes: f.edicion.valor, tarifa: t, recalculadas: deFormulario + deDocumentos };
     }
@@ -710,7 +715,7 @@ interface EntradaCarrito {
   fuente?: 'tabulador' | 'ficha' | null;
   fichaId?: number | null;
   /** El renglón del tabulador del que salió (fuente 'tabulador'). */
-  renglon?: { tipo: CotizadorTipo; clase: 'equipo' | 'servicio' | 'material'; id: string } | null;
+  renglon?: { tipo: CotizadorTipo; clase: 'equipo' | 'servicio' | 'material'; id: string; zona?: string } | null;
   /** Lo que se cobra: viajes o piezas del formulario, o equipos en renta. */
   cantidad?: number;
   /** Importes de la partida por separado (sin flete, flete, IVA). Las viejas no los traen. */

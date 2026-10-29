@@ -67,7 +67,11 @@ export function notasDe(comments: string | null): string | null {
   return notas.length ? notas.join('\n') : null;
 }
 
-export function pedidoDe(categoria: string | null, requirements: unknown, comments: string | null): Array<{ label: string; valor: string }> {
+/**
+ * `conUbicacion`: la ubicación exacta en Google Maps (triturados con flete, 2026-10-29) solo la
+ * ve quien ya aceptó; antes, como la dirección, solo la zona.
+ */
+export function pedidoDe(categoria: string | null, requirements: unknown, comments: string | null, conUbicacion = false): Array<{ label: string; valor: string }> {
   const out: Array<{ label: string; valor: string }> = [];
   const conceptos = comments?.match(/Conceptos:s*(.+)/)?.[1]?.trim();
   if (conceptos) out.push({ label: 'Lo que pidió', valor: conceptos });
@@ -79,11 +83,11 @@ export function pedidoDe(categoria: string | null, requirements: unknown, commen
   // En el orden del formulario de la línea; lo que no esté en él, al final.
   const claves = [...(form?.fields ?? []).map((c) => c.key), ...Object.keys(req).filter((k) => !campos.has(k))];
   for (const k of [...new Set(claves)]) {
-    if (INTERNAS.has(k)) continue;
+    if (INTERNAS.has(k) || (k === 'ubicacion_maps' && !conUbicacion)) continue;
     const v = req[k];
     if (v === null || v === undefined || v === '' || typeof v === 'object') continue;
     const c = campos.get(k);
-    const label = c?.label ?? (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ');
+    const label = c?.label ?? (k === 'ubicacion_maps' ? 'Ubicación (Google Maps)' : (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' '));
     out.push({ label, valor: `${String(v)}${c?.unit ? ` ${c.unit}` : ''}` });
   }
   return out;

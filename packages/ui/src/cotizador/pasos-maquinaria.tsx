@@ -1,6 +1,17 @@
 'use client';
 
-import { calcularEquipo, cobraFlete, minimoHorasDe, precioHoraDe, type CatalogoMaquinaria } from '@maqserv/config';
+import {
+  calcularEquipo,
+  cobraFlete,
+  minimoHorasDe,
+  porZona,
+  precioDeServicio,
+  precioHoraDe,
+  zonaDeMunicipio,
+  zonaPrecioDe,
+  zonasDelServicio,
+  type CatalogoMaquinaria,
+} from '@maqserv/config';
 import { money, money2 } from './formato';
 import { Campo, Chip, Contador, Linea, NumeroTexto, Renglon, Tarjeta } from './piezas';
 import { num, type LineaEquipo, type LineaMaquinaria, type LineaServicio } from './estado';
@@ -64,12 +75,15 @@ export function PasoDuracion({
   actualizar,
   quitar,
   mostrarPrecios,
+  editarPrecios = false,
 }: {
   cat: CatalogoMaquinaria;
   lineas: LineaMaquinaria[];
   actualizar: (uid: number, patch: Partial<LineaEquipo>) => void;
   quitar: (uid: number) => void;
   mostrarPrecios: boolean;
+  /** Solo el panel cambia el costo/hora de una cotización (2026-10-29); el sitio lo ve. */
+  editarPrecios?: boolean;
 }) {
   const equipos = lineas.filter((l): l is LineaEquipo => l.tipo === 'equipo');
   const minimo = minimoHorasDe(cat);
@@ -139,7 +153,7 @@ export function PasoDuracion({
               <span className="cz-lbl">Equipos</span>
               <Contador valor={l.cantidad} min={1} ariaLabel="equipos" onChange={(v) => actualizar(l.uid, { cantidad: v })} />
             </div>
-            {mostrarPrecios ? (
+            {editarPrecios ? (
               <Campo
                 label="Costo / hora"
                 help={c.negociado ? 'Precio negociado' : 'Del tabulador vigente'}
@@ -172,7 +186,7 @@ export function PasoDuracion({
       })}
 
       {equipos.length === 0 ? (
-        <p className="cz-help">Regresa al paso anterior y elige al menos un equipo.</p>
+        <p className="cz-help">No elegiste maquinaria: continúa si solo necesitas agua o retiro de material.</p>
       ) : null}
     </div>
   );
@@ -186,6 +200,9 @@ export function PasoServicios({
   actualizar,
   quitar,
   mostrarPrecios,
+  editarPrecios = false,
+  municipio,
+  elegirZona,
 }: {
   cat: CatalogoMaquinaria;
   lineas: LineaMaquinaria[];
@@ -193,27 +210,49 @@ export function PasoServicios({
   actualizar: (uid: number, patch: Partial<LineaServicio>) => void;
   quitar: (uid: number) => void;
   mostrarPrecios: boolean;
+  /** Solo el panel cambia el precio de un servicio en la cotización (2026-10-29). */
+  editarPrecios?: boolean;
+  /** El municipio de la obra: el agua se cobra según su zona (2026-10-29). */
+  municipio: string;
+  /** Panel: la zona se puede cambiar a mano. En el sitio sale sola del municipio. */
+  elegirZona: boolean;
 }) {
   const servicios = lineas.filter((l): l is LineaServicio => l.tipo === 'servicio');
   const cuenta = (id: string) => servicios.filter((l) => l.id === id).length;
+  const zonaObra = zonaDeMunicipio(cat, municipio);
+  /** El servicio no se ofrece en ese municipio: en el sitio no se puede elegir. */
+  const fueraDeZona = (s: CatalogoMaquinaria['servicios'][number]) =>
+    porZona(s) && !!municipio.trim() && !zonasDelServicio(cat, s).some((z) => z.id === zonaObra?.id);
 
   return (
     <div className="cz-card">
       <h2 className="cz-card-h">Servicios adicionales</h2>
       <p className="cz-card-s">
-        Agua en pipas y retiro de material. Este paso es opcional: si no hace falta ninguno, continúa.
+        Agua en pipas y retiro de material. Se cobran según la zona de la obra
+        {zonaObra ? ` (${municipio}: ${zonaObra.nombre})` : ''}.
+        {lineas.some((l) => l.tipo === 'equipo') ? ' Este paso es opcional: si no hace falta ninguno, continúa.' : ''}
       </p>
       <div className="cz-cards">
-        {cat.servicios.map((s) => (
-          <Tarjeta
-            key={s.id}
-            icono={s.icono}
-            titulo={s.nombre}
-            nota={mostrarPrecios ? `${money(s.precio)} / ${s.unidad}` : `por ${s.unidad}`}
-            n={cuenta(s.id)}
-            onClick={() => alternar(s.id)}
-          />
-        ))}
+        {cat.servicios.map((s) => {
+          const fuera = fueraDeZona(s);
+          const precio = porZona(s) ? precioDeServicio(cat, s, zonaObra?.id) : s.precio;
+          const nota = fuera
+            ? `No se ofrece en ${municipio}`
+            : mostrarPrecios && precio
+              ? `${money(precio)} / ${s.unidad}${porZona(s) && zonaObra ? ` · ${zonaObra.nombre}` : ''}`
+              : porZona(s) && zonaObra ? `por ${s.unidad} · ${zonaObra.nombre}` : `por ${s.unidad}`;
+          return (
+            <Tarjeta
+              key={s.id}
+              icono={s.icono}
+              titulo={s.nombre}
+              nota={nota}
+              n={cuenta(s.id)}
+              deshabilitada={fuera && !elegirZona && cuenta(s.id) === 0}
+              onClick={() => alternar(s.id)}
+            />
+          );
+        })}
       </div>
 
       {servicios.length > 0 ? (
@@ -221,27 +260,50 @@ export function PasoServicios({
           {servicios.map((l) => {
             const sv = cat.servicios.find((s) => s.id === l.id);
             if (!sv) return null;
-            const total = num(l.precio) * l.cantidad;
+            // Por zona (el agua): la elegida a mano o la del municipio de la obra.
+            const zonas = porZona(sv) ? zonasDelServicio(cat, sv) : [];
+            const zona = porZona(sv) ? zonaPrecioDe(cat, l.zona) ?? zonaObra : null;
+            const deZona = porZona(sv) ? precioDeServicio(cat, sv, zona?.id) : null;
+            const unitario = num(l.precio) || deZona || 0;
+            const total = unitario * l.cantidad;
+            const nota = !porZona(sv)
+              ? `Precio por ${sv.unidad}`
+              : zona && deZona
+                ? `${zona.nombre}${l.zona ? '' : ' · por el municipio de la obra'}`
+                : municipio.trim() ? `No se ofrece en ${municipio}` : 'Elige el municipio de la obra para saber su zona';
             return (
               <Linea
                 key={l.uid}
                 icono={sv.icono}
                 titulo={sv.nombre}
-                nota={`Precio por ${sv.unidad}`}
+                nota={nota}
                 onQuitar={() => quitar(l.uid)}
                 dinero={
                   mostrarPrecios ? (
-                    <Renglon texto={`${l.cantidad} × ${money(num(l.precio))}`} valor={money(total)} fuerte />
+                    <Renglon texto={`${l.cantidad} × ${money(unitario)}`} valor={money(total)} fuerte />
                   ) : (
                     <Renglon texto="Cantidad solicitada" valor={`${l.cantidad} ${sv.unidad}(s)`} fuerte />
                   )
                 }
               >
-                {mostrarPrecios ? (
-                  <Campo label="Precio unitario">
+                {elegirZona && zonas.length > 0 ? (
+                  <div className="cz-qty wide">
+                    <span className="cz-lbl">Zona de la obra</span>
+                    <div className="cz-chips">
+                      {zonas.map((z) => (
+                        <Chip key={z.id} on={zona?.id === z.id} onClick={() => actualizar(l.uid, { zona: z.id === zonaObra?.id ? '' : z.id })}>
+                          {z.nombre}{mostrarPrecios ? ` · ${money(sv.precios_zona?.[z.id] ?? 0)}` : ''}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {editarPrecios ? (
+                  <Campo label="Precio unitario" help={porZona(sv) ? 'Vacío = el de la zona' : undefined}>
                     <NumeroTexto
                       decimal
                       ariaLabel="precio unitario"
+                      placeholder={deZona ? String(deZona) : undefined}
                       valor={l.precio}
                       onChange={(v) => actualizar(l.uid, { precio: v })}
                     />
@@ -256,7 +318,7 @@ export function PasoServicios({
                     onChange={(v) => actualizar(l.uid, { cantidad: v })}
                   />
                 </div>
-                {mostrarPrecios && sv.presets.length > 1 ? (
+                {editarPrecios && sv.presets.length > 1 ? (
                   <div className="cz-qty wide">
                     <span className="cz-lbl">Precios sugeridos</span>
                     <div className="cz-chips">

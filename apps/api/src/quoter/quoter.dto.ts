@@ -3,7 +3,12 @@ import { z } from 'zod';
 import { zCorreo, zTelefono, zTelefonoRequerido } from '../common/campos';
 import {
   esCotizadorTipo,
+  esUbicacionDeMapas,
+  faltaZona,
   opcionesCotizadorSchema,
+  porZona,
+  servicioDe,
+  zonaDeMunicipio,
   partidaMaquinariaSchema,
   partidaTrituradosSchema,
   type CatalogoCotizador,
@@ -49,6 +54,9 @@ export const cotizacionPanelSchema = contactoSchema.extend({
   direccion: z.string().trim().max(300).optional().default(''),
   /** Fecha de inicio del servicio o de entrega (2026-10-23), AAAA-MM-DD. */
   fecha: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Fecha inválida').optional().default(''),
+  /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps; en el panel es opcional. */
+  ubicacion: z.string().trim().max(500).optional().default('')
+    .refine((v) => !v || esUbicacionDeMapas(v), 'Esa ubicación no es de Google Maps: en Maps toca «Compartir» y pega el enlace.'),
 });
 
 /**
@@ -69,6 +77,9 @@ export const solicitudSitioSchema = contactoSchema.extend({
   direccion: z.string().trim().max(300).optional().default(''),
   /** Fecha de inicio del servicio o de entrega (2026-10-23), AAAA-MM-DD. */
   fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Elige la fecha del servicio.'),
+  /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. */
+  ubicacion: z.string().trim().max(500).optional().default('')
+    .refine((v) => !v || esUbicacionDeMapas(v), 'Esa ubicación no es de Google Maps: en Maps toca «Compartir» y pega el enlace.'),
 })
   // Toda solicitud es para una obra: una de las suyas, o una nueva con nombre y dirección.
   .refine((d) => !!d.obraId || (d.obra.trim().length >= 2 && d.direccion.trim().length >= 5), {
@@ -104,10 +115,13 @@ export function partidasDe(tipo: CotizadorTipo, crudas: unknown[]): PartidaCotiz
  *    (2026-10-23, ver `fleteDelSitio`).
  *  - banco: `precio_m3` 0 = el del tabulador.
  *  - zona: sin `precio` negociado; vale la tabla de zonas.
+ *  - servicio por zona (el agua, 2026-10-29): la zona es la del municipio de
+ *    la obra, no la que mande el navegador; fuera de las zonas no se ofrece.
  */
-export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: CatalogoCotizador): PartidaCotizador[] {
+export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: CatalogoCotizador, municipio = ''): PartidaCotizador[] {
   const partidas = partidasDe(tipo, crudas);
-  return partidas.map((p, i) => {
+  const zonaObra = cat.tipo === 'maquinaria' ? zonaDeMunicipio(cat, municipio)?.id : undefined;
+  const limpias = partidas.map((p, i) => {
     const n = i + 1;
     // "Sale en el cotizador" apagado en su ficha, o la ficha de baja (2026-10-19).
     const oculto =
@@ -121,7 +135,11 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
       if (p.tipo === 'equipo') {
         return { ...p, precio_hora: null, flete: null, horas: Math.min(p.horas ?? 0, Math.max(0, cat.jornada_horas - 1)) };
       }
-      if (p.tipo === 'servicio') return { ...p, precio: 0 };
+      if (p.tipo === 'servicio') {
+        const sv = servicioDe(cat, p.id);
+        const { zona: _elegida, ...resto } = p;
+        return sv && porZona(sv) && zonaObra ? { ...resto, precio: 0, zona: zonaObra } : { ...resto, precio: 0 };
+      }
     } else {
       if (p.tipo === 'material') {
         if (!cat.productos.some((x) => x.id === p.id)) {
@@ -138,6 +156,9 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
     }
     return p;
   });
+  const falta = faltaZona(cat, limpias, municipio);
+  if (falta) throw new BadRequestException(falta);
+  return limpias;
 }
 
 /** Lo que el cotizador del sitio escribe cuando el material no se lleva a obra. */

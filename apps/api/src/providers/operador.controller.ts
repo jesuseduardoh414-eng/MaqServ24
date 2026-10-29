@@ -55,7 +55,7 @@ export class OperadorController {
       contacto: { nombre: q.client_sites?.contact_name ?? null, telefono: q.client_sites?.contact_phone ?? null },
       requisitos: lista(q.client_sites?.requirements),
       equipo,
-      pedido: pedidoDe(q.service_category, q.requirements, q.comments),
+      pedido: pedidoDe(q.service_category, q.requirements, q.comments, true),
       notas: notasDe(q.comments),
     };
   }

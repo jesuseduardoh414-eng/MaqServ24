@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { catalogoCotizadorSchema, esCotizadorTipo } from '@maqserv/config';
+import { catalogoCotizadorSchema, conZonaDeLaObra, esCotizadorTipo, faltaZona, llevaFlete, normalizarNombre } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
 import { revisarCampos } from '../common/campos';
@@ -32,6 +32,8 @@ const fichaSchema = z.object({
     flete_tipo: z.string().trim().max(60).optional(),
     precio: dinero.optional(),
     cond: z.string().max(40).optional(),
+    /** Servicio: precio por viaje en cada zona (el agua, 2026-10-29). Null: ya no cobra por zona. */
+    precios_zona: z.record(z.string().max(40), dinero).nullable().optional(),
   })).max(30),
   /** Tipos de flete creados desde la ficha: nombre → monto. */
   fletesNuevos: z.record(z.string().trim().min(2).max(60), dinero).optional(),
@@ -104,6 +106,19 @@ export class AdminQuoterController {
     const { empresa, firma } = parsed.data;
     const malo = revisarCampos([['telefono', empresa.telefono], ['correo', empresa.correo], ['rfc', empresa.rfc], ['telefono', firma.telefono]]);
     if (malo) throw new BadRequestException(malo);
+    // Un municipio en dos zonas de precio tendría dos precios (2026-10-29).
+    if (parsed.data.tipo === 'maquinaria') {
+      const visto = new Map<string, string>();
+      for (const z of parsed.data.zonas_precio ?? []) {
+        for (const m of z.municipios) {
+          const clave = normalizarNombre(m);
+          if (!clave) continue;
+          const otra = visto.get(clave);
+          if (otra && otra !== z.nombre) throw new BadRequestException(`${m} está en ${otra} y en ${z.nombre}: déjalo en una sola zona.`);
+          visto.set(clave, z.nombre);
+        }
+      }
+    }
 
     const cat = await this.quoter.guardarCatalogo(tipo, parsed.data, req.adminEmail);
     // Sensible: mover una tarifa cambia lo que se le cobra a todo el mundo.
@@ -207,7 +222,11 @@ export class AdminQuoterController {
     // no dejar un folio suelto si la solicitud ya no admite precio nuevo.
     const solicitudId = Number((body as { solicitudId?: unknown } | null)?.solicitudId) || null;
     const solicitud = solicitudId ? await this.quoter.solicitudLigable(solicitudId) : null;
-    const partidas = partidasDe(tipo, d.partidas);
+    // El agua sin zona elegida toma la del municipio de la obra; sin zona no se cotiza (2026-10-29).
+    const cat = await this.quoter.catalogo(tipo);
+    const partidas = conZonaDeLaObra(cat, partidasDe(tipo, d.partidas), d.municipio);
+    const sinZona = faltaZona(cat, partidas, d.municipio);
+    if (sinZona) throw new BadRequestException(sinZona);
 
     /**
      * Su documento todavía no se le manda al cliente (2026-10-23): se rehace
@@ -269,6 +288,8 @@ export class AdminQuoterController {
         userId: solicitud?.user_id != null ? Number(solicitud.user_id) : null,
         destino: destino?.clientId ? { clientId: destino.clientId, siteId: destino.siteId } : null,
         fecha: d.fecha || null,
+        // Triturados con flete: la ubicación en Google Maps, si la pegaron (2026-10-29).
+        ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? d.ubicacion || null : null,
       },
     );
     if (solicitud) {

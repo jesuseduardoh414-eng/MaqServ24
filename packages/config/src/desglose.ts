@@ -2,10 +2,13 @@ import {
   calcularCotizacion,
   equipoDe,
   precioHoraDe,
+  porZona,
+  precioDeServicio,
   precioZona,
   productoDe,
   servicioDe,
   zonaDe,
+  zonaPrecioDe,
   LEYENDA_NEGOCIAR,
   type CalculoCotizacion,
   type CatalogoCotizador,
@@ -46,7 +49,8 @@ export type RefTarifa =
   | { clase: 'equipo'; id: string; tramo?: string }
   /** Un tipo de flete de maquinaria (lo comparten todos los equipos que lo usan). */
   | { clase: 'flete'; tipo: string }
-  | { clase: 'servicio'; id: string }
+  /** Precio por viaje de un servicio; `zona` en los que cobran por zona (el agua, 2026-10-29). */
+  | { clase: 'servicio'; id: string; zona?: string }
   /** Precio por tonelada de un material de triturados. */
   | { clase: 'material'; id: string }
   /** El flete de una zona de triturados; se edita por tonelada y se guarda por viaje. */
@@ -176,12 +180,16 @@ export function explicarRenglon(cat: CatalogoCotizador, r: RenglonCotizacion, p:
   if (cat.tipo === 'maquinaria' && p.tipo === 'servicio') {
     const sv = servicioDe(cat, p.id);
     if (!sv) return sinTarifa('El servicio ya no está en el tabulador');
-    const negociado = Number(p.precio ?? 0) > 0 && Number(p.precio) !== sv.precio;
+    // Por zona (el agua): la tarifa es la de su zona, y corregirla cambia solo esa zona.
+    const zona = porZona(sv) ? zonaPrecioDe(cat, p.zona) : null;
+    const tarifa = precioDeServicio(cat, sv, p.zona) ?? 0;
+    const negociado = Number(p.precio ?? 0) > 0 && Number(p.precio) !== tarifa;
+    const donde = zona ? ` · ${zona.nombre}` : '';
     return {
-      fuente: negociado ? especial(dinero(sv.precio)) : `${deFicha(sv.id, sv.nombre)} · ${dinero(sv.precio)} por ${sv.unidad || 'viaje'}`,
+      fuente: negociado ? especial(dinero(tarifa)) : `${deFicha(sv.id, sv.nombre)}${donde} · ${dinero(tarifa)} por ${sv.unidad || 'viaje'}`,
       negociado,
-      edicion: { unidad: `por ${sv.unidad || 'viaje'}`, valor: r.pu, tarifa: sv.precio },
-      ref: { clase: 'servicio', id: sv.id },
+      edicion: { unidad: `por ${sv.unidad || 'viaje'}${zona ? ` en ${zona.nombre}` : ''}`, valor: r.pu, tarifa },
+      ref: zona ? { clase: 'servicio', id: sv.id, zona: zona.id } : { clase: 'servicio', id: sv.id },
     };
   }
   if (cat.tipo === 'triturados' && p.tipo === 'material') {
@@ -277,7 +285,7 @@ export function alinearATarifa(cat: CatalogoCotizador, partidas: PartidaCotizado
   if (antes === null) return partidas;
   const igual = (v: unknown) => Math.abs(Number(v ?? NaN) - antes) < 0.005;
   for (const p of partidas) {
-    if (ref.clase === 'servicio' && p.tipo === 'servicio' && p.id === ref.id && igual(p.precio)) p.precio = 0;
+    if (ref.clase === 'servicio' && p.tipo === 'servicio' && p.id === ref.id && (!ref.zona || p.zona === ref.zona) && igual(p.precio)) p.precio = 0;
     else if (ref.clase === 'material' && p.tipo === 'material' && p.id === ref.id && igual(p.precio)) delete p.precio;
     else if (ref.clase === 'banco' && p.tipo === 'banco' && igual(p.precio_m3)) p.precio_m3 = 0;
     else if (ref.clase === 'flete_zona' && p.tipo === 'material' && cat.tipo === 'triturados') {

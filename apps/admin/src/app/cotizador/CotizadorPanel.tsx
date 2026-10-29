@@ -44,6 +44,7 @@ export function CotizadorPanel({
   solicitud,
   solicitudFallida,
   fichaId,
+  app = false,
 }: {
   catalogo: CatalogoCotizador;
   titulo: string;
@@ -53,6 +54,8 @@ export function CotizadorPanel({
   solicitudFallida?: boolean;
   /** El tipo con el que abre ("Cotizar" en Disponibilidad, 2026-10-26). */
   fichaId?: number | null;
+  /** Dentro del acceso directo (/cotizar/<tipo>, 2026-10-29): su marco ya trae el encabezado. */
+  app?: boolean;
 }) {
   const branding = useBranding();
 
@@ -97,6 +100,7 @@ export function CotizadorPanel({
         obraId: datos.contexto.obraId,
         direccion: datos.contexto.direccion,
         fecha: datos.contexto.fecha,
+        ubicacion: datos.contexto.ubicacion,
         ...(solicitud ? { solicitudId: solicitud.id } : {}),
       }),
     });
@@ -119,16 +123,24 @@ export function CotizadorPanel({
   // de los demás módulos y la pantalla compartida toma el ancho del panel.
   return (
     <div>
-      <PageHeader
-        eyebrow={['2 · Cotizar', ['Cotizador', '/cotizador']]}
-        title={titulo}
-        subtitle={resumen}
-        actions={
-          <Btn href={`/cotizador/historial?kind=${catalogo.tipo}`} icon="ph-clock-counter-clockwise">
-            Historial
-          </Btn>
-        }
-      />
+      {app ? null : (
+        <PageHeader
+          eyebrow={['2 · Cotizar', ['Cotizador', '/cotizador']]}
+          title={titulo}
+          subtitle={resumen}
+          actions={
+            <>
+              {/* Este mismo cotizador sin el menú, para instalarlo en el celular (2026-10-29). */}
+              <Btn href={`/cotizar/${catalogo.tipo}`} icon="ph-device-mobile" title="Ábrelo en tu celular e instálalo en el inicio">
+                Acceso directo
+              </Btn>
+              <Btn href={`/cotizador/historial?kind=${catalogo.tipo}`} icon="ph-clock-counter-clockwise">
+                Historial
+              </Btn>
+            </>
+          }
+        />
+      )}
 
       {solicitudFallida ? (
         <Note tone="warn" icon="ph-warning" style={{ marginBottom: 16 }}>

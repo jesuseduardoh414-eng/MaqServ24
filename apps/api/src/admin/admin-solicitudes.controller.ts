@@ -100,7 +100,7 @@ export class AdminSolicitudesController {
       ref: z.discriminatedUnion('clase', [
         z.object({ clase: z.literal('equipo'), id: z.string().max(40), tramo: z.string().max(30).optional() }),
         z.object({ clase: z.literal('flete'), tipo: z.string().max(60) }),
-        z.object({ clase: z.literal('servicio'), id: z.string().max(40) }),
+        z.object({ clase: z.literal('servicio'), id: z.string().max(40), zona: z.string().max(40).optional() }),
         z.object({ clase: z.literal('material'), id: z.string().max(40) }),
         z.object({ clase: z.literal('flete_zona'), zonaId: z.string().max(40) }),
         z.object({ clase: z.literal('banco') }),

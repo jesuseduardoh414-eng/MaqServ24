@@ -32,6 +32,12 @@ interface Renglon {
   flete: string;
   precio: string;
   cond: string;
+  /** Servicio: cobra según la zona de la obra (agua y retiro, 2026-10-29). */
+  porZona: boolean;
+  /** Servicio por zona: id de zona → precio por viaje, como texto. */
+  zonas: Record<string, string>;
+  /** Venía cobrando por zona: al apagarlo hay que avisarle a la API. */
+  teniaZonas: boolean;
 }
 
 interface Ficha {
@@ -39,21 +45,25 @@ interface Ficha {
   seccion: SeccionCotizador | null;
   activa: boolean;
   oculto: boolean;
-  renglones: Array<{ id?: string; nombre: string; precio_hora?: number; flete_tipo?: string; precio?: number; cond?: string }>;
+  renglones: Array<{ id?: string; nombre: string; precio_hora?: number; flete_tipo?: string; precio?: number; cond?: string; precios_zona?: Record<string, number> }>;
   fletes: Array<{ nombre: string; monto: number }>;
   condiciones: Array<{ clave: string; titulo: string }>;
   /** Maquinaria: cómo se cobra (Tarifas › Maquinaria). */
   cobro: { jornada: number; minimo: number; conFlete: boolean } | null;
+  /** Las zonas de agua y retiro (Tarifas › Maquinaria). */
+  zonas: Array<{ id: string; nombre: string; municipios: string[] }>;
 }
 
 const NUEVO_FLETE = '__nuevo__';
 const money = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigits: 2 })}`;
-const vacio = (cond = ''): Renglon => ({ nombre: '', hora: '', flete: '', precio: '', cond });
+const vacio = (cond = ''): Renglon => ({ nombre: '', hora: '', flete: '', precio: '', cond, porZona: false, zonas: {}, teniaZonas: false });
 
 /** Lo que sale de la API, a texto para los campos. */
 function aRenglon(r: Ficha['renglones'][number]): Renglon {
   const t = (n?: number) => (n === undefined || n === null ? '' : String(n));
-  return { id: r.id, nombre: r.nombre, hora: t(r.precio_hora), flete: r.flete_tipo ?? '', precio: t(r.precio), cond: r.cond ?? '' };
+  const zonas = Object.fromEntries(Object.entries(r.precios_zona ?? {}).map(([z, v]) => [z, t(v)]));
+  const porZona = Object.keys(zonas).length > 0;
+  return { id: r.id, nombre: r.nombre, hora: t(r.precio_hora), flete: r.flete_tipo ?? '', precio: t(r.precio), cond: r.cond ?? '', porZona, zonas, teniaZonas: porZona };
 }
 
 /** Para una ficha nueva todavía no hay a quién preguntarle: se arma con el tabulador de su línea. */
@@ -67,6 +77,7 @@ function fichaDeCatalogo(cat: CatalogoCotizador, linea: string, seccion: Seccion
     fletes: cat.tipo === 'maquinaria' ? Object.entries(cat.fletes).map(([nombre, monto]) => ({ nombre, monto })) : [],
     condiciones: Object.entries(cat.condiciones).map(([clave, b]) => ({ clave, titulo: b.titulo })),
     cobro: cat.tipo === 'maquinaria' ? { jornada: cat.jornada_horas, minimo: minimoHorasDe(cat), conFlete: cobraFlete(cat) } : null,
+    zonas: cat.tipo === 'maquinaria' ? (cat.zonas_precio ?? []) : [],
   };
 }
 
@@ -166,9 +177,18 @@ export function PrecioEnCotizador({
         if (!flete) return { error: `«${nombre}»: elige qué flete se le cobra.` };
         if (sale && !(num(r.hora) > 0)) return { error: `«${nombre}»: pon su precio por hora. En $0 se cotizaría gratis.` };
         out.push({ id: r.id, nombre, flete_tipo: flete, precio_hora: num(r.hora) || 0 });
+      } else if (seccion.clase === 'servicio' && r.porZona) {
+        // Por zona: solo las zonas con precio lo llevan; el de referencia es el más bajo.
+        const precios = Object.fromEntries(Object.entries(r.zonas).map(([z, v]) => [z, num(v)]).filter(([, v]) => (v as number) > 0));
+        const valores = Object.values(precios) as number[];
+        if (sale && !valores.length) return { error: `«${nombre}»: pon su precio en al menos una zona. Donde no tenga precio no se ofrece.` };
+        out.push({ id: r.id, nombre, precio: valores.length ? Math.min(...valores) : 0, cond: r.cond || undefined, precios_zona: precios });
       } else {
         if (sale && !(num(r.precio) > 0)) return { error: `«${nombre}»: pon su precio. En $0 se cotizaría gratis.` };
-        out.push({ id: r.id, nombre, precio: num(r.precio) || 0, ...(seccion.clase === 'servicio' ? { cond: r.cond || undefined } : {}) });
+        out.push({
+          id: r.id, nombre, precio: num(r.precio) || 0,
+          ...(seccion.clase === 'servicio' ? { cond: r.cond || undefined, ...(r.teniaZonas ? { precios_zona: null } : {}) } : {}),
+        });
       }
     }
     return { body: { renglones: out, oculto: !sale, ...(Object.keys(nuevos).length ? { fletesNuevos: nuevos } : {}) } };
@@ -291,11 +311,32 @@ export function PrecioEnCotizador({
                   ) : null}
                 </>
               ) : (
+                <>
+                {seccion.clase === 'servicio' && (ficha?.zonas.length ?? 0) > 0 ? (
+                  <Switch
+                    on={r.porZona}
+                    onClick={() => set(i, { porZona: !r.porZona, zonas: r.porZona ? r.zonas : Object.fromEntries((ficha?.zonas ?? []).map((z) => [z.id, r.zonas[z.id] ?? r.precio])) })}
+                    label={r.porZona ? 'Cobra según la zona de la obra' : 'Mismo precio en todas partes'}
+                  />
+                ) : null}
+                {seccion.clase === 'servicio' && r.porZona ? (
+                  <div className="pf-2">
+                    {(ficha?.zonas ?? []).map((z) => (
+                      <label key={z.id} style={{ display: 'grid', gap: 6 }}>
+                        <span className="adm-label">{z.nombre} · {unidad}</span>
+                        <input className="adm-input adm-num" type="number" min={0} step="0.01" value={r.zonas[z.id] ?? ''} onChange={(e) => set(i, { zonas: { ...r.zonas, [z.id]: e.target.value } })} placeholder="$ (vacío = no se lleva)" />
+                        <span className="adm-help" style={{ margin: 0 }}>{z.municipios.join(', ')}</span>
+                      </label>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="pf-2">
-                  <label style={{ display: 'grid', gap: 6 }}>
-                    <span className="adm-label">Precio {unidad}</span>
-                    <input className="adm-input adm-num" type="number" min={0} step="0.01" value={r.precio} onChange={(e) => set(i, { precio: e.target.value })} placeholder="$" />
-                  </label>
+                  {seccion.clase === 'servicio' && r.porZona ? null : (
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span className="adm-label">Precio {unidad}</span>
+                      <input className="adm-input adm-num" type="number" min={0} step="0.01" value={r.precio} onChange={(e) => set(i, { precio: e.target.value })} placeholder="$" />
+                    </label>
+                  )}
                   {seccion.clase === 'servicio' ? (
                     <label style={{ display: 'grid', gap: 6 }}>
                       <span className="adm-label">Condiciones que se imprimen</span>
@@ -308,6 +349,7 @@ export function PrecioEnCotizador({
                     </label>
                   ) : null}
                 </div>
+                </>
               )}
             </div>
           ))}

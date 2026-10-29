@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Logger, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { condicionesSinPrecios, esCotizadorTipo, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
+import { condicionesSinPrecios, esCotizadorTipo, llevaFlete, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
 import { avisarPanel } from '../notifications/panel';
 import { leerAceptacion } from './aceptar-link';
 import { leerZonas, municipiosDe } from '../common/zonas';
@@ -22,14 +22,13 @@ const TOPE_TOTAL = 99_999_999;
  * apagado, estas rutas devuelven 404 y el cotizador simplemente no existe fuera
  * del panel.
  *
- * EL SITIO NUNCA ENSEÑA PRECIOS (decisión del usuario, 2026-10-23). El
- * visitante arma su requerimiento completo y lo envía sin ver un peso; el
- * servidor lo calcula igual y la solicitud llega al panel con su precio
- * estimado. Alguien lo revisa, lo corrige si hace falta y se lo manda al
- * cliente, que la acepta desde su cuenta. Antes había un interruptor
- * (`publico.mostrarPrecios`) y el cotizador enseñaba el total en el último
- * paso; el campo se queda en el tabulador por compatibilidad, pero aquí ya no
- * se lee: un precio que nadie revisó no puede llegarle al cliente.
+ * PRECIOS: del 2026-10-23 al 2026-10-29 el sitio no enseñaba ninguno. Desde el
+ * 2026-10-29 (Dirección: "el cotizador para los clientes debe mostrar los
+ * costos, ya que son los fijos") manda el interruptor `publico.mostrarPrecios`
+ * de Tarifas: encendido, el visitante ve los precios de lista mientras arma su
+ * pedido; apagado, el tabulador sale en ceros como antes. En los dos casos el
+ * precio de la solicitud lo calcula el servidor con el tabulador (nunca el del
+ * navegador) y la cotización la revisa y la manda MAQSER24.
  */
 @Controller('quoter')
 export class QuoterController {
@@ -41,11 +40,12 @@ export class QuoterController {
   ) {}
 
   /**
-   * El tabulador tal como lo puede ver un desconocido: SIEMPRE en ceros.
+   * El tabulador tal como lo puede ver un desconocido: con los precios de lista
+   * si `publico.mostrarPrecios` está encendido, en ceros si no.
    *
    * No se manda con un flag para que el navegador lo esconda: un precio que
    * viaja al navegador es un precio publicado, aunque la pantalla no lo pinte —
-   * basta abrir la pestaña de red para leerlo.
+   * basta abrir la pestaña de red para leerlo. Por eso apagado va en ceros.
    */
   @Get('catalog/:kind')
   async catalogo(@Param('kind') kind: string) {
@@ -58,7 +58,8 @@ export class QuoterController {
     // El sitio solo ofrece los municipios de las zonas que se anuncian (2026-10-22).
     const anunciados = municipiosDe(await leerZonas(), ['sitio']);
     const publico = anunciados.length ? { ...cat, municipios: anunciados } : cat;
-    return sinDueños(sinPrecios(publico));
+    // Precios de lista en el sitio (2026-10-29): con el interruptor encendido van tal cual.
+    return sinDueños(cat.publico.mostrarPrecios ? publico : sinPrecios(publico));
   }
 
   /**
@@ -104,7 +105,15 @@ export class QuoterController {
     if (!cuenta) throw new ForbiddenException('La cuenta ya no existe.');
 
     // Solo renglones del tabulador y SIN precios del cliente (precio único).
-    const partidas = partidasPublicas(tipo, datos.partidas, cat);
+    // La zona del agua sale del municipio de SU obra guardada, si eligió una; si no, del que escribió (2026-10-29).
+    const obra = datos.obraId
+      ? await prisma.client_sites.findFirst({ where: { id: datos.obraId, clients: { user_id: req.userId } }, select: { municipality: true } })
+      : null;
+    const partidas = partidasPublicas(tipo, datos.partidas, cat, obra?.municipality || datos.municipio);
+    // Triturados con flete: sin la ubicación en Google Maps no se puede medir (2026-10-29).
+    if (tipo === 'triturados' && llevaFlete(partidas) && !datos.ubicacion) {
+      throw new BadRequestException('Para cotizar el flete, pega la ubicación de tu obra en Google Maps (o elige que lo recogen en planta).');
+    }
     const previo = await this.quoter.calcular(tipo, partidas, datos.opciones);
     if (Number(previo.total) > TOPE_TOTAL) {
       throw new BadRequestException('La cotización es demasiado grande para el cotizador en línea. Escríbenos y la armamos contigo.');
@@ -142,7 +151,7 @@ export class QuoterController {
         opciones: datos.opciones,
         partidas,
       },
-      { origen: 'sitio', estado: 'solicitada', userId },
+      { origen: 'sitio', estado: 'solicitada', userId, ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? datos.ubicacion || null : null },
     );
 
     // Primera vez que se conoce su teléfono: se guarda en la cuenta.
@@ -160,7 +169,7 @@ export class QuoterController {
         cliente,
         userId,
         // Empresa y obra que eligió, o la obra nueva con su dirección (2026-10-23).
-        destino: { clientId: datos.clienteId ?? null, siteId: datos.obraId ?? null, direccion: datos.direccion || null, fecha: datos.fecha },
+        destino: { clientId: datos.clienteId ?? null, siteId: datos.obraId ?? null, direccion: datos.direccion || null, fecha: datos.fecha, ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? datos.ubicacion || null : null },
       });
     } catch (e) {
       this.log.error(`No se pudo abrir el servicio de ${cot.folio}: ${(e as Error).message}`);
@@ -297,7 +306,11 @@ function sinPrecios(catalogo: CatalogoCotizador): CatalogoCotizador {
       fletes: Object.fromEntries(Object.keys(cat.fletes).map((k) => [k, 0])),
       // El precio por hora en cero y la tarifa por día de antes fuera (2026-10-29).
       equipos: cat.equipos.map(({ tarifas: _antes, ...e }) => ({ ...e, precio_hora: 0 })),
-      servicios: cat.servicios.map((s) => ({ ...s, precio: 0, presets: [] })),
+      // Por zona (el agua): se queda qué zonas lo llevan, no cuánto cuesta en cada una.
+      servicios: cat.servicios.map((s) => ({
+        ...s, precio: 0, presets: [],
+        ...(s.precios_zona ? { precios_zona: Object.fromEntries(Object.keys(s.precios_zona).map((z) => [z, s.precios_zona![z] > 0 ? 1 : 0])) } : {}),
+      })),
     };
   }
   return {

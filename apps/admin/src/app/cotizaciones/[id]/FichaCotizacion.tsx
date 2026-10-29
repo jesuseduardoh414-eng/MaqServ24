@@ -6,6 +6,7 @@ import { mostrarResultado } from '@maqserv/ui';
 import {
   alinearATarifa,
   calcularCotizacion,
+  conZonaDeLaObra,
   equipoDe,
   ponerPrecio,
   productoDe,
@@ -13,7 +14,9 @@ import {
   renglonesPorPartida,
   servicioDe,
   minimoHorasDe,
+  porZona,
   zonaDe,
+  zonasDelServicio,
   type CatalogoCotizador,
   type FichasDeRenglones,
   type FilaDesglose,
@@ -136,7 +139,8 @@ export function FichaCotizacion({ id }: { id: number }) {
         ]);
         setCat(c);
         setFichas(fx);
-        setPartidas(structuredClone(f.documento.partidas));
+        // El agua de un documento sin zona toma la del municipio de la obra (2026-10-29).
+        setPartidas(conZonaDeLaObra(c, structuredClone(f.documento.partidas), f.solicitud.obra?.municipality));
         setOpciones(f.documento.opciones ?? {});
       }
       setSucio(false);
@@ -385,7 +389,7 @@ export function FichaCotizacion({ id }: { id: number }) {
                 />
               ))}
               {!partidas.length ? <Note tone="warn" icon="ph-warning">La cotización se quedó sin partidas: agrega al menos una.</Note> : null}
-              {edita ? <AgregarPartida cat={cat} onAgregar={(p) => cambiar((c) => { c.push(p); })} /> : null}
+              {edita ? <AgregarPartida cat={cat} onAgregar={(p) => cambiar((c) => { c.push(...conZonaDeLaObra(cat, [p], ficha.solicitud.obra?.municipality)); })} /> : null}
               <Opciones cat={cat} opciones={opciones} edita={edita} onCambio={(o) => { setOpciones(o); setSucio(true); }} />
             </>
           ) : ficha.formulario ? (
@@ -607,13 +611,16 @@ function Partida({ cat, p, filas, edita, puedeTarifas, onCantidad, onQuitar, onP
   filas: FilaExplicada[];
   edita: boolean;
   puedeTarifas: boolean;
-  onCantidad: (patch: Record<string, number>) => void;
+  onCantidad: (patch: Record<string, number | string>) => void;
   onQuitar: () => void;
   onPrecio: (f: FilaExplicada, valor: number) => void;
   onTarifa: (f: FilaExplicada, valor: number) => Promise<boolean>;
 }) {
   const importe = filas.reduce((s, f) => s + f.importe, 0);
   const jornada = cat.tipo === 'maquinaria' ? cat.jornada_horas : 8;
+  // El agua se cobra por zona (2026-10-29): sus zonas, para elegir a cuál se lleva.
+  const sv = cat.tipo === 'maquinaria' && p.tipo === 'servicio' ? servicioDe(cat, p.id) : null;
+  const zonasAgua = cat.tipo === 'maquinaria' && sv && porZona(sv) ? zonasDelServicio(cat, sv) : [];
   return (
     <div className="fc-part">
       <div className="fc-part-h">
@@ -631,7 +638,23 @@ function Partida({ cat, p, filas, edita, puedeTarifas, onCantidad, onQuitar, onP
               <Num label="Equipos" valor={p.cantidad ?? 1} onCambio={(n) => onCantidad({ cantidad: n })} min={1} max={99} disabled={!edita} />
             </>
           ) : p.tipo === 'servicio' ? (
-            <Num label={`Cantidad (${(cat.tipo === 'maquinaria' && servicioDe(cat, p.id)?.unidad) || 'viajes'})`} valor={p.cantidad ?? 1} onCambio={(n) => onCantidad({ cantidad: n })} min={1} max={999} disabled={!edita} />
+            <>
+              <Num label={`Cantidad (${(cat.tipo === 'maquinaria' && servicioDe(cat, p.id)?.unidad) || 'viajes'})`} valor={p.cantidad ?? 1} onCambio={(n) => onCantidad({ cantidad: n })} min={1} max={999} disabled={!edita} />
+              {zonasAgua.length ? (
+                <label>
+                  Zona
+                  <AdminSelect
+                    size="sm"
+                    ariaLabel="Zona de la obra"
+                    value={p.zona ?? ''}
+                    placeholder="Elige la zona…"
+                    disabled={!edita}
+                    onChange={(v) => v && onCantidad({ zona: v })}
+                    options={zonasAgua.map((z) => ({ value: z.id, label: z.nombre }))}
+                  />
+                </label>
+              ) : null}
+            </>
           ) : p.tipo === 'material' ? (
             <Num label="Toneladas" valor={p.toneladas ?? 0} onCambio={(n) => onCantidad({ toneladas: n })} entero={false} max={1_000_000} disabled={!edita} />
           ) : p.tipo === 'zona' ? (

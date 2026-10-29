@@ -385,7 +385,7 @@ export class ProviderPortalController {
           contactName: a.quotes.client_sites?.contact_name ?? null,
           contactPhone: a.quotes.client_sites?.contact_phone ?? null,
           requirements: a.quotes.client_sites?.requirements ?? [],
-          pedido: pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments),
+          pedido: pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments, true),
           // Quién maneja la unidad (2026-10-15): su enlace es para él, no para la empresa.
           operador: (() => { const o = operadorDe(a.quotes.requirements); return o ? { nombre: o.nombre, telefono: o.telefono } : null; })(),
         })),

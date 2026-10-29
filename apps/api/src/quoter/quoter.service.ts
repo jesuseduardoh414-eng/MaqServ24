@@ -213,7 +213,7 @@ export class QuoterService {
     const linea = (await prisma.categories.findUnique({ where: { id: p.category_id }, select: { cat_slug: true } }))?.cat_slug ?? null;
     const seccion = seccionDeLinea(linea);
     const base = { productId: p.id, nombreFicha: p.name, linea, seccion, deAliado: p.provider_id !== null, activa: p.status === 1 };
-    if (!seccion) return { ...base, renglones: [], oculto: false, fletes: [], condiciones: [], cobro: null };
+    if (!seccion) return { ...base, renglones: [], oculto: false, fletes: [], condiciones: [], cobro: null, zonas: [] };
     const cat = await this.catalogoGuardado(seccion.tipo);
     const { renglones, oculto } = renglonesDeFicha(cat, seccion.clase, p.id);
     return {
@@ -226,6 +226,8 @@ export class QuoterService {
       cobro: cat.tipo === 'maquinaria'
         ? { jornada: cat.jornada_horas, minimo: minimoHorasDe(cat), conFlete: cobraFlete(cat) }
         : null,
+      // Las zonas de agua y retiro (2026-10-29): un servicio puede cobrar distinto en cada una.
+      zonas: cat.tipo === 'maquinaria' ? (cat.zonas_precio ?? []).map((z) => ({ id: z.id, nombre: z.nombre, municipios: z.municipios })) : [],
     };
   }
 
@@ -310,9 +312,16 @@ export class QuoterService {
         } else if (ref.clase === 'servicio') {
           const s = cat.servicios.find((x) => x.id === ref.id);
           if (!s) throw falta();
-          antes = s.precio;
-          s.precio = r2(valor);
-          nombre = s.nombre;
+          if (ref.zona && s.precios_zona && ref.zona in s.precios_zona) {
+            // Por zona (el agua): cambia solo el precio de esa zona.
+            antes = s.precios_zona[ref.zona];
+            s.precios_zona[ref.zona] = r2(valor);
+            nombre = `${s.nombre} · ${cat.zonas_precio?.find((z) => z.id === ref.zona)?.nombre ?? ref.zona}`;
+          } else {
+            antes = s.precio;
+            s.precio = r2(valor);
+            nombre = s.nombre;
+          }
         } else throw falta();
       } else {
         if (ref.clase === 'material') {
@@ -460,6 +469,8 @@ export class QuoterService {
     destino?: { clientId: number | null; siteId: number | null } | null;
     /** Fecha de inicio o entrega (panel, 2026-10-23): sale en el documento y pasa al servicio. */
     fecha?: string | null;
+    /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. Sale en el documento y pasa al servicio. */
+    ubicacion?: string | null;
   }) {
     const cat = await this.catalogo(entrada.tipo);
     const calc = calcularCotizacion(cat, entrada.partidas, entrada.opciones);
@@ -476,6 +487,7 @@ export class QuoterService {
       emitida: new Date().toISOString(),
       ...(contexto.destino?.clientId ? { destino: contexto.destino } : {}),
       ...(contexto.fecha ? { fecha: contexto.fecha } : {}),
+      ...(contexto.ubicacion ? { ubicacion: contexto.ubicacion } : {}),
     };
 
     const base = {
@@ -746,6 +758,9 @@ export class QuoterService {
         firma: CatalogoCotizador['firma'];
         saludo: string;
         emitida: string;
+        /** Fecha de inicio o entrega y, en triturados con flete, la ubicación en Google Maps. */
+        fecha?: string;
+        ubicacion?: string;
       },
       total: Number(q.total),
       admin: q.admin_name,

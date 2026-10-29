@@ -15,6 +15,7 @@ import {
 import { mostrarResultado } from '@maqserv/ui';
 import { Btn, Chip, FormField, IconBtn, Panel, Segmented, Stat, Stats, Switch } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
+import { AdminSelect } from '@/components/AdminSelect';
 
 /**
  * TABULADOR DE LOS COTIZADORES.
@@ -343,12 +344,85 @@ function EditorMaquinaria({ cat, set, fichas }: {
         filas={cat.servicios.map((sv) => ({
           id: sv.id,
           nombre: sv.nombre,
-          precio: `${money(sv.precio)} por ${sv.unidad || 'viaje'}`,
+          // Por zona (el agua): el precio de cada zona.
+          precio: sv.precios_zona && Object.keys(sv.precios_zona).length
+            ? (cat.zonas_precio ?? []).filter((z) => (sv.precios_zona?.[z.id] ?? 0) > 0).map((z) => `${z.nombre} ${money(sv.precios_zona![z.id])}`).join(' · ') + ` por ${sv.unidad || 'viaje'}`
+            : `${money(sv.precio)} por ${sv.unidad || 'viaje'}`,
           detalle: cat.condiciones[sv.cond]?.titulo ? tituloCorto(cat.condiciones[sv.cond].titulo) : '—',
           oculto: sv.oculto,
         }))}
       />
+
+      <ZonasAgua cat={cat} set={set} />
     </>
+  );
+}
+
+/**
+ * LAS ZONAS DE AGUA Y RETIRO (2026-10-29). Se cobran según la zona de la obra
+ * y fuera de estas zonas no se ofrece. Aquí se mueven los municipios; el
+ * precio de cada zona va en la ficha de cada pipa.
+ */
+function ZonasAgua({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Partial<CatalogoCotizador>) => void }) {
+  const zonas = cat.zonas_precio ?? [];
+  if (!zonas.length) return null;
+  const enAlguna = new Set(zonas.flatMap((z) => z.municipios));
+  const sinZona = cat.municipios.filter((m) => !enAlguna.has(m));
+  const poner = (i: number, municipios: string[]) =>
+    set({ zonas_precio: zonas.map((z, j) => (j === i ? { ...z, municipios } : z)) } as Partial<CatalogoCotizador>);
+  return (
+    <Panel
+      icon="ph-drop"
+      title="Zonas de agua y retiro"
+      desc="El agua y el retiro de material se cobran según la zona de la obra; fuera de estas zonas no se ofrecen. El precio de cada zona va en la ficha de cada servicio."
+    >
+      <div style={{ display: 'grid', gap: 16 }}>
+        {zonas.map((z, i) => (
+          <div key={z.id} style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                className="adm-input"
+                style={{ width: 160, height: 34, fontSize: 13.5, fontWeight: 600 }}
+                value={z.nombre}
+                maxLength={80}
+                aria-label={`Nombre de ${z.nombre}`}
+                onChange={(e) => set({ zonas_precio: zonas.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) } as Partial<CatalogoCotizador>)}
+              />
+              <span className="tf-sub">{z.municipios.length} municipio{z.municipios.length === 1 ? '' : 's'}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              {z.municipios.map((m) => (
+                <Chip key={m} tone="info">
+                  {m}
+                  <button
+                    type="button"
+                    aria-label={`Quitar ${m} de ${z.nombre}`}
+                    onClick={() => poner(i, z.municipios.filter((x) => x !== m))}
+                    style={{ marginLeft: 6, background: 'none', border: 0, color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                  >
+                    ×
+                  </button>
+                </Chip>
+              ))}
+              {sinZona.length ? (
+                <AdminSelect
+                  size="sm"
+                  className="w-auto min-w-[200px]"
+                  ariaLabel={`Agregar municipio a ${z.nombre}`}
+                  placeholder="+ Agregar municipio…"
+                  value=""
+                  onChange={(v) => v && poner(i, [...z.municipios, v])}
+                  options={sinZona.map((m) => ({ value: m, label: m }))}
+                />
+              ) : null}
+            </div>
+          </div>
+        ))}
+        <p className="tf-sub" style={{ margin: 0 }}>
+          {sinZona.length ? `Sin agua ni retiro (en ninguna zona): ${sinZona.join(', ')}.` : 'Todos los municipios del cotizador están en alguna zona.'}
+        </p>
+      </div>
+    </Panel>
   );
 }
 
@@ -445,7 +519,18 @@ function Publicacion({ cat, set }: { cat: CatalogoCotizador; set: (p: Partial<Ca
         onClick={() => set({ publico: { ...cat.publico, habilitado: !cat.publico.habilitado } } as Partial<CatalogoCotizador>)}
         label={cat.publico.habilitado ? 'Visible en el sitio público' : 'Oculto en el sitio público'}
       />
-      <span className="tf-sub">El sitio nunca enseña precios: el cliente arma su pedido y MAQSER24 le manda la cotización desde Solicitudes.</span>
+      {cat.publico.habilitado ? (
+        <Switch
+          on={cat.publico.mostrarPrecios}
+          onClick={() => set({ publico: { ...cat.publico, mostrarPrecios: !cat.publico.mostrarPrecios } } as Partial<CatalogoCotizador>)}
+          label={cat.publico.mostrarPrecios ? 'Enseña los precios de lista' : 'Sin precios en el sitio'}
+        />
+      ) : null}
+      <span className="tf-sub">
+        {cat.publico.mostrarPrecios
+          ? 'El cliente ve estos precios al armar su pedido, con la nota para llamar si quiere mejorarlo. Cambiarlos para un cliente se hace en el cotizador del panel.'
+          : 'El cliente arma su pedido sin ver precios y MAQSER24 le manda la cotización desde Solicitudes.'}
+      </span>
     </div>
   );
 }

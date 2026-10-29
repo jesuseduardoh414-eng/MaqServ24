@@ -65,6 +65,7 @@ export function CotizadorPublico({
         obraId: datos.contexto.obraId,
         direccion: datos.contexto.direccion,
         fecha: datos.contexto.fecha,
+        ubicacion: datos.contexto.ubicacion,
         opciones: datos.opciones,
         partidas: datos.partidas,
       }),

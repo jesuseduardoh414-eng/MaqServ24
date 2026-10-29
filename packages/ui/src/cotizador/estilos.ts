@@ -154,6 +154,14 @@ export const COTIZADOR_CSS = `
   transition:border-color .16s, transform .16s, background .16s; }
 .cz-pick:hover{ border-color:color-mix(in srgb, var(--cz-accent) 55%, var(--cz-border)); transform:translateY(-2px);
   box-shadow:0 14px 28px -20px color-mix(in srgb, var(--cz-accent) 70%, transparent); }
+/* "¿Quieres mejorar el precio?" (sitio con precios de lista, 2026-10-29). */
+.cz-mejorar{ display:grid; gap:3px; padding:12px 14px; border-radius:12px; font-size:13px; line-height:1.5;
+  border:1px solid color-mix(in srgb, var(--cz-accent) 40%, var(--cz-border)); background:var(--cz-accent-soft); }
+.cz-mejorar b{ font-size:13.5px; }
+.cz-mejorar a{ color:var(--cz-accent); font-weight:600; white-space:nowrap; }
+.cz-side-extra{ padding:14px 16px 16px; border-top:1px solid var(--cz-border); }
+/* No se puede elegir aquí (el agua fuera de zona): se ve apagada y no se mueve. */
+.cz-pick:disabled{ opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; border-color:var(--cz-border); }
 .cz-pick[data-on="1"]{ border-color:var(--cz-accent); background:var(--cz-accent-soft);
   box-shadow:0 0 0 1px var(--cz-accent) inset, 0 14px 30px -22px color-mix(in srgb, var(--cz-accent) 80%, transparent); }
 .cz-pick .ico{ color:var(--cz-accent); display:grid; place-items:center; width:46px; height:46px; border-radius:12px;

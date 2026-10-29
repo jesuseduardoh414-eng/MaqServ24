@@ -1,9 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   calcularCotizacion,
   condicionesSinPrecios,
+  conZonaDeLaObra,
+  esUbicacionDeMapas,
+  faltaZona,
+  llevaFlete,
   pasosDe,
   problemaEmail,
   problemaTelefono,
@@ -30,6 +34,7 @@ import {
   aPartidas,
   lineaDeBanco,
   lineaDeEquipo,
+  lineaDeMaterial,
   lineaDeServicio,
   lineaDeZona,
   nuevoUid,
@@ -141,10 +146,20 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
    * `preciosAlFinal` era el sitio con tabulador público (el costo de una vez en
    * el último paso). Ya no ocurre; se queda para que el código que lo pinta no
    * dependa de quién llama.
+   *
+   * PRECIOS DE LISTA EN EL SITIO (2026-10-29, Dirección): "el cotizador para
+   * los clientes debe mostrar los costos, ya que son los fijos". Con el
+   * interruptor del tabulador encendido (`publico.mostrarPrecios`) la API manda
+   * los precios y el visitante los ve mientras arma su pedido. Lo que SIGUE
+   * siendo solo del panel es CAMBIARLOS (`editarPrecios`): costo/hora,
+   * precio del servicio o del material y la tarifa del flete por cotización.
    */
-  const verPrecios = esPanel;
-  const preciosEnPasos = esPanel;
+  const verPrecios = esPanel || catalogo.publico.mostrarPrecios;
+  const preciosEnPasos = verPrecios;
+  const editarPrecios = esPanel;
   const preciosAlFinal = verPrecios && !preciosEnPasos;
+  /** El sitio con precios de lista: total grande al final y la nota para mejorar el precio. */
+  const sitioConPrecios = verPrecios && !esPanel;
 
   const [paso, setPaso] = useState(0);
   const [ctx, setCtx] = useState<ContextoCotizador>({ ...CONTEXTO_VACIO, ...inicial });
@@ -180,7 +195,10 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   }, [paso]);
 
   const opciones: Partial<OpcionesCotizador> = tipo === 'maquinaria' ? { modo_unidad: modoUnidad } : { con_iva: conIva };
-  const partidas = useMemo(() => aPartidas(lineas), [lineas]);
+  // El agua sin zona elegida a mano toma la del municipio de la obra (2026-10-29).
+  const partidas = useMemo(() => conZonaDeLaObra(catalogo, aPartidas(lineas), ctx.municipio), [catalogo, lineas, ctx.municipio]);
+  // Triturados con flete: la ubicación en Google Maps va en el documento (2026-10-29).
+  const ubicacionValida = tipo === 'triturados' && llevaFlete(partidas) && esUbicacionDeMapas(ctx.ubicacion);
   const calc = useMemo(() => calcularCotizacion(catalogo, partidas, opciones), [catalogo, partidas, modoUnidad, conIva]);
   /**
    * LO QUE SE ENSEÑA EN EL SITIO (2026-10-23). El tabulador llega en ceros y el
@@ -245,6 +263,22 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     setNuevo(uid);
   };
 
+  /**
+   * Triturados con tarjetas, como la maquinaria (2026-10-29): tocar un
+   * material lo agrega (con el flete que ya tenga la sección) y tocarlo otra
+   * vez lo quita.
+   */
+  const alternarMaterial = (id: string) => {
+    const uid = nuevoUid();
+    setLineas((prev) => {
+      if (prev.some((l) => l.tipo === 'material' && l.id === id)) return prev.filter((l) => !(l.tipo === 'material' && l.id === id));
+      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material');
+      const base = lineaDeMaterial(catalogo as CatalogoTriturados, id);
+      return [...prev, { ...base, uid, fleteTon: otro?.fleteTon ?? 0, fleteZona: otro?.fleteZona ?? '' }];
+    });
+    setNuevo(uid);
+  };
+
   // ---- validación por paso ----
   const clave = pasos[paso]?.clave ?? '';
 
@@ -262,14 +296,21 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
         : !esPanel && clave === 'duracion'
           ? 'Cuántos días u horas necesitas cada equipo.'
           : !esPanel && clave === 'resumen'
-            ? tipo === 'triturados'
-              ? 'Dinos si necesitas factura y revisa tu solicitud. El precio te lo mandamos por correo.'
-              : 'Revisa tu solicitud antes de enviarla. El precio te lo mandamos por correo.'
+            ? sitioConPrecios
+              ? tipo === 'triturados'
+                ? 'Dinos si necesitas factura y revisa tu cotización antes de enviarla.'
+                : 'Revisa tu cotización antes de enviarla.'
+              : tipo === 'triturados'
+                ? 'Dinos si necesitas factura y revisa tu solicitud. El precio te lo mandamos por correo.'
+                : 'Revisa tu solicitud antes de enviarla. El precio te lo mandamos por correo.'
             : (pasos[paso]?.ayuda ?? '');
 
   /** El desglose lateral, solo cuando el costo ya está a la vista. */
   const importesALaVista = verPrecios && (preciosEnPasos || clave === 'resumen');
-  const faltante = useMemo(() => validar(clave, { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel }), [clave, ctx, lineas, esPanel, calcVista, clientesPanel]);
+  const faltante = useMemo(
+    () => validar(clave, { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel, zona: faltaZona(catalogo, partidas, ctx.municipio) }),
+    [clave, ctx, lineas, esPanel, calcVista, clientesPanel, catalogo, partidas],
+  );
   const puedeAvanzar = faltante === null;
 
   /**
@@ -285,15 +326,26 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     if (arriba < 0 || arriba > window.innerHeight * 0.35) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [paso]);
 
+  /**
+   * Sin maquinaria no hay duración que pedir (2026-10-29): quien solo quiere
+   * agua o retiro de material pasa de «Equipos» directo a «Servicios».
+   */
+  const saltar = (i: number) => pasos[i]?.clave === 'duracion' && !lineas.some((l) => l.tipo === 'equipo');
   const avanzar = () => {
     setTocado(true);
     if (!puedeAvanzar) return;
     setTocado(false);
-    setPaso((p) => Math.min(pasos.length - 1, p + 1));
+    setPaso((p) => {
+      const n = Math.min(pasos.length - 1, p + 1);
+      return saltar(n) ? Math.min(pasos.length - 1, n + 1) : n;
+    });
   };
   const retroceder = () => {
     setTocado(false);
-    setPaso((p) => Math.max(0, p - 1));
+    setPaso((p) => {
+      const n = Math.max(0, p - 1);
+      return saltar(n) ? Math.max(0, n - 1) : n;
+    });
   };
 
   // ---- documento ----
@@ -310,11 +362,12 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     saludo: catalogo.saludo,
     calc: calcVista,
     // Cuándo y dónde (2026-10-23): lo que el cliente pidió para su obra.
-    ...(ctx.fecha || ctx.direccion
+    ...(ctx.fecha || ctx.direccion || ubicacionValida
       ? {
           detalle: [
             ...(ctx.fecha ? [{ label: tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega', valor: fechaLarga(ctx.fecha) }] : []),
             ...(ctx.direccion ? [{ label: 'Dirección de la obra', valor: [ctx.direccion, ctx.municipio].filter(Boolean).join(', ') }] : []),
+            ...(ubicacionValida ? [{ label: 'Ubicación (Google Maps)', valor: ctx.ubicacion.trim() }] : []),
           ],
         }
       : {}),
@@ -366,7 +419,9 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
           <p>
             {esPanel
               ? 'Ya está en el historial del cotizador. Mándasela al cliente por correo (con el botón para aceptarla) o imprímela.'
-              : 'Recibimos tu solicitud. La revisamos y te mandamos la cotización con precio por correo; la aceptas desde tu cuenta y entonces asignamos al proveedor que te atiende. Guarda tu folio.'}
+              : sitioConPrecios
+                ? 'Recibimos tu solicitud. Confirmamos disponibilidad y te mandamos la cotización por correo; la aceptas desde tu cuenta y entonces asignamos al proveedor que te atiende. Guarda tu folio.'
+                : 'Recibimos tu solicitud. La revisamos y te mandamos la cotización con precio por correo; la aceptas desde tu cuenta y entonces asignamos al proveedor que te atiende. Guarda tu folio.'}
           </p>
           <div className="cz-folio">{hecho.folio}</div>
           <div className="cz-done-acts">
@@ -453,6 +508,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               cat={catalogo as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
               mostrarPrecios={preciosEnPasos}
+              editarPrecios={editarPrecios}
               actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaEquipo>)}
               quitar={quitar}
             />
@@ -463,6 +519,9 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               cat={paraElegir as CatalogoMaquinaria}
               lineas={lineas as LineaMaquinaria[]}
               mostrarPrecios={preciosEnPasos}
+              editarPrecios={editarPrecios}
+              municipio={ctx.municipio}
+              elegirZona={esPanel}
               alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
               actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
               quitar={quitar}
@@ -474,6 +533,11 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               cat={paraElegir as CatalogoTriturados}
               lineas={lineas as LineaTriturados[]}
               mostrarPrecios={preciosEnPasos}
+              editarPrecios={editarPrecios}
+              alternarMaterial={alternarMaterial}
+              ubicacion={ctx.ubicacion}
+              ponerUbicacion={(ubicacion) => setCtx((c) => ({ ...c, ubicacion }))}
+              ubicacionObligatoria={!esPanel}
               preciosAlFinal={preciosAlFinal}
               permitirOtro={esPanel}
               agregarMaterial={agregarMaterial}
@@ -493,12 +557,13 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               <p className="cz-card-s">
                 {esPanel
                   ? 'Revísalo antes de guardarlo. Al guardar se congela: aunque mañana suba una tarifa, esta cotización seguirá diciendo lo mismo.'
-                  : preciosAlFinal
-                    ? 'Este es el costo de lo que armaste. Revísalo y, si todo está bien, envía tu solicitud.'
+                  : preciosAlFinal || sitioConPrecios
+                    ? 'Este es el costo de lo que armaste, con nuestros precios de lista. Revísalo y, si todo está bien, envía tu solicitud.'
                     : 'Revisa que todo esté correcto antes de enviar tu solicitud. Va sin precios: te mandamos la cotización con precio por correo.'}
               </p>
 
-              {tipo === 'maquinaria' && verPrecios ? (
+              {/* Solo con maquinaria: el agua y el retiro van por viaje (2026-10-29). */}
+              {tipo === 'maquinaria' && verPrecios && lineas.some((l) => l.tipo === 'equipo') ? (
                 <Campo label="Presentar cantidades en" help="Cómo se ven las cantidades en el documento; el total no cambia.">
                   {(id) => (
                     <ShSelect value={modoUnidad} onValueChange={(v) => setModoUnidad(v as 'horas' | 'dias')}>
@@ -516,7 +581,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
 
               {tipo === 'triturados' && preciosEnPasos ? (
                 <div className="cz-qty wide" style={{ marginBottom: 14 }}>
-                  <span className="cz-lbl">Facturación · cambia el total y las condiciones del documento</span>
+                  <span className="cz-lbl">{esPanel ? 'Facturación · cambia el total y las condiciones del documento' : '¿Necesitas factura? Cambia el total'}</span>
                   <Facturacion cat={catalogo as CatalogoTriturados} conIva={conIva} setConIva={setConIva} />
                 </div>
               ) : null}
@@ -546,7 +611,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   el que la persona hizo los cinco pasos no puede depender de
                   que lo encuentre. En el panel no hace falta — ahí el total
                   acompañó toda la captura desde el resumen lateral. */}
-              {preciosAlFinal ? (
+              {preciosAlFinal || sitioConPrecios ? (
                 <div className="cz-total">
                   <span className="n">
                     <span>
@@ -582,10 +647,12 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               </div>
 
               {!esPanel ? (
-                <div style={{ marginTop: 14 }}>
+                <div style={{ marginTop: 14, display: 'grid', gap: 10 }}>
+                  {sitioConPrecios ? <MejorarPrecio telefono={catalogo.empresa.telefono} empresa={catalogo.empresa.nombre} /> : null}
                   <Aviso>
-                    Al enviarla, MAQSER24 revisa tu solicitud y te manda la cotización con precio por correo.
-                    Si te conviene, la aceptas desde tu cuenta y asignamos al proveedor que te atiende.
+                    {sitioConPrecios
+                      ? 'Al enviarla, MAQSER24 confirma disponibilidad y te manda la cotización por correo. Si te conviene, la aceptas desde tu cuenta y asignamos al proveedor que te atiende.'
+                      : 'Al enviarla, MAQSER24 revisa tu solicitud y te manda la cotización con precio por correo. Si te conviene, la aceptas desde tu cuenta y asignamos al proveedor que te atiende.'}
                   </Aviso>
                 </div>
               ) : null}
@@ -625,6 +692,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
           tipo={tipo}
           importes={importesALaVista}
           pie={verPrecios ? 'El costo aparece en el último paso' : 'Te mandamos el precio por correo'}
+          extra={sitioConPrecios ? <MejorarPrecio telefono={catalogo.empresa.telefono} empresa={catalogo.empresa.nombre} corto /> : null}
           // Con precios, solo las partidas que ya cuentan (con material y
           // cantidad): un renglón recién agregado y vacío no es una partida.
           partidas={verPrecios ? calc.renglones.filter((r) => r.clase !== 'flete').length : partidas.length}
@@ -1023,9 +1091,12 @@ function ResumenLateral({
   pie,
   partidas,
   para,
+  extra,
 }: {
   calc: ReturnType<typeof calcularCotizacion>;
   tipo: 'maquinaria' | 'triturados';
+  /** Debajo del total (el sitio con precios: la nota para mejorar el precio). */
+  extra?: ReactNode;
   /** Si toca enseñar el desglose de dinero o solo las cantidades. */
   importes: boolean;
   /** Qué decir en lugar del total mientras no hay importes. */
@@ -1063,10 +1134,12 @@ function ResumenLateral({
             <>
               {tipo === 'maquinaria' ? (
                 <>
-                  <div className="cz-fr">
-                    <span>Renta de equipos</span>
-                    <b>{money(calc.desglose.renta)}</b>
-                  </div>
+                  {calc.desglose.renta > 0 ? (
+                    <div className="cz-fr">
+                      <span>Renta de equipos</span>
+                      <b>{money(calc.desglose.renta)}</b>
+                    </div>
+                  ) : null}
                   {calc.desglose.servicios > 0 ? (
                     <div className="cz-fr">
                       <span>Servicios</span>
@@ -1138,7 +1211,28 @@ function ResumenLateral({
           )}
         </div>
       )}
+      {extra ? <div className="cz-side-extra">{extra}</div> : null}
     </aside>
+  );
+}
+
+/**
+ * "¿QUIERES MEJORAR EL PRECIO?" (2026-10-29): en el sitio los precios son los
+ * de lista; quien quiera negociar llama a la línea de MAQSER24. El teléfono es
+ * el del documento (Tarifas › Documento), así no hay dos números distintos.
+ */
+function MejorarPrecio({ telefono, empresa, corto = false }: { telefono: string; empresa: string; corto?: boolean }) {
+  const tel = telefono.trim();
+  if (!tel) return null;
+  const marcar = `tel:${tel.replace(/[^\d+]/g, '')}`;
+  return (
+    <div className="cz-mejorar">
+      <b>¿Quieres mejorar el precio?</b>
+      <span>
+        {corto ? 'Llama a la línea de ' : 'Estos son nuestros precios de lista. Si quieres negociar el costo, llama a la línea de '}
+        {empresa || 'MAQSER24'}: <a href={marcar}>{tel}</a>
+      </span>
+    </div>
   );
 }
 
@@ -1155,7 +1249,11 @@ function conPrecioSimbolico(cat: CatalogoCotizador): CatalogoCotizador {
       ...cat,
       fletes: Object.fromEntries(Object.keys(cat.fletes).map((k) => [k, 1])),
       equipos: cat.equipos.map(({ tarifas: _antes, ...e }) => ({ ...e, precio_hora: 1 })),
-      servicios: cat.servicios.map((s) => ({ ...s, precio: 1 })),
+      // Por zona: precio simbólico solo en las zonas que lo llevan (el sitio las recibe en 1).
+      servicios: cat.servicios.map((s) => ({
+        ...s, precio: 1,
+        ...(s.precios_zona ? { precios_zona: Object.fromEntries(Object.entries(s.precios_zona).map(([z, v]) => [z, v > 0 ? 1 : 0])) } : {}),
+      })),
     };
   }
   return {
@@ -1194,9 +1292,13 @@ function validar(
     calc: ReturnType<typeof calcularCotizacion>;
     /** Panel con clientes registrados: la obra también se pide. */
     conClientes?: boolean;
+    /** Lo que falta para cobrar el agua por zona (`faltaZona`), o null. */
+    zona?: string | null;
   },
 ): string | null {
   const { ctx, lineas, esPanel, calc } = d;
+  // En el panel la zona del agua se puede elegir a mano, aunque el municipio no esté en ninguna.
+  const zona = d.zona ? `${d.zona}${esPanel ? ' Si aun así se lleva, elige la zona a mano.' : ''}` : null;
 
   if (clave === 'obra') {
     if (ctx.cliente.trim().length < 2) return 'Escribe a nombre de quién va la cotización.';
@@ -1212,8 +1314,12 @@ function validar(
     return errorContacto('correo', ctx.correo, !esPanel) ?? errorContacto('telefono', ctx.telefono, !esPanel);
   }
 
-  if (clave === 'equipos') {
-    return lineas.some((l) => l.tipo === 'equipo') ? null : 'Elige al menos un equipo para continuar.';
+  // Sin equipo se puede seguir (2026-10-29): quien solo quiere agua o retiro lo elige en «Servicios».
+  if (clave === 'equipos') return null;
+
+  if (clave === 'servicios') {
+    if (!lineas.length) return 'Elige al menos un equipo o un servicio para continuar.';
+    return zona;
   }
 
   if (clave === 'duracion') {
@@ -1233,10 +1339,17 @@ function validar(
     if (material && material.tipo === 'material' && !entregaDecidida(material)) return 'Dinos si llevamos el material a obra (elige la zona) o si lo recogen en planta.';
     if (lineas.some((l) => l.tipo === 'zona' && (!l.zonaId || !l.productoId))) return 'Elige la zona y el material de cada viaje.';
     if (lineas.some((l) => l.tipo === 'banco' && num(l.m3) <= 0)) return 'Captura los m³ del material de banco.';
+    // Con flete hace falta la ubicación en Google Maps para medirlo (2026-10-29); en el panel es opcional.
+    if (llevaFlete(aPartidas(lineas))) {
+      const u = ctx.ubicacion.trim();
+      if (!esPanel && !u) return 'Para cotizar el flete, pega la ubicación de tu obra en Google Maps (o elige que lo recogen en planta).';
+      if (u && !esUbicacionDeMapas(u)) return 'Esa ubicación no es de Google Maps: en Maps toca «Compartir» y pega el enlace, o escribe las coordenadas.';
+    }
     return null;
   }
 
   if (clave === 'resumen') {
+    if (zona) return zona;
     return calc.renglones.length > 0 ? null : 'La cotización está vacía. Regresa y agrega partidas.';
   }
 

@@ -165,12 +165,15 @@ export function Tarjeta({
   nota,
   n = 0,
   modo = 'alternar',
+  deshabilitada = false,
   onClick,
   onAgregarOtra,
 }: {
   icono: string;
   titulo: string;
   nota?: string;
+  /** No se puede elegir (el agua fuera de zona, 2026-10-29); la nota dice por qué. */
+  deshabilitada?: boolean;
   /** Cuántas partidas hay de esto. 0 = sin elegir. */
   n?: number;
   /**
@@ -193,6 +196,7 @@ export function Tarjeta({
         className="cz-pick"
         data-on={activa ? '1' : '0'}
         aria-pressed={modo === 'alternar' ? activa : undefined}
+        disabled={deshabilitada}
         onClick={onClick}
       >
         <span className="ico">

@@ -185,7 +185,14 @@ function CotizarConTabulador({ q, principal, label }: { q: QuoteItem; principal?
     </Btn>
   );
 }
-const REQ_NOMBRES: Record<string, string> = { obra: 'Obra', obra_ubicacion: 'Ubicación de la obra', fecha_inicio: 'Fecha de inicio', duracion: 'Duración' };
+const REQ_NOMBRES: Record<string, string> = { obra: 'Obra', obra_ubicacion: 'Ubicación de la obra', fecha_inicio: 'Fecha de inicio', duracion: 'Duración', ubicacion_maps: 'Ubicación (Google Maps)' };
+
+/** El enlace de Google Maps que manda el cliente para el flete (2026-10-29): solo http(s), se abre aparte. */
+function enlaceMapa(v: unknown): string | null {
+  const s = String(v ?? '').trim();
+  if (/^-?\d{1,2}\.\d+\s*,\s*-?\d{1,3}\.\d+$/.test(s)) return `https://www.google.com/maps?q=${encodeURIComponent(s.replace(/\s+/g, ''))}`;
+  return /^https?:\/\//i.test(s) ? s : null;
+}
 const humano = (k: string) => REQ_NOMBRES[k] ?? (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ');
 
 export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre esta solicitud al entrar (al volver del cotizador). */ abrir?: number | null }) {
@@ -493,7 +500,12 @@ function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; to
             <h3 className="sl-h3">Lo que pidió</h3>
             {reqs.length > 0 ? (
               <dl className="sl-dl" style={{ marginBottom: q.comments ? 12 : 0 }}>
-                {reqs.map(([k, v]) => (<Fragment key={k}><dt>{humano(k)}</dt><dd>{String(v)}</dd></Fragment>))}
+                {reqs.map(([k, v]) => (
+                  <Fragment key={k}>
+                    <dt>{humano(k)}</dt>
+                    <dd>{k === 'ubicacion_maps' && enlaceMapa(v) ? <a href={enlaceMapa(v)!} target="_blank" rel="noopener noreferrer">Abrir en Google Maps</a> : String(v)}</dd>
+                  </Fragment>
+                ))}
               </dl>
             ) : null}
             {q.comments ? (

@@ -23,6 +23,7 @@
  *    el panel. Cambiar una tarifa no debe requerir un despliegue.
  */
 import { z } from 'zod';
+import { normalizarNombre } from './cobertura';
 
 /** Los dos cotizadores. El resto del módulo se ramifica por esta clave. */
 export const COTIZADOR_TIPOS = ['maquinaria', 'triturados'] as const;
@@ -156,7 +157,20 @@ const servicioSchema = z.object({
    * quien no le tocaba.
    */
   linea: z.string().max(80).optional(),
+  /**
+   * PRECIO POR ZONA (2026-10-29, el agua): id de zona (`zonas_precio`) →
+   * precio por viaje. Con esto el servicio solo se ofrece en los municipios
+   * de esas zonas y `precio` queda como el de referencia.
+   */
+  precios_zona: z.record(z.string(), z.number().min(0)).optional(),
   oculto: ocultoDe(),
+});
+
+/** Una zona de precio de los servicios por viaje: su nombre y los municipios que entran. */
+const zonaPrecioSchema = z.object({
+  id: z.string().min(1).max(40),
+  nombre: z.string().min(1).max(80),
+  municipios: z.array(z.string().max(80)).max(200),
 });
 
 export const catalogoMaquinariaSchema = z.object({
@@ -174,6 +188,8 @@ export const catalogoMaquinariaSchema = z.object({
    * de flete y los montos se guardan para cuando vuelva. Sin el campo, se cobra.
    */
   cobrar_flete: z.boolean().optional(),
+  /** Zonas de precio de los servicios que cobran según a dónde se llevan (el agua, 2026-10-29). */
+  zonas_precio: z.array(zonaPrecioSchema).max(20).optional(),
   empresa: empresaSchema,
   firma: firmaSchema,
   publico: publicoSchema,
@@ -244,6 +260,7 @@ export type FirmaCotizador = z.infer<typeof firmaSchema>;
 export type BloqueCondiciones = z.infer<typeof bloqueSchema>;
 export type EquipoCotizador = z.infer<typeof equipoSchema>;
 export type ServicioCotizador = z.infer<typeof servicioSchema>;
+export type ZonaPrecio = z.infer<typeof zonaPrecioSchema>;
 export type ProductoTriturado = z.infer<typeof productoSchema>;
 export type ZonaTriturado = z.infer<typeof zonaSchema>;
 
@@ -271,6 +288,8 @@ export const partidaMaquinariaSchema = z.discriminatedUnion('tipo', [
     id: z.string().min(1).max(40),
     precio: z.number().min(0).max(10_000_000),
     cantidad: z.number().int().min(1).max(999).default(1),
+    /** A qué zona se lleva (servicios con precio por zona, 2026-10-29). Sale del municipio de la obra. */
+    zona: z.string().max(40).optional(),
   }),
 ]);
 
@@ -382,6 +401,64 @@ export const equipoDe = (cat: CatalogoMaquinaria, id: string): EquipoCotizador |
 
 export const servicioDe = (cat: CatalogoMaquinaria, id: string): ServicioCotizador | null =>
   cat.servicios.find((s) => s.id === id) ?? null;
+
+// ---- Servicios con precio por zona (el agua, 2026-10-29) ----
+
+/** Si el servicio cobra según la zona de la obra (agua y retiro). */
+export const porZona = (sv: ServicioCotizador): boolean => !!sv.precios_zona && Object.keys(sv.precios_zona).length > 0;
+
+export const zonaPrecioDe = (cat: CatalogoMaquinaria, id: string | null | undefined): ZonaPrecio | null =>
+  (id && cat.zonas_precio?.find((z) => z.id === id)) || null;
+
+/** La zona de precio de un municipio ("San Nicolás" = "san nicolas"), o null si no entra en ninguna. */
+export function zonaDeMunicipio(cat: CatalogoMaquinaria, municipio: string | null | undefined): ZonaPrecio | null {
+  const m = normalizarNombre((municipio ?? '').split(',')[0] ?? '');
+  if (!m) return null;
+  return cat.zonas_precio?.find((z) => z.municipios.some((x) => normalizarNombre(x) === m)) ?? null;
+}
+
+/** Las zonas donde se ofrece el servicio: las que tienen precio. */
+export const zonasDelServicio = (cat: CatalogoMaquinaria, sv: ServicioCotizador): ZonaPrecio[] =>
+  (cat.zonas_precio ?? []).filter((z) => (sv.precios_zona?.[z.id] ?? 0) > 0);
+
+/** Lo que cuesta el servicio por viaje en esa zona. Sin precio por zona, el de siempre; null si no se ofrece ahí. */
+export function precioDeServicio(cat: CatalogoMaquinaria, sv: ServicioCotizador, zonaId?: string | null): number | null {
+  if (!porZona(sv)) return sv.precio;
+  const precio = zonaId ? sv.precios_zona?.[zonaId] : undefined;
+  return precio && precio > 0 && zonaPrecioDe(cat, zonaId) ? precio : null;
+}
+
+/**
+ * La zona que no se eligió a mano sale del municipio de la obra. La usan el
+ * cotizador (sitio y panel) y la API al guardar: el municipio ya se pidió en
+ * el primer paso, así nadie la captura dos veces.
+ */
+export function conZonaDeLaObra(cat: CatalogoCotizador, partidas: PartidaCotizador[], municipio: string | null | undefined): PartidaCotizador[] {
+  if (cat.tipo !== 'maquinaria') return partidas;
+  const zona = zonaDeMunicipio(cat, municipio);
+  return partidas.map((p) => {
+    if (p.tipo !== 'servicio' || p.zona) return p;
+    const sv = servicioDe(cat, p.id);
+    return sv && porZona(sv) && zona ? { ...p, zona: zona.id } : p;
+  });
+}
+
+/** Qué falta para cobrar el agua: la zona, o que la zona sea de las que lo llevan. Null si todo está. */
+export function faltaZona(cat: CatalogoCotizador, partidas: PartidaCotizador[], municipio?: string | null): string | null {
+  if (cat.tipo !== 'maquinaria') return null;
+  for (const p of partidas) {
+    if (p.tipo !== 'servicio') continue;
+    const sv = servicioDe(cat, p.id);
+    if (!sv || !porZona(sv) || Number(p.precio) > 0) continue;
+    if (precioDeServicio(cat, sv, p.zona) !== null) continue;
+    const donde = (municipio ?? '').trim();
+    const zonas = zonasDelServicio(cat, sv).map((z) => z.nombre).join(' y ');
+    return p.zona || !donde
+      ? `«${sv.nombre}»: elige la zona de la obra (${zonas}).`
+      : `«${sv.nombre}» no se ofrece en ${donde}: solo en los municipios de ${zonas}.`;
+  }
+  return null;
+}
 
 /**
  * Lo que cuesta UNA partida de equipo.
@@ -523,15 +600,19 @@ export function calcularMaquinaria(
       // el 0 se respetara, el renglón daría importe 0 y se caería del
       // documento — el visitante pediría tres pipas y llegaría una solicitud
       // sin pipas. Mismo criterio que el material de triturados.
-      const precio = decimal(p.precio && Number(p.precio) > 0 ? p.precio : sv.precio);
+      // Con precio por zona (el agua), el del catálogo es el de su zona; sin
+      // zona no hay precio y el renglón no se cobra (la pantalla y la API la piden).
+      const zona = porZona(sv) ? zonaPrecioDe(cat, p.zona) : null;
+      const precio = decimal(p.precio && Number(p.precio) > 0 ? p.precio : precioDeServicio(cat, sv, p.zona) ?? 0);
       const importe = precio * cantidad;
       if (importe <= 0) continue;
       servicios += importe;
+      const concepto = sv.cond === 'retiro' ? `${sv.nombre.toUpperCase()} (TIRO LIBRE)` : sv.nombre.toUpperCase();
       renglones.push({
         clase: 'servicio',
         id: sv.id,
         nombre: sv.nombre,
-        concepto: sv.cond === 'retiro' ? `${sv.nombre.toUpperCase()} (TIRO LIBRE)` : sv.nombre.toUpperCase(),
+        concepto: zona ? `${concepto} · ${zona.nombre.toUpperCase()}` : concepto,
         unidad: (sv.unidad || 'viaje').toUpperCase(),
         cantidad,
         pu: r2(precio),
@@ -563,6 +644,41 @@ export const productoDe = (cat: CatalogoTriturados, id: string): ProductoTritura
 
 export const zonaDe = (cat: CatalogoTriturados, id: string): ZonaTriturado | null =>
   cat.zonas.find((z) => z.id === id) ?? null;
+
+/** Lo que el cotizador escribe en `flete_zona` cuando el material no se lleva a obra. */
+export const RECOGE_EN_PLANTA = 'Recoge en planta';
+
+/**
+ * ¿El pedido de triturados lleva flete a obra? (2026-10-29) El flete es
+ * opcional; si lo pide, hace falta la ubicación de la obra en Google Maps
+ * para cotizarlo. Lleva flete el material por tonelada con zona (no "recoge
+ * en planta") y todo viaje puesto en obra.
+ */
+export function llevaFlete(partidas: PartidaCotizador[]): boolean {
+  return partidas.some((p) =>
+    p.tipo === 'zona'
+    || (p.tipo === 'material' && (Number(p.flete_ton ?? 0) > 0
+      || (!!(p.flete_zona ?? '').trim() && (p.flete_zona ?? '').trim().toLowerCase() !== RECOGE_EN_PLANTA.toLowerCase()))));
+}
+
+/**
+ * Un enlace de Google Maps ("Compartir → Copiar enlace") o unas coordenadas
+ * ("25.6866, -100.3161"): con eso se mide la distancia para el flete (2026-10-29).
+ */
+export function esUbicacionDeMapas(v: string | null | undefined): boolean {
+  const s = (v ?? '').trim();
+  if (!s || s.length > 500) return false;
+  if (/^-?\d{1,2}\.\d+\s*,\s*-?\d{1,3}\.\d+$/.test(s)) return true;
+  try {
+    const u = new URL(s);
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return false;
+    const h = u.hostname.toLowerCase();
+    if (h === 'maps.app.goo.gl' || (h === 'goo.gl' && u.pathname.startsWith('/maps'))) return true;
+    return /(^|\.)google\.[a-z]{2,3}(\.[a-z]{2})?$/.test(h) && (h.startsWith('maps.') || u.pathname.startsWith('/maps'));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Precio por viaje de un producto a una zona.
@@ -597,6 +713,8 @@ function condicionesTriturados(
           ? `Costos más IVA (${Math.round(cat.iva * 100)}%).`
           : 'Costos remisionados sin cargo de IVA; más IVA en caso de requerir factura.',
         ...general.puntos,
+        // Como en la renta de maquinaria (2026-10-29): sin descuentos, se negocia por teléfono.
+        `${LEYENDA_NEGOCIAR}, comuníquese a la línea de ${cat.empresa.nombre || 'MAQSER24'}${cat.empresa.telefono.trim() ? `: ${cat.empresa.telefono.trim()}` : ''}.`,
       ],
     });
   }
@@ -740,7 +858,7 @@ export interface PasoCotizador {
  */
 export const PASOS_MAQUINARIA: PasoCotizador[] = [
   { clave: 'obra', titulo: 'Datos de la obra', ayuda: 'Para quién es y dónde se entrega el equipo.' },
-  { clave: 'equipos', titulo: 'Equipos', ayuda: 'Elige la maquinaria. Todas incluyen operador y diésel.' },
+  { clave: 'equipos', titulo: 'Equipos', ayuda: 'Elige la maquinaria. Todas incluyen operador y diésel. Si solo necesitas agua o retiro de material, continúa.' },
   { clave: 'duracion', titulo: 'Duración', ayuda: 'Se cobra por hora de trabajo: cada día es una jornada, con un mínimo por equipo.' },
   { clave: 'servicios', titulo: 'Servicios', ayuda: 'Pipas de agua y retiro de material. Este paso es opcional.' },
   { clave: 'resumen', titulo: 'Resumen', ayuda: 'Revisa el documento antes de guardarlo o enviarlo.' },
@@ -918,6 +1036,8 @@ export interface RenglonDeFicha {
   precio?: number;
   /** Servicio: el bloque de condiciones que se imprime. */
   cond?: string;
+  /** Servicio: precio por viaje en cada zona (el agua, 2026-10-29). Null: deja de cobrar por zona. */
+  precios_zona?: Record<string, number> | null;
 }
 
 const deLaFicha = (productId: number) => (r: { productos?: number[] }) => (r.productos ?? []).includes(productId);
@@ -931,7 +1051,7 @@ export function renglonesDeFicha(cat: CatalogoCotizador, clase: ClaseRenglon, pr
   }
   if (cat.tipo === 'maquinaria' && clase === 'servicio') {
     const rs = cat.servicios.filter(es);
-    return { renglones: rs.map((s) => ({ id: s.id, nombre: s.nombre, precio: s.precio, cond: s.cond })), oculto: rs.length > 0 && rs.every((s) => s.oculto) };
+    return { renglones: rs.map((s) => ({ id: s.id, nombre: s.nombre, precio: s.precio, cond: s.cond, ...(porZona(s) ? { precios_zona: { ...s.precios_zona } } : {}) })), oculto: rs.length > 0 && rs.every((s) => s.oculto) };
   }
   if (cat.tipo === 'triturados' && clase === 'material') {
     const rs = cat.productos.filter(es);
@@ -1051,6 +1171,8 @@ export function aplicarRenglonesDeFicha(
         presets,
         cond,
         linea: opciones.linea,
+        // Por zona: lo que mande la ficha; sin el campo, lo que ya tenía.
+        precios_zona: r.precios_zona === null ? undefined : r.precios_zona ?? ya?.precios_zona,
         oculto,
       } as ServicioCotizador;
     });
@@ -1134,7 +1256,8 @@ export function analizarPartidas(cat: CatalogoCotizador, partidas: PartidaCotiza
     } else if (p.tipo === 'servicio' && cat.tipo === 'maquinaria') {
       const sv = cat.servicios.find((x) => x.id === p.id);
       if (!sv) continue;
-      out.push({ partida: p, linea: lineaDeServicio(sv), concepto: `${sv.nombre} · ${p.cantidad ?? 1} ${sv.unidad}(s)`, productos: sv.productos ?? [], proveedorId: sv.proveedor_id ?? null });
+      const zona = porZona(sv) ? zonaPrecioDe(cat, p.zona) : null;
+      out.push({ partida: p, linea: lineaDeServicio(sv), concepto: `${sv.nombre} · ${p.cantidad ?? 1} ${sv.unidad}(s)${zona ? ` · ${zona.nombre}` : ''}`, productos: sv.productos ?? [], proveedorId: sv.proveedor_id ?? null });
     } else if (p.tipo === 'material' && cat.tipo === 'triturados') {
       const prod = cat.productos.find((x) => x.id === p.id);
       out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${prod?.nombre ?? p.nombre ?? 'Material'} · ${p.toneladas ?? 0} ton`, productos: prod?.productos ?? [], proveedorId: prod?.proveedor_id ?? null });
@@ -1165,7 +1288,7 @@ export const COTIZADORES_META: Record<CotizadorTipo, { titulo: string; resumen: 
   triturados: {
     titulo: 'Triturados',
     // Sin "material de banco" desde 2026-10-21: ya no se cotiza aquí (va por viaje, en maquinaria).
-    resumen: 'Grava, arena, base hidráulica y CNC. Por tonelada en planta o por viaje puesto en obra.',
+    resumen: 'Grava, arena, base, sub base, sello, piedra y CNC. Por tonelada en planta (sin IVA ni flete); el flete a obra es opcional.',
     icono: 'material',
     ruta: '/cotizador/triturados',
   },

@@ -326,8 +326,14 @@ export class QuotesService {
      * cotizadores; si no, del precio de la ficha. El cliente no lo ve (la
      * solicitud está pendiente): es lo que el panel revisa antes de mandárselo.
      */
+    // El municipio de la obra (su obra guardada o el de la dirección nueva): el agua cobra por zona (2026-10-29).
+    const obraGuardada = input.siteId ? (await this.sitesOfUser(userId)).sites.find((s) => s.id === input.siteId) ?? null : null;
+    const municipioObra = obraGuardada?.municipality
+      ?? (input.address ?? '').split(',').map((p) => p.trim()).filter(Boolean).reverse().map((p) => centroDeMunicipio(p)?.nombre).find(Boolean)
+      ?? null;
     const estimados = await estimarDelTabulador(
       base.map((b) => ({ productId: b.p.id, fichaId: fichaDe(b.p), cantidad: b.cantidad, tiempo: b.days, unidad: b.unit })),
+      municipioObra,
     );
 
     // Distancia para flete (solo si dieron dirección; degrada a null sin API key).

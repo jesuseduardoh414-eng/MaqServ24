@@ -1,7 +1,8 @@
-import type {
-  CatalogoMaquinaria,
-  CatalogoTriturados,
-  PartidaCotizador,
+import {
+  porZona,
+  type CatalogoMaquinaria,
+  type CatalogoTriturados,
+  type PartidaCotizador,
 } from '@maqserv/config';
 
 /**
@@ -36,6 +37,8 @@ export interface LineaServicio {
   id: string;
   precio: string;
   cantidad: number;
+  /** Zona del agua elegida a mano en el panel (2026-10-29). Vacía = la del municipio de la obra. */
+  zona: string;
 }
 
 export interface LineaMaterial {
@@ -86,13 +89,18 @@ export const lineaDeEquipo = (id: string): LineaEquipo => ({
   uid: nuevoUid(), tipo: 'equipo', id, dias: 1, horas: 0, cantidad: 1, precioHora: '',
 });
 
-export const lineaDeServicio = (cat: CatalogoMaquinaria, id: string): LineaServicio => ({
-  uid: nuevoUid(),
-  tipo: 'servicio',
-  id,
-  precio: String(cat.servicios.find((s) => s.id === id)?.precio ?? 0),
-  cantidad: 1,
-});
+export const lineaDeServicio = (cat: CatalogoMaquinaria, id: string): LineaServicio => {
+  const sv = cat.servicios.find((s) => s.id === id);
+  return {
+    uid: nuevoUid(),
+    tipo: 'servicio',
+    id,
+    // Por zona (el agua) nace sin precio escrito: vale el de su zona, que sale de la obra.
+    precio: sv && porZona(sv) ? '' : String(sv?.precio ?? 0),
+    cantidad: 1,
+    zona: '',
+  };
+};
 
 export const lineaDeMaterial = (cat: CatalogoTriturados, id: string): LineaMaterial => {
   const prod = cat.productos.find((p) => p.id === id);
@@ -161,7 +169,7 @@ export function aPartidas(lineas: LineaCotizador[]): PartidaCotizador[] {
           ...(l.flete ? { flete: l.flete } : {}),
         };
       case 'servicio':
-        return { tipo: 'servicio', id: l.id, precio: num(l.precio), cantidad: l.cantidad };
+        return { tipo: 'servicio', id: l.id, precio: num(l.precio), cantidad: l.cantidad, ...(l.zona ? { zona: l.zona } : {}) };
       case 'material':
         return {
           tipo: 'material',
@@ -193,7 +201,7 @@ export function aLineas(partidas: PartidaCotizador[]): LineaCotizador[] {
           flete: p.flete ?? null,
         };
       case 'servicio':
-        return { uid: nuevoUid(), tipo: 'servicio', id: p.id, precio: String(p.precio ?? ''), cantidad: p.cantidad ?? 1 };
+        return { uid: nuevoUid(), tipo: 'servicio', id: p.id, precio: p.precio ? String(p.precio) : '', cantidad: p.cantidad ?? 1, zona: p.zona ?? '' };
       case 'material':
         return {
           uid: nuevoUid(), tipo: 'material', id: p.id, nombre: p.nombre ?? '',
@@ -228,11 +236,13 @@ export interface ContextoCotizador {
   direccion: string;
   /** Sitio (2026-10-23): fecha de inicio del servicio o de entrega, AAAA-MM-DD. */
   fecha: string;
+  /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps, para medir el flete. */
+  ubicacion: string;
 }
 
 export const CONTEXTO_VACIO: ContextoCotizador = {
   cliente: '', obra: '', atencion: '', municipio: '', correo: '', telefono: '', notas: '',
-  clienteId: null, obraId: null, direccion: '', fecha: '',
+  clienteId: null, obraId: null, direccion: '', fecha: '', ubicacion: '',
 };
 
 /** Un cliente registrado, para el cotizador del panel (GET admin/quoter/clientes). */

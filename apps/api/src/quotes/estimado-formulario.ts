@@ -5,6 +5,8 @@ import {
   calcularCotizacion,
   calcularEquipo,
   catalogoCotizadorSchema,
+  precioDeServicio,
+  zonaDeMunicipio,
   requestFormFor,
   type CatalogoCotizador,
   type CotizadorTipo,
@@ -29,6 +31,8 @@ export interface RenglonDelTabulador {
   tipo: CotizadorTipo;
   clase: 'equipo' | 'servicio' | 'material';
   id: string;
+  /** Servicio por zona (el agua, 2026-10-29): la zona con que se estimó. */
+  zona?: string;
 }
 
 export interface Estimado {
@@ -83,6 +87,8 @@ export async function estimarDelTabulador(
     tiempo: number;
     unidad: string | null;
   }>,
+  /** El municipio de la obra: el agua cobra según su zona (2026-10-29). */
+  municipio: string | null = null,
 ): Promise<Map<number, Estimado>> {
   const out = new Map<number, Estimado>();
   if (!entradas.length) return out;
@@ -118,9 +124,11 @@ export async function estimarDelTabulador(
             renglon = { tipo: 'maquinaria', clase: 'equipo', id: eq.id };
             precioUnitario = calcularEquipo(cat, p).tarifaHora;
           } else if (sv) {
-            partida = { tipo: 'servicio', id: sv.id, precio: 0, cantidad: Math.max(1, Math.round(e.cantidad)) };
-            renglon = { tipo: 'maquinaria', clase: 'servicio', id: sv.id };
-            precioUnitario = sv.precio;
+            // Por zona (el agua): la del municipio de la obra. Fuera de zona no hay estimado y el panel pone el precio.
+            const zona = zonaDeMunicipio(cat, municipio)?.id;
+            partida = { tipo: 'servicio', id: sv.id, precio: 0, cantidad: Math.max(1, Math.round(e.cantidad)), ...(zona ? { zona } : {}) };
+            renglon = { tipo: 'maquinaria', clase: 'servicio', id: sv.id, ...(zona ? { zona } : {}) };
+            precioUnitario = precioDeServicio(cat, sv, zona) ?? 0;
           }
         } else {
           const prod = cat.productos.find(ligado);

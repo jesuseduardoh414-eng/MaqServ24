@@ -75,6 +75,8 @@ export interface Destino {
   fecha?: string | null;
   /** Del panel: cliente y obra elegidos de todos los registrados (ver resolverClienteYObra). */
   confiable?: boolean;
+  /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. */
+  ubicacion?: string | null;
 }
 
 export interface ServicioAbierto {
@@ -260,11 +262,12 @@ export class QuoterServicio {
       adminNombre,
       // El cliente y la obra que se eligieron al cotizar (2026-10-23).
       destino: (() => {
-        const snap = doc.snapshot as { destino?: { clientId?: number; siteId?: number | null }; fecha?: string } | null;
+        const snap = doc.snapshot as { destino?: { clientId?: number; siteId?: number | null }; fecha?: string; ubicacion?: string } | null;
         const dst = snap?.destino;
         const fecha = snap?.fecha ?? null;
-        if (dst?.clientId) return { clientId: dst.clientId, siteId: dst.siteId ?? null, direccion: null, fecha, confiable: true };
-        return fecha ? { clientId: null, siteId: null, direccion: null, fecha } : null;
+        const ubicacion = snap?.ubicacion ?? null;
+        if (dst?.clientId) return { clientId: dst.clientId, siteId: dst.siteId ?? null, direccion: null, fecha, ubicacion, confiable: true };
+        return fecha || ubicacion ? { clientId: null, siteId: null, direccion: null, fecha, ubicacion } : null;
       })(),
     });
   }
@@ -397,6 +400,8 @@ export class QuoterServicio {
           ...(diasEquipo > 0 ? { duracion: `${diasEquipo} ${diasEquipo === 1 ? 'día' : 'días'}` } : {}),
           // La fecha que pidió (2026-10-23), con la misma llave que /cotizar.
           ...(entrada.destino?.fecha ? { fecha_inicio: entrada.destino.fecha } : {}),
+          // Con flete de triturados: dónde medir los km (2026-10-29). El panel lo enseña como enlace.
+          ...(entrada.destino?.ubicacion ? { ubicacion_maps: entrada.destino.ubicacion } : {}),
         } as Prisma.InputJsonValue,
         quote_number: newQuoteNumber(),
         created_at: ahora,

@@ -45,7 +45,10 @@ export default function AdminLoginPage() {
       );
       return;
     }
-    router.push('/');
+    // De vuelta a donde iba (2026-10-29: el acceso directo a un cotizador pide
+    // entrar y regresa a él). Solo rutas del propio panel: nada de "//otro.sitio".
+    const siguiente = new URLSearchParams(window.location.search).get('next') ?? '';
+    router.push(/^\/(?![/\\])/.test(siguiente) ? siguiente : '/');
     router.refresh();
   }
 
