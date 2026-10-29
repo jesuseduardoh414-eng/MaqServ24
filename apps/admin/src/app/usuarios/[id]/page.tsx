@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { notFound, redirect } from 'next/navigation';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';

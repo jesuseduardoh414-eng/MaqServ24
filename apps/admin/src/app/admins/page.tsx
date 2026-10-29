@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { Chip, Note, PageHeader, Panel, Segmented, Stat, Stats, StatusText, type Tone } from '@/components/ui';

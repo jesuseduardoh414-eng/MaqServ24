@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { getTheme, t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';

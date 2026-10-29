@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { useRouter } from 'next/navigation';
 import type { HeroSettings, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';

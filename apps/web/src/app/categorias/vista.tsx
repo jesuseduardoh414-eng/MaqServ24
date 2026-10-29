@@ -1,7 +1,7 @@
 import type { Theme } from '@maqserv/config';
 import { migas } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import Image from 'next/image';
 import { t } from '@/lib/theme';
 import type { getCategories } from '@/lib/api';

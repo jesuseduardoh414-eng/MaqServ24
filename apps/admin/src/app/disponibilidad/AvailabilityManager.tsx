@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { AdminSelect } from '@/components/AdminSelect';
 import { AdminDatePicker } from '@/components/AdminFecha';
 import {

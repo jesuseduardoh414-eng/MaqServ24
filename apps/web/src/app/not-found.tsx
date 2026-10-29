@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { Icon } from '@/components/Icon';
 import { rutaCatalogo } from '@/lib/api';
 

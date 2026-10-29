@@ -41,7 +41,9 @@ interface Aviso {
   createdAt: string | null;
 }
 
-const VISIBLE_MS = 5_000;
+// 10 s con la pestaña a la vista (eran 5; rendimiento, 2026-10-29): cada pestaña
+// abierta del panel preguntaba 12 veces por minuto al mismo servidor.
+const VISIBLE_MS = 10_000;
 const OCULTA_MS = 20_000;
 
 const ICONO: Record<string, string> = {

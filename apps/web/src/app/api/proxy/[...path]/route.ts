@@ -97,6 +97,11 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
   const credencial = propio
     ? req.cookies.get(/^operador(\/|$)/.test(joined) ? OPERADOR_COOKIE : ALIADO_COOKIE)?.value
     : req.cookies.get(SESSION_COOKIE)?.value;
+  // Favoritos sin sesión: la API diría 401 de todos modos. Se contesta aquí
+  // sin ir hasta ella; lo pide cada visita de la portada (rendimiento, 2026-10-29).
+  if (!credencial && /^wishlist(\/|$)/.test(joined)) {
+    return NextResponse.json({ message: 'Inicia sesión para guardar favoritos.', statusCode: 401 }, { status: 401 });
+  }
   const headers: Record<string, string> = {
     ...clientIpHeaders(req),
     ...(credencial ? { Authorization: `Bearer ${credencial}` } : {}),

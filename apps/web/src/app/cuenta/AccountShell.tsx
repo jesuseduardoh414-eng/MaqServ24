@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import type { AuthUser } from '@maqserv/types';
 import type { Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { paginaSeo, migas, SITE_URL, IMAGEN_OG } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { parseProductSlug } from '@maqserv/config';

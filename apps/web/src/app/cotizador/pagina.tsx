@@ -1,8 +1,10 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
+import { cookies } from 'next/headers';
 import { COTIZADORES_META, type CotizadorTipo } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getQuoterCatalog } from '@/lib/api';
 import { getSessionUser } from '@/lib/session';
+import { SESSION_COOKIE } from '@/lib/cookies';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 import { QuoteGate } from '../cotizar/QuoteGate';
@@ -13,7 +15,9 @@ import { CotizadorPublico } from './CotizadorPublico';
  * /cotizador/triturados: lo único que cambia entre las dos es el tipo.
  */
 export async function PaginaCotizador({ tipo, fichaId }: { tipo: CotizadorTipo; /** `?tipo=` del catálogo: abre con ese equipo elegido (2026-10-22). */ fichaId?: number | null }) {
-  const [theme, catalogo, user] = await Promise.all([getTheme(), getQuoterCatalog(tipo), getSessionUser()]);
+  // Sin sesión se enseña el candado (QuoteGate), que no usa el tabulador: no se pide (rendimiento, 2026-10-29).
+  const conSesion = (await cookies()).has(SESSION_COOKIE);
+  const [theme, catalogo, user] = await Promise.all([getTheme(), conSesion ? getQuoterCatalog(tipo) : null, getSessionUser()]);
   const meta = COTIZADORES_META[tipo];
   // El documento se imprime en blanco: se usa el logo para fondo claro.
   const branding = theme.tokens.branding ?? {};

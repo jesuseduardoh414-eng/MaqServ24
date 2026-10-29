@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { AutoRefresco } from './AutoRefresco';
 import { NOINDEX } from '@/lib/seo';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { redirect, notFound } from 'next/navigation';
 import type { QuoteDetail } from '@maqserv/types';
 // Decia "3 dias" de un servicio de pipas que en realidad eran 3 viajes.

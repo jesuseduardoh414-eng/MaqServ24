@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import Image from 'next/image';
 import { defaultTheme, type Theme } from '@maqserv/config';
 import { IconoRed } from '@/components/RedesSociales';

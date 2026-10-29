@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { mostrarResultado } from '@maqserv/ui';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import type { ProductCard as ProductCardDto, ProductComment, ProductDetail } from '@maqserv/types';
@@ -15,6 +15,7 @@ import { estadoDeProducto, contextoDisponibilidad } from '@/lib/availability';
 import { ProviderTrust } from '@/components/ProviderBadge';
 import { Icon, Stars } from '@/components/Icon';
 import { formatPrice } from '@/lib/format';
+import { idsDeFavoritos } from '@/lib/favoritos';
 import { AgregarACotizacion } from '@/components/AgregarACotizacion';
 import { VideoCategoria } from '@/components/VideoCategoria';
 
@@ -170,10 +171,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
 
   useEffect(() => {
     setShareUrl(window.location.href);
-    fetch('/api/proxy/wishlist/ids')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((ids: number[]) => setFav(Array.isArray(ids) && ids.includes(product.id)))
-      .catch(() => setFav(false));
+    void idsDeFavoritos().then((ids) => setFav(ids.includes(product.id)));
   }, [product.id]);
 
   // Con video principal (2026-10-20), el video abre la galería y la foto

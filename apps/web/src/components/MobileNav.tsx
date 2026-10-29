@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -9,6 +9,7 @@ import type { NavItem } from '@/components/MainNav';
 import { Icon, type IconName } from '@/components/Icon';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
 import { telHref } from '@/lib/telefono';
+import { fotoLigera } from '@/lib/foto';
 
 /**
  * Icono de cada entrada del menú y de cada acceso de cuenta. Van por RUTA y no
@@ -206,13 +207,13 @@ export function MobileNav({
                     dosLogos ? (
                       <span className="brand-swap inline-flex items-center">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img className="brand-logo-light h-8 w-auto object-contain" src={brand.logoLight as string} alt={brand.name} />
+                        <img className="brand-logo-light h-8 w-auto object-contain" src={fotoLigera(brand.logoLight as string, 640, 90)} alt={brand.name} />
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img className="brand-logo-dark h-8 w-auto object-contain" src={brand.logoDark as string} alt={brand.name} />
+                        <img className="brand-logo-dark h-8 w-auto object-contain" src={fotoLigera(brand.logoDark as string, 640, 90)} alt={brand.name} />
                       </span>
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img className="h-8 w-auto object-contain" src={logo} alt={brand.name} />
+                      <img className="h-8 w-auto object-contain" src={fotoLigera(logo, 640, 90)} alt={brand.name} />
                     )
                   ) : (
                     <>

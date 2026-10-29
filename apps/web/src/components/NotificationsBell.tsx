@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { usePathname, useRouter } from 'next/navigation';
 import { Icon, type IconName } from '@/components/Icon';
 

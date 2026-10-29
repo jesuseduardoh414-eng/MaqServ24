@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { paginaSeo, migas } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { notFound } from 'next/navigation';
 import { parseProductSlug } from '@maqserv/config';
 import type { StrategicSectorDetail } from '@maqserv/types';

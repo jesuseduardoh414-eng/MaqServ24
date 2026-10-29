@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { redirect } from 'next/navigation';
 import { tipoDeCatalogo } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo, tieneModulo } from '@/lib/admin';

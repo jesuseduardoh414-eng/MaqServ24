@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { Modal } from '@/components/Modal';
 import { Btn, Note, StatusText } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';

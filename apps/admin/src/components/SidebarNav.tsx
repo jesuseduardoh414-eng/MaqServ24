@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { usePathname } from 'next/navigation';
 import { MODULOS_CON_CORREO, modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 import { MARCAR_PRUEBAS, RONDA_ACTUAL, atributosPrueba, avancePruebas, marcaDeVarias, marcaPrueba } from './estado-pruebas';

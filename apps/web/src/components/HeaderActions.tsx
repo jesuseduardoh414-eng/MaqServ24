@@ -1,12 +1,13 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/components/CartProvider';
 import { NotificationsBell } from '@/components/NotificationsBell';
 import { BuscadorGlobal } from '@/components/BuscadorGlobal';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
+import { idsDeFavoritos } from '@/lib/favoritos';
 const menuItemStyle: React.CSSProperties = {
   display: 'block', padding: '9px 12px', borderRadius: 'var(--radius-md)',
   color: 'var(--color-text)', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600,
@@ -59,10 +60,7 @@ export function HeaderActions({
       .then((r) => r.json())
       .then((d) => setUser(d.user ? { id: Number(d.user.id), name: String(d.user.name ?? ''), email: String(d.user.email ?? '') } : null))
       .catch(() => setUser(null));
-    fetch('/api/proxy/wishlist/ids')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((ids: number[]) => Array.isArray(ids) && setFavCount(ids.length))
-      .catch(() => {});
+    void idsDeFavoritos().then((ids) => setFavCount(ids.length));
   }, []);
 
   // Ctrl+K / ⌘K abre el buscador desde cualquier página.

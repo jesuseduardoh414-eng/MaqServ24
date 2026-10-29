@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import type { Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { Icon } from '@/components/Icon';

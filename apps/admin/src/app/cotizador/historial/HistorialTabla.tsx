@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';

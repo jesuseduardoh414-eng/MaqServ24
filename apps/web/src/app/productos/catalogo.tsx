@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { paginaSeo, migas } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { rutaDeCatalogo, tipoDeCatalogo, type TipoCatalogo, type Theme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getProducts, getCategories, getSubcategories } from '@/lib/api';

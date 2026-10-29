@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { NOINDEX } from '@/lib/seo';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import type { QuoteSummary } from '@maqserv/types';

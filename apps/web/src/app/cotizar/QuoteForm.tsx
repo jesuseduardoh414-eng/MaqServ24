@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ShDatePicker, VistaDocumento, type DatosDocumento } from '@maqserv/ui';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import type { AuthUser, ProductCard, QuoteDetail } from '@maqserv/types';
 import type { RequestForm } from '@maqserv/config';
 import { requestAnswersToText } from '@maqserv/config';

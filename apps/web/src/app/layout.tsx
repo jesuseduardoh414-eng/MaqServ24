@@ -9,6 +9,7 @@ import { CartProvider } from '@/components/CartProvider';
 import { DevAutoRefresh } from '@/components/DevAutoRefresh';
 import { Pwa } from '@/components/Pwa';
 import { IMAGEN_OG, SITE_URL } from '@/lib/seo';
+import { fotoLigera } from '@/lib/foto';
 import './globals.css';
 import { FiltroDeCampos, ResultadosHost } from '@maqserv/ui';
 import { EstilosSistema } from '@/components/EstilosSistema';
@@ -51,7 +52,8 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: '/manifest.webmanifest',
     appleWebApp: { capable: true, title: nombre, statusBarStyle: 'black' },
     icons: {
-      icon: b.favicon || '/brand/favicon.png',
+      // Reducido: el subido pesaba 265 KB y lo baja cada primera visita.
+      icon: b.favicon ? fotoLigera(b.favicon, 96) : '/brand/favicon.png',
       apple: b.icon || '/pwa/apple-touch-icon.png',
     },
   };

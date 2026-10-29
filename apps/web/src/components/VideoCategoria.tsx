@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Icon } from '@/components/Icon';
+import { fotoLigera } from '@/lib/foto';
 
 /**
  * Video en bucle de una tarjeta de categoría (2026-10-19, pedido del cliente:
@@ -14,6 +15,8 @@ import { Icon } from '@/components/Icon';
  *  - con "reducir movimiento" o "ahorro de datos" se queda quieto en la foto
  *    de la categoría, que va de portada (`poster`).
  * Arranca sin sonido siempre: es lo único que deja a los navegadores reproducir solo.
+ * La portada va reducida (`fotoLigera`): se mandaba la foto tal como se subió,
+ * y alguna pesaba 3 MB.
  *
  * También lo usan el video del hero (`style` cambia el encuadre) y las
  * Promociones del mes, que piden `sonido`: un botón en la esquina para oír el
@@ -56,7 +59,7 @@ export function VideoCategoria({ src, poster, className, style, sonido = false }
     <video
       ref={ref}
       src={src}
-      poster={poster ?? undefined}
+      poster={poster ? fotoLigera(poster, 1080) : undefined}
       muted
       loop
       playsInline

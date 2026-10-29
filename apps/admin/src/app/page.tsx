@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { puedeVer, type ModuloAdmin } from '@maqserv/config';
 import { adminFetch, getAdmin } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { getSiteSettings } from '@/lib/api';
@@ -10,6 +10,7 @@ import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
 import { LANDINGS } from '@/lib/landings';
 import { telHref } from '@/lib/telefono';
+import { fotoLigera } from '@/lib/foto';
 import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
@@ -117,8 +118,10 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
           <Link href="/" className="hdr-logo" style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0, minWidth: 0, textDecoration: 'none' }}>
             {(() => {
               const brand2 = theme.tokens.branding ?? {};
-              const logoLight = brand2.logoLight ?? settings.logo;
-              const logoDark = brand2.logoDark ?? null;
+              // Reducidos: se ven a 42 px de alto y el archivo subido pesaba 400 KB.
+              const subido = brand2.logoLight ?? settings.logo;
+              const logoLight = subido ? fotoLigera(subido, 640, 90) : null;
+              const logoDark = brand2.logoDark ? fotoLigera(brand2.logoDark, 640, 90) : null;
               // OJO: sin `display` inline. La conmutación claro/oscuro se hace por
               // CSS (.brand-swap .brand-logo-*), y un `display:block` inline la
               // anularía (los estilos inline ganan a las clases) → saldrían las dos.
@@ -270,7 +273,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               {footerLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={footerLogo} alt={brand} style={{ height: 42, width: 'auto', maxWidth: 240, objectFit: 'contain', display: 'block' }} />
+                <img src={fotoLigera(footerLogo, 640, 90)} alt={brand} style={{ height: 42, width: 'auto', maxWidth: 240, objectFit: 'contain', display: 'block' }} />
               ) : (
                 <>
                   <span

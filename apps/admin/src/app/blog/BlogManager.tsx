@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { useRouter } from 'next/navigation';
 import type { ThemeTokens } from '@maqserv/config';
 import { inputStyle, Field } from '@/components/editor-kit';

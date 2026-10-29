@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { ShButton, ShInput, ShLabel } from '@maqserv/ui';
 import { AccessShell, AccessError } from '@/components/AccessShell';
 

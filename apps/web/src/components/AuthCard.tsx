@@ -2,7 +2,7 @@
 
 import { evento } from '@/lib/analitica';
 import { useState, type FormEvent, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { useRouter } from 'next/navigation';
 import { Icon, type IconName } from '@/components/Icon';
 import { ReglasContrasena } from '@/components/ReglasContrasena';

@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import type { getTheme } from '@/lib/theme';
 
 /**

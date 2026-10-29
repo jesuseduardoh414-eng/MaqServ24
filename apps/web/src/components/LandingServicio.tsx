@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { ESTADOS_COBERTURA, MUNICIPIOS_NORTE, defaultTheme } from '@maqserv/config';
 import { IconoRed, RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 import { whatsappHref } from '@/lib/telefono';

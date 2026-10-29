@@ -1,7 +1,7 @@
 'use client';
 
 import { Children, useEffect, useRef, useState, type CSSProperties, type DragEvent, type FocusEvent, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { Icon } from '@/components/Icon';
 
 const GAP = 16;

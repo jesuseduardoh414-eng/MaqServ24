@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { cookies } from 'next/headers';
 import { OPERADOR_COOKIE } from '@/lib/cookies';
 import { getTheme } from '@/lib/theme';

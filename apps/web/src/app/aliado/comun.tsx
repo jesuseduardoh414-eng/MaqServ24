@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { mostrarResultado } from '@maqserv/ui';
 import { Icon, type IconName } from '@/components/Icon';
 import type { Pago, Pedido } from './tipos';

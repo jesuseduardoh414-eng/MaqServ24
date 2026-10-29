@@ -161,6 +161,91 @@ jobs:
           done
           echo "Despliegue completo: $APPS"
 
+      # RENDIMIENTO (2026-10-29). Los archivos de `_next/static` (JS y CSS, unos 20
+      # por página) los entregaba Node, uno detrás de otro: medido en producción,
+      # 16 pedidos a la vez tardaban 1-2,5 s cada uno contra 0,5 s servidos por
+      # LiteSpeed, y con carga hasta 17 s. Se copian a la raíz del documento del
+      # dominio (la carpeta cuyo .htaccess de cPanel apunta a la app), donde
+      # LiteSpeed los encuentra y los entrega sin despertar a Node; lo que no
+      # esté ahí sigue llegando a Node como siempre. Los de compilaciones
+      # anteriores se quedan 30 días (pestañas abiertas con la página vieja).
+      #
+      # Se comprueba con un archivo real: si no abre, no coincide o no lo
+      # entrega LiteSpeed, se quita la copia y solo se avisa. Nunca tumba el
+      # despliegue: en el peor caso todo sigue como antes.
+      - name: Archivos de Next servidos por LiteSpeed (web y admin)
+        run: |
+          set -uo pipefail
+          SSH="ssh -p $PUERTO -i ~/.ssh/despliegue -o BatchMode=yes $USUARIO@$HOST"
+          for app in web admin; do
+            case " $APPS " in *" $app "*) ;; *) continue ;; esac
+            case $app in web) base="$SITE_URL" ;; admin) base="$ADMIN_URL" ;; esac
+            salida=$($SSH "bash -s -- $app" <<'REMOTO' || true
+          set -uo pipefail
+          app="$1"
+          origen=""
+          for o in "$HOME/nodeapps/$app/apps/$app/.next/static" "$HOME/nodeapps/$app/.next/static"; do
+            [ -d "$o" ] && { origen="$o"; break; }
+          done
+          [ -n "$origen" ] || { echo "ERROR=no encontré .next/static de $app"; exit 0; }
+          raiz=""
+          for h in $(find "$HOME" -maxdepth 3 -name .htaccess -not -path "$HOME/nodeapps/*" -not -path "$HOME/media/*" 2>/dev/null); do
+            if grep -qE "^[[:space:]]*PassengerAppRoot[[:space:]]+\"?$HOME/nodeapps/$app/?\"?[[:space:]]*$" "$h"; then raiz=$(dirname "$h"); break; fi
+          done
+          [ -n "$raiz" ] || { echo "ERROR=no encontré la raíz del documento que apunta a nodeapps/$app"; exit 0; }
+          destino="$raiz/_next/static"
+          mkdir -p "$destino"
+          cp -a "$origen/." "$destino/"
+          find "$destino" -type f -mtime +30 ! -name .htaccess -delete 2>/dev/null
+          find "$destino" -mindepth 1 -type d -empty -delete 2>/dev/null
+          cat > "$destino/.htaccess" <<'HTACCESS'
+          # Lo escribe el despliegue (.github/workflows/desplegar-cpanel.yml). No lo edites aquí.
+          # Archivos con huella en el nombre: no cambian nunca, se guardan un año.
+          Options -Indexes
+          <IfModule mod_headers.c>
+            Header set Cache-Control "public, max-age=31536000, immutable"
+            Header set X-Content-Type-Options "nosniff"
+          </IfModule>
+          <IfModule mod_deflate.c>
+            AddOutputFilterByType DEFLATE application/javascript text/javascript text/css
+          </IfModule>
+          HTACCESS
+          prueba=$(cd "$origen" && find chunks -maxdepth 1 -name '*.js' -size +2k 2>/dev/null | head -n1)
+          echo "RAIZ=$raiz"
+          echo "PRUEBA=$prueba"
+          [ -n "$prueba" ] && echo "HUELLA=$(sha256sum "$destino/$prueba" | cut -d' ' -f1)"
+          REMOTO
+            )
+            error=$(printf '%s\n' "$salida" | sed -n 's/^ERROR=//p')
+            raiz=$(printf '%s\n' "$salida" | sed -n 's/^RAIZ=//p')
+            prueba=$(printf '%s\n' "$salida" | sed -n 's/^PRUEBA=//p')
+            huella=$(printf '%s\n' "$salida" | sed -n 's/^HUELLA=//p')
+            if [ -n "$error" ] || [ -z "$raiz" ]; then
+              echo "::warning::$app: no se copiaron los archivos de Next a la raíz del dominio (${error:-sin respuesta}). Siguen saliendo de Node, como antes."
+              continue
+            fi
+            echo "▶ $app: archivos de Next copiados en $raiz/_next/static"
+            [ -n "$prueba" ] || { echo "::warning::$app: no hay un archivo de prueba; se deja la copia sin comprobar."; continue; }
+            url="$base/_next/static/$prueba"
+            cabeceras=$($SSH "curl -sI --max-time 30 -H 'Accept-Encoding: gzip, br' '$url'" || true)
+            recibida=$($SSH "curl -s --compressed --max-time 30 '$url' | sha256sum | cut -d' ' -f1" || true)
+            if ! printf '%s' "$cabeceras" | head -n1 | grep -q ' 200' || [ "$recibida" != "$huella" ]; then
+              echo "::warning::$app: $url no respondió bien desde la copia; se quita y siguen saliendo de Node."
+              printf '%s\n' "$cabeceras" | head -n8
+              $SSH "rm -rf '$raiz/_next'"
+              continue
+            fi
+            # `Permissions-Policy` solo la pone Next (next.config → headers), no LiteSpeed.
+            if printf '%s' "$cabeceras" | grep -qi '^permissions-policy:'; then
+              echo "::warning::$app: LiteSpeed no tomó la copia (el archivo sigue saliendo de Node); se quita."
+              $SSH "rm -rf '$raiz/_next'"
+              continue
+            fi
+            compresion=$(printf '%s' "$cabeceras" | sed -n 's/^[Cc]ontent-[Ee]ncoding: *//p' | tr -d '\r')
+            [ -n "$compresion" ] || echo "::warning::$app: LiteSpeed entrega los archivos SIN comprimir. Funciona, pero pesan más: revisar la compresión en el hosting."
+            echo "✅ $app: los archivos de Next salen de LiteSpeed (${compresion:-sin comprimir})"
+          done
+
       # media.maqser24.com sirve la carpeta ~/media tal cual (fotos, videos, papeles
       # de aliados). Su .htaccess se ponía a mano y no tenía `nosniff`: un archivo
       # viejo con contenido de página se abría como página en un subdominio nuestro

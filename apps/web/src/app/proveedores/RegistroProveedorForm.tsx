@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { ShSelectCampo } from '@maqserv/ui';
 import { useState, type ReactNode } from 'react';
 import { TIPOS_PROVEEDOR, centroDeMunicipio, problemaEmail, problemaNombre, problemaTelefono, radioDeCobertura, type LineaRegistro, type TipoProveedor } from '@maqserv/config';

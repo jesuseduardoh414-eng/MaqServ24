@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { COTIZADORES_ACTIVOS, COTIZADORES_META, type CotizadorTipo } from '@maqserv/config';
 import { useBranding } from '@/components/branding';
 

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ProductCard as ProductCardDto } from '@maqserv/types';
 import type { Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
+import { idsDeFavoritos } from '@/lib/favoritos';
 import { ProductCard } from '@/components/ProductCard';
 import { CategoryStrip } from '@/components/CategoryStrip';
 
@@ -54,10 +55,7 @@ export function HomeProductGrid({
   const visible = tab === 'all' ? products : products.filter((p) => p.categorySlug === tab);
 
   useEffect(() => {
-    fetch('/api/proxy/wishlist/ids')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((ids: number[]) => Array.isArray(ids) && setWish(new Set(ids)))
-      .catch(() => {});
+    void idsDeFavoritos().then((ids) => setWish(new Set(ids)));
   }, []);
 
   // Pestañas del sistema (`.ms-tab`, `aria-selected` marca la activa).

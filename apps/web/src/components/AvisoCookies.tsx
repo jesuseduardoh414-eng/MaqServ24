@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { useEffect, useState } from 'react';
 import { ANALITICA_ACTIVA, EVENTO_ABRIR_AVISO, guardarConsentimiento, leerConsentimiento } from '@/lib/analitica';
 

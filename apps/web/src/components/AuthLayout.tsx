@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { Icon } from '@/components/Icon';
+import { fotoLigera } from '@/lib/foto';
 
 /**
  * MARCO DE /login Y /registro (rediseño 2026-10-15).
@@ -36,7 +37,7 @@ export function AuthLayout({ theme, children }: { theme: Theme; children: ReactN
       <div className="au-shell">
         <aside className="au-aside">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={logo} alt={t(theme, 'site.name')} className="au-aside-logo" />
+          <img src={fotoLigera(logo, 640, 90)} alt={t(theme, 'site.name')} className="au-aside-logo" />
 
           <div className="au-aside-body">
             <p className="au-aside-title">{t(theme, 'auth.aside.title')}</p>

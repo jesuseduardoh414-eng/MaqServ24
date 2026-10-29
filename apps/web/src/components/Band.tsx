@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import Image from 'next/image';
 import type { CtaBlock } from '@maqserv/config';
 import { Icon } from '@/components/Icon';

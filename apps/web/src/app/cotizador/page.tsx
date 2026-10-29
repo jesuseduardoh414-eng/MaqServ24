@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { paginaSeo } from '@/lib/seo';
-import Link from 'next/link';
+import Link from '@/components/Enlace';
 import { COTIZADORES_META, COTIZADOR_TIPOS } from '@maqserv/config';
 import { IconoCotizador } from '@maqserv/ui';
 import { getTheme, t } from '@/lib/theme';
