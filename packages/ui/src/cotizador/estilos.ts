@@ -353,10 +353,8 @@ export const COTIZADOR_CSS = `
 
 /* ---- Vista previa del documento ---- */
 .cz-preview{ border:1px solid var(--cz-border); border-radius:var(--cz-radius); overflow:auto; background:#fff; }
-.cz-preview .czdoc{ min-width:620px; }
-/* En el teléfono el documento se encoge entero para leerlo sin deslizar de lado (2026-10-28). */
-@media (max-width: 640px){ .cz-preview .czdoc{ zoom:.56; } }
-@media (max-width: 380px){ .cz-preview .czdoc{ zoom:.5; } }
+/* En el teléfono ya no se encoge (salía diminuto y cortado): el documento se
+   acomoda solo al ancho (container query en DOCUMENTO_CSS, 2026-10-29). */
 
 /* ---- Acuse ---- */
 .cz-done{ text-align:center; padding:38px 20px; }

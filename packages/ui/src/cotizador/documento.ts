@@ -45,9 +45,9 @@ export interface DatosDocumento {
 
 export const DOCUMENTO_CSS = `
 .czdoc{ background:#fff; color:#15181c; font-family:'Inter',system-ui,-apple-system,sans-serif;
-  font-size:12px; line-height:1.55; padding:34px 38px; box-sizing:border-box; }
+  font-size:12px; line-height:1.55; padding:34px 38px; box-sizing:border-box; container:czdoc / inline-size; }
 .czdoc *{ box-sizing:border-box; }
-.czdoc h4{ margin:0 0 6px; font-size:12px; }
+.czdoc h4{ margin:0 0 6px; font-size:12px; font-weight:700; }
 .czdoc .czdoc-hd{ display:flex; align-items:flex-start; justify-content:space-between; gap:24px;
   border-bottom:2px solid var(--czdoc-accent); padding-bottom:16px; margin-bottom:18px; }
 .czdoc .czdoc-logo img{ height:44px; width:auto; max-width:230px; object-fit:contain; display:block; }
@@ -88,7 +88,7 @@ export const DOCUMENTO_CSS = `
 .czdoc .czdoc-cond{ margin-top:16px; break-inside:avoid; }
 .czdoc .czdoc-cond h4{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em;
   color:var(--czdoc-accent); }
-.czdoc .czdoc-cond ul{ margin:0; padding-left:16px; }
+.czdoc .czdoc-cond ul{ margin:0; padding-left:16px; list-style:disc; }
 .czdoc .czdoc-cond li{ font-size:10.5px; color:#3d444c; margin-bottom:3px; }
 .czdoc .czdoc-sign{ margin-top:30px; padding-top:14px; border-top:1px solid #e3e7eb;
   text-align:center; break-inside:avoid; }
@@ -98,6 +98,46 @@ export const DOCUMENTO_CSS = `
 @media print{
   @page{ size:letter; margin:12mm; }
   .czdoc{ padding:0; }
+}
+/*
+ * EN EL CELULAR (2026-10-29, pedido del dueño: "haz que el documento se vea
+ * mejor"). Antes el documento de 620 px se encogía entero y salía diminuto y
+ * cortado. Ahora, cuando el espacio es angosto, se acomoda: encabezado en
+ * columna, cada partida en su renglón (concepto arriba; cantidad × precio e
+ * importe abajo), totales y condiciones a lo ancho. Lo decide el ancho del
+ * propio documento (container query), no el de la pantalla: al imprimir la
+ * hoja es carta y sale con su tabla de siempre.
+ */
+@media screen and (max-width: 560px){ .czdoc{ padding:20px 16px; } }
+@container czdoc (max-width: 520px){
+  .czdoc .czdoc-hd{ flex-direction:column; align-items:stretch; gap:12px; padding-bottom:14px; margin-bottom:14px; }
+  .czdoc .czdoc-logo img{ height:38px; }
+  .czdoc .czdoc-co{ text-align:left; font-size:11px; }
+  .czdoc .czdoc-meta{ grid-template-columns:1fr 1fr; }
+  .czdoc .czdoc-meta .b{ font-size:12.5px; }
+  .czdoc .czdoc-greet{ font-size:12.5px; }
+  .czdoc table, .czdoc tbody{ display:block; width:100%; }
+  .czdoc thead{ display:none; }
+  .czdoc tbody{ border-top:2px solid #11161c; }
+  .czdoc tbody tr{ display:grid; grid-template-columns:auto auto 1fr auto; column-gap:6px; row-gap:4px;
+    grid-template-areas:"con con con con" "cant u pu imp"; align-items:baseline;
+    padding:11px 0; border-bottom:1px solid #e8ebef; }
+  .czdoc tbody td{ display:block; padding:0; border:0; }
+  .czdoc tbody td.c-n{ display:none; }
+  .czdoc tbody td.concepto{ grid-area:con; font-size:13px; line-height:1.4; }
+  .czdoc tbody td.c-cant{ grid-area:cant; text-align:left; color:#5a626b; font-size:12px; }
+  .czdoc tbody td.c-u{ grid-area:u; color:#5a626b; font-size:12px; }
+  .czdoc tbody td.c-pu{ grid-area:pu; text-align:left; color:#5a626b; font-size:12px; }
+  .czdoc tbody td.c-pu::before{ content:'× '; }
+  .czdoc tbody td.c-imp{ grid-area:imp; font-size:13px; font-weight:700; color:#15181c; }
+  .czdoc tbody tr.flete td.concepto{ font-weight:500; font-size:12px; color:#5a626b; }
+  .czdoc .czdoc-tot{ width:100%; }
+  .czdoc .czdoc-tot .tr{ font-size:12.5px; }
+  .czdoc .czdoc-tot .tr.g{ font-size:17px; }
+  .czdoc .czdoc-det dl{ grid-template-columns:minmax(0, 42%) 1fr; }
+  .czdoc .czdoc-det dt, .czdoc .czdoc-det dd{ font-size:12px; }
+  .czdoc .czdoc-note{ font-size:12px; }
+  .czdoc .czdoc-cond li{ font-size:12px; line-height:1.5; margin-bottom:5px; }
 }
 `;
 
@@ -115,10 +155,11 @@ export function documentoCuerpo(d: DatosDocumento): string {
     .map((r) => {
       const num = r.clase === 'flete' ? '' : String(++n);
       const importes = conPrecio
-        ? `<td class="r">${money2(r.pu)}</td><td class="r">${money2(r.importe)}</td>`
+        ? `<td class="r c-pu">${money2(r.pu)}</td><td class="r c-imp">${money2(r.importe)}</td>`
         : '';
-      return `<tr class="${esc(r.clase)}"><td>${num}</td><td class="concepto">${esc(r.concepto)}</td>
-        <td>${esc(r.unidad)}</td><td class="r">${cantidad(r.cantidad, r.unidad)}</td>${importes}</tr>`;
+      // Las clases c-* acomodan el renglón en el celular (ver DOCUMENTO_CSS).
+      return `<tr class="${esc(r.clase)}"><td class="c-n">${num}</td><td class="concepto">${esc(r.concepto)}</td>
+        <td class="c-u">${esc(r.unidad)}</td><td class="r c-cant">${cantidad(r.cantidad, r.unidad)}</td>${importes}</tr>`;
     })
     .join('');
 
