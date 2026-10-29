@@ -4,6 +4,7 @@ import type { Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon, type IconName } from '@/components/Icon';
+import { ActualizarEnVivo } from '@/components/ActualizarEnVivo';
 import { CerrarSesion } from './CerrarSesion';
 
 // Sin 'pedidos' (2026-10-08): no hay compras en línea; lo que el cliente
@@ -94,6 +95,7 @@ export function AccountShell({
 
   return (
     <>
+      <ActualizarEnVivo />
       <SiteHeader theme={theme} />
       <div className="ac-page">
         <style>{CSS}</style>

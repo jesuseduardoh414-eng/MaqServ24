@@ -1,4 +1,5 @@
 export * from './schema';
+export * from './desglose';
 export { defaultTheme } from './default-theme';
 export { LEGAL_DEFAULTS, type LegalDocDefault } from './legal-defaults';
 export { themeToCss } from './css-vars';
@@ -119,7 +120,10 @@ export {
   LINEA_TRITURADOS,
   type PartidaAnalizada,
   type RenglonTabulador,
-  tierDe,
+  precioHoraDe,
+  minimoHorasDe,
+  cobraFlete,
+  LEYENDA_NEGOCIAR,
   equipoDe,
   servicioDe,
   productoDe,
@@ -137,7 +141,6 @@ export {
   type EmpresaCotizador,
   type FirmaCotizador,
   type BloqueCondiciones,
-  type TierTarifa,
   type EquipoCotizador,
   type ServicioCotizador,
   type ProductoTriturado,
@@ -216,6 +219,8 @@ export {
   OFERTAS_PROVEEDOR,
   type TipoProveedor,
   type OfertaProveedor,
+  type LineaRegistro,
+  type EquipoRegistro,
 } from './registro-proveedor';
 export {
   TIPOS_ALIADO,

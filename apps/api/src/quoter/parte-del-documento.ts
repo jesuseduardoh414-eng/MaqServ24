@@ -1,5 +1,5 @@
 import { prisma } from '@maqserv/db';
-import type { CalculoCotizacion, RenglonCotizacion } from '@maqserv/config';
+import { condicionesSinPrecios, type CalculoCotizacion, type RenglonCotizacion } from '@maqserv/config';
 
 /**
  * LO QUE LE TOCA A CADA ALIADO DEL DOCUMENTO (2026-10-19).
@@ -90,6 +90,8 @@ export function calcSinPrecios(calc: CalculoCotizacion): CalculoCotizacion {
     subtotal: 0,
     iva: 0,
     total: 0,
+    // Los cargos de las condiciones (hora extra, capacitación) también son precios al cliente.
+    condiciones: condicionesSinPrecios(calc.condiciones ?? []),
   };
 }
 

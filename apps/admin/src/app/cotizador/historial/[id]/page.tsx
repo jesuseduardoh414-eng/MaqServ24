@@ -6,6 +6,8 @@ import { AdminShell } from '@/components/AdminShell';
 import { PageHeader } from '@/components/ui';
 import { DocumentoGuardado } from './DocumentoGuardado';
 import { BotonEnviarCliente } from './BotonEnviarCliente';
+import { AccionesEstado } from './AccionesEstado';
+import { EstadoCotizacion } from '../EstadoCotizacion';
 
 interface CotizacionDetalle {
   id: number;
@@ -27,9 +29,14 @@ interface CotizacionDetalle {
     saludo: string;
     version: string;
     emitida: string;
+    /** Fecha de inicio o entrega (2026-10-23). */
+    fecha?: string;
   };
   admin: string | null;
   fecha: string | null;
+  /** Salió de una solicitud: la acepta el cliente (2026-10-26). */
+  ligada?: boolean;
+  vencida?: boolean;
 }
 
 export default async function DetalleCotizacion({ params }: { params: Promise<{ id: string }> }) {
@@ -47,7 +54,12 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <PageHeader
         eyebrow={['2 · Cotizar', ['Cotizaciones emitidas', '/cotizador/historial']]}
-        title={<span className="adm-mono" style={{ fontSize: '0.86em', letterSpacing: '-0.01em' }}>{cot.folio}</span>}
+        title={
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <span className="adm-mono" style={{ fontSize: '0.86em', letterSpacing: '-0.01em' }}>{cot.folio}</span>
+            <EstadoCotizacion estado={cot.estado} vencida={cot.vencida} />
+          </span>
+        }
         subtitle={
           <>
             {meta?.titulo ?? cot.tipo} · {cot.cliente}
@@ -78,9 +90,22 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
             firma: cot.documento.firma,
             saludo: cot.documento.saludo,
             calc: cot.documento.calc,
+            ...(cot.documento.fecha
+              ? {
+                  detalle: [{
+                    label: cot.tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega',
+                    valor: new Date(`${cot.documento.fecha}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
+                  }],
+                }
+              : {}),
             mostrarPrecios: true,
           }}
-          acciones={<BotonEnviarCliente id={cot.id} correo={cot.correo} estado={cot.estado} />}
+          acciones={
+            <>
+              <BotonEnviarCliente id={cot.id} correo={cot.correo} estado={cot.estado} />
+              <AccionesEstado id={cot.id} folio={cot.folio} estado={cot.estado} ligada={cot.ligada ?? false} />
+            </>
+          }
         />
       </div>
     </AdminShell>

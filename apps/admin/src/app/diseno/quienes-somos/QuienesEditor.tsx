@@ -345,7 +345,7 @@ function ReasonEditRow({ reason, busy, onSave, onCancel }: {
   const ready = !!title.trim() && !!text.trim();
   // La razón en edición se abre dentro de su fila, con un fondo apenas más claro.
   return (
-    <div className="adm-trow" style={{ display: 'grid', gap: 12, padding: 20, background: 'rgba(255,255,255,0.02)' }}>
+    <div className="adm-trow" style={{ display: 'grid', gap: 12, padding: 20, background: 'rgba(var(--adm-ink),0.02)' }}>
       <div style={{ display: 'grid', gap: 10 }}>
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título" style={inputStyle} />
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={2} placeholder="Descripción" style={textareaStyle} />

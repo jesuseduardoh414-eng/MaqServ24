@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { SidebarNav } from './SidebarNav';
 import { AvisosBell } from './AvisosBell';
+import { useModoClaro } from './modo';
+import { MiCuenta } from './MiCuenta';
 import { DialogosHost } from './Dialogos';
 import { ResultadosHost } from '@maqserv/ui';
 import { useBranding } from './branding';
@@ -41,7 +43,11 @@ export function AdminShell({
 
   // El sidebar es oscuro → preferimos la variante para fondo oscuro (logoDark).
   // Colapsado usamos el isotipo cuadrado si existe.
-  const fullLogo = branding.logoDark || branding.logoLight || branding.logoAlt || null;
+  const claro = useModoClaro();
+  // En modo claro, la variante para fondo claro si la hay (2026-10-28); si no, la
+  // plateada con un filtro que la oscurece (class logo-sobre-claro): sobre blanco no se leía.
+  const varianteClara = claro && branding.logoLight && branding.logoLight !== branding.logoDark ? branding.logoLight : null;
+  const fullLogo = varianteClara || branding.logoDark || branding.logoLight || branding.logoAlt || null;
   const brandImg = collapsed ? branding.icon || fullLogo : fullLogo;
 
   // Recupera la preferencia de colapso tras montar (evita mismatch de hidratación).
@@ -103,7 +109,7 @@ export function AdminShell({
           {brandImg ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              className={`adm-brand-img${collapsed ? ' is-square' : ''}`}
+              className={`adm-brand-img${collapsed ? ' is-square' : ''}${claro && !varianteClara ? ' logo-sobre-claro' : ''}`}
               src={brandImg}
               alt="MAQSER24 · Panel admin"
             />
@@ -122,15 +128,23 @@ export function AdminShell({
 
         <SidebarNav collapsed={collapsed} query={query} rol={adminRol} modulos={adminModulos} />
 
+        {/* Mi cuenta (2026-10-28): el perfil abre el menú (apariencia, contraseña, salir). */}
         <div className="adm-profile-wrap">
-          <button className="adm-profile" onClick={logout} title="Cerrar sesión" type="button">
-            <span className="adm-avatar">{initial}</span>
-            <span className="adm-profile-text">
-              <span className="adm-profile-name">{adminName}</span>
-              <span className="adm-profile-mail">{adminEmail ?? 'Administrador'}</span>
-            </span>
-            <i className="ph ph-sign-out adm-profile-signout" aria-hidden />
-          </button>
+          <MiCuenta
+            nombre={adminName}
+            correo={adminEmail}
+            onCerrarSesion={() => void logout()}
+            trigger={
+              <button className="adm-profile" title="Mi cuenta" aria-label="Mi cuenta" type="button">
+                <span className="adm-avatar">{initial}</span>
+                <span className="adm-profile-text">
+                  <span className="adm-profile-name">{adminName}</span>
+                  <span className="adm-profile-mail">{adminEmail ?? 'Administrador'}</span>
+                </span>
+                <i className="ph ph-caret-up-down adm-profile-signout" aria-hidden />
+              </button>
+            }
+          />
         </div>
       </aside>
 
@@ -163,7 +177,12 @@ export function AdminShell({
               ofertas por revisar y mensajes, en segundos. Ver AvisosBell. */}
           <AvisosBell />
           <div className="adm-topbar-divider" />
-          <span className="adm-avatar" aria-hidden>{initial}</span>
+          <MiCuenta
+            nombre={adminName}
+            correo={adminEmail}
+            onCerrarSesion={() => void logout()}
+            trigger={<button type="button" className="adm-avatar" aria-label="Mi cuenta" title="Mi cuenta" style={{ cursor: 'pointer' }}>{initial}</button>}
+          />
         </header>
 
         <div className="adm-content">
@@ -176,9 +195,9 @@ export function AdminShell({
       {/* Aviso de "sí se hizo / no se hizo" tras CADA cambio. Ver Resultados. */}
       <ResultadosHost
         observar={['/api/admin/']}
-        silencio={['/api/admin/auth/', '/api/admin/logout', '/api/admin/avisos/']}
+        silencio={['/api/admin/auth/', '/api/admin/logout', '/api/admin/avisos/', '/api/admin/mail/previa/']}
         colores={{
-          fondo: '#1a1a1d', texto: 'var(--adm-text)', borde: 'var(--adm-border-strong)', tenue: 'var(--adm-faint)',
+          fondo: 'var(--adm-raised)', texto: 'var(--adm-text)', borde: 'var(--adm-border-strong)', tenue: 'var(--adm-faint)',
           ok: 'var(--adm-ok)', mal: 'var(--adm-bad)', alerta: 'var(--adm-warn)', info: 'var(--adm-info)',
         }}
       />

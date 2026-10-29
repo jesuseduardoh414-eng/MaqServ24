@@ -10,7 +10,8 @@ export const ShInput = React.forwardRef<HTMLInputElement, React.InputHTMLAttribu
     <input
       ref={ref}
       className={cn(
-        'flex h-11 w-full min-w-0 rounded-[var(--ui-radius)] px-3.5 text-sm',
+        // 16 px en el teléfono (2026-10-28): con menos, el iPhone acerca la pantalla al tocar el campo.
+        'flex h-11 w-full min-w-0 rounded-[var(--ui-radius)] px-3.5 text-[16px] sm:text-sm',
         'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-[var(--ui-text)]',
         'placeholder:text-[var(--ui-muted)] outline-none transition-colors',
         'focus-visible:border-[var(--ui-accent)]',
@@ -34,7 +35,7 @@ export const ShTextarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHT
     <textarea
       ref={ref}
       className={cn(
-        'flex min-h-[88px] w-full rounded-[var(--ui-radius)] px-3.5 py-3 text-sm leading-relaxed',
+        'flex min-h-[88px] w-full rounded-[var(--ui-radius)] px-3.5 py-3 text-[16px] sm:text-sm leading-relaxed',
         'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-[var(--ui-text)]',
         'placeholder:text-[var(--ui-muted)] outline-none transition-colors resize-y',
         'focus-visible:border-[var(--ui-accent)]',

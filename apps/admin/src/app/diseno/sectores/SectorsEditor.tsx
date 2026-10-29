@@ -304,7 +304,7 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
 
   // El sector en edición se abre dentro de su fila, con un fondo apenas más claro.
   return (
-    <div className="adm-trow" style={{ display: 'grid', gap: 14, padding: 20, background: 'rgba(255,255,255,0.02)' }}>
+    <div className="adm-trow" style={{ display: 'grid', gap: 14, padding: 20, background: 'rgba(var(--adm-ink),0.02)' }}>
       {loadErr ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: 'var(--adm-bad)' }}>No se pudo cargar el sector. <Btn size="sm" variant="ghost" onClick={onClose}>Cerrar</Btn></div>
       ) : !data ? (

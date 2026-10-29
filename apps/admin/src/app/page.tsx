@@ -37,7 +37,7 @@ interface Inicio {
     medir: { cerradosMes: number; valorMes: number; conversionMes: number | null };
   };
   mes: { solicitudes: number; solicitudesAnterior: number; aceptadas: number; cerrados: number };
-  red: { aliados: number; fichas: number; fichasConfirmadas: number; ofertas: number; papelesVencidos: number; papelesPorVencer: number; papelesFaltan?: number; diasFrescura: number };
+  red: { aliados: number; fichas: number; fichasLibres: number; ofertas: number; papelesVencidos: number; papelesPorVencer: number; papelesFaltan?: number };
   /** Dinero que pide una acción hoy (2026-10-22). */
   dinero?: { cobrosVencidos: number; pagosHoy: number };
   sitio: { resenas: number; preguntas: number };
@@ -153,8 +153,8 @@ export default async function AdminHome() {
       { n: d.flujo.ejecutar.incidencias, nivel: 'urgente', label: 'Incidencias abiertas', sub: 'Servicios con un problema en obra', href: '/servicios', icon: 'ph-warning-octagon', modulo: 'servicios' },
       { n: d.flujo.asignar.propuestasViejas, nivel: 'urgente', label: 'Aliados sin contestar', sub: 'Ofrecidos hace más de 24 h; el cliente ya aceptó', href: '/servicios', icon: 'ph-hourglass-high', modulo: 'servicios' },
       { n: d.red.papelesVencidos, nivel: 'urgente', label: 'Aliados con papeles vencidos', sub: 'Perdieron el sello de verificado', href: '/proveedores', icon: 'ph-warning-circle', modulo: 'proveedores' },
-      { n: d.dinero?.cobrosVencidos ?? 0, nivel: 'urgente', label: 'Cobros vencidos', sub: 'Clientes que no han pagado; ya se les recordó por correo', href: '/administracion/cobranza', icon: 'ph-invoice', modulo: 'administracion' },
-      { n: d.dinero?.pagosHoy ?? 0, nivel: 'pendiente', label: 'Aliados por pagar hoy', sub: 'El cliente pagó y el aliado subió su factura', href: '/administracion/pagos', icon: 'ph-hand-coins', modulo: 'administracion' },
+      { n: d.dinero?.cobrosVencidos ?? 0, nivel: 'urgente', label: 'Cobros vencidos', sub: 'Clientes que no han pagado; ya se les recordó por correo', href: '/administracion/cobros?f=cobrar', icon: 'ph-invoice', modulo: 'administracion' },
+      { n: d.dinero?.pagosHoy ?? 0, nivel: 'pendiente', label: 'Aliados por pagar hoy', sub: 'El cliente pagó y el aliado subió su factura', href: '/administracion/cobros?f=pagar', icon: 'ph-hand-coins', modulo: 'administracion' },
       { n: d.flujo.recibir.sinResponder, nivel: 'pendiente', label: 'Solicitudes por cotizar', sub: 'Llegaron sin precio; el cliente espera respuesta', href: '/cotizaciones', icon: 'ph-tray', modulo: 'cotizaciones' },
       { n: d.flujo.asignar.porAsignar, nivel: 'pendiente', label: 'Servicios por asignar', sub: 'El cliente aceptó; falta el aliado', href: '/servicios', icon: 'ph-user-switch', modulo: 'servicios' },
       { n: d.flujo.ejecutar.terminados, nivel: 'pendiente', label: 'Terminados sin cerrar', sub: 'Falta registrar cantidades y cierre', href: '/servicios', icon: 'ph-flag-checkered', modulo: 'servicios' },
@@ -162,7 +162,6 @@ export default async function AdminHome() {
       { n: d.red.ofertas, nivel: 'pendiente', label: 'Equipos por revisar', sub: 'Los ofrecieron aliados desde su portal', href: '/proveedores', icon: 'ph-package', modulo: 'proveedores' },
       { n: d.red.papelesFaltan ?? 0, nivel: 'pendiente', label: 'Aliados sin constancia fiscal o póliza', sub: 'No tienen sello hasta subirlas; su portal les dice qué falta', href: '/proveedores', icon: 'ph-file-x', modulo: 'proveedores' },
       { n: d.red.papelesPorVencer, nivel: 'aviso', label: 'Papeles por vencer', sub: 'Dentro de los próximos 30 días', href: '/proveedores', icon: 'ph-clock-countdown', modulo: 'proveedores' },
-      { n: d.red.fichas - d.red.fichasConfirmadas, nivel: 'aviso', label: 'Disponibilidad por confirmar', sub: `Equipos de aliados sin confirmar en ${d.red.diasFrescura} días`, href: '/disponibilidad', icon: 'ph-calendar-x', modulo: 'disponibilidad' },
       { n: d.sitio.resenas, nivel: 'aviso', label: 'Reseñas por moderar', sub: 'Esperan aprobación para publicarse', href: '/resenas', icon: 'ph-star', modulo: 'comunidad' },
     ] satisfies Pendiente[]).filter((p) => p.n > 0 && puede(p.modulo))
     : [];
@@ -188,8 +187,9 @@ export default async function AdminHome() {
     k === hoyKey ? 'Hoy' : k === mananaKey ? 'Mañana'
       : new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'short', timeZone: TZ }).format(new Date(iso));
 
-  const confirmadaPct = d && d.red.fichas > 0 ? Math.round((d.red.fichasConfirmadas / d.red.fichas) * 100) : 0;
-  const tonoConfirmada: Tone = confirmadaPct >= 70 ? 'ok' : confirmadaPct >= 40 ? 'warn' : 'bad';
+  // Libres hoy (2026-10-26): ocupados no es malo, es trabajo; el tono solo avisa cuando queda poco libre.
+  const libresPct = d && d.red.fichas > 0 ? Math.round((d.red.fichasLibres / d.red.fichas) * 100) : 0;
+  const tonoLibres: Tone = libresPct >= 30 ? 'ok' : 'warn';
   const TONO: Record<Inicio['recientes'][number]['tono'], Tone> = { atiende: 'warn', bien: 'ok', mal: 'bad', neutro: 'info' };
 
   const verDerecha = (puede('agenda') || puede('proveedores') || puede('catalogo')) && Boolean(d);
@@ -205,7 +205,7 @@ export default async function AdminHome() {
         .in-stage:hover .in-stage-top { color: var(--adm-text); }
         .in-stage:hover .in-arrow { color: var(--adm-text); transform: translateX(2px); }
         .in-step { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 11px; font-weight: 600; color: var(--tone); background: color-mix(in srgb, var(--tone) 15%, transparent); }
-        .in-step.t-muted { color: var(--adm-muted); background: rgba(255,255,255,0.06); }
+        .in-step.t-muted { color: var(--adm-muted); background: rgba(var(--adm-ink),0.06); }
         .in-arrow { margin-left: auto; font-size: 13px; color: var(--adm-faint); transition: color .15s ease, transform .15s ease; }
         .in-lines { margin: 12px 0 0; padding: 0; display: grid; gap: 5px; }
         .in-lines div { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--adm-muted); }
@@ -216,7 +216,7 @@ export default async function AdminHome() {
         .in-col > .adm-panel + .adm-panel { margin-top: 0; }
         .in-col { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; min-width: 0; }
         .in-task { display: flex; align-items: center; gap: 14px; padding: 11px 20px; color: inherit; text-decoration: none; transition: background .12s ease; }
-        .in-task:hover { background: rgba(255,255,255,0.02); }
+        .in-task:hover { background: rgba(var(--adm-ink),0.02); }
         .in-task:hover .in-arrow { color: var(--adm-text); }
         .in-task > i.ph:first-child { font-size: 19px; flex-shrink: 0; color: var(--tone); }
         .in-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) auto; gap: 14px; align-items: center; color: inherit; text-decoration: none; }
@@ -385,12 +385,12 @@ export default async function AdminHome() {
                   </div>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--adm-text-2)', marginBottom: 8 }}>
-                      <span>Disponibilidad confirmada</span>
-                      <span className={`adm-num adm-tone t-${tonoConfirmada}`} style={{ fontWeight: 600 }}>{confirmadaPct}%</span>
+                      <span>Libres hoy</span>
+                      <span className={`adm-num adm-tone t-${tonoLibres}`} style={{ fontWeight: 600 }}>{libresPct}%</span>
                     </div>
-                    <Bar pct={confirmadaPct} tone={tonoConfirmada} label={`${confirmadaPct}% de las fichas con disponibilidad confirmada`} />
+                    <Bar pct={libresPct} tone={tonoLibres} label={`${libresPct}% de los equipos de aliados libres hoy`} />
                     <div style={{ fontSize: 12, color: 'var(--adm-faint)', marginTop: 8 }}>
-                      {d.red.fichasConfirmadas} de {d.red.fichas} confirmadas en los últimos {d.red.diasFrescura} días
+                      {d.red.fichasLibres} de {d.red.fichas} sin reserva ni mantenimiento hoy · <a href="/disponibilidad" style={{ color: 'inherit' }}>Disponibilidad</a>
                     </div>
                   </div>
                   {d.red.papelesVencidos + d.red.papelesPorVencer > 0 ? (

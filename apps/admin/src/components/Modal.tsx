@@ -55,8 +55,8 @@ export function Modal({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 14, width: `min(${ancho}px, 100%)`,
-          maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)',
+          background: D.card, border: `1px solid ${D.inputBorder}`, borderRadius: 14, width: `min(${ancho}px, 100%)`, minWidth: 0,
+          maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px var(--adm-sombra)',
           animation: 'fadeIn .18s ease',
         }}
       >
@@ -71,7 +71,10 @@ export function Modal({
         </div>
         <div style={{ padding: 22, overflowY: 'auto' }}>{children}</div>
         {pie ? (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '12px 22px', borderTop: `1px solid ${D.cardBorder}` }}>{pie}</div>
+          // flexWrap (auditoría 2026-10-28): con tres botones largos el pie no se
+          // partía y empujaba la ventana fuera de la pantalla del teléfono
+          // ("Invitar aliado": sin X ni "Mandar por correo" a la vista).
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8, padding: '12px 22px', borderTop: `1px solid ${D.cardBorder}` }}>{pie}</div>
         ) : null}
       </div>
     </div>

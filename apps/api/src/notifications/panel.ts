@@ -21,7 +21,7 @@ const PREFIJO = 'panel:';
 const LIMITE = 30;
 const log = new Logger('AvisosPanel');
 
-export type EventoPanel = 'avance' | 'solicitud' | 'respuesta_aliado' | 'oferta_aliado' | 'mensaje' | 'cotizacion' | 'registro_proveedor' | 'correo_fallido' | 'resena' | 'pregunta' | 'choque_reserva' | 'cobro' | 'pago';
+export type EventoPanel = 'avance' | 'solicitud' | 'respuesta_aliado' | 'oferta_aliado' | 'mensaje' | 'cotizacion' | 'registro_proveedor' | 'correo_fallido' | 'resena' | 'pregunta' | 'choque_reserva' | 'cobro' | 'pago' | 'mantenimiento';
 
 export interface AvisoPanel {
   id: number;

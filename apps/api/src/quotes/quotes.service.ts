@@ -18,15 +18,16 @@ import { sincronizarReserva } from './reservas';
 import { ServiceService } from './service.service';
 import { operadorDe } from '../providers/operador';
 import { pedidoDe } from '../providers/pedido';
+import { cantidadDelFormulario, estimarDelTabulador } from './estimado-formulario';
 
 /**
  * EL PRECIO EN PREPARACIÓN NO SE ENSEÑA (2026-10-15). Mientras MAQSER24 no
  * responde, lo que haya en importes o en el documento ligado es un borrador:
- * el cliente ve su solicitud sin precios. La excepción es la del cotizador del
- * sitio: ese precio el cliente ya lo vio al pedirla.
+ * el cliente ve su solicitud sin precios. Desde el 2026-10-23 sin excepción:
+ * el cotizador del sitio ya no enseña el precio, así que el suyo también es un
+ * estimado que alguien tiene que revisar antes de que lo vea.
  */
-const precioOculto = (q: { status: string; requirements?: unknown }) =>
-  q.status === 'pending' && (q.requirements as { origen?: unknown } | null)?.origen !== 'cotizador';
+const precioOculto = (q: { status: string; requirements?: unknown }) => q.status === 'pending';
 
 /**
  * Claves de `requirements` que escribe SOLO el servidor (auditoría 2026-10-23).
@@ -37,7 +38,7 @@ const precioOculto = (q: { status: string; requirements?: unknown }) =>
  */
 const CLAVES_DEL_SERVIDOR = new Set([
   'origen', 'cotizador', 'folio', 'quoterId', 'obra', 'productos', 'productId',
-  'precioAjustado', 'operadorAsignado', 'renglones', 'sin_reserva',
+  'precioAjustado', 'operadorAsignado', 'operadorVersion', 'renglones', 'sin_reserva',
 ]);
 
 function soloRespuestasDelCliente(r: Record<string, string> | undefined): Record<string, string> | undefined {
@@ -289,19 +290,19 @@ export class QuotesService {
     const ids = input.items.map((i) => i.productId);
     const products = await prisma.products.findMany({
       where: { id: { in: ids }, status: 1 },
-      select: { id: true, name: true, cprice: true, photo: true, is_rental: true, rental_freight: true, stock: true, price_unit: true },
+      select: { id: true, name: true, cprice: true, photo: true, is_rental: true, rental_freight: true, stock: true, price_unit: true, provider_id: true, tipo_id: true },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    // La ficha del tipo: el producto mismo si es ficha, o el tipo del equipo del aliado.
+    const fichaDe = (p: (typeof products)[number]) => (p.provider_id === null ? p.id : p.tipo_id ?? null);
+    // Si la línea pregunta su propia cantidad (3 viajes, 2000 piezas) y se pidió
+    // un solo producto, esa es la que se cobra, igual que en el documento.
+    const pedida = input.items.length === 1
+      ? cantidadDelFormulario(input.serviceCategory, input.requirements as Record<string, unknown> | undefined)
+      : null;
 
-    // Distancia para flete (solo si dieron dirección; degrada a null sin API key).
-    // Y solo si algún equipo la cobra (2026-10-05): sin eso el cliente esperaba
-    // 4-5 s a dos geocodificaciones cuyo resultado no se usaba —en una
-    // solicitud de servicio (pipas, triturados) el flete siempre sale en cero.
-    const cobraFlete = products.some((p) => p.is_rental && Number(p.rental_freight ?? 0) > 0);
-    const dist = input.address && cobraFlete ? await this.freight.distanceTo(input.address) : null;
-    const distanceKm = dist?.km ?? 0;
-
-    const items: QuoteItem[] = input.items.map((i) => {
+    const base = input.items.map((i) => {
       const p = byId.get(i.productId);
       if (!p) throw new BadRequestException(`Producto ${i.productId} no disponible`);
       const qty = Math.max(1, Math.min(999, Math.floor(i.qty)));
@@ -314,31 +315,63 @@ export class QuotesService {
       const days = p.is_rental
         ? Math.max(fraccionable ? 0.01 : 1, Math.min(365, fraccionable ? Math.round(bruto * 100) / 100 : Math.floor(bruto)))
         : 1;
+      // Lo que se cobra: en renta, equipos × días; si no, lo que pidió en el formulario o las piezas.
+      const cantidad = !p.is_rental && pedida ? pedida : qty;
+      return { p, qty, unit, days, cantidad };
+    });
+
+    /**
+     * PRECIO ESTIMADO (2026-10-23, ver estimado-formulario.ts): si la ficha del
+     * tipo tiene renglón en un tabulador, sale del mismo motor que los
+     * cotizadores; si no, del precio de la ficha. El cliente no lo ve (la
+     * solicitud está pendiente): es lo que el panel revisa antes de mandárselo.
+     */
+    const estimados = await estimarDelTabulador(
+      base.map((b) => ({ productId: b.p.id, fichaId: fichaDe(b.p), cantidad: b.cantidad, tiempo: b.days, unidad: b.unit })),
+    );
+
+    // Distancia para flete (solo si dieron dirección; degrada a null sin API key).
+    // Y solo si algún equipo la cobra (2026-10-05): sin eso el cliente esperaba
+    // 4-5 s a dos geocodificaciones cuyo resultado no se usaba —en una
+    // solicitud de servicio (pipas, triturados) el flete siempre sale en cero.
+    // Lo estimado con el tabulador ya trae su flete.
+    const cobraFlete = base.some(({ p }) => !estimados.has(p.id) && p.is_rental && Number(p.rental_freight ?? 0) > 0);
+    const dist = input.address && cobraFlete ? await this.freight.distanceTo(input.address) : null;
+    const distanceKm = dist?.km ?? 0;
+
+    const lineas = base.map(({ p, qty, unit, days, cantidad }) => {
+      const comun = { productId: p.id, name: p.name, qty, days, unit, isRental: p.is_rental, image: imageUrl(p.photo) };
+      const est = estimados.get(p.id);
+      if (est) {
+        return {
+          item: { ...comun, price: est.precioUnitario, freight: r2(est.flete / qty), lineTotal: r2(est.subtotal + est.flete) } as QuoteItem,
+          sub: est.subtotal, fle: est.flete, iva: est.iva, cantidad,
+          fuente: 'tabulador' as const, fichaId: fichaDe(p), renglon: est.renglon,
+        };
+      }
       // Fórmula legacy: renta → cprice×días + flete (tarifa base × km, o base sin distancia)
       const baseFreight = p.rental_freight ? Number(p.rental_freight) : 0;
       const freightUnit = p.is_rental ? (distanceKm > 0 ? baseFreight * distanceKm : baseFreight) : 0;
-      const lineTotal = Math.round(((p.cprice * days + freightUnit) * qty) * 100) / 100;
+      const sub = p.is_rental ? p.cprice * days * qty : p.cprice * cantidad;
+      const fle = freightUnit * qty;
       return {
-        productId: p.id,
-        name: p.name,
-        price: p.cprice,
-        qty,
-        days,
-        unit,
-        isRental: p.is_rental,
-        freight: Math.round(freightUnit * 100) / 100,
-        lineTotal,
-        image: imageUrl(p.photo),
+        item: { ...comun, price: p.cprice, freight: r2(freightUnit), lineTotal: r2(sub + fle) } as QuoteItem,
+        sub, fle, iva: 0, cantidad,
+        // Sin precio en ningún lado: la ficha del tipo es a donde hay que ir a ponérselo.
+        fuente: p.cprice > 0 ? ('ficha' as const) : null, fichaId: p.cprice > 0 ? p.id : fichaDe(p), renglon: null,
       };
     });
+    const items: QuoteItem[] = lineas.map((l) => l.item);
 
-    const subtotal = Math.round(items.reduce((s, i) => s + i.price * i.days * i.qty, 0) * 100) / 100;
-    const freightCost = Math.round(items.reduce((s, i) => s + i.freight * i.qty, 0) * 100) / 100;
-    const total = Math.round((subtotal + freightCost) * 100) / 100;
+    const subtotal = r2(lineas.reduce((s, l) => s + l.sub, 0));
+    const freightCost = r2(lineas.reduce((s, l) => s + l.fle, 0));
+    const tax = r2(lineas.reduce((s, l) => s + l.iva, 0));
+    const total = r2(subtotal + freightCost + tax);
 
     // cart_data en el formato keyed-map del legacy (el admin viejo lo puede leer)
     const cartData: Record<string, unknown> = {};
-    for (const it of items) {
+    for (const l of lineas) {
+      const it = l.item;
       cartData[String(it.productId)] = {
         qty: it.qty,
         days: it.days,
@@ -347,6 +380,21 @@ export class QuotesService {
         unit: it.unit,
         price: it.lineTotal,
         item: { id: it.productId, name: it.name, cprice: it.price, photo: it.image },
+        // De dónde salió el precio (2026-10-23), para el desglose del panel:
+        // 'tabulador' (el renglón `renglon` del cotizador), 'ficha' (su precio)
+        // o null (falta tarifa). `fichaId`: la ficha donde se corrige.
+        // `cantidad`: lo que se cobró (viajes o piezas del formulario, si las dijo).
+        cantidad: l.cantidad,
+        fuente: l.fuente,
+        fichaId: l.fichaId,
+        renglon: l.renglon,
+        // Los importes de la partida por separado: el lápiz del desglose
+        // cambia el precio y vuelve a sumar sin adivinar qué era flete o IVA.
+        subtotal: r2(l.sub),
+        flete: r2(l.fle),
+        iva: r2(l.iva),
+        // La maquinaria del tabulador va por hora (2026-10-29): el desglose lo dice y la corrige en esa unidad.
+        ...(l.renglon?.clase === 'equipo' ? { porHora: true } : {}),
       };
     }
 
@@ -371,7 +419,7 @@ export class QuotesService {
         subtotal,
         freight_cost: freightCost,
         freight_distance: dist ? String(dist.km) : null,
-        tax: 0,
+        tax,
         total,
         status: 'pending',
         quote_number: newQuoteNumber(),
@@ -396,6 +444,8 @@ export class QuotesService {
       region: customer.region,
       userId,
       siteId: input.siteId ?? null,
+      clientId: input.clientId ?? null,
+      siteName: input.siteName ?? null,
     });
     if (ligada.clientId) {
       await prisma.quotes.update({
@@ -433,7 +483,8 @@ export class QuotesService {
 
     return {
       ...this.toSummary(q),
-      items,
+      // Recién creada está pendiente: el estimado no viaja al navegador (2026-10-23).
+      items: items.map((i) => ({ ...i, price: 0, freight: 0, lineTotal: 0 })),
       customer: {
         name: q.name,
         email: q.email,
@@ -523,20 +574,18 @@ export class QuotesService {
     }
 
     /**
-     * OFERTA AUTOMÁTICA (2026-10-15): al aceptar, cada servicio se le ofrece
-     * solo a los mejores aliados que llegan a la obra; el primero que acepta
-     * se la queda (ServiceService.ofrecerATodos). El cliente no recibe nada
-     * hasta que un aliado la toma: ese es el correo de "te atiende…".
+     * YA NO SE OFRECE SOLA (2026-10-23). Antes, al aceptar, salía de una vez a
+     * los mejores aliados que llegan a la obra. Ahora MAQSER24 elige a quién se
+     * la da —puede que con alguno ya no trabajen—: queda en Servicios › Por
+     * asignar y suena la campana. Desde "Buscar aliado" se le ofrece a uno, a
+     * varios o "Mandar a todos". El cliente no recibe nada hasta que un aliado
+     * la toma: ese es el correo de "te atiende…".
      */
-    const ofrecidos: string[] = [];
-    for (const a of aceptadas) ofrecidos.push(...(await this.services.ofrecerATodos(Number(a.id))).ofrecidos);
     void avisarPanel({
       modulo: 'servicios',
       evento: 'solicitud',
-      titulo: `${q.company_name?.trim() || q.name} aceptó la cotización ${q.quote_number}`,
-      cuerpo: ofrecidos.length
-        ? `Se le ofreció sola a ${[...new Set(ofrecidos)].join(', ')}: el primero que acepte se la queda.`
-        : 'Ya está en Servicios por asignar: búscale aliado.',
+      titulo: `${q.company_name?.trim() || q.name} aceptó la cotización ${q.quote_number}: elige a quién dárselo`,
+      cuerpo: `${aceptadas.length > 1 ? `Son ${aceptadas.length} servicios. ` : ''}Están en Servicios › Por asignar: ofrécelo a un aliado o mándalo a todos los que llegan a la obra.`,
       link: '/servicios',
     });
     return this.byNumber(userId, quoteNumber);
@@ -550,24 +599,29 @@ export class QuotesService {
    * direccion como siempre.
    */
   async sitesOfUser(userId: number) {
-    const cliente = await prisma.clients.findFirst({
+    // Una cuenta puede tener varias empresas, y cada una sus obras (2026-10-23).
+    const empresas = await prisma.clients.findMany({
       where: { user_id: userId, status: 1 },
-      select: { id: true, name: true },
-    });
-    if (!cliente) return { client: null, sites: [] };
-
-    const sites = await prisma.client_sites.findMany({
-      where: { client_id: cliente.id, status: 1 },
-      orderBy: { name: 'asc' },
+      orderBy: { id: 'asc' },
       select: {
-        id: true, name: true, address: true, municipality: true,
-        contact_name: true, contact_phone: true, requirements: true,
+        id: true, name: true,
+        client_sites: {
+          where: { status: 1 },
+          orderBy: { name: 'asc' },
+          select: {
+            id: true, name: true, address: true, municipality: true,
+            contact_name: true, contact_phone: true, requirements: true,
+          },
+        },
       },
     });
-    return {
-      client: { id: cliente.id, name: cliente.name },
-      sites: sites.map((s) => ({
+    const lista = empresas.map((c) => ({
+      id: c.id,
+      name: c.name,
+      sites: c.client_sites.map((s) => ({
         id: s.id,
+        clientId: c.id,
+        clientName: c.name,
         name: s.name,
         address: s.address,
         municipality: s.municipality,
@@ -575,6 +629,12 @@ export class QuotesService {
         contactPhone: s.contact_phone,
         requirements: s.requirements,
       })),
+    }));
+    return {
+      empresas: lista,
+      // Lo de antes (una sola empresa): la primera, y todas las obras juntas.
+      client: lista[0] ? { id: lista[0].id, name: lista[0].name } : null,
+      sites: lista.flatMap((c) => c.sites),
     };
   }
 
@@ -605,7 +665,7 @@ export class QuotesService {
         productId: c.item.id,
         name: c.item.name,
         unit: c.unit ?? null,
-        price: c.item.cprice,
+        price: precioOculto(q) ? 0 : c.item.cprice,
         qty: c.qty,
         days: c.days ?? 1,
         isRental: (c.days ?? 1) > 1,
@@ -814,8 +874,11 @@ export class QuotesService {
     // La obra solo si es de SU cliente: el id viene del navegador.
     const obra = input.siteId ? (await this.sitesOfUser(userId)).sites.find((s) => s.id === input.siteId) ?? null : null;
     const nombre = input.customer.name?.trim() || cuenta.name;
-    const empresa = input.customer.company?.trim() || null;
+    const empresa = input.customer.company?.trim() || obra?.clientName || null;
     const req = input.requirements ?? {};
+    // Obra nueva (2026-10-23): su municipio sale de la dirección que escribió.
+    const municipioDeDireccion = (input.address ?? '').split(',').map((p) => p.trim()).filter(Boolean).reverse()
+      .map((p) => centroDeMunicipio(p)?.nombre).find(Boolean) ?? null;
 
     return documentoDeSolicitud({
       folio: 'Vista previa',
@@ -830,8 +893,9 @@ export class QuotesService {
       servicio: input.service ?? null,
       cliente: empresa || nombre,
       atencion: empresa ? nombre : null,
-      obra: obra?.name ?? input.address ?? null,
-      municipio: obra?.municipality ?? (req.obra_ubicacion?.trim() || input.customer.region || null),
+      // Con obra nueva, el nombre que le puso (antes salía la dirección como obra).
+      obra: obra?.name ?? (input.siteName?.trim() || input.address) ?? null,
+      municipio: obra?.municipality ?? municipioDeDireccion ?? (req.obra_ubicacion?.trim() || input.customer.region || null),
       emitida: new Date(),
       saludo: 'Esta es la solicitud que nos va a enviar. La revisaremos y le enviaremos la cotización con precios y vigencia.',
     });

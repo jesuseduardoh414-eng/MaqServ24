@@ -43,6 +43,8 @@ function corto(nombre: string): string {
 @Controller('admin/cobertura')
 @UseGuards(AdminGuard)
 export class AdminCoberturaController {
+  // Se ve dentro de Zonas y cobertura (2026-10-26): cualquiera del panel.
+  @Modulo('inicio')
   @Get()
   async datos() {
     const hoy = new Date();

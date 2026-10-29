@@ -24,7 +24,7 @@ export function ReglasContrasena({
       {REGLAS_CONTRASENA.map((r) => {
         const ok = r.ok(password, ctx);
         return (
-          <li key={r.id} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.4, padding: '1.5px 0', breakInside: 'avoid', color: ok ? '#3fbf8f' : marcar ? 'var(--adm-bad)' : '#8A8A8F' }}>
+          <li key={r.id} style={{ display: 'flex', gap: 7, fontSize: 11.5, lineHeight: 1.4, padding: '1.5px 0', breakInside: 'avoid', color: ok ? 'var(--adm-ok)' : marcar ? 'var(--adm-bad)' : 'var(--adm-muted)' }}>
             <span aria-hidden style={{ width: 12, flexShrink: 0, textAlign: 'center', fontWeight: 700 }}>{ok ? '✓' : marcar ? '✕' : '○'}</span>
             <span>{r.texto}<span className="sr-only">{ok ? ' — cumple' : ' — falta'}</span></span>
           </li>

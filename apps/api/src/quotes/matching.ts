@@ -192,13 +192,11 @@ export function cubreZona(coverage: string[], zona: string | null): boolean {
 /** Estados en los que un equipo se puede comprometer hoy. */
 const ASIGNABLES = new Set(['disponible', 'limitada']);
 
-/** Peso de cada nivel. El orden es la escalera del documento. */
-const PESO_NIVEL: Record<string, number> = {
-  preferente: 30,
-  activo: 20,
-  validado: 10,
-  registrado: 0,
-};
+/**
+ * "Preferente": la única marca que se pone a mano (2026-10-27). Los niveles
+ * validado y activo ya no se usan: el sello sale solo de los papeles.
+ */
+const PESO_PREFERENTE = 30;
 
 export function emparejar(
   solicitud: SolicitudParaEmparejar,
@@ -237,8 +235,10 @@ export function emparejar(
         advertencias.push('Sin sello: sus documentos no están completos o vigentes');
       }
 
-      puntaje += PESO_NIVEL[p.level] ?? 0;
-      if (p.level === 'preferente') razones.push('Aliado preferente');
+      if (p.level === 'preferente') {
+        puntaje += PESO_PREFERENTE;
+        razones.push('Aliado preferente');
+      }
 
       // Tiempo de respuesta: hasta 20 puntos, cae a cero a partir de 2 horas.
       //

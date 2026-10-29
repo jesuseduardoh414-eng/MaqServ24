@@ -2,7 +2,7 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { AdminGuard, Modulo } from './admin-auth';
 import { estadoDocumentos } from '../catalog/provider-trust';
-import { DIAS_FRESCURA } from '../catalog/availability';
+import { disponibilidadDe } from '../catalog/availability';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { PASOS, esEstado } from '../quotes/service-flow';
 
@@ -45,7 +45,7 @@ export class AdminInicioController {
       propuestas, propuestasViejas, incidencias,
       proximos, recientes,
       solicitudesMes, solicitudesMesAnterior, aceptadasMes, cerradosMes, valorMes,
-      aliados, fichas, fichasConfirmadas, ofertas, estadosDePapeles,
+      aliados, fichas, fichasLibres, ofertas, estadosDePapeles,
       resenas, preguntas, categorias,
     ] = await Promise.all([
       prisma.quotes.count({ where: { status: 'pending' } }),
@@ -96,8 +96,19 @@ export class AdminInicioController {
       prisma.providers.count({ where: { status: 1 } }),
       // Solo las máquinas de aliados se confirman; la ficha del tipo no (2026-10-22).
       prisma.products.count({ where: { status: 1, provider_id: { not: null } } }),
-      prisma.products.count({ where: { status: 1, provider_id: { not: null }, availability_confirmed_at: { gte: new Date(ahora.getTime() - DIAS_FRESCURA * DIA) } } }),
-      prisma.products.count({ where: { status: ESTADO_POR_REVISAR } }),
+      // Libres hoy (2026-10-26, ya no se confirma cada 14 días): sin reserva que
+      // las ocupe todas ni mantenimiento. Las de aliado son pocas: se calcula aquí.
+      Promise.all([
+        prisma.products.findMany({ where: { status: 1, provider_id: { not: null } }, select: { id: true, stock: true, location: true } }),
+        prisma.availability_blocks.findMany({
+          where: { OR: [{ ends_on: null }, { ends_on: { gte: hoy } }] },
+          select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
+        }),
+      ]).then(([equipos, bloques]) =>
+        equipos.filter((p) => disponibilidadDe({ stock: p.stock, location: p.location, blocks: bloques.filter((b) => b.product_id === p.id) }, ahora).state === 'disponible').length,
+      ),
+      // Solo de aliados de la red: lo que declara una solicitud se ve al revisarla (2026-10-26).
+      prisma.providers.findMany({ where: { status: 1 }, select: { id: true } }).then((red) => prisma.products.count({ where: { status: ESTADO_POR_REVISAR, provider_id: { in: red.map((p) => p.id) } } })),
       // Se cuentan ALIADOS, no papeles: tres vencidos del mismo son una llamada.
       // Con la misma regla que Proveedores (2026-10-22): un papel renovado deja
       // de contar el viejo, y sin constancia fiscal o póliza no hay sello.
@@ -147,11 +158,10 @@ export class AdminInicioController {
       },
       mes: { solicitudes: solicitudesMes, solicitudesAnterior: solicitudesMesAnterior, aceptadas: aceptadasMes, cerrados: cerradosMes },
       red: {
-        aliados, fichas, fichasConfirmadas, ofertas,
+        aliados, fichas, fichasLibres, ofertas,
         papelesVencidos: estadosDePapeles.filter((e) => e === 'vencido').length,
         papelesPorVencer: estadosDePapeles.filter((e) => e === 'por-vencer').length,
         papelesFaltan: estadosDePapeles.filter((e) => e === 'incompleto').length,
-        diasFrescura: DIAS_FRESCURA,
       },
       sitio: { resenas, preguntas },
       dinero: { cobrosVencidos, pagosHoy },

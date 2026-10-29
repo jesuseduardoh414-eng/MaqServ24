@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn, EmptyState, Note, PageHeader, Panel, SectionHead, Segmented, StatusText, Toolbar, type Tone } from '@/components/ui';
 import { CorreoDetalle } from './CorreoDetalle';
+import { DisenoCorreos } from './DisenoCorreos';
 import { TIPO, estadoDe, fecha } from './textos';
 
 /**
@@ -101,7 +102,7 @@ export function MailPanel({
     mensaje: string;
     alcanzados: number;
     omitidos: number;
-    candidatos: Array<{ providerId: number; name: string; motivo: string; seLeEscribe: boolean; equipos: unknown[]; documentos: unknown[] }>;
+    candidatos: Array<{ providerId: number; name: string; motivo: string; seLeEscribe: boolean; documentos: unknown[] }>;
   } | null>(null);
 
   const encendido = estado?.habilitado ?? false;
@@ -156,7 +157,7 @@ export function MailPanel({
         title="Correo"
         subtitle={
           completo
-            ? 'Los avisos que salen del sitio: cotización respondida, avance del servicio y las solicitudes que se le ofrecen a un aliado. Abre uno para verlo como le llegó.'
+            ? 'Cómo llegan los correos que manda el sistema (diseño y textos), si el envío está encendido, y el registro de todo lo que salió. Abre uno para verlo como le llegó.'
             : 'Los correos de tus módulos: a quién le llegó qué y si salió. Abre uno para verlo como le llegó.'
         }
       />
@@ -164,6 +165,9 @@ export function MailPanel({
       {/* El estado del servidor, la prueba y los recordatorios son de Dirección. */}
       {completo ? (
       <>
+
+      {/* Lo primero: cómo llegan tus correos (diseño y textos), 2026-10-28. */}
+      <div style={{ marginBottom: 24 }}><DisenoCorreos /></div>
 
       {/* Lo primero: ¿de verdad sale correo? */}
       <Note tone={tono} style={{ marginBottom: 24, padding: '14px 16px' }}>
@@ -227,13 +231,12 @@ export function MailPanel({
 
       {/*
         RECORDATORIOS (documento institucional, 18).
-        La regla de los 14 dias ya existia y ya funcionaba: un equipo sin
-        confirmar deja de proponerse solo. Faltaba que alguien se enterara.
+        Solo papeles (2026-10-26): ya no se pide confirmar equipos cada 14 dias.
       */}
       <Panel
         title="Recordar a los aliados"
         icon="ph-bell-simple"
-        desc="Un correo por aliado con sus equipos sin confirmar y los papeles que le faltan o están por vencer, con su enlace para resolverlo en un clic. A nadie se le escribe dos veces en la misma semana."
+        desc="Un correo por aliado con los papeles que le faltan o están por vencer, con su enlace para subirlos en un clic. A nadie se le escribe dos veces en la misma semana."
       >
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Btn icon="ph-eye" onClick={verRecordatorios} disabled={ocupado}>

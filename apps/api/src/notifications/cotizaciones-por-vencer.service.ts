@@ -59,7 +59,7 @@ export class CotizacionesPorVencerService {
             to: q.email,
             toName: q.name,
             quoteId: Number(q.id),
-            ...correoCotizacionPorVencer({ nombre: q.name, folio: q.quote_number, total: Number(q.total ?? 0), validUntil: vence, dias }),
+            ...(await correoCotizacionPorVencer({ nombre: q.name, folio: q.quote_number, total: Number(q.total ?? 0), validUntil: vence, dias })),
           });
         } else {
           // Sin correo no queda constancia en el registro: se deja una para no repetirlo mañana.

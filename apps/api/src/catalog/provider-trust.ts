@@ -1,4 +1,4 @@
-import type { DocsStatus, ProviderLevel } from '@maqserv/types';
+import type { DocsStatus } from '@maqserv/types';
 
 /**
  * Reglas de confianza de un aliado.
@@ -8,7 +8,7 @@ import type { DocsStatus, ProviderLevel } from '@maqserv/types';
  *
  *  1. "La plataforma requiere alertas y reglas que impidan tratar como
  *     verificado un expediente desactualizado." Por eso `verified` exige que
- *     NINGÚN documento esté vencido, no solo que el nivel sea alto.
+ *     estén los obligatorios y que NINGÚN documento esté vencido.
  *  2. "La reputación de la marca dependerá de que el sello de confianza tenga
  *     un significado real." Por eso no hay forma de marcar a alguien como
  *     verificado a mano: sale de los papeles y de su vigencia.
@@ -54,9 +54,6 @@ export function papelesQueFaltan(
   const docs = papelesVigentes(todos);
   return PAPELES_OBLIGATORIOS.filter((k) => !docs.some((d) => d.kind === k && (d.expires_at === null || d.expires_at >= hoy)));
 }
-
-/** Niveles que, con el expediente en regla, cuentan como verificados. */
-const NIVELES_VERIFICABLES: ProviderLevel[] = ['validado', 'activo', 'preferente'];
 
 /**
  * EL PAPEL RENOVADO REEMPLAZA AL VIEJO (2026-10-19). "Ya cambié la constancia
@@ -120,12 +117,17 @@ export function estadoDocumentos(
 }
 
 /**
- * Un aliado está verificado si alcanzó al menos el nivel 'validado' Y su
- * expediente no tiene vencidos. "Por vencer" todavía cuenta como verificado:
- * el papel sigue siendo válido y lo que corresponde es avisar, no cortar.
+ * Un aliado está verificado si su expediente está completo (constancia fiscal
+ * y póliza) y sin vencidos. "Por vencer" todavía cuenta como verificado: el
+ * papel sigue siendo válido y lo que corresponde es avisar, no cortar.
+ *
+ * SIN NIVEL (2026-10-27, revisión de Proveedores). Antes además pedía que
+ * alguien subiera al aliado a "validado" a mano, y nadie lo hacía: los aliados
+ * salían "sin sello" con o sin papeles. Ahora sale solo de los papeles; si uno
+ * no sirve, se quita del expediente y el sello se va con él. La única marca a
+ * mano que queda es "preferente" (ver `matching.ts`).
  */
-export function estaVerificado(level: string, docs: DocsStatus): boolean {
-  if (!NIVELES_VERIFICABLES.includes(level as ProviderLevel)) return false;
+export function estaVerificado(docs: DocsStatus): boolean {
   return docs === 'al-dia' || docs === 'por-vencer';
 }
 

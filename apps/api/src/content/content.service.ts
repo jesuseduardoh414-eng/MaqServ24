@@ -1,7 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
-import { CRM_ACTIVO, productSlug, slugify, problemaEmail, problemaTelefono, ESTADO_SOLICITUD_PROVEEDOR, OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR } from '@maqserv/config';
+import { CRM_ACTIVO, productSlug, slugify, problemaEmail, problemaTelefono, ESTADO_SOLICITUD_PROVEEDOR, TIPOS_PROVEEDOR, type LineaRegistro } from '@maqserv/config';
+import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
+import { categoriaPropuesta } from '../catalog/categorias-propuestas';
 import type {
   BlogCard,
   BlogDetail,
@@ -297,6 +299,28 @@ export class ContentService {
    * misma persona se registra otra vez mientras sigue por revisar, se agrega a
    * su nota en lugar de duplicarla.
    */
+  /**
+   * Lo que el registro deja elegir (2026-10-26): las categorías activas del
+   * panel con los tipos que ya se ofrecen (las fichas sin aliado). Antes era
+   * una lista fija en el código: una categoría nueva no salía.
+   */
+  async opcionesRegistro(): Promise<{ lineas: LineaRegistro[] }> {
+    const [cats, fichas] = await Promise.all([
+      prisma.categories.findMany({ where: { status: 1 }, select: { id: true, cat_slug: true, cat_name: true, sort_order: true } }),
+      prisma.products.findMany({ where: { status: 1, provider_id: null }, select: { id: true, name: true, category_id: true }, orderBy: { name: 'asc' } }),
+    ]);
+    const orden = (n: number) => (n > 0 ? n : Number.MAX_SAFE_INTEGER);
+    return {
+      lineas: cats
+        .sort((a, b) => orden(a.sort_order) - orden(b.sort_order) || a.cat_name.localeCompare(b.cat_name, 'es'))
+        .map((c) => ({
+          slug: c.cat_slug,
+          nombre: c.cat_name,
+          tipos: fichas.filter((f) => f.category_id === c.id).map((f) => ({ id: f.id, nombre: f.name })),
+        })),
+    };
+  }
+
   async providerSignup(data: Record<string, unknown>): Promise<{ ok: boolean }> {
     const txt = (v: unknown, max: number) => String(v ?? '').trim().slice(0, max);
     // Campo trampa: invisible para personas; si viene lleno es un bot.
@@ -320,8 +344,33 @@ export class ContentService {
     const respuesta = Number(data.respuesta);
     const minutos = Number.isInteger(respuesta) && respuesta > 0 && respuesta <= 10080 ? respuesta : null;
     const mensaje = txt(data.mensaje, 2000);
+    // Lo que ofrece: slugs de las categorías ACTIVAS del panel (2026-10-26).
+    const { lineas } = await this.opcionesRegistro();
     const claves = Array.isArray(data.ofrece) ? data.ofrece.map(String) : [];
-    const ofertas = OFERTAS_PROVEEDOR.filter((o) => claves.includes(o.clave));
+    const ofertas: Array<LineaRegistro & { nueva?: boolean }> = lineas.filter((l) => claves.includes(l.slug));
+    // CATEGORÍAS QUE NO ESTÁN EN LA LISTA (2026-10-28): "Otra" con su nombre.
+    // Llegan con una clave provisional ("nueva-1") y se crean al guardar, como
+    // propuestas: MAQSER24 decide en Categorías si es la misma que otra, si la
+    // autoriza o si no la maneja. Sus equipos quedan "Nuevo".
+    const nuevas = (Array.isArray(data.nuevas) ? data.nuevas : [])
+      .slice(0, 3)
+      .map((n) => ({ clave: txt((n as Record<string, unknown>)?.clave, 20), nombre: txt((n as Record<string, unknown>)?.nombre, 100) }))
+      .filter((n) => /^nueva-\d+$/.test(n.clave) && n.nombre.length >= 3 && claves.includes(n.clave));
+    ofertas.push(...nuevas.map((n) => ({ slug: n.clave, nombre: n.nombre, tipos: [], nueva: true })));
+    // Sus equipos: un tipo de la lista de esa línea, u "otro" con nombre.
+    const crudos = (Array.isArray(data.equipos) ? data.equipos : []).slice(0, 40) as Array<Record<string, unknown>>;
+    const equipos = crudos
+      .map((e) => {
+        const linea = ofertas.find((l) => l.slug === String(e.categoria ?? ''));
+        const tipoId = Number(e.tipoId) || null;
+        const tipoFicha = tipoId && linea ? linea.tipos.find((t) => t.id === tipoId) ?? null : null;
+        const unidades = Math.min(99, Math.max(1, Math.floor(Number(e.unidades) || 1)));
+        const marca = txt(e.marca, 120);
+        const modelo = txt(e.modelo, 120);
+        const nombre = tipoFicha ? tipoFicha.nombre : txt(e.nombre, 160);
+        return linea && (tipoFicha || nombre.length >= 3) ? { linea, tipo: tipoFicha, nombre, marca, modelo, unidades } : null;
+      })
+      .filter((e): e is NonNullable<typeof e> => e !== null);
 
     if (!tipo) throw new BadRequestException('Elige si eres empresa o propietario de equipo');
     if (nombre.length < 2) throw new BadRequestException('Escribe el nombre de tu empresa o tu nombre');
@@ -333,12 +382,24 @@ export class ContentService {
     if (!ciudad || !estado) throw new BadRequestException('Escribe tu municipio y estado');
     if (municipios.length === 0) throw new BadRequestException('Escribe al menos un municipio al que llegas');
     if (ofertas.length === 0) throw new BadRequestException('Elige al menos una cosa que ofreces');
-    if (mensaje.length < 10) throw new BadRequestException('Cuéntanos brevemente tu maquinaria o servicios');
+    if (equipos.length === 0) throw new BadRequestException('Marca al menos un equipo o servicio que tengas');
 
-    const ofrece = ofertas.map((o) => o.nombre).join(', ');
-    const categorias = [...new Set(ofertas.map((o) => o.categoria).filter((c): c is NonNullable<typeof c> => Boolean(c)))];
+    // Ya validado todo, nacen las categorías nuevas (así no quedan sueltas si
+    // el registro no pasa). Sus equipos apuntan al mismo objeto: toman el slug real.
+    for (const o of ofertas) {
+      if (!o.nueva) continue;
+      const c = await categoriaPropuesta(o.nombre);
+      o.slug = c.slug;
+      o.nombre = c.nombre;
+    }
+    const ofrece = ofertas.map((o) => (o.nueva ? `${o.nombre} (categoría nueva)` : o.nombre)).join(', ');
+    const categorias = ofertas.map((o) => o.slug);
     const fecha = new Date().toISOString().slice(0, 10);
-    const nota = `Solicitud desde el sitio (${fecha})\nTipo: ${tipo.nombre}\nOfrece: ${ofrece}\n\n${mensaje}`;
+    // Lo que declaró, también en la nota: así se lee de corrido al revisarlo.
+    const lista = equipos
+      .map((e) => `- ${e.unidades} × ${[e.nombre, e.marca, e.modelo].filter(Boolean).join(' ')}${e.tipo ? '' : ' (otro, por clasificar)'}`)
+      .join('\n');
+    const nota = `Solicitud desde el sitio (${fecha})\nTipo: ${tipo.nombre}\nOfrece: ${ofrece}\nEquipos:\n${lista}${mensaje ? `\n\n${mensaje}` : ''}`;
 
     const tel10 = telefono.replace(/\D/g, '').slice(-10);
     const pendientes = await prisma.providers.findMany({
@@ -389,6 +450,41 @@ export class ContentService {
         select: { id: true },
       });
       id = creado.id;
+    }
+
+    /*
+     * Sus equipos quedan a su nombre POR REVISAR (2026-10-26): no se ofrecen ni
+     * salen en Disponibilidad mientras sea solicitud. Al aceptarlo en el panel
+     * se publican los que traen tipo; los "otro" esperan a que MAQSER24 les
+     * ponga tipo. Si se descarta la solicitud, se borran.
+     */
+    const ahora = new Date();
+    const catPorSlug = new Map(
+      (await prisma.categories.findMany({ where: { cat_slug: { in: categorias } }, select: { id: true, cat_slug: true } })).map((c) => [c.cat_slug, c.id]),
+    );
+    for (const e of equipos) {
+      const categoryId = catPorSlug.get(e.linea.slug);
+      if (!categoryId) continue;
+      const nombreEquipo = [e.nombre, e.marca, e.modelo].filter(Boolean).join(' ').slice(0, 200);
+      await prisma.products.create({
+        data: {
+          user_id: 0,
+          provider_id: id,
+          category_id: categoryId,
+          tipo_id: e.tipo?.id ?? null,
+          name: nombreEquipo,
+          Marca: e.marca || null,
+          description: `Declarado al registrarse en la red (${fecha}).`,
+          cprice: 0,
+          // Maquinaria y transporte se rentan; materiales, triturados y asfalto se venden.
+          is_rental: e.linea.slug === 'maquinaria-pesada' || e.linea.slug === 'transporte-y-servicios-de-obra',
+          stock: e.unidades,
+          status: ESTADO_POR_REVISAR,
+          featured: 0,
+          created_at: ahora,
+          updated_at: ahora,
+        },
+      });
     }
 
     // Ubicación aproximada con la tabla de cabeceras (sin consultar el mapa:

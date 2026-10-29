@@ -9,6 +9,7 @@ import { revalidarSitio } from '../common/revalidar-sitio';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
 import { z } from 'zod';
+import { sanitizeRichHtml } from '../common/sanitize';
 import { zTelefono } from '../common/campos';
 import { prisma } from '@maqserv/db';
 import { productSlug, themeTokensSchema } from '@maqserv/config';
@@ -518,11 +519,21 @@ export class AdminCmsController {
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
+    // El HTML se limpia AL GUARDAR también (auditoría 2026-10-28): la página lo
+    // limpiaba al servirlo, pero la vista previa de Diseño lo pintaba tal cual.
+    const html = (v: string | undefined) => (v === undefined ? undefined : sanitizeRichHtml(v));
+    const datos = {
+      ...parsed.data,
+      descripcion: html(parsed.data.descripcion),
+      mision: html(parsed.data.mision),
+      vision: html(parsed.data.vision),
+      objetivos: html(parsed.data.objetivos),
+    };
     const existing = await prisma.inf_sitio.findFirst({ orderBy: { id: 'desc' } });
     if (existing) {
-      await prisma.inf_sitio.update({ where: { id: existing.id }, data: { ...parsed.data, updated_at: new Date() } });
+      await prisma.inf_sitio.update({ where: { id: existing.id }, data: { ...datos, updated_at: new Date() } });
     } else {
-      await prisma.inf_sitio.create({ data: { ...parsed.data, created_at: new Date(), updated_at: new Date() } });
+      await prisma.inf_sitio.create({ data: { ...datos, created_at: new Date(), updated_at: new Date() } });
     }
     return { ok: true };
   }

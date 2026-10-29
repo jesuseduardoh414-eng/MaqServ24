@@ -17,10 +17,9 @@ import {
 import { createReadStream, existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { prisma } from '@maqserv/db';
-import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, esLineaServicio, fichaDe, ligarProducto, renglonesDe, slugify, tarifasDe, tarifasPropuestas } from '@maqserv/config';
-import { margenAliadoPct } from '../common/platform-settings';
+import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, fichaDe, renglonesDe, slugify } from '@maqserv/config';
 import { coordenadasDe } from '../freight/direccion';
-import { borrarSubidas, mediaDir } from '../common/media';
+import { mediaDir } from '../common/media';
 import { borrarPrivado, esPrivado, moverPapelAPrivado, rutaDePrivado, tipoDePapel } from '../common/archivos-privados';
 import { disponibilidadDe } from '../catalog/availability';
 import { lista } from '../common/json-list';
@@ -29,13 +28,13 @@ import { zCorreo, zTelefono } from '../common/campos';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { QuoterService } from '../quoter/quoter.service';
 import { registrarAccion } from './audit';
-import { estadoDocumentos, estaVerificado, mesesEnRed, reemplazados, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
+import { estadoDocumentos, estaVerificado, mesesEnRed, papelesQueFaltan, reemplazados, DIAS_AVISO, TIPOS_DOC } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso, urgencia, type AvisoAliado } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial, desviacionRespuesta } from '../catalog/provider-history';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
 import { MailerService } from '../notifications/mailer.service';
-import { correoAccesoAliado, correoEquipoPublicado, correoEquipoRechazado } from '../notifications/email-templates';
-import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
+import { correoAccesoAliado, correoInvitacionAliado } from '../notifications/email-templates';
+import { ESTADO_CATEGORIA_PROPUESTA, ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { FreightService } from '../freight/freight.service';
 import { ubicarAliado } from '../providers/cobertura-aliado';
 import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incidents';
@@ -46,13 +45,76 @@ import { imageUrl } from '../catalog/images';
  *
  * Modelo del documento institucional, sección 15. Lo que este controlador NO
  * permite, a propósito: marcar a alguien como "verificado" a mano. El sello sale
- * del nivel más la vigencia de sus papeles (ver `provider-trust`), porque el
- * documento pide que el sello tenga un significado real y no sea decorativo.
+ * de sus papeles y su vigencia (ver `provider-trust`), porque el documento pide
+ * que el sello tenga un significado real y no sea decorativo.
  */
 
 // TIPOS_DOC vive en `provider-trust` (junto a las reglas que evalúan el
 // expediente): el portal del aliado también lo usa para renovar sus papeles.
+// Desde 2026-10-27 el panel solo pone 'preferente' o 'registrado'; los otros
+// dos se aceptan por los aliados que ya los tienen guardados.
 const NIVELES = ['registrado', 'validado', 'activo', 'preferente'] as const;
+
+/**
+ * INVITAR A LA RED (2026-10-27). La oficina escribe el nombre y el correo o
+ * WhatsApp de alguien, y le llega el enlace a "Regístrate como proveedor" con
+ * esos datos ya puestos. Lo que él llene entra como solicitud por revisar.
+ *
+ * No hay tabla de invitaciones (sin SQL): cada invitación queda en la bitácora
+ * del panel (`admin_audit`) y de ahí se lee la lista de quién no ha contestado.
+ * Se sabe que ya se registró porque aparece un aliado con su correo o su
+ * teléfono.
+ */
+const ACCION_INVITAR = 'aliado.invitar';
+const ACCION_QUITAR_INVITACION = 'aliado.invitar.quitar';
+
+const invitacionSchema = z.object({
+  nombre: z.string().trim().min(2, 'Escribe el nombre del aliado.').max(190),
+  contacto: z.string().trim().max(190).optional().nullable(),
+  correo: zCorreo().optional().nullable(),
+  telefono: zTelefono().optional().nullable(),
+  /** Por dónde sale: el correo lo manda la API; el WhatsApp lo abre el panel. */
+  por: z.enum(['correo', 'whatsapp']),
+});
+
+type DatosInvitacion = { por: 'correo' | 'whatsapp'; correo: string | null; tel: string | null; contacto: string | null };
+
+const diezDigitos = (t: string | null | undefined) => (t ?? '').replace(/\D/g, '').slice(-10);
+const correoNormal = (c: string | null | undefined) => (c ?? '').trim().toLowerCase();
+
+/** "por correo · correo: x@y.com · tel: 81… · contacto: Juan": legible en la bitácora y fácil de leer de vuelta. */
+function detalleInvitacion(d: DatosInvitacion): string {
+  return [`por ${d.por}`, d.correo ? `correo: ${d.correo}` : null, d.tel ? `tel: ${d.tel}` : null, d.contacto ? `contacto: ${d.contacto}` : null]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function leerInvitacion(detalle: string | null): DatosInvitacion {
+  const partes = (detalle ?? '').split(' · ');
+  const de = (k: string) => partes.find((p) => p.startsWith(`${k}: `))?.slice(k.length + 2).trim() || null;
+  return { por: partes[0] === 'por whatsapp' ? 'whatsapp' : 'correo', correo: de('correo'), tel: de('tel'), contacto: de('contacto') };
+}
+
+/** Quién es, para juntar las veces que se le invitó: su correo, si no su teléfono, si no su nombre. */
+const claveInvitado = (nombre: string | null, d: DatosInvitacion) =>
+  correoNormal(d.correo) || diezDigitos(d.tel) || correoNormal(nombre);
+
+/** El enlace al registro del sitio, con sus datos ya puestos. */
+function urlDeInvitacion(nombre: string, d: DatosInvitacion): string {
+  const base = process.env.SITE_URL ?? 'https://maqser24.com';
+  const q = new URLSearchParams({ invitacion: '1', nombre });
+  if (d.contacto) q.set('contacto', d.contacto);
+  if (d.correo) q.set('correo', d.correo);
+  if (d.tel) q.set('tel', d.tel);
+  return `${base}/proveedores?${q.toString()}`;
+}
+
+/** El aliado (de cualquier estado) que ya tiene ese correo o ese teléfono. */
+function aliadoCon<T extends { email: string | null; phone: string | null }>(provs: T[], correo: string | null, tel: string | null): T | null {
+  const c = correoNormal(correo);
+  const t = diezDigitos(tel);
+  return provs.find((p) => (c && correoNormal(p.email) === c) || (t.length === 10 && diezDigitos(p.phone) === t)) ?? null;
+}
 
 const providerSchema = z.object({
   name: z.string().min(2).max(190),
@@ -213,9 +275,8 @@ export class AdminProvidersController {
         name: p.name,
         level: p.level,
         activo: p.status === 1,
-        // Pierde el sello si con estos papeles ya no califica, PERO llegaría a
-        // calificar por nivel: si nunca estuvo verificado, no hay nada que perder.
-        pierdeSello: !estaVerificado(p.level, estado) && estaVerificado(p.level, 'al-dia'),
+        // Con estos papeles ya no tiene sello (vencido, o le falta un obligatorio).
+        pierdeSello: !estaVerificado(estado),
         serviciosActivos: enObra.get(p.id) ?? 0,
         documentos: docs,
         peor: peor?.urgencia ?? 'por-vencer',
@@ -235,6 +296,113 @@ export class AdminProvidersController {
           texto: textoAviso(d),
         })),
       }));
+  }
+
+  /** Invitar a alguien a registrarse (ver ACCION_INVITAR, arriba). */
+  @Post('invitar')
+  async invitar(@Body() body: unknown, @Req() req: AdminRequest) {
+    const parsed = invitacionSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
+    const d = parsed.data;
+    const datos: DatosInvitacion = { por: d.por, correo: d.correo?.trim() || null, tel: d.telefono?.trim() || null, contacto: d.contacto?.trim() || null };
+    if (d.por === 'correo' && !datos.correo) throw new BadRequestException('Escribe su correo para mandarle la invitación.');
+    if (d.por === 'whatsapp' && diezDigitos(datos.tel).length !== 10) throw new BadRequestException('Escribe su WhatsApp a 10 dígitos para mandarle la invitación.');
+
+    // A quien ya está no se le invita otra vez: se le dice dónde encontrarlo.
+    const provs = await prisma.providers.findMany({ select: { id: true, name: true, email: true, phone: true, status: true } });
+    const ya = aliadoCon(provs, datos.correo, datos.tel);
+    if (ya) {
+      throw new ConflictException(
+        ya.status === ESTADO_SOLICITUD_PROVEEDOR
+          ? `«${ya.name}» ya se registró: está en «Solicitudes de proveedores», arriba de la lista.`
+          : ya.status === 1
+            ? `«${ya.name}» ya está en la red con ese correo o teléfono.`
+            : `«${ya.name}» está dado de baja: ábrelo en la lista y reactívalo.`,
+      );
+    }
+
+    const url = urlDeInvitacion(d.nombre, datos);
+    let estado = 'whatsapp';
+    if (d.por === 'correo' && datos.correo) {
+      estado = await this.mailer.enviar({
+        kind: 'provider_invite',
+        to: datos.correo,
+        toName: datos.contacto ?? d.nombre,
+        ...correoInvitacionAliado({ nombre: d.nombre, contacto: datos.contacto, url }),
+      });
+    }
+    await registrarAccion(req, 'proveedores', ACCION_INVITAR, d.nombre, detalleInvitacion(datos));
+    return {
+      ok: true,
+      estado,
+      url,
+      mensaje:
+        d.por === 'whatsapp'
+          ? `Invitación lista para ${d.nombre}: mándala en el WhatsApp que se abrió. Cuando llene su registro te llega como solicitud.`
+          : estado === 'enviado'
+            ? `Invitación enviada a ${datos.correo}. Cuando llene su registro te llega como solicitud.`
+            : `El correo no salió (${estado}). Copia el enlace y mándaselo por WhatsApp.`,
+    };
+  }
+
+  /**
+   * Las invitaciones de los últimos 90 días que no han terminado en registro,
+   * la más reciente primero; las que sí, solo se cuentan.
+   */
+  @Get('invitaciones')
+  async invitaciones() {
+    const desde = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const [filas, quitadas, provs] = await Promise.all([
+      prisma.admin_audit.findMany({
+        where: { modulo: 'proveedores', accion: ACCION_INVITAR, created_at: { gte: desde } },
+        orderBy: { created_at: 'desc' },
+        take: 300,
+      }),
+      prisma.admin_audit.findMany({
+        where: { modulo: 'proveedores', accion: ACCION_QUITAR_INVITACION, created_at: { gte: desde } },
+        select: { detalle: true, created_at: true },
+      }),
+      prisma.providers.findMany({ select: { id: true, name: true, email: true, phone: true, status: true } }),
+    ]);
+
+    const veces = new Map<string, number>();
+    for (const f of filas) {
+      const k = claveInvitado(f.objetivo, leerInvitacion(f.detalle));
+      veces.set(k, (veces.get(k) ?? 0) + 1);
+    }
+    const vistos = new Set<string>();
+    const pendientes = [];
+    let registrados = 0;
+    for (const f of filas) {
+      const d = leerInvitacion(f.detalle);
+      const clave = claveInvitado(f.objetivo, d);
+      if (vistos.has(clave)) continue;
+      vistos.add(clave);
+      if (aliadoCon(provs, d.correo, d.tel)) { registrados++; continue; }
+      // Quitada de la lista después de su última invitación: ya no se enseña.
+      if (quitadas.some((q) => q.detalle === clave && q.created_at >= f.created_at)) continue;
+      pendientes.push({
+        clave,
+        nombre: f.objetivo ?? '',
+        contacto: d.contacto,
+        correo: d.correo,
+        telefono: d.tel,
+        por: d.por,
+        cuando: f.created_at.toISOString(),
+        veces: veces.get(clave) ?? 1,
+        url: urlDeInvitacion(f.objetivo ?? '', d),
+      });
+    }
+    return { pendientes, registrados };
+  }
+
+  /** "Ya no": quita a alguien de las invitaciones sin respuesta. */
+  @Post('invitaciones/quitar')
+  async quitarInvitacion(@Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({ clave: z.string().min(1).max(190), nombre: z.string().max(190).optional() }).safeParse(body);
+    if (!p.success) throw new BadRequestException('Falta a quién quitar.');
+    await registrarAccion(req, 'proveedores', ACCION_QUITAR_INVITACION, p.data.nombre ?? p.data.clave, p.data.clave);
+    return { ok: true };
   }
 
   @Get()
@@ -261,7 +429,7 @@ export class AdminProvidersController {
         },
         orderBy: { name: 'asc' },
       }),
-      prisma.categories.findMany({ select: { id: true, cat_slug: true, cat_name: true } }),
+      prisma.categories.findMany({ select: { id: true, cat_slug: true, cat_name: true, status: true } }),
     ]);
     // El nombre del tipo de cada máquina (2026-10-22): se ve en el expediente.
     const idsTipo = [...new Set(productos.map((e) => e.tipo_id).filter((t): t is number => t != null))];
@@ -269,13 +437,22 @@ export class AdminProvidersController {
       idsTipo.length ? (await prisma.products.findMany({ where: { id: { in: idsTipo } }, select: { id: true, name: true } })).map((t) => [t.id, t.name]) : [],
     );
     const catPorId = new Map(categorias.map((c) => [c.id, c]));
-    const nombreDeSlug = new Map(categorias.map((c) => [c.cat_slug, c.cat_name]));
+    // La que propuso el aliado y aún no se decide se lee «(nueva)» (2026-10-28).
+    const nombreDeSlug = new Map(categorias.map((c) => [c.cat_slug, c.status === ESTADO_CATEGORIA_PROPUESTA ? `${c.cat_name} (nueva)` : c.cat_name]));
     const hoy = new Date();
+    // Con sus reservas y mantenimiento (2026-10-26): sin confirmación periódica,
+    // el estado sale de los bloqueos, igual que en Disponibilidad.
+    const bloques = productos.length
+      ? await prisma.availability_blocks.findMany({
+          where: { product_id: { in: productos.map((e) => e.id) }, OR: [{ ends_on: null }, { ends_on: { gte: hoy } }] },
+          select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
+        })
+      : [];
     const equiposPor = new Map<number, Array<Record<string, unknown>>>();
     for (const e of productos) {
       const c = catPorId.get(e.category_id);
       const disp = disponibilidadDe(
-        { stock: e.stock, location: e.location, confirmedAt: e.availability_confirmed_at, blocks: [] },
+        { stock: e.stock, location: e.location, blocks: bloques.filter((b) => b.product_id === e.id) },
         hoy,
       );
       const fila = {
@@ -322,7 +499,9 @@ export class AdminProvidersController {
         notes: p.notes,
         status: p.status,
         docsStatus: docs,
-        verified: estaVerificado(p.level, docs),
+        verified: estaVerificado(docs),
+        // Qué obligatorio le falta para el sello (2026-10-27): ['fiscal', 'seguro'].
+        faltan: papelesQueFaltan(p.provider_documents),
         monthsInNetwork: mesesEnRed(p.joined_at),
         documentCount: p.provider_documents.length,
         productCount: suyos.filter((e) => !e.pending).length,
@@ -363,6 +542,13 @@ export class AdminProvidersController {
 
     await prisma.providers.update({ where: { id }, data: { status: 1, updated_at: new Date() } });
     await registrarAccion(req, 'proveedores', 'aceptar solicitud de proveedor', p.name);
+    // Los equipos que declaró al registrarse (2026-10-26) quedan publicados si
+    // traen tipo: son servicios, se cotizan con el tabulador y no llevan precio
+    // propio. Los "otro" siguen por revisar hasta que se les ponga tipo.
+    await prisma.products.updateMany({
+      where: { provider_id: id, status: ESTADO_POR_REVISAR, tipo_id: { not: null } },
+      data: { status: 1, availability_confirmed_at: new Date(), updated_at: new Date() },
+    });
 
     const ubicacion = await ubicarAliado(id, { buscarBase: true, geocodificar: (q) => this.freight.geocode(q) }).catch(() => null);
     let acceso: { estado: string; url: string; mensaje: string } | null = null;
@@ -640,7 +826,7 @@ export class AdminProvidersController {
   }
 
   @Patch(':id')
-  async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+  async update(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
     const parsed = providerSchema.partial().safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
     const d = parsed.data;
@@ -678,6 +864,13 @@ export class AdminProvidersController {
       },
     });
 
+    // El correo es a donde llega su enlace de acceso (entra como el aliado): su
+    // cambio queda en la bitácora con el antes y el después (2026-10-27, al
+    // poderse editar desde el expediente).
+    if (d.email !== undefined && !igual(d.email, existe.email)) {
+      await registrarAccion(req, 'proveedores', 'aliado.correo', existe.name, `${existe.email || 'sin correo'} → ${d.email || 'sin correo'}`);
+    }
+
     // Nueva dirección → se busca otra vez su base; solo nuevos municipios →
     // misma base, otro radio. Cambiar el nivel o el teléfono no toca nada de esto.
     const ubicacion = baseCambio || coberturaCambio
@@ -711,88 +904,9 @@ export class AdminProvidersController {
     return doc;
   }
 
-  /**
-   * PUBLICAR un equipo que el aliado ofreció desde su portal: pasa a activo y
-   * sale en el sitio. Se revisa (y se corrige en su ficha) antes de pulsar.
-   * La disponibilidad queda confirmada hoy: el aliado la acaba de declarar.
-   */
-  @Post('equipos/:productId/publicar')
-  async publicarEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
-    const e = await prisma.products.findUnique({
-      where: { id: productId },
-      select: { id: true, name: true, status: true, provider_id: true, tarifas: true, costo_aliado: true, price_unit: true, category_id: true },
-    });
-    if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
-    // PRECIO ÚNICO (2026-09-28): solo un PRODUCTO sale a la venta con costo + margen.
-    // Un servicio se cotiza con el tabulador; nunca se le deriva precio (QA 2026-09-28).
-    const cat = await prisma.categories.findUnique({ where: { id: e.category_id }, select: { cat_slug: true } });
-    const esServicio = esLineaServicio(cat?.cat_slug);
-
-    // Publicar directo = salir en el cotizador CON precio (2026-09-25). Si
-    // nadie abrió "Revisar y corregir", el precio al cliente sale del costo
-    // del aliado + el margen vigente; sin esto la máquina se recomendaba
-    // "sin precio" aunque el aliado sí dijo cuánto cobra.
-    let precios: { tarifas: Record<string, number>; cprice: number } | null = null;
-    if (!esServicio && Object.keys(tarifasDe(e.tarifas)).length === 0) {
-      const costo = tarifasDe(e.costo_aliado);
-      if (Object.keys(costo).length > 0) {
-        const tarifas = tarifasPropuestas(costo, await margenAliadoPct());
-        const principal = e.price_unit && tarifas[e.price_unit] ? e.price_unit : Object.keys(tarifas)[0];
-        precios = { tarifas, cprice: tarifas[principal] ?? 0 };
-      }
-    }
-
-    // Ya no se liga a un renglón del tabulador (2026-09-25): el cotizador
-    // guiado recomienda las máquinas publicadas. Además escribía en el
-    // tabulador desde el módulo de proveedores, que Red de Aliados puede
-    // abrir sin tener permiso de cotizador (QA 2026-09-25).
-    void body; void req;
-    await prisma.products.update({
-      where: { id: productId },
-      data: {
-        status: 1, availability_confirmed_at: new Date(), updated_at: new Date(),
-        ...(precios ? { tarifas: precios.tarifas as never, cprice: precios.cprice } : {}),
-      },
-    });
-    if (e.provider_id) {
-      const p = await prisma.providers.findUnique({ where: { id: e.provider_id }, select: { email: true, contact_name: true } });
-      if (p?.email) {
-        void this.mailer
-          .enviar({ kind: 'provider_offer_published', to: p.email, toName: p.contact_name, providerId: e.provider_id, ...correoEquipoPublicado({ contacto: p.contact_name, equipo: e.name }) })
-          .catch(() => undefined);
-      }
-    }
-    return { ok: true };
-  }
-
-  /**
-   * RECHAZAR con motivo: se le avisa al aliado por correo y la propuesta se
-   * borra (con su galería). Puede volver a ofrecerlo corregido.
-   */
-  @Post('equipos/:productId/rechazar')
-  async rechazarEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown) {
-    const motivo = z.object({ motivo: z.string().trim().min(4, 'Escribe el motivo: el aliado lo recibe por correo.').max(1000) }).safeParse(body);
-    if (!motivo.success) throw new BadRequestException(motivo.error.issues[0]?.message ?? 'Falta el motivo');
-    const e = await prisma.products.findUnique({ where: { id: productId }, select: { id: true, name: true, status: true, provider_id: true } });
-    if (!e || e.status !== ESTADO_POR_REVISAR) throw new NotFoundException('Ese equipo no está por revisar.');
-    // También se borran las fotos del disco (QA 2026-09-25: quedaban huérfanas).
-    const fotos = [
-      ...(await prisma.galleries.findMany({ where: { product_id: productId }, select: { photo: true } })).map((g) => g.photo),
-      (await prisma.products.findUnique({ where: { id: productId }, select: { photo: true } }))?.photo ?? null,
-    ];
-    await prisma.galleries.deleteMany({ where: { product_id: productId } });
-    await prisma.products.delete({ where: { id: productId } });
-    void borrarSubidas(fotos);
-    if (e.provider_id) {
-      const p = await prisma.providers.findUnique({ where: { id: e.provider_id }, select: { email: true, contact_name: true } });
-      if (p?.email) {
-        void this.mailer
-          .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: e.provider_id, ...correoEquipoRechazado({ contacto: p.contact_name, equipo: e.name, motivo: motivo.data.motivo }) })
-          .catch(() => undefined);
-      }
-    }
-    return { ok: true };
-  }
+  // Publicar y rechazar el equipo de un aliado se quitaron de aquí (2026-10-28):
+  // lo que es de un tipo cuenta solo y lo nuevo se decide en Inventario
+  // (admin-catalog.controller: nuevos-de-aliados, es-tipo, crear-tipo, no-lo-manejamos).
 
   @Delete('documents/:docId')
   async removeDocument(@Param('docId', ParseIntPipe) docId: number) {
@@ -837,8 +951,13 @@ export class AdminProvidersController {
    */
   @Delete(':id')
   async deactivate(@Param('id', ParseIntPipe) id: number) {
-    const existe = await prisma.providers.findUnique({ where: { id }, select: { id: true } });
+    const existe = await prisma.providers.findUnique({ where: { id }, select: { id: true, status: true } });
     if (!existe) throw new NotFoundException('Aliado no encontrado');
+    // Descartar una SOLICITUD borra lo que declaró al registrarse (2026-10-26):
+    // nunca fue suyo en la red, y si no, se quedaría "dado de baja" con equipos.
+    if (existe.status === ESTADO_SOLICITUD_PROVEEDOR) {
+      await prisma.products.deleteMany({ where: { provider_id: id, status: ESTADO_POR_REVISAR } });
+    }
     // Las máquinas del CRM también cuentan: son datos capturados que no se tiran.
     const [asignaciones, equipos, papeles, maquinasCrm] = await Promise.all([
       prisma.service_assignments.count({ where: { provider_id: id } }),

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { D } from './design-tokens';
+import { usePonerAlDia } from './usePonerAlDia';
 
 /**
  * CAMPANA DEL PANEL (2026-09-25).
@@ -21,6 +22,12 @@ import { D } from './design-tokens';
  * pestaña dice cuántos hay y, si el administrador lo permitió, sale el aviso
  * del escritorio aunque esté en otra pestaña. Además los contadores del menú
  * se refrescan (evento `adm:avisos`).
+ *
+ * La misma respuesta trae `cambio`, la hora del último guardado en todo el
+ * sistema (2026-10-26, API common/cambios.ts). Si avanzó —un cobro, un pago,
+ * algo que guardó otra persona o el cliente— la pantalla abierta se pone al
+ * día aunque no haya aviso, y se lanza `adm:cambios` para lo que se carga
+ * desde el navegador (contadores del menú, ficha de cotización).
  */
 
 interface Aviso {
@@ -34,7 +41,7 @@ interface Aviso {
   createdAt: string | null;
 }
 
-const VISIBLE_MS = 8_000;
+const VISIBLE_MS = 5_000;
 const OCULTA_MS = 20_000;
 
 const ICONO: Record<string, string> = {
@@ -48,6 +55,7 @@ const ICONO: Record<string, string> = {
   resena: 'ph-star',
   pregunta: 'ph-question',
   choque_reserva: 'ph-calendar-x',
+  mantenimiento: 'ph-wrench',
 };
 
 function hace(iso: string | null): string {
@@ -90,7 +98,9 @@ export function AvisosBell() {
   const [permiso, setPermiso] = useState<NotificationPermission | 'nada'>('nada');
   const ultimo = useRef(0);
   const cargado = useRef(false);
+  const cambio = useRef<number | null>(null);
   const caja = useRef<HTMLDivElement>(null);
+  const ponerAlDia = usePonerAlDia();
 
   const consultar = useCallback(async () => {
     try {
@@ -105,29 +115,49 @@ export function AvisosBell() {
       const despues = cargado.current ? ultimo.current : null;
       const r = await fetch(`/api/admin/avisos${despues !== null ? `?despues=${despues}` : ''}`, { cache: 'no-store' });
       if (!r.ok) return;
-      const d = (await r.json()) as { items: Aviso[]; unread: number; ultimo: number };
+      const d = (await r.json()) as { items: Aviso[]; unread: number; ultimo: number; cambio?: number };
       setUnread(d.unread);
+      // Solo cuenta si AVANZÓ respecto a lo ya visto en esta pestaña (la primera vuelta solo lo anota).
+      const visto = cambio.current;
+      const huboCambio = typeof d.cambio === 'number' && visto !== null && d.cambio > visto;
+      if (typeof d.cambio === 'number') cambio.current = Math.max(visto ?? 0, d.cambio);
+      const alDia = () => {
+        window.dispatchEvent(new Event('adm:cambios'));
+        ponerAlDia();
+      };
       if (despues === null) {
         if (!cargado.current) setAvisos(d.items);
         cargado.current = true;
         ultimo.current = Math.max(ultimo.current, d.ultimo);
+        if (huboCambio) alDia();
         return;
       }
       // Solo lo que de verdad es posterior a lo ya visto en esta pestaña.
       const nuevos = d.items.filter((n) => n.id > ultimo.current);
-      if (nuevos.length === 0) return;
+      if (nuevos.length === 0) {
+        if (huboCambio) alDia();
+        return;
+      }
       ultimo.current = Math.max(ultimo.current, d.ultimo);
       setAvisos((prev) => [...nuevos, ...prev.filter((p) => !nuevos.some((n) => n.id === p.id))].slice(0, 30));
       const nuevo = nuevos[0];
       sonar();
       setLetrero(nuevo);
       window.dispatchEvent(new Event('adm:avisos'));
+      /*
+       * La pantalla abierta se pone al día sola (2026-10-26): "el cliente ya
+       * aceptó, pero no cambia hasta que recargue". `refresh` vuelve a pedir
+       * los datos del servidor sin perder el filtro, la búsqueda ni el detalle
+       * abierto; lo que se está escribiendo queda igual (y si se está
+       * escribiendo, espera a que se salga del campo: usePonerAlDia).
+       */
+      ponerAlDia();
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
         const n = new Notification(nuevo.title, { body: nuevo.body ?? undefined, tag: `aviso-${nuevo.id}`, icon: '/favicon.ico' });
         n.onclick = () => { window.focus(); if (nuevo.link) router.push(nuevo.link); n.close(); };
       }
     } catch { /* sin red: se reintenta en la siguiente vuelta */ }
-  }, [router]);
+  }, [router, ponerAlDia]);
 
   // Vuelta periódica: más seguido con la pestaña a la vista.
   useEffect(() => {
@@ -151,6 +181,16 @@ export function AvisosBell() {
     const base = document.title.replace(/^\(\d+\)\s*/, '');
     document.title = unread > 0 ? `(${unread}) ${base}` : base;
   }, [unread, avisos]);
+
+  // Mi cuenta (2026-10-28) enseña el mismo conteo en su menú y abre esta campana desde ahí.
+  useEffect(() => {
+    const avisar = () => window.dispatchEvent(new CustomEvent('adm:avisos-estado', { detail: { unread } }));
+    const abrir = () => setAbierto(true);
+    avisar();
+    window.addEventListener('adm:avisos-pedir', avisar);
+    window.addEventListener('adm:avisos-abrir', abrir);
+    return () => { window.removeEventListener('adm:avisos-pedir', avisar); window.removeEventListener('adm:avisos-abrir', abrir); };
+  }, [unread]);
 
   useEffect(() => {
     if (!letrero) return;
@@ -202,7 +242,7 @@ export function AvisosBell() {
             style={{
               position: 'absolute', top: -5, right: -5, minWidth: 19, height: 19, padding: '0 5px', borderRadius: 999,
               background: D.bad, color: '#fff', fontSize: 11, fontWeight: 800, display: 'grid', placeItems: 'center',
-              border: '2px solid #0b0b0d',
+              border: '2px solid var(--adm-page)',
             }}
           >
             {unread > 99 ? '99+' : unread}
@@ -217,13 +257,13 @@ export function AvisosBell() {
           style={{
             position: 'absolute', right: 0, top: 48, width: 'min(400px, calc(100vw - 32px))', maxHeight: '70vh',
             display: 'flex', flexDirection: 'column', background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)',
-            borderRadius: 12, boxShadow: '0 24px 60px -20px rgba(0,0,0,.85)', zIndex: 900, overflow: 'hidden',
+            borderRadius: 12, boxShadow: '0 24px 60px -20px var(--adm-sombra)', zIndex: 900, overflow: 'hidden',
           }}
         >
           {/* Estilo del kit (2026-10-08): filas con línea fina, sin bloques de color; lo no leído lo marca el punto. */}
           <style>{`
             .av-item { transition: background .12s ease; }
-            .av-item:hover { background: rgba(255,255,255,0.03) !important; }
+            .av-item:hover { background: rgba(var(--adm-ink),0.03) !important; }
             .av-item:last-child { border-bottom: 0 !important; }
           `}</style>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minHeight: 50, padding: '10px 16px', borderBottom: '1px solid var(--adm-border)' }}>
@@ -244,7 +284,7 @@ export function AvisosBell() {
               onClick={() => void activarEscritorio()}
               style={{
                 display: 'flex', alignItems: 'flex-start', gap: 9, margin: '12px 12px 4px', padding: '9px 12px', borderRadius: 8,
-                border: '1px solid var(--adm-border-strong)', background: 'rgba(255,255,255,0.02)', color: 'var(--adm-text-2)',
+                border: '1px solid var(--adm-border-strong)', background: 'rgba(var(--adm-ink),0.02)', color: 'var(--adm-text-2)',
                 fontSize: 12.5, lineHeight: 1.5, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
               }}
             >
@@ -270,10 +310,10 @@ export function AvisosBell() {
                   style={{
                     width: '100%', display: 'flex', gap: 12, alignItems: 'flex-start', textAlign: 'left', padding: '12px 16px',
                     border: 'none', borderBottom: '1px solid var(--adm-border)', cursor: 'pointer', fontFamily: 'inherit',
-                    background: a.isRead ? 'transparent' : 'rgba(255,255,255,0.02)',
+                    background: a.isRead ? 'transparent' : 'rgba(var(--adm-ink),0.02)',
                   }}
                 >
-                  <span style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, display: 'grid', placeItems: 'center', border: '1px solid var(--adm-border)', background: 'rgba(255,255,255,0.03)', color: a.isRead ? 'var(--adm-muted)' : 'var(--adm-accent)' }}>
+                  <span style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, display: 'grid', placeItems: 'center', border: '1px solid var(--adm-border)', background: 'rgba(var(--adm-ink),0.03)', color: a.isRead ? 'var(--adm-muted)' : 'var(--adm-accent)' }}>
                     <i className={`ph ${ICONO[a.evento] ?? 'ph-bell'}`} aria-hidden style={{ fontSize: 16 }} />
                   </span>
                   <span style={{ minWidth: 0, flex: 1 }}>
@@ -297,7 +337,7 @@ export function AvisosBell() {
           style={{
             position: 'fixed', right: 20, bottom: 20, zIndex: 1100, width: 'min(380px, calc(100vw - 40px))',
             display: 'flex', gap: 12, alignItems: 'flex-start', textAlign: 'left', padding: '14px 16px', borderRadius: 12,
-            background: 'var(--adm-raised)', border: '1px solid var(--adm-border-strong)', boxShadow: '0 20px 50px -20px rgba(0,0,0,.85)',
+            background: 'var(--adm-raised)', border: '1px solid var(--adm-border-strong)', boxShadow: '0 20px 50px -20px var(--adm-sombra)',
             color: 'var(--adm-text)', cursor: 'pointer', fontFamily: 'inherit', animation: 'fadeIn .2s ease',
           }}
         >

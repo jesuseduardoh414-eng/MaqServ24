@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Modal } from '@/components/Modal';
 import { useRouter } from 'next/navigation';
@@ -25,6 +26,8 @@ export interface ClienteRow {
   industry: string | null;
   status: number;
   hasAccount: boolean;
+  /** La cuenta del sitio dueña de esta empresa; una cuenta puede tener varias (2026-10-23). */
+  account: { id: number; name: string; email: string; empresas: number } | null;
   /** "web": se registró o pidió desde el sitio. "panel": alta aquí o sólo cotizado por teléfono. */
   origin: 'web' | 'panel';
   sites: number;
@@ -55,13 +58,25 @@ function ChipOrigen({ c }: { c: Pick<ClienteRow, 'origin' | 'hasAccount'> }) {
     : <Chip tone="info" title="Pidió desde el sitio sin registrarse">Web</Chip>;
 }
 
-export function ClientsManager({ initial }: { initial: ClienteRow[] }) {
+export function ClientsManager({ initial, abrir }: { initial: ClienteRow[]; /** Abre esta empresa al entrar (?ver=). */ abrir?: number | null }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [origen, setOrigen] = useState<FiltroOrigen>('todos');
-  const [abierto, setAbierto] = useState<number | null>(null);
+  const [abierto, setAbierto] = useState<number | null>(abrir ?? null);
   const [creando, setCreando] = useState(false);
+
+  // Llegar con ?ver= (o saltar a otra empresa de la misma cuenta) abre esa
+  // ficha y la lleva a la vista, con los filtros en "todos" para que se vea.
+  useEffect(() => {
+    if (!abrir) return;
+    setFiltro('todos');
+    setOrigen('todos');
+    setQuery('');
+    setAbierto(abrir);
+    const t = setTimeout(() => document.getElementById(`cli-${abrir}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+    return () => clearTimeout(t);
+  }, [abrir]);
 
   // Dos filtros que se combinan (2026-10-15): si ya pidió, y de dónde vino.
   // Los conteos de cada uno respetan lo elegido en el otro.
@@ -73,8 +88,9 @@ export function ClientsManager({ initial }: { initial: ClienteRow[] }) {
     const base = initial.filter((c) => pasaPedido(c, filtro) && pasaOrigen(c, origen));
     const q = query.trim().toLowerCase();
     if (!q) return base;
+    // También por la cuenta: buscar a la persona encuentra todas sus empresas.
     return base.filter((c) =>
-      [c.name, c.email, c.rfc, c.industry, c.phone].some((v) => v?.toLowerCase().includes(q)),
+      [c.name, c.email, c.rfc, c.industry, c.phone, c.account?.name, c.account?.email].some((v) => v?.toLowerCase().includes(q)),
     );
   }, [initial, filtro, origen, query]);
 
@@ -107,7 +123,7 @@ export function ClientsManager({ initial }: { initial: ClienteRow[] }) {
       <PageHeader
         eyebrow={['1 · Recibir', 'Clientes']}
         title="Clientes y obras"
-        subtitle="Todos tus clientes. «Web»: se registró o pidió desde el sitio. «Panel»: lo diste de alta aquí o se le cotizó por teléfono."
+        subtitle="Las empresas que contratan y sus obras. Una cuenta del sitio puede tener varias empresas, y cada empresa varias obras. «Web»: viene del sitio. «Panel»: alta aquí o cotizada por teléfono."
         actions={<Btn variant="primary" icon="ph-plus" onClick={() => setCreando(true)}>Nuevo cliente</Btn>}
       />
 
@@ -148,7 +164,7 @@ export function ClientsManager({ initial }: { initial: ClienteRow[] }) {
         <SearchBox
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Nombre, correo, teléfono, RFC…"
+          placeholder="Empresa, cuenta, correo, teléfono, RFC…"
           aria-label="Buscar cliente"
           style={{ maxWidth: 420 }}
         />
@@ -193,7 +209,7 @@ export function ClientsManager({ initial }: { initial: ClienteRow[] }) {
         ) : filtrados.map((c) => {
           const open = abierto === c.id;
           return (
-            <div key={c.id} className="cli-item">
+            <div key={c.id} id={`cli-${c.id}`} className="cli-item">
               <button
                 type="button"
                 className="adm-trow cli-row"
@@ -206,6 +222,14 @@ export function ClientsManager({ initial }: { initial: ClienteRow[] }) {
                     <ChipOrigen c={c} />
                     {c.status === 0 ? <Chip tone="muted">Inactivo</Chip> : null}
                   </span>
+                  {/* De qué cuenta es: cuenta → empresas → obras se lee aquí. */}
+                  {c.account ? (
+                    <span className="adm-cell-sub adm-ellipsis" style={{ display: 'block' }}>
+                      <i className="ph ph-user-circle" aria-hidden style={{ marginRight: 5 }} />
+                      {c.account.name} · {c.account.email}
+                      {c.account.empresas > 1 ? ` · ${c.account.empresas} empresas` : ''}
+                    </span>
+                  ) : null}
                   {/* Solo en móvil: las columnas de cifras se esconden y su
                       contenido baja a esta línea. */}
                   <span className="adm-meta cli-meta-m">
@@ -243,7 +267,9 @@ interface Ficha {
   industry: string | null;
   notes: string | null;
   status: number;
-  account: { name: string; email: string; createdAt: string | null } | null;
+  account: { id: number; name: string; email: string; createdAt: string | null } | null;
+  /** Las demás empresas de la misma cuenta (2026-10-23). */
+  otherClients: Array<{ id: number; name: string; status: number; sites: number }>;
   origin: 'web' | 'panel';
   sites: Obra[];
   unassigned: Array<{ id: number; quoteNumber: string; category: string | null; total: number; serviceLabel: string | null; createdAt: string | null }>;
@@ -280,7 +306,7 @@ function FichaCliente({ clientId }: { clientId: number }) {
 
   // La ficha se abre debajo de su fila, dentro del mismo panel: un fondo un
   // punto más claro la separa de la lista sin otra caja alrededor.
-  const zona = { padding: '16px 20px 20px', background: 'rgba(255,255,255,0.015)' };
+  const zona = { padding: '16px 20px 20px', background: 'rgba(var(--adm-ink),0.015)' };
 
   if (cargando) return <div style={{ ...zona, fontSize: 13, color: 'var(--adm-muted)' }}>Cargando obras…</div>;
   if (!ficha) return <div style={zona}><Note tone="bad">No se pudo cargar la ficha.</Note></div>;
@@ -313,8 +339,20 @@ function FichaCliente({ clientId }: { clientId: number }) {
           {ficha.account ? (
             <div style={{ color: 'var(--adm-muted)' }}>
               <i className="ph ph-user-circle" aria-hidden style={{ marginRight: 6 }} />
-              Cuenta del sitio: <span style={{ color: 'var(--adm-text)' }}>{ficha.account.name}</span> · <span className="adm-mono">{ficha.account.email}</span>
+              Cuenta del sitio: <Link href={`/usuarios/${ficha.account.id}`} className="adm-link">{ficha.account.name}</Link> · <span className="adm-mono">{ficha.account.email}</span>
               {ficha.account.createdAt ? ` · se registró el ${fecha(ficha.account.createdAt)}` : ''}
+              {ficha.otherClients.length > 0 ? (
+                <div style={{ marginTop: 4 }}>
+                  También pide para:{' '}
+                  {ficha.otherClients.map((o, i) => (
+                    <span key={o.id}>
+                      {i > 0 ? ' · ' : ''}
+                      <Link href={`/clientes?ver=${o.id}`} className="adm-link">{o.name}</Link>
+                      <span style={{ color: 'var(--adm-faint)' }}> ({o.sites} obra{o.sites === 1 ? '' : 's'}{o.status === 0 ? ', inactiva' : ''})</span>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : (
             <div style={{ color: 'var(--adm-faint)' }}>
@@ -349,16 +387,17 @@ function FichaCliente({ clientId }: { clientId: number }) {
       {ficha.unassigned.length > 0 ? (
         <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--adm-border)' }}>
           <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', marginBottom: 8 }}>
-            {/* No se esconden: son historial del cliente y alguien tiene que
-                poder moverlas a su obra cuando se sepa cuál era. */}
-            Solicitudes sin obra (<span className="adm-num">{ficha.unassigned.length}</span>) — anteriores a las obras o sin dirección
+            {/* Desde el 2026-10-23 toda solicitud nueva exige obra: aquí solo
+                quedan viejas. No se esconden: son historial del cliente y hay
+                que poder moverlas a su obra. Sin ninguna, no se pinta nada. */}
+            Solicitudes sin obra (<span className="adm-num">{ficha.unassigned.length}</span>) — de antes de que la obra fuera obligatoria: muévelas a su obra
           </div>
           <div style={{ display: 'grid', gap: 6 }}>
             {ficha.unassigned.slice(0, 12).map((q) => (
               <div key={q.id} style={{ display: 'flex', gap: 12, fontSize: 13, flexWrap: 'wrap', alignItems: 'center' }}>
                 <span className="adm-mono" style={{ color: 'var(--adm-faint)', minWidth: 112 }}>{q.quoteNumber}</span>
-                <span style={{ color: 'var(--adm-muted)' }}>{q.category ?? 'sin línea'}</span>
-                <span className="adm-num" style={{ color: 'var(--adm-text)' }}>{money(q.total)}</span>
+                <span style={{ color: 'var(--adm-muted)' }}>{q.category ?? 'Formulario'}</span>
+                <span className="adm-num" style={{ color: q.total > 0 ? 'var(--adm-text)' : 'var(--adm-faint)' }}>{q.total > 0 ? money(q.total) : 'sin precio'}</span>
                 {ficha.sites.length > 0 ? (
                   <AdminSelect
                     size="sm"

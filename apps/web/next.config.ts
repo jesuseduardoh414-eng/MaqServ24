@@ -140,7 +140,13 @@ const nextConfig: NextConfig = {
       {
         source: '/((?!vista-previa).*)',
         headers: [
-          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'" },
+          /*
+           * CSP (auditoría 2026-10-28): sin plugins (object-src), sin cambiar la
+           * base de los enlaces y sin formularios hacia otros sitios. No se limita
+           * script-src: Google Tag Manager carga etiquetas de terceros y la
+           * analítica dejaría de medir; eso se cierra con nonce, probado en producción.
+           */
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'" },
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

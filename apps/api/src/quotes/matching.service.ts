@@ -179,7 +179,7 @@ export class MatchingService {
         name: a.name,
         slug: a.slug,
         level: a.level,
-        verified: estaVerificado(a.level, docs),
+        verified: estaVerificado(docs),
         coverage: lista(a.coverage),
         lat: a.lat != null ? Number(a.lat) : null,
         lng: a.lng != null ? Number(a.lng) : null,

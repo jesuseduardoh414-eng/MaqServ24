@@ -1,6 +1,7 @@
 'use server';
 
 import type { ReactNode } from 'react';
+import sanitizeHtml from 'sanitize-html';
 import { themeSchema, themeToCss, VISTAS_PREVIA, type BorradorVistaPrevia, type Theme } from '@maqserv/config';
 import { getTheme } from '@/lib/theme';
 import { getCategories } from '@/lib/api';
@@ -22,6 +23,26 @@ import { VistaQuienesSomos } from '../quienes-somos/vista';
 import { PaginaCatalogo } from '../productos/catalogo';
 
 export type ResultadoVistaPrevia = { ok: true; nodo: ReactNode } | { ok: false; error: string };
+
+/**
+ * El HTML del borrador se limpia igual que la página pública (auditoría
+ * 2026-10-28): se pintaba tal cual, y un `<img onerror>` guardado en Quiénes
+ * somos corría en el dominio del sitio al abrir la vista previa. Mismas
+ * etiquetas que `sanitizeRichHtml` de la API.
+ */
+function limpio(html: string | null | undefined): string | null {
+  if (!html) return html ?? null;
+  return sanitizeHtml(html, {
+    allowedTags: [
+      'p', 'br', 'hr', 'b', 'strong', 'i', 'em', 'u', 's', 'sub', 'sup', 'small', 'span', 'div',
+      'h2', 'h3', 'h4', 'h5', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre', 'a',
+      'img', 'figure', 'figcaption', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    ],
+    allowedAttributes: { a: ['href', 'title', 'target', 'rel'], img: ['src', 'alt', 'width', 'height', 'loading'], th: ['colspan', 'rowspan'], td: ['colspan', 'rowspan'] },
+    allowedSchemes: ['http', 'https', 'mailto', 'tel'],
+    disallowedTagsMode: 'discard',
+  });
+}
 
 /**
  * Pinta UNA sección o página del sitio con los cambios sin publicar del panel.
@@ -96,7 +117,14 @@ export async function pintarVistaPrevia(b: BorradorVistaPrevia): Promise<Resulta
       contenido = await PaginaCatalogo({ sp: {}, kind: 'servicio', tema: theme, marco: false });
       break;
     case 'pagina.quienes-somos':
-      contenido = <VistaQuienesSomos theme={theme} info={datos.infSitio ?? null} allReasons={datos.razones ?? []} marco={false} />;
+      contenido = (
+        <VistaQuienesSomos
+          theme={theme}
+          info={datos.infSitio ? { ...datos.infSitio, descripcion: limpio(datos.infSitio.descripcion), mision: limpio(datos.infSitio.mision), vision: limpio(datos.infSitio.vision), objetivos: limpio(datos.infSitio.objetivos) } : null}
+          allReasons={datos.razones ?? []}
+          marco={false}
+        />
+      );
       break;
     case 'sitio.footer':
       contenido = <SiteFooter theme={theme} />;

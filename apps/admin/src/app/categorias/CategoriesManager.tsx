@@ -1,6 +1,7 @@
 'use client';
 
 import { Modal } from '@/components/Modal';
+import { CategoriasNuevas } from './CategoriasNuevas';
 import { useMemo, useRef, useState } from 'react';
 import {
   Bar, Btn, EmptyState, FormField, IconBtn, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, Switch, Thumb, Toast, Toolbar,
@@ -254,6 +255,9 @@ export function CategoriesManager({ initial }: { initial: CategoryRow[] }) {
           hintTone={stats.vacias > 0 ? 'warn' : undefined}
         />
       </Stats>
+
+      {/* Las que escribieron los aliados en «Otra: no está en la lista» (2026-10-28): se deciden aquí. */}
+      <CategoriasNuevas onCambio={() => void reload()} />
 
       <Toolbar end={`${rows.length} de ${stats.total}`}>
         <SearchBox value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar categoría…" aria-label="Buscar categoría" />

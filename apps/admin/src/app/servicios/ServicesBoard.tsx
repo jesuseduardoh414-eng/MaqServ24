@@ -8,17 +8,19 @@ import {
 } from '@/components/ui';
 import { Incidencias, VentanaFormulario } from './Incidencias';
 import { OperadorServicio } from './OperadorServicio';
+import { COLOR_ETAPA, MapaServicios, enCaminoDe, useRastreo, type Rastreo } from './UnidadesEnCamino';
 import { useRouter } from 'next/navigation';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
-import { pedirTexto } from '@/components/Dialogos';
+import { confirmar, pedirTexto } from '@/components/Dialogos';
 
 /**
  * TABLERO DE OPERACIONES.
  *
  * Está armado alrededor de una sola pregunta: ¿qué hay que empujar hoy? Por eso
  * los cerrados y cancelados NO salen por defecto —el archivo es otra cosa— y
- * cada servicio muestra su siguiente paso como botón, no como un selector que
- * obligue a saberse los estados de memoria.
+ * cada servicio muestra como botón solo lo que le toca a MAQSER24: buscarle
+ * aliado y cerrarlo. El avance del día lo reportan el aliado y su operador
+ * (2026-10-23); aquí solo se corrige, si hace falta.
  */
 
 export interface ServicioRow {
@@ -35,6 +37,9 @@ export interface ServicioRow {
    */
   folio?: string | null;
   address: string | null;
+  /** La obra ("Torre Valle · Monterrey") y la máquina, para la tarjeta corta (2026-10-26). */
+  obra?: string | null;
+  equipo?: string | null;
   state: string;
   stateLabel: string;
   stateHint: string;
@@ -82,20 +87,24 @@ const ESTADO_ASIGNACION: Record<string, { texto: string; tono: Tone }> = {
   aceptado: { texto: 'Aceptó', tono: 'ok' },
   rechazado: { texto: 'Rechazó', tono: 'bad' },
   retirado: { texto: 'Se retiró', tono: 'muted' },
-  // Oferta automática (2026-10-15): otro aliado aceptó primero.
+  // Se le ofreció a varios (2026-10-15): otro aliado aceptó primero.
   tomado: { texto: 'Lo tomó otro', tono: 'muted' },
 };
 
 /** Estados en los que ya hay aliado trabajando (o a punto de salir). */
 const EN_OPERACION = ['asignado', 'en_traslado', 'en_sitio', 'en_curso'];
 
+/** El motivo con el que la API marca al aliado que se bajó a medio servicio (catalog/provider-history.ts). */
+const MOTIVO_SE_BAJO = 'Se bajó del servicio';
+
 const aliados = (n: number) => `${n} ${n === 1 ? 'aliado' : 'aliados'}`;
 const nombres = (l: ServicioRow['assignments']) => l.map((a) => a.provider).join(', ');
 
 /**
- * A CUÁNTOS SE LE MANDÓ Y EN QUÉ VA (2026-10-19). Con la oferta automática un
- * servicio sale a varios aliados a la vez (hasta cinco); sin este resumen
- * había que contar renglones para saber si alguien ya la tomó.
+ * A CUÁNTOS SE LE MANDÓ Y EN QUÉ VA (2026-10-19). Con "Mandar a todos"
+ * (2026-10-23; antes la oferta automática) un servicio sale a varios aliados a
+ * la vez; sin este resumen había que contar renglones para saber si alguien ya
+ * la tomó.
  *
  * `estado` es lo que va con color; `detalle` lo que sigue, que puede llevar
  * nombres y tiene que poder partirse en el teléfono. `corto` es para el
@@ -174,8 +183,19 @@ function fecha(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export function ServicesBoard({ initial, historial = false, enCamino }: { initial: ServicioRow[]; historial?: boolean; /** Las unidades en traslado y dónde van (2026-10-14), arriba de todo. */ enCamino?: React.ReactNode }) {
+export function ServicesBoard({ initial, historial = false, rastreo = null }: {
+  initial: ServicioRow[];
+  historial?: boolean;
+  /** El Mapa de servicios (2026-10-26): va entre los números y las tarjetas; null en el historial. */
+  rastreo?: Rastreo | null;
+}) {
   const router = useRouter();
+  // El mapa y la línea "faltan N km" de cada tarjeta se actualizan solos.
+  const { datos: enVivo, ahora } = useRastreo(rastreo);
+  const unidadDe = useMemo(() => new Map((enVivo?.unidades ?? []).map((u) => [u.quoteId, u])), [enVivo]);
+  /** Tarjetas con el detalle abierto (dirección, teléfono del cliente, importe, a quién se ofreció). */
+  const [detalle, setDetalle] = useState<Set<number>>(new Set());
+  const verDetalle = (id: number) => setDetalle((d) => { const n = new Set(d); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const [filtro, setFiltro] = useState('');
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -281,6 +301,87 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
     }
   }
 
+  /**
+   * A quién se le mandó y en qué va; luego cada aliado. A los que se les
+   * retiró porque otro la tomó ya van en el resumen, con nombre.
+   */
+  function aliadosDe(s: ServicioRow, oferta: ReturnType<typeof resumenOferta>) {
+    return (
+      <div style={{ marginTop: 12, paddingTop: 2, borderTop: '1px solid var(--adm-border)' }}>
+        <div className="srv-oferta">
+          <i className="ph ph-paper-plane-tilt" aria-hidden />
+          <span>
+            <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{oferta.mandada}</span>
+            {' · '}
+            <StatusText tone={oferta.tono}>{oferta.estado}</StatusText>
+            {oferta.detalle ? <> {oferta.detalle}</> : null}
+          </span>
+        </div>
+        {s.assignments.filter((a) => a.state !== 'tomado').map((a) => {
+          const e = ESTADO_ASIGNACION[a.state] ?? { texto: a.state, tono: 'muted' as Tone };
+          return (
+            <div key={a.id} className="srv-asig">
+              <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '2px 10px', flexWrap: 'wrap', fontSize: 13.5 }}>
+                <span style={{ fontWeight: 600, color: 'var(--adm-text)' }}>{a.provider}</span>
+                <StatusText tone={e.tono}>{e.texto}</StatusText>
+                {a.reason ? <span style={{ color: 'var(--adm-muted)', fontSize: 12.5 }}>· {a.reason}</span> : null}
+                {a.phone ? (
+                  <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <i className="ph ph-phone" aria-hidden style={{ color: 'var(--adm-muted)' }} />
+                    {a.phone}
+                  </a>
+                ) : null}
+              </div>
+              {a.state === 'propuesto' ? (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Btn size="sm" icon="ph-check" onClick={() => responderAliado(a.id, 'aceptado')}>Aceptó</Btn>
+                  <Btn
+                    size="sm"
+                    variant="danger"
+                    icon="ph-x"
+                    onClick={async () => {
+                      // Por qué rechazó es el dato que dice si la red
+                      // alcanza para esa zona; sin él solo queda un "no".
+                      const r = await pedirTexto({
+                        titulo: '¿Por qué no puede?',
+                        mensaje: 'Sirve para saber qué le falta a la red en esa zona. Puedes dejarlo en blanco.',
+                        multilinea: true,
+                        confirmar: 'Marcar que no puede',
+                      });
+                      if (r !== null) responderAliado(a.id, 'rechazado', r || undefined);
+                    }}
+                  >
+                    No puede
+                  </Btn>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /** El aliado se bajó a medio servicio: vuelve a Por asignar y se abre "Buscar otro aliado" (2026-10-26). */
+  async function seBajo(s: ServicioRow, nota: string | null) {
+    setOcupado(s.id);
+    setError(null);
+    const r = await fetch(`/api/admin/services/${s.id}/se-bajo`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nota }),
+    }).catch(() => null);
+    setOcupado(null);
+    if (!r?.ok) {
+      setError(((await r?.json().catch(() => null)) as { message?: string } | null)?.message ?? 'No se pudo registrar. Intenta otra vez.');
+      return;
+    }
+    router.refresh();
+    setAsignando({
+      ...s,
+      state: 'por_asignar',
+      assignments: s.assignments.map((a) => (a.state === 'aceptado' ? { ...a, state: 'retirado', reason: MOTIVO_SE_BAJO } : a)),
+    });
+  }
+
   async function responderAliado(asignacionId: number, state: string, reason?: string) {
     setError(null);
     const r = await fetch(`/api/admin/services/asignaciones/${asignacionId}`, {
@@ -304,6 +405,14 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
         .srv-asig { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--adm-border); }
         .srv-asig:last-child { border-bottom: 0; padding-bottom: 0; }
         .srv-acciones { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--adm-border); }
+        .srv-quien { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-top: 10px; }
+        /* Color de la etapa (2026-10-26): el mismo del mapa, en el borde y en la etiqueta. */
+        .srv-card { border-left: 3px solid var(--c) !important; }
+        .srv-etapa { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); }
+        .srv-etapa::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+        .srv-camino { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--adm-text); font-variant-numeric: tabular-nums; }
+        .srv-camino i { color: var(--etapa-camino); }
+        .srv-detalle { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--adm-border); }
         .srv-oferta { display: flex; align-items: baseline; gap: 8px; padding: 10px 0 4px; font-size: 13px; color: var(--adm-muted); line-height: 1.5; }
         .srv-oferta i { flex: none; position: relative; top: 2px; }
         .srv-doc { padding: 12px 16px; border: 1px dashed var(--adm-border); border-radius: 12px; }
@@ -329,8 +438,6 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
         }
       />
 
-      {enCamino}
-
       <Stats>
         <Stat label="Servicios" icon="ph-truck" tone="accent" value={cuenta.total} hint={historial ? 'con cerrados y cancelados' : 'en curso'} />
         <Stat
@@ -350,6 +457,8 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
           hint="terminados, falta el cierre"
         />
       </Stats>
+
+      {enVivo && (enVivo.unidades.length + (enVivo.activos?.length ?? 0) + (enVivo.porAsignar?.length ?? 0) > 0) ? <MapaServicios datos={enVivo} ahora={ahora} /> : null}
 
       <Toolbar end={`${filtrados.length} de ${initial.length}`}>
         <SearchBox
@@ -392,112 +501,84 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
           const esperando = s.assignments.filter((a) => a.state === 'propuesto');
           const alterno = acciones[s.id];
           const oferta = resumenOferta(s);
+          const unidad = s.state === 'en_traslado' ? unidadDe.get(s.id) : undefined;
+          const camino = unidad ? enCaminoDe(unidad, ahora) : null;
           const hermanos = s.folio ? grupos.get(s.folio) : undefined;
 
           return (
             <Fragment key={s.id}>
             {hermanos?.[0].id === s.id ? <EncabezadoCotizacion folio={s.folio!} servicios={hermanos} /> : null}
-            <article className={`adm-card srv-card${hermanos ? ' srv-en-grupo' : ''}`}>
+            <article className={`adm-card srv-card${hermanos ? ' srv-en-grupo' : ''}`} style={{ '--c': COLOR_ETAPA[s.state] ?? 'var(--adm-border)' } as React.CSSProperties}>
+              {/* TARJETA CORTA (2026-10-26): obra, máquina, operador y teléfono. Lo demás, en "Ver detalle". */}
               <div className="srv-top">
                 <div style={{ minWidth: 0, flex: '1 1 300px' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '2px 10px', flexWrap: 'wrap' }}>
-                    <span className="adm-cell-title" style={{ fontSize: 15 }}>{s.client}</span>
+                    <span className="adm-cell-title" style={{ fontSize: 15 }}>{s.obra ?? s.address ?? 'Obra sin nombre'}</span>
+                    <span style={{ fontSize: 13, color: 'var(--adm-muted)' }}>{s.client}</span>
                     <span className="adm-mono" style={{ fontSize: 12, color: 'var(--adm-faint)' }}>{s.quoteNumber}</span>
                   </div>
-                  <div className="adm-cell-sub" style={{ marginTop: 3 }}>
-                    {s.categoryName ?? s.category ?? 'Sin línea de servicio'}
-                    {s.address ? ` · ${s.address}` : ''}
-                    {s.phone ? <> · <span className="adm-mono">{s.phone}</span></> : null}
+                  <div className="adm-cell-sub" style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <i className="ph-bold ph-tractor" aria-hidden style={{ color: COLOR_ETAPA[s.state] ?? 'var(--adm-muted)' }} />
+                    {s.equipo ?? s.categoryName ?? s.category ?? 'Sin equipo'}
                   </div>
                 </div>
 
-                <div className="srv-precio" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
-                  <StatusText tone={tono}>{s.stateLabel}</StatusText>
-                  <span className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>{money(s.total)}</span>
+                <div className="srv-precio" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <span className="srv-etapa" style={{ '--c': COLOR_ETAPA[s.state] ?? 'var(--adm-accent)' } as React.CSSProperties}>{s.stateLabel}</span>
+                  {camino ? <span className="srv-camino"><i className="ph-bold ph-navigation-arrow" aria-hidden />{camino.texto}</span> : null}
                 </div>
               </div>
 
-              {/* Barra de avance: dice de un vistazo qué tan lejos va sin
-                  obligar a leer el nombre del estado. */}
-              <div style={{ margin: '12px 0 6px' }}>
-                <Bar pct={Math.round(s.progress * 100)} tone={tono} label={`Avance: ${s.stateLabel}`} />
-              </div>
-              <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>{s.stateHint}</div>
-
-              {/* Aliados: primero a cuántos se le mandó y en qué va; luego cada
-                  uno. A los que se les retiró porque otro la tomó ya van en el
-                  resumen, con nombre: un renglón por cada uno solo estorbaba. */}
-              {s.assignments.length > 0 ? (
-                <div style={{ marginTop: 12, paddingTop: 2, borderTop: '1px solid var(--adm-border)' }}>
-                  <div className="srv-oferta">
-                    <i className="ph ph-paper-plane-tilt" aria-hidden />
-                    <span>
-                      <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{oferta.mandada}</span>
-                      {' · '}
-                      <StatusText tone={oferta.tono}>{oferta.estado}</StatusText>
-                      {oferta.detalle ? <> {oferta.detalle}</> : null}
+              {/* Quién la lleva: el operador y su teléfono; sin operador, el aliado y el suyo. */}
+              {aceptado.length > 0 && EN_OPERACION.includes(s.state) ? (
+                <div className="srv-quien">
+                  <OperadorServicio servicioId={s.id} operador={s.operator ?? null} />
+                  {!s.operator ? aceptado.map((a) => (
+                    <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                      <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{a.provider}</span>
+                      {a.phone ? <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5 }}><i className="ph ph-phone" aria-hidden /> {a.phone}</a> : null}
                     </span>
-                  </div>
-                  {s.assignments.filter((a) => a.state !== 'tomado').map((a) => {
-                    const e = ESTADO_ASIGNACION[a.state] ?? { texto: a.state, tono: 'muted' as Tone };
-                    return (
-                      <div key={a.id} className="srv-asig">
-                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '2px 10px', flexWrap: 'wrap', fontSize: 13.5 }}>
-                          <span style={{ fontWeight: 600, color: 'var(--adm-text)' }}>{a.provider}</span>
-                          <StatusText tone={e.tono}>{e.texto}</StatusText>
-                          {a.reason ? <span style={{ color: 'var(--adm-muted)', fontSize: 12.5 }}>· {a.reason}</span> : null}
-                          {a.phone ? (
-                            <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                              <i className="ph ph-phone" aria-hidden style={{ color: 'var(--adm-muted)' }} />
-                              {a.phone}
-                            </a>
-                          ) : null}
-                        </div>
-                        {a.state === 'propuesto' ? (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <Btn size="sm" icon="ph-check" onClick={() => responderAliado(a.id, 'aceptado')}>Aceptó</Btn>
-                            <Btn
-                              size="sm"
-                              variant="danger"
-                              icon="ph-x"
-                              onClick={async () => {
-                                // Por qué rechazó es el dato que dice si la red
-                                // alcanza para esa zona; sin él solo queda un "no".
-                                const r = await pedirTexto({
-                                  titulo: '¿Por qué no puede?',
-                                  mensaje: 'Sirve para saber qué le falta a la red en esa zona. Puedes dejarlo en blanco.',
-                                  multilinea: true,
-                                  confirmar: 'Marcar que no puede',
-                                });
-                                if (r !== null) responderAliado(a.id, 'rechazado', r || undefined);
-                              }}
-                            >
-                              No puede
-                            </Btn>
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                  )) : null}
+                </div>
+              ) : null}
+              {camino?.alertas.length ? (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {camino.alertas.map((a) => <Chip key={a.texto} tone={a.tono} title={a.titulo}>{a.texto}</Chip>)}
                 </div>
               ) : null}
 
-              {/* Sugeridos (2026-10-05): quién tiene publicado el equipo pedido.
-                  Se anotaba en el historial pero aquí, donde se asigna, no se veía. */}
+              {/* Sin aliado todavía: a quién se le mandó y en qué va (aquí sí hay que actuar). */}
+              {aceptado.length === 0 && s.assignments.length > 0 ? aliadosDe(s, oferta) : null}
+
+              {/* Sugeridos (2026-10-05): quién tiene publicado el equipo pedido. */}
               {s.suggested && s.assignments.length === 0 ? (
                 <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
                   Sugeridos (tienen el equipo publicado): <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{s.suggested}</span>
                 </div>
               ) : null}
 
-              {/* El operador: ya con aliado y mientras la unidad no termina (2026-10-15). */}
-              {aceptado.length > 0 && ['asignado', 'en_traslado', 'en_sitio', 'en_curso'].includes(s.state) ? (
-                <div style={{ marginTop: 10 }}><OperadorServicio servicioId={s.id} operador={s.operator ?? null} /></div>
-              ) : null}
-
               {s.closed ? (
                 <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
                   Cierre: <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{s.closed}</span> · {fecha(s.closedAt)}
+                </div>
+              ) : null}
+
+              {/* Ver detalle: lo que ya no va a la vista, para cuando haga falta. */}
+              {detalle.has(s.id) ? (
+                <div className="srv-detalle">
+                  <div style={{ margin: '2px 0 6px' }}>
+                    <Bar pct={Math.round(s.progress * 100)} tone={tono} label={`Avance: ${s.stateLabel}`} />
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>{s.stateHint}</div>
+                  <div className="adm-cell-sub" style={{ marginTop: 8 }}>
+                    {s.categoryName ?? s.category ?? 'Sin línea de servicio'}
+                    {s.address ? ` · ${s.address}` : ''}
+                    {s.phone ? <> · Cliente <span className="adm-mono">{s.phone}</span></> : null}
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 13, color: 'var(--adm-text-2)' }}>
+                    Importe: <span className="adm-num" style={{ fontWeight: 600, color: 'var(--adm-text)' }}>{money(s.total)}</span>
+                  </div>
+                  {aceptado.length > 0 && s.assignments.length > 0 ? aliadosDe(s, oferta) : null}
                 </div>
               ) : null}
 
@@ -521,11 +602,13 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
 
               {/* Acciones */}
               <div className="srv-acciones">
-                {(s.state === 'por_asignar' || esperando.length === 0) && aceptado.length === 0 ? (
-                  <Btn size="sm" icon="ph-magnifying-glass" onClick={() => setAsignando(s)}>Buscar aliado</Btn>
-                ) : (
-                  <Btn size="sm" icon="ph-user-plus" onClick={() => setAsignando(s)}>Sumar otro aliado</Btn>
-                )}
+                {/* Buscar aliado solo mientras nadie lo atiende (2026-10-26): ya con aliado no
+                    se suma otro; si el que tenía se bajó, vuelve a salir como "Buscar otro aliado". */}
+                {aceptado.length === 0 && !['terminado', 'cerrado', 'cancelado'].includes(s.state) ? (
+                  <Btn size="sm" icon="ph-magnifying-glass" onClick={() => setAsignando(s)}>
+                    {s.assignments.some((a) => a.reason === MOTIVO_SE_BAJO) ? 'Buscar otro aliado' : 'Buscar aliado'}
+                  </Btn>
+                ) : null}
 
                 {/*
                   Levantar una incidencia tiene que costar tres clics: si cuesta
@@ -537,82 +620,110 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
                 </Btn>
 
                 {/*
-                  Solo el SIGUIENTE paso a la vista (2026-10-22): el avance lo
-                  reportan el operador y el aliado, así que aquí casi nunca se
-                  mueve a mano. Las demás etapas quedan en "Otra etapa…".
+                  LAS ETAPAS LAS REPORTA EL ALIADO (2026-10-23). Desde que hay
+                  aliado, en traslado → en sitio → en curso → terminado los marca
+                  él en su portal o su operador desde el celular; aquí no hay
+                  botón para eso. A MAQSER24 le toca CERRAR, con la cantidad,
+                  porque es lo que se cobra. Si el aliado se queda sin señal o
+                  marcó mal, "Corregir etapa…" sigue a la mano, discreto.
                 */}
                 {(() => {
                   const pasos = s.next.filter((n) => n.state !== 'cancelado');
-                  const [primero, ...otros] = pasos;
+                  const cerrar = s.state === 'terminado' ? pasos.find((n) => n.state === 'cerrado') : undefined;
+                  const corregir = pasos.filter((n) => n !== cerrar);
+                  const siguiente = EN_OPERACION.includes(s.state) ? pasos.find((n) => n.state !== 'cerrado') : undefined;
                   return (
                     <>
-                      {primero ? (
-                        primero.state === 'cerrado' ? (
-                          <Btn size="sm" variant="primary" icon="ph-flag-checkered" onClick={() => setCerrando(s)} disabled={ocupado === s.id}>Cerrar…</Btn>
-                        ) : (
-                          <Btn size="sm" variant="primary" onClick={() => mover(s, primero.state)} disabled={ocupado === s.id}>{primero.label}</Btn>
-                        )
+                      {cerrar ? (
+                        <Btn size="sm" variant="primary" icon="ph-flag-checkered" onClick={() => setCerrando(s)} disabled={ocupado === s.id}>Cerrar…</Btn>
                       ) : null}
-                      {otros.length ? (
-                        <select
-                          className="adm-input"
-                          style={{ width: 'auto', height: 30, fontSize: 12.5, padding: '0 8px' }}
+                      {siguiente ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--adm-muted)' }}>
+                          <i className="ph ph-device-mobile" aria-hidden />
+                          {siguiente.label}: lo reporta el aliado
+                        </span>
+                      ) : null}
+                      {corregir.length ? (
+                        // El selector del panel (2026-10-26): el nativo se abría blanco, fuera del diseño.
+                        <AdminSelect
+                          size="sm"
+                          className="w-auto min-w-[150px] h-[30px] text-[12.5px]"
+                          ariaLabel={`Corregir la etapa de ${s.quoteNumber} (solo si el aliado no puede reportarla o la marcó mal)`}
                           value=""
-                          aria-label={`Pasar ${s.quoteNumber} a otra etapa`}
+                          placeholder="Corregir etapa…"
                           disabled={ocupado === s.id}
-                          onChange={(e) => {
-                            const destino = otros.find((n) => n.state === e.target.value);
+                          options={corregir.map((n) => ({ value: n.state, label: n.state === 'cerrado' ? 'Cerrar…' : n.label }))}
+                          onChange={async (v) => {
+                            const destino = corregir.find((n) => n.state === v);
                             if (!destino) return;
-                            if (destino.state === 'cerrado') setCerrando(s);
-                            else mover(s, destino.state);
+                            if (destino.state === 'cerrado') { setCerrando(s); return; }
+                            const ok = await confirmar({
+                              titulo: `¿Pasar ${s.quoteNumber} a «${destino.label}»?`,
+                              mensaje: 'Normalmente lo reporta el aliado o su operador. Al cliente le llega el aviso igual que si lo hubiera marcado él.',
+                              confirmar: 'Corregir etapa',
+                            });
+                            if (ok) mover(s, destino.state);
                           }}
-                        >
-                          <option value="">Otra etapa…</option>
-                          {otros.map((n) => <option key={n.state} value={n.state}>{n.state === 'cerrado' ? 'Cerrar…' : n.label}</option>)}
-                        </select>
+                        />
                       ) : null}
                     </>
                   );
                 })()}
 
+                <Btn size="sm" variant="ghost" icon={detalle.has(s.id) ? 'ph-caret-up' : 'ph-caret-down'} onClick={() => verDetalle(s.id)} style={{ marginLeft: 'auto' }} aria-expanded={detalle.has(s.id)}>
+                  {detalle.has(s.id) ? 'Ocultar detalle' : 'Ver detalle'}
+                </Btn>
                 {s.next.some((n) => n.state === 'cancelado') ? (
                   <Btn
                     size="sm"
                     variant="ghost"
                     onClick={async () => {
+                      // Con un aliado trabajándolo, primero qué pasó (2026-10-26): si se bajó
+                      // él, el servicio NO se cancela; vuelve a Por asignar y se busca otro.
+                      // Quién fue decide además si le cuenta en contra (2026-10-22).
+                      let causa: string | undefined;
+                      if (s.assignments.some((a) => a.state === 'aceptado')) {
+                        const r = await pedirTexto({
+                          titulo: `¿Qué pasó con ${s.quoteNumber}?`,
+                          valor: 'cliente',
+                          opciones: [
+                            { valor: 'cliente', texto: 'El cliente lo canceló' },
+                            { valor: 'aliado', texto: 'El aliado se bajó: buscar otro (el servicio sigue)' },
+                            { valor: 'plataforma', texto: 'Lo cancelamos nosotros (MAQSER24)' },
+                          ],
+                          confirmar: 'Siguiente',
+                          cancelar: 'Volver',
+                        });
+                        if (r === null) return;
+                        causa = r;
+                      }
+                      if (causa === 'aliado') {
+                        const motivo = await pedirTexto({
+                          titulo: '¿Por qué se bajó?',
+                          mensaje: 'Queda en el historial del servicio y en el del aliado. Puedes dejarlo en blanco.',
+                          etiqueta: 'Motivo',
+                          multilinea: true,
+                          confirmar: 'Buscar otro aliado',
+                          cancelar: 'Volver',
+                        });
+                        if (motivo === null) return;
+                        await seBajo(s, motivo || null);
+                        return;
+                      }
                       const nota = await pedirTexto({
                         titulo: `¿Cancelar el servicio ${s.quoteNumber}?`,
                         mensaje: 'Escribe por qué se cancela; queda en su historial.',
                         etiqueta: 'Motivo',
                         multilinea: true,
-                        confirmar: s.assignments.some((a) => a.state === 'aceptado') ? 'Siguiente' : 'Cancelar servicio',
+                        confirmar: 'Cancelar servicio',
                         cancelar: 'Volver',
                         peligro: true,
                       });
                       if (nota === null) return;
-                      // Si ya lo había tomado un aliado, quién lo canceló decide si le
-                      // cuenta en contra (2026-10-22): antes toda cancelación le restaba.
-                      let causa: string | undefined;
-                      if (s.assignments.some((a) => a.state === 'aceptado')) {
-                        const r = await pedirTexto({
-                          titulo: '¿Quién lo canceló?',
-                          valor: 'cliente',
-                          opciones: [
-                            { valor: 'cliente', texto: 'El cliente' },
-                            { valor: 'aliado', texto: 'El aliado se bajó' },
-                            { valor: 'plataforma', texto: 'Nosotros (MAQSER24)' },
-                          ],
-                          confirmar: 'Cancelar servicio',
-                          cancelar: 'Volver',
-                          peligro: true,
-                        });
-                        if (r === null) return;
-                        causa = r;
-                      }
                       mover(s, 'cancelado', { note: nota || undefined, causa });
                     }}
                     disabled={ocupado === s.id}
-                    style={{ marginLeft: 'auto', color: 'var(--adm-muted)' }}
+                    style={{ color: 'var(--adm-muted)' }}
                   >
                     Cancelar
                   </Btn>
@@ -625,7 +736,8 @@ export function ServicesBoard({ initial, historial = false, enCamino }: { initia
       </div>
 
       {cerrando ? <ModalCierre servicio={cerrando} onCerrar={() => setCerrando(null)} onGuardar={mover} ocupado={ocupado === cerrando.id} /> : null}
-      {asignando ? <ModalAsignar servicio={asignando} onCerrar={() => setAsignando(null)} onListo={() => { setAsignando(null); router.refresh(); }} /> : null}
+      {/* Se queda abierta al ofrecer (2026-10-23): se le puede ofrecer a varios, uno por uno, sin volver a buscar. */}
+      {asignando ? <ModalAsignar servicio={asignando} onCerrar={() => setAsignando(null)} onCambio={() => router.refresh()} /> : null}
       {incidencias ? <Incidencias quoteId={incidencias.id} quoteNumber={incidencias.quoteNumber} onCerrar={() => setIncidencias(null)} /> : null}
     </div>
   );
@@ -712,13 +824,18 @@ function ModalCierre({
  * razones que se ven al cotizar. Ofrecer NO asigna — queda esperando respuesta
  * hasta que el aliado contesta, porque un tablero que dé por resuelto algo que
  * nadie aceptó es peor que no tener tablero.
+ *
+ * Desde el 2026-10-23 nada sale solo cuando el cliente acepta: aquí MAQSER24
+ * elige a quién se la da. A uno, a varios (la ventana se queda abierta) o
+ * "Mandar a todos" los que llegan a la obra; el primero que acepta se la queda.
  */
 function ModalAsignar({
-  servicio, onCerrar, onListo,
+  servicio, onCerrar, onCambio,
 }: {
   servicio: ServicioRow;
   onCerrar: () => void;
-  onListo: () => void;
+  /** Se ofreció a alguien: el tablero se refresca sin cerrar la ventana. */
+  onCambio: () => void;
 }) {
   const [datos, setDatos] = useState<{
     motivo: string | null;
@@ -727,6 +844,25 @@ function ModalAsignar({
   } | null>(null);
   const [cargando, setCargando] = useState(true);
   const [enviando, setEnviando] = useState<number | null>(null);
+  /** A quiénes se les ofreció desde que se abrió la ventana (el `servicio` que llegó ya no se actualiza). */
+  const [ofrecidosAhora, setOfrecidosAhora] = useState<Set<number>>(() => new Set());
+  const [errorOferta, setErrorOferta] = useState<string | null>(null);
+  /** "Mandar a todos": a quiénes les llegaría (la API aplica la misma regla) y a quiénes se les mandó. */
+  const [todos, setTodos] = useState<{ candidatos: string[]; motivo: string | null } | null>(null);
+  const [mandadoATodos, setMandadoATodos] = useState<string[] | null>(null);
+  const [mandandoTodos, setMandandoTodos] = useState(false);
+  const porAsignar = servicio.state === 'por_asignar' && !servicio.assignments.some((a) => a.state === 'aceptado');
+
+  useEffect(() => {
+    if (!porAsignar) return;
+    let vivo = true;
+    fetch(`/api/admin/services/${servicio.id}/ofrecer-todos`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivo && d && Array.isArray(d.candidatos)) setTodos({ candidatos: d.candidatos, motivo: d.motivo ?? null }); })
+      .catch(() => undefined);
+    return () => { vivo = false; };
+    // Se vuelve a pedir después de cada oferta: a quien ya se le ofreció ya no cuenta.
+  }, [servicio.id, porAsignar, ofrecidosAhora]);
 
   useEffect(() => {
     let vivo = true;
@@ -768,13 +904,42 @@ function ModalAsignar({
 
   async function ofrecer(providerId: number) {
     setEnviando(providerId);
-    await fetch(`/api/admin/services/${servicio.id}/ofrecer`, {
+    setErrorOferta(null);
+    const r = await fetch(`/api/admin/services/${servicio.id}/ofrecer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ providerId }),
-    });
+    }).catch(() => null);
     setEnviando(null);
-    onListo();
+    if (!r?.ok) {
+      const j = await r?.json().catch(() => null);
+      setErrorOferta(j?.message ?? 'No se pudo ofrecer. Inténtalo de nuevo.');
+      return;
+    }
+    setOfrecidosAhora((prev) => new Set(prev).add(providerId));
+    onCambio();
+  }
+
+  async function mandarATodos() {
+    if (!todos?.candidatos.length) return;
+    const n = todos.candidatos.length;
+    const ok = await confirmar({
+      titulo: `¿Mandarlo a ${n === 1 ? 'el aliado' : `los ${n} aliados`} que llegan a la obra?`,
+      mensaje: `Le llega a ${todos.candidatos.join(', ')}. El primero que acepte se lo queda y a los demás se les retira.`,
+      confirmar: `Mandar a ${n === 1 ? '1 aliado' : `${n} aliados`}`,
+    });
+    if (!ok) return;
+    setMandandoTodos(true);
+    setErrorOferta(null);
+    const r = await fetch(`/api/admin/services/${servicio.id}/ofrecer-todos`, { method: 'POST' }).catch(() => null);
+    setMandandoTodos(false);
+    const j = await r?.json().catch(() => null);
+    if (!r?.ok) { setErrorOferta(j?.message ?? 'No se pudo mandar. Inténtalo de nuevo.'); return; }
+    if (!j?.ofrecidos?.length) { setErrorOferta(j?.motivo ?? 'No se le mandó a nadie.'); return; }
+    setMandadoATodos(j.ofrecidos);
+    const ids = (datos?.matches ?? []).filter((m) => j.ofrecidos.includes(m.name)).map((m) => m.providerId);
+    setOfrecidosAhora((prev) => new Set([...prev, ...ids]));
+    onCambio();
   }
 
   const matches = datos?.matches ?? [];
@@ -783,12 +948,34 @@ function ModalAsignar({
     <Modal
       abierto
       titulo="Buscar aliado"
-      subtitulo={`${servicio.category ?? 'Sin línea'} · ${servicio.address ?? 'Sin zona'}. Ofrecerlo no lo asigna: queda esperando su respuesta.`}
+      subtitulo={`${servicio.equipo ?? servicio.categoryName ?? servicio.category ?? 'Sin línea'} · ${servicio.obra ?? servicio.address ?? 'Sin zona'}. Ofrecerlo no lo asigna: queda esperando su respuesta.`}
       onCerrar={onCerrar}
       ancho={600}
-      pie={<Btn onClick={onCerrar}>Cerrar</Btn>}
+      pie={<Btn onClick={onCerrar}>{ofrecidosAhora.size ? 'Listo' : 'Cerrar'}</Btn>}
     >
       {cargando ? <div style={{ fontSize: 13, color: 'var(--adm-muted)', padding: '6px 0 14px' }}>Consultando la red…</div> : null}
+
+      {/* MANDAR A TODOS (2026-10-23): la otra forma de dárselo, además de "Ofrecerle" uno por uno. */}
+      {mandadoATodos ? (
+        <Note tone="ok" icon="ph-check-circle" style={{ marginBottom: 14 }}>
+          Se le mandó a <strong>{mandadoATodos.join(', ')}</strong>. El primero que acepte se lo queda.
+        </Note>
+      ) : porAsignar && todos ? (
+        todos.candidatos.length ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px 12px', flexWrap: 'wrap', marginBottom: 14, padding: '10px 12px', border: '1px solid var(--adm-border)', borderRadius: 10 }}>
+            <span style={{ fontSize: 13, color: 'var(--adm-text-2)', minWidth: 0, flex: '1 1 260px' }}>
+              Llegan a la obra <strong style={{ color: 'var(--adm-text)' }}>{todos.candidatos.length}</strong> {todos.candidatos.length === 1 ? 'aliado' : 'aliados'} a los que aún no se les ofrece. Ofrécelo a uno abajo o mándalo a todos.
+            </span>
+            <Btn size="sm" variant="primary" icon="ph-paper-plane-tilt" onClick={mandarATodos} disabled={mandandoTodos || enviando !== null}>
+              {mandandoTodos ? 'Mandando…' : `Mandar a todos (${todos.candidatos.length})`}
+            </Btn>
+          </div>
+        ) : todos.motivo && matches.length > 0 ? (
+          // Sin nadie en la lista, el motivo ya sale abajo: no se repite.
+          <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', marginBottom: 12 }}>{todos.motivo}</div>
+        ) : null
+      ) : null}
+      {errorOferta ? <Note tone="bad" style={{ marginBottom: 12 }}>{errorOferta}</Note> : null}
 
       {/* El mapa antes de la lista: al asignar, la primera pregunta es quién
           está cerca, y "a 12 km" no dice hacia qué lado. */}
@@ -817,11 +1004,12 @@ function ModalAsignar({
             // insistir es solo ruido. Sin esto el mejor puntuado se propondria
             // en bucle despues de haber rechazado.
             const previa = servicio.assignments.find((a) => a.providerId === m.providerId);
-            const yaTiene = previa !== undefined && previa.state !== 'retirado';
+            const ahora = ofrecidosAhora.has(m.providerId);
+            const yaTiene = ahora || (previa !== undefined && previa.state !== 'retirado');
             const etiqueta =
               previa?.state === 'rechazado' ? 'Ya dijo que no'
                 : previa?.state === 'aceptado' ? 'Ya aceptó'
-                  : previa ? 'Ya se le ofreció'
+                  : previa || ahora ? 'Ya se le ofreció'
                     : null;
             return (
               <div key={m.providerId} className="adm-trow">

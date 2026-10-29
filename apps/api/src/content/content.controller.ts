@@ -58,8 +58,15 @@ export class ContentController {
     return this.content.siteQuestion(body ?? {});
   }
 
+  /** Categorías activas y sus tipos para el registro de aliados (2026-10-26). */
+  @Get('provider-signup/opciones')
+  opcionesRegistro() {
+    return this.content.opcionesRegistro();
+  }
+
   // "Regístrate como proveedor" (2026-10-06). Más estricto que contacto: cada
-  // envío crea una ficha en el panel.
+  // envío crea una ficha en el panel. El freno estaba en la ruta de las
+  // opciones, no en esta (auditoría 2026-10-28).
   @Throttle({ default: { ttl: 60_000, limit: 3 } })
   @Post('provider-signup')
   providerSignup(@Body() body: Record<string, unknown>) {

@@ -6,7 +6,8 @@
 # apps/api/src/notifications/aviso-salida.service.ts.
 #
 # La misma llamada sigue las ofertas sin contestar (2026-10-21): recordatorio al
-# aliado y, si nadie contesta a tiempo, oferta a los siguientes. Ver
+# aliado y, si nadie contesta a tiempo, campana en el panel (desde el 2026-10-23
+# ya no se ofrece sola a los siguientes: MAQSER24 elige a quién). Ver
 # apps/api/src/quotes/seguimiento-ofertas.service.ts.
 #
 # Va aparte de "Tareas programadas" (diaria) porque necesita correr seguido, y

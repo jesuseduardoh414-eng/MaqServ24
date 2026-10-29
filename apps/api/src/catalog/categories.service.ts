@@ -19,9 +19,10 @@ export class CategoriesService {
   async list(): Promise<Category[]> {
     const [todas, counts] = await Promise.all([
       prisma.categories.findMany({ where: { status: 1 }, orderBy: [{ sort_order: 'asc' }, { cat_name: 'asc' }] }),
+      // Cuántos equipos enseña el sitio: solo los de MAQSER24 (auditoría 2026-10-28).
       prisma.products.groupBy({
         by: ['category_id'],
-        where: { status: 1 },
+        where: { status: 1, provider_id: null },
         _count: { _all: true },
       }),
     ]);

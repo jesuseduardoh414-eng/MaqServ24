@@ -42,9 +42,9 @@ export async function PaginaCotizador({ tipo, fichaId }: { tipo: CotizadorTipo; 
           </header>
 
           {/* SIN CUENTA NO SE COTIZA (2026-09-23): el candado va ANTES de usar el
-              cotizador, no al final. Quien llega aquí ya viene a pedir un
-              servicio con precio, y el registro es lo que permite mandárselo al
-              proveedor y seguirlo desde su cuenta. Ver QuoteGate. */}
+              cotizador, no al final. Quien llega aquí viene a pedir una
+              cotización, y el registro es lo que permite mandarle el precio y
+              que la acepte y siga desde su cuenta. Ver QuoteGate. */}
           {!user ? (
             <QuoteGate theme={theme} next={fichaId ? `${meta.ruta}?tipo=${fichaId}` : meta.ruta} />
           ) : catalogo === null ? (

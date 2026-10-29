@@ -12,7 +12,7 @@ import { contrasenaSegura, problemaContrasena } from '@maqserv/config';
  * URL del correo y se manda junto con la contraseña; la API decide si sigue
  * valiendo (60 minutos y un solo uso).
  */
-export function RestablecerForm({ token }: { token: string }) {
+export function RestablecerForm({ token, nuevo = false }: { token: string; /** Viene de la invitación al panel: es su primera contraseña. */ nuevo?: boolean }) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [ver, setVer] = useState(false);
@@ -56,17 +56,17 @@ export function RestablecerForm({ token }: { token: string }) {
 
   if (listo) {
     return (
-      <AccessShell title="Contraseña cambiada" subtitle="Ya puedes entrar con la nueva. Las sesiones que hubiera abiertas con la anterior quedaron cerradas.">
+      <AccessShell title={nuevo ? 'Ya tienes tu contraseña' : 'Contraseña cambiada'} subtitle={nuevo ? 'Entra al panel con tu correo y esta contraseña.' : 'Ya puedes entrar con la nueva. Las sesiones que hubiera abiertas con la anterior quedaron cerradas.'}>
         <ShButton asChild className="mt-7 w-full"><Link href="/login">Entrar al panel</Link></ShButton>
       </AccessShell>
     );
   }
 
   return (
-    <AccessShell title="Elige una contraseña nueva" subtitle="Tiene que cumplir todos los puntos de la lista. Este enlace sirve una sola vez.">
+    <AccessShell title={nuevo ? 'Crea tu contraseña' : 'Elige una contraseña nueva'} subtitle={nuevo ? 'Con ella entras al panel de MAQSER24. Tiene que cumplir todos los puntos de la lista; este enlace sirve una sola vez.' : 'Tiene que cumplir todos los puntos de la lista. Este enlace sirve una sola vez.'}>
       <form onSubmit={onSubmit} className="mt-7 grid gap-4" noValidate>
         <div className="grid gap-1.5">
-          <ShLabel htmlFor="password">CONTRASEÑA NUEVA</ShLabel>
+          <ShLabel htmlFor="password">{nuevo ? 'TU CONTRASEÑA' : 'CONTRASEÑA NUEVA'}</ShLabel>
           <div className="relative">
             <ShInput
               id="password"

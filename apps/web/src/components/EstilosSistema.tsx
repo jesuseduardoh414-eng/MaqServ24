@@ -79,6 +79,7 @@ a.ms-row:hover{ border-color:color-mix(in srgb, var(--color-text) 30%, var(--col
 .ms-error{ margin:0; font-size:12.5px; line-height:1.45; color:var(--color-error); }
 .ms-input, .ms-select, .ms-textarea{ width:100%; box-sizing:border-box; min-height:44px; padding:0 13px; font-family:inherit; font-size:14.5px; color:var(--color-text); background:var(--color-bg); border:1px solid var(--color-border); border-radius:8px; transition:border-color .18s ease, box-shadow .18s ease; }
 .ms-textarea{ padding:11px 13px; min-height:120px; line-height:1.55; resize:vertical; }
+@media (max-width: 640px){ .ms-input, .ms-select, .ms-textarea{ font-size:16px; } }
 .ms-input::placeholder, .ms-textarea::placeholder{ color:color-mix(in srgb, var(--color-text-muted) 70%, transparent); }
 .ms-input:hover:not(:disabled), .ms-select:hover:not(:disabled), .ms-textarea:hover:not(:disabled){ border-color:color-mix(in srgb, var(--color-text) 28%, var(--color-border)); }
 .ms-input:focus, .ms-select:focus, .ms-textarea:focus{ outline:none; border-color:var(--color-primary); box-shadow:0 0 0 3px color-mix(in srgb, var(--color-primary) 22%, transparent); }

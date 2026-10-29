@@ -96,7 +96,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
           <div className="tb-right" style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
             {/* «Rastrear pedido» se fue con las compras en línea (2026-10-08) y
                 «Vender» con el marketplace heredado (2026-10-15). */}
-            <span style={{ opacity: 0.7 }}>{t(theme, 'topbar.locale')}</span>
+            {t(theme, 'topbar.locale') ? <span style={{ opacity: 0.7 }}>{t(theme, 'topbar.locale')}</span> : null}
           </div>
         </div>
       </div>

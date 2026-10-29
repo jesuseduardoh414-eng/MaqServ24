@@ -97,7 +97,7 @@ export const MODULOS_META: Record<ModuloAdmin, { nombre: string; detalle: string
   comunidad: { nombre: 'Comunidad', detalle: 'Cuentas, reseñas, preguntas y mensajes.' },
   diseno: { nombre: 'Diseño del sitio', detalle: 'Secciones del home, textos, colores, blog y marca.' },
   configuracion: { nombre: 'Configuración', detalle: 'Correo y ajustes generales.' },
-  admins: { nombre: 'Administradores', detalle: 'Las cuentas del panel y estos permisos.' },
+  admins: { nombre: 'Equipo del panel', detalle: 'Las cuentas del panel y estos permisos.' },
 };
 
 export type RolAdmin = 'direccion' | 'operaciones' | 'administracion';

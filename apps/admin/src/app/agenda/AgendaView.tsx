@@ -1,9 +1,10 @@
 'use client';
 
-import { Fragment, useMemo, useState, type CSSProperties } from 'react';
+import { Fragment, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { Btn, EmptyState, GroupLabel, IconBtn, Note, PageHeader, Panel, Segmented, Stat, Stats, StatusText } from '@/components/ui';
 import { ESTADOS_DISPONIBILIDAD, type EstadoDisponibilidad } from '@maqserv/config';
+import { colorVivo } from '@/components/modo';
 
 /**
  * AGENDA DE OPERACIONES.
@@ -15,7 +16,13 @@ import { ESTADOS_DISPONIBILIDAD, type EstadoDisponibilidad } from '@maqserv/conf
  *
  * Dos lecturas de lo mismo: el calendario para ver dónde aprieta y dónde hay
  * hueco, y debajo la lista "Lo que viene" para leer cada compromiso completo
- * sin abrir nada. Elegir un día en el calendario filtra la lista a ese día.
+ * sin abrir nada.
+ *
+ * EL DÍA SE AGRANDA (2026-10-26). Antes, elegir un día filtraba la lista de
+ * abajo. Decisión del dueño (con un dibujo): la cuadrícula se reacomoda — la
+ * columna del día elegido se ensancha (las demás se angostan) y su semana
+ * crece de alto — y el día enseña todo lo que tiene, sin "+3 más" ni nombres
+ * cortados. No flota encima de nada. Se cierra con su ×, eligiendo otro día o con Esc.
  */
 
 export interface Compromiso {
@@ -50,13 +57,13 @@ const estadoDe = (e: string) => ESTADOS_DISPONIBILIDAD[e as EstadoDisponibilidad
 const LEYENDA: Array<{ color: string; texto: string }> = [
   { color: COLOR_SERVICIO, texto: 'Servicio comprometido' },
   ...(['reservado', 'en-traslado', 'en-servicio', 'mantenimiento'] as const).map((k) => ({
-    color: ESTADOS_DISPONIBILIDAD[k].color.oscuro,
+    color: colorVivo(ESTADOS_DISPONIBILIDAD[k]),
     texto: ESTADOS_DISPONIBILIDAD[k].nombre,
   })),
 ];
 
 /** Servicio en verde; un bloqueo, con el color de su estado (reservado si no se conoce). */
-const colorDe = (c: Compromiso): string => (c.tipo === 'servicio' ? COLOR_SERVICIO : estadoDe(c.estado).color.oscuro);
+const colorDe = (c: Compromiso): string => (c.tipo === 'servicio' ? COLOR_SERVICIO : colorVivo(estadoDe(c.estado)));
 
 /** "en-traslado" → "En traslado". */
 const rotulo = (c: Compromiso) => {
@@ -99,6 +106,10 @@ function cercania(dia: string, hoy: string): string | null {
   return d === 0 ? 'Hoy' : d === 1 ? 'Mañana' : null;
 }
 
+/** La nota del bloqueo, en palabras: las reservas automáticas guardan "reserva:<folio>" (2026-10-26). */
+const detalleDe = (c: Compromiso): string | null =>
+  c.detalle?.startsWith('reserva:') ? `Apartada por el servicio ${c.detalle.slice('reserva:'.length)}` : c.detalle;
+
 /** Hasta cuándo dura, dicho para quien está por prometer. */
 function duracion(c: Compromiso): string {
   if (c.hasta === null) return 'Sin fecha de fin';
@@ -134,6 +145,14 @@ export function AgendaView({
 }) {
   const router = useRouter();
   const [dia, setDia] = useState<string | null>(null);
+
+  // El día agrandado se cierra con Esc.
+  useEffect(() => {
+    if (!dia) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setDia(null); };
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [dia]);
 
   const porDia = useMemo(() => {
     const m = new Map<string, Compromiso[]>();
@@ -171,19 +190,22 @@ export function AgendaView({
 
   const hoy = hoyISO();
   const todos = agenda.semanas.flatMap((s) => s.dias);
+  // La columna del día elegido (lunes = 0) se ensancha en todas las semanas; las demás se angostan.
+  const colSel = dia && todos.includes(dia) ? todos.indexOf(dia) % 7 : -1;
+  const columnas: CSSProperties | undefined = colSel >= 0
+    ? { gridTemplateColumns: DIAS.map((_, i) => (i === colSel ? 'minmax(0, var(--agd-ancho-sel, 2.8fr))' : 'minmax(0, 1fr)')).join(' ') }
+    : undefined;
   const hoyEnVista = todos.includes(hoy);
   const fichas = FICHAS_POR_DIA[filtros.semanas] ?? 3;
   const n = agenda.compromisos.length;
   const deHoy = porDia.get(hoy)?.length ?? 0;
 
   /**
-   * La lista de abajo. Sin día elegido son los días con algo, desde hoy (o
-   * desde el inicio de la vista, si se está mirando el futuro): lo que ya pasó
-   * se ve en el calendario y no hace falta leerlo otra vez.
+   * La lista de abajo: los días con algo, desde hoy (o desde el inicio de la
+   * vista, si se está mirando el futuro): lo que ya pasó se ve en el calendario
+   * y no hace falta leerlo otra vez. Un día en particular se ve agrandándolo.
    */
-  const diasLista = dia
-    ? [dia]
-    : todos.filter((d) => (porDia.get(d)?.length ?? 0) > 0 && (!hoyEnVista || d >= hoy));
+  const diasLista = todos.filter((d) => (porDia.get(d)?.length ?? 0) > 0 && (!hoyEnVista || d >= hoy));
 
   return (
     <div>
@@ -200,7 +222,25 @@ export function AgendaView({
           color: var(--adm-muted); border-bottom: 1px solid var(--adm-border);
         }
         .agd-head > div.is-finde { color: var(--adm-faint); }
+        .agd-semana { position: relative; }
         .agd-semana + .agd-semana { border-top: 1px solid var(--adm-border); }
+        /* El día agrandado (2026-10-26): su columna se ensancha en todas las semanas y su semana crece. */
+        .agd-cols { transition: grid-template-columns .22s ease; }
+        .agd-head > div.is-sel { color: var(--adm-accent); }
+        .agd-dia.is-sel { cursor: default; padding: 10px 10px 12px; gap: 8px; }
+        .agd-dia.is-sel:hover { background: var(--adm-raised); }
+        .agd-sel-t { margin-left: 6px; font-size: 13px; font-weight: 600; color: var(--adm-text); }
+        .agd-sel-t em { font-style: normal; font-weight: 500; color: var(--adm-accent); }
+        .agd-full { display: grid; gap: 6px; min-width: 0; }
+        .agd-ev-full { display: grid; gap: 2px; min-width: 0; padding: 7px 9px; border-radius: 7px; border-left: 3px solid var(--agd-tono);
+          background: color-mix(in srgb, var(--agd-tono) 18%, transparent); }
+        .agd-ev-full b { font-size: 12.5px; line-height: 1.35; color: var(--adm-text); }
+        .agd-ev-full .r { display: flex; align-items: baseline; justify-content: space-between; gap: 2px 8px; flex-wrap: wrap; font-size: 11.5px; }
+        .agd-ev-full .r span:first-child { color: var(--agd-tono); font-weight: 700; }
+        .agd-ev-full .r span:last-child { color: var(--adm-muted); font-variant-numeric: tabular-nums; }
+        .agd-ev-full .d { font-size: 11.5px; line-height: 1.4; color: var(--adm-muted); }
+        .agd-libre { display: grid; justify-items: center; align-content: center; gap: 4px; flex: 1; padding: 6px; text-align: center; font-size: 12px; color: var(--adm-muted); }
+        .agd-libre i { font-size: 20px; color: var(--adm-ok); }
         .agd-dia {
           position: relative; min-width: 0; min-height: var(--agd-alto, 124px); padding: 8px 8px 10px;
           display: flex; flex-direction: column; gap: 6px;
@@ -209,8 +249,8 @@ export function AgendaView({
           transition: background .12s ease;
         }
         .agd-dia:first-child { border-left: 0; }
-        .agd-dia.is-finde { background: rgba(255, 255, 255, 0.014); }
-        .agd-dia:hover { background: rgba(255, 255, 255, 0.03); }
+        .agd-dia.is-finde { background: rgba(var(--adm-ink), 0.014); }
+        .agd-dia:hover { background: rgba(var(--adm-ink), 0.03); }
         .agd-dia.is-sel { background: var(--adm-raised); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--adm-accent) 55%, transparent); }
         .agd-dia:focus-visible { outline: 2px solid var(--adm-accent); outline-offset: -2px; }
         .agd-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-height: 24px; }
@@ -221,11 +261,11 @@ export function AgendaView({
         .agd-mes { font-size: 11.5px; font-weight: 500; color: var(--adm-muted); margin-left: 2px; }
         .agd-dia.is-pasado .agd-num { color: var(--adm-faint); font-weight: 500; }
         /* Lo pasado se apaga un poco, no a la mitad: a .5 la ficha ya no se leía (2026-10-15). */
-        .agd-dia.is-pasado .agd-evs { opacity: .72; }
+        .agd-dia.is-pasado .agd-evs { opacity: var(--adm-atenuado); }
         /* Hoy: el número en un círculo de acento. Un fondo en toda la celda
            competiría con las fichas, que es lo que hay que leer. */
         .agd-dia.is-hoy .agd-num { background: var(--adm-accent); color: #fff; }
-        .agd-cuenta { font-size: 11px; font-weight: 600; color: var(--adm-muted); font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); }
+        .agd-cuenta { font-size: 11px; font-weight: 600; color: var(--adm-muted); font-variant-numeric: tabular-nums; padding: 1px 7px; border-radius: 999px; background: rgba(var(--adm-ink), 0.06); }
         .agd-evs { display: grid; gap: 3px; min-width: 0; }
         .agd-ev {
           display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
@@ -260,6 +300,10 @@ export function AgendaView({
           .agd-sem-c { display: inline; }
           .agd-fila { grid-template-columns: minmax(0, 1fr) auto; }
           .agd-fila > :first-child { grid-column: 1 / -1; }
+          /* En el teléfono el día elegido se ensancha más: ahí sí caben sus nombres. */
+          .agd-cols { --agd-ancho-sel: 6fr; }
+          .agd-dia.is-sel { align-items: stretch; }
+          .agd-dia.is-sel .agd-top { justify-content: space-between; }
         }
       `}</style>
 
@@ -299,15 +343,16 @@ export function AgendaView({
           />
         </div>
 
-        <div className="agd-cols agd-head">
-          {DIAS.map((d, i) => <div key={d} className={i >= 5 ? 'is-finde' : undefined}>{d}</div>)}
+        {/* La columna del día elegido se ensancha en TODAS las semanas: así las columnas siguen alineadas. */}
+        <div className="agd-cols agd-head" style={columnas}>
+          {DIAS.map((d, i) => <div key={d} className={[i >= 5 && 'is-finde', i === colSel && 'is-sel'].filter(Boolean).join(' ') || undefined}>{d}</div>)}
         </div>
 
         {agenda.semanas.map((s, si) => (
           <div
             key={s.dias[0]}
             className="agd-cols agd-semana"
-            style={{ '--agd-alto': filtros.semanas === '1' ? '240px' : filtros.semanas === '2' ? '132px' : '104px' } as CSSProperties}
+            style={{ ...columnas, '--agd-alto': filtros.semanas === '1' ? '240px' : filtros.semanas === '2' ? '132px' : '104px' } as CSSProperties}
           >
             {s.dias.map((d, i) => {
               const items = porDia.get(d) ?? [];
@@ -316,13 +361,44 @@ export function AgendaView({
               // El mes se escribe donde cambia y en la primera celda: sin eso, "3" no dice de qué mes.
               const conMes = num === 1 || (si === 0 && i === 0);
               const clases = ['agd-dia', i >= 5 && 'is-finde', esHoy && 'is-hoy', d < hoy && 'is-pasado', dia === d && 'is-sel'].filter(Boolean).join(' ');
+              const nombre = fmt(d, { weekday: 'long', day: 'numeric', month: 'long' });
+
+              // El día elegido: más ancho y tan alto como haga falta, con todo lo suyo.
+              if (dia === d) {
+                const cerca = cercania(d, hoy);
+                return (
+                  <div key={d} className={clases} role="region" aria-label={`Compromisos del ${nombre}`}>
+                    <span className="agd-top">
+                      <span>
+                        <span className="agd-num">{num}</span>
+                        <span className="agd-sel-t">{nombre.replace(/^./, (x) => x.toUpperCase())}{cerca ? <em> · {cerca}</em> : null}</span>
+                      </span>
+                      <IconBtn icon="ph-x" label="Cerrar el día" onClick={() => setDia(null)} />
+                    </span>
+                    {items.length === 0 ? (
+                      // Un día vacío ES información: es donde se puede prometer.
+                      <span className="agd-libre"><i className="ph ph-calendar-check" aria-hidden />Libre: aquí se puede prometer.</span>
+                    ) : (
+                      <span className="agd-full">
+                        {items.map((c) => (
+                          <span key={c.id} className="agd-ev-full" style={{ '--agd-tono': colorDe(c) } as CSSProperties}>
+                            <b>{c.titulo}</b>
+                            <span className="r"><span>{rotulo(c)}</span><span>{duracion(c)}</span></span>
+                            {detalleDe(c) ? <span className="d">{detalleDe(c)}</span> : null}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <button
                   key={d}
                   type="button"
-                  onClick={() => setDia(dia === d ? null : d)}
-                  aria-pressed={dia === d}
-                  aria-label={`${fmt(d, { weekday: 'long', day: 'numeric', month: 'long' })}${items.length ? `, ${items.length} compromiso(s)` : ', libre'}`}
+                  onClick={() => setDia(d)}
+                  aria-label={`${nombre}${items.length ? `, ${items.length} compromiso(s)` : ', libre'}. Agrandar el día`}
                   className={clases}
                 >
                   <span className="agd-top">
@@ -367,26 +443,21 @@ export function AgendaView({
       </Panel>
 
       {/* La lista va debajo y no en un modal: la agenda se consulta comparando
-          días, y un modal tapa justo lo que se compara. */}
+          días, y un modal tapa justo lo que se compara. Un día en particular se
+          agranda en el calendario mismo. */}
       <Panel
         flush
         clip
         style={{ marginTop: 20 }}
-        title={dia ? fmt(dia, { weekday: 'long', day: 'numeric', month: 'long' }).replace(/^./, (x) => x.toUpperCase()) : 'Lo que viene'}
-        desc={dia ? (cercania(dia, hoy) ?? undefined) : 'Los días con algo comprometido, de hoy en adelante. Elige un día en el calendario para ver solo ese.'}
-        action={dia ? <Btn variant="ghost" size="sm" icon="ph-x" onClick={() => setDia(null)}>Ver todo</Btn> : undefined}
+        title="Lo que viene"
+        desc="Los días con algo comprometido, de hoy en adelante. Toca un día en el calendario para agrandarlo y ver todo lo suyo."
       >
-        {diasLista.length === 0 || (dia && (porDia.get(dia)?.length ?? 0) === 0) ? (
-          dia ? (
-            // Un día vacío ES información: es donde se puede prometer.
-            <EmptyState icon="ph-calendar-check" title="Día libre." sub="Nada comprometido: es un hueco donde se puede prometer." />
-          ) : (
-            <EmptyState
-              icon="ph-calendar-blank"
-              title="Nada comprometido en estas semanas."
-              sub="Los servicios aparecen aquí cuando un aliado acepta y se compromete a una fecha de llegada; los bloqueos, desde Disponibilidad."
-            />
-          )
+        {diasLista.length === 0 ? (
+          <EmptyState
+            icon="ph-calendar-blank"
+            title="Nada comprometido en estas semanas."
+            sub="Los servicios aparecen aquí cuando un aliado acepta y se compromete a una fecha de llegada; los bloqueos, desde Disponibilidad."
+          />
         ) : (
           diasLista.map((d) => {
             const items = porDia.get(d) ?? [];
@@ -394,17 +465,15 @@ export function AgendaView({
             const nombre = fmt(d, { weekday: 'long', day: 'numeric', month: 'long' });
             return (
               <Fragment key={d}>
-                {dia ? null : (
-                  <GroupLabel count={items.length} tone={cerca === 'Hoy' ? 'accent' : undefined}>
-                    {cerca ? `${cerca} · ${nombre}` : nombre.replace(/^./, (x) => x.toUpperCase())}
-                  </GroupLabel>
-                )}
+                <GroupLabel count={items.length} tone={cerca === 'Hoy' ? 'accent' : undefined}>
+                  {cerca ? `${cerca} · ${nombre}` : nombre.replace(/^./, (x) => x.toUpperCase())}
+                </GroupLabel>
                 {items.map((c) => (
                   <div key={`${d}-${c.id}`} className="adm-trow agd-fila">
                     <div><StatusText color={colorDe(c)}>{rotulo(c)}</StatusText></div>
                     <div style={{ minWidth: 0 }}>
                       <div className="adm-cell-title">{c.titulo}</div>
-                      {c.detalle ? <div className="adm-cell-sub">{c.detalle}</div> : null}
+                      {detalleDe(c) ? <div className="adm-cell-sub">{detalleDe(c)}</div> : null}
                     </div>
                     <span className="agd-dura">{duracion(c)}</span>
                   </div>

@@ -56,6 +56,7 @@ export type TipoCorreo =
   | 'service_day_before'      // al cliente: mañana llega tu servicio
   | 'provider_departure_late' // al aliado: debía salir y no ha marcado la salida
   | 'provider_access'     // al aliado: tu enlace para entrar
+  | 'provider_invite'     // a quien la oficina invita a la red: haz tu registro
   | 'availability_reminder' // al aliado: confirma que sigue libre
   | 'password_reset'      // al cliente: enlace para restablecer su contraseña
   | 'email_verification'  // al cliente: confirma tu correo (registro con contraseña)
@@ -76,6 +77,7 @@ export type TipoCorreo =
   | 'provider_signup_internal' // a MAQSER24: alguien pidió entrar a la red
   | 'provider_signup_ack'      // a quien se registró: lo recibimos
   | 'admin_password_reset'     // a un administrador: restablecer su contraseña del panel
+  | 'admin_invitacion'         // a quien se invita al panel: crear su contraseña (2026-10-28)
   | 'question_answered'        // a quien preguntó en el sitio: ya respondimos
   | 'contact_reply'            // a quien escribió por Contacto: la respuesta desde Mensajes
   | 'prueba';

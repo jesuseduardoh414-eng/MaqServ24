@@ -71,7 +71,7 @@ export default async function DocumentoParaAliado({ params }: { params: Promise<
       <EncabezadoPortal theme={theme} />
       <main className="ms-page" style={{ minHeight: '60vh' }}>
         <div className="ms-wrap" style={{ maxWidth: 980 }}>
-          <Link href="/aliado#solicitudes" className="ms-link ms-link-muted" style={{ marginBottom: 18 }}>
+          <Link href="/aliado?v=solicitudes" className="ms-link ms-link-muted" style={{ marginBottom: 18 }}>
             <Icon name="arrowLeft" size={14} />Volver a tu panel
           </Link>
           <header className="ms-head" style={{ marginBottom: 22 }}>

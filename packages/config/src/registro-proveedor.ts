@@ -29,3 +29,24 @@ export const OFERTAS_PROVEEDOR = [
   { clave: 'otro', nombre: 'Otro servicio', categoria: null },
 ] as const;
 export type OfertaProveedor = (typeof OFERTAS_PROVEEDOR)[number]['clave'];
+
+/**
+ * Lo que el registro deja elegir (2026-10-26): las categorías activas del panel
+ * —no una lista fija— y, en cada una, los tipos que MAQSER24 ya ofrece. Si el
+ * encargado agrega una categoría o un tipo, sale aquí solo.
+ */
+export interface LineaRegistro {
+  slug: string;
+  nombre: string;
+  tipos: Array<{ id: number; nombre: string }>;
+}
+
+/** Un equipo que declara al registrarse: un tipo de la lista, o "otro" escrito por él (tipoId null). */
+export interface EquipoRegistro {
+  categoria: string;
+  tipoId: number | null;
+  nombre: string;
+  marca: string;
+  modelo: string;
+  unidades: number;
+}

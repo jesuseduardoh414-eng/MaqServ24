@@ -37,7 +37,12 @@ export function MapaServicio({ obra, unidad, ruta, alto = 280 }: {
       if (!vivo || !caja.current) return;
       const m = L.map(caja.current, { scrollWheelZoom: false, attributionControl: true });
       mapa = m;
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(m);
+      // OSM bloquea teselas sin el sitio de origen ("Access blocked"): se manda solo el dominio, explícito (2026-10-26).
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        referrerPolicy: 'strict-origin-when-cross-origin',
+        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+      }).addTo(m);
 
       const limites: Array<[number, number]> = [];
       // Lo que ya recorrió, y lo que le falta (en línea recta) hasta la obra.

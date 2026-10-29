@@ -63,6 +63,12 @@ const aPeriodo = (unidad: string): string => (unidad === 'semana' ? 'sem' : unid
  * pestañas, tarjetas, vacíos— sale del sistema `ms-*`.
  */
 const CSS = `
+.pd-barra-movil{ display:none; }
+@media (max-width: 760px){
+  .pd-barra-movil{ display:block; position:sticky; bottom:0; z-index:30; margin:24px -16px 0; padding:10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    background:color-mix(in srgb, var(--color-bg) 94%, transparent); backdrop-filter:blur(8px); border-top:1px solid var(--color-border); }
+  .pd-barra-movil .ms-btn{ width:100%; justify-content:center; }
+}
 .pd-crumbs{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0 0 28px; font-size:13px; color:var(--color-text-muted); }
 .pd-crumbs a{ color:var(--color-text-muted); text-decoration:none; }
 .pd-crumbs a:hover{ color:var(--color-text); }
@@ -317,7 +323,7 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
                     );
                   })()}
                 </ul>
-                <p className="ms-hint" style={{ marginTop: 12, fontSize: 13.5 }}>Dinos fechas y obra: el precio sale al momento y la máquina queda apartada al solicitar.</p>
+                <p className="ms-hint" style={{ marginTop: 12, fontSize: 13.5 }}>Dinos fechas y obra: te mandamos la cotización con precio y, al aceptarla, apartamos la máquina.</p>
               </section>
             ) : !quoteMode && product.price !== null ? (
               <div className="pd-price pd-block">
@@ -506,6 +512,11 @@ export function ProductDetailView({ product, theme, rating, reviews, related, qu
             </div>
           </section>
         ) : null}
+
+        {/* En el teléfono, "Cotizar" siempre a la mano (2026-10-28). */}
+        <div className="pd-barra-movil">
+          <Link href={product.quoter ? `/cotizador/${product.quoter}?tipo=${product.id}` : `/cotizar?producto=${product.slug}`} data-evento="producto_solicitar_cotizacion" className="ms-btn ms-btn-lg">{esServicio ? 'Cotizar este servicio' : 'Solicitar cotización'}<Icon name="arrowRight" size={16} /></Link>
+        </div>
       </main>
     </div>
   );

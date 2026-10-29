@@ -238,7 +238,7 @@ export function MobileNav({
                     name="q"
                     placeholder={labels.search}
                     aria-label={labels.search}
-                    className="min-w-0 flex-1 border-0 bg-transparent font-body text-[13.5px] text-ink outline-none placeholder:text-ink-muted"
+                    className="min-w-0 flex-1 border-0 bg-transparent font-body text-[16px] text-ink outline-none placeholder:text-ink-muted"
                   />
                 </div>
               </form>

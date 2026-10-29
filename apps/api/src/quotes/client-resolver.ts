@@ -1,4 +1,5 @@
 import { prisma } from '@maqserv/db';
+import { avisarPanel } from '../notifications/panel';
 import { centroDeMunicipio } from '@maqserv/config';
 
 /**
@@ -64,6 +65,19 @@ export interface DatosSolicitud {
   userId?: number | null;
   /** Obra que el cliente eligió en el formulario. Si viene, manda sobre todo. */
   siteId?: number | null;
+  /**
+   * Empresa que eligió de las suyas (2026-10-23): una cuenta puede tener
+   * varias. Si viene y es suya, manda sobre el nombre escrito.
+   */
+  clientId?: number | null;
+  /** Cómo le llama a la obra nueva. Sin él, el nombre se deduce de la dirección. */
+  siteName?: string | null;
+  /**
+   * Del panel (2026-10-23): quien captura es MAQSER24 y elige de TODOS los
+   * clientes y obras registrados, así que `clientId` y `siteId` valen sin
+   * cuenta del sitio. Del sitio nunca: ahí tienen que ser de su cuenta.
+   */
+  confiarEnIds?: boolean;
 }
 
 export interface Resuelto {
@@ -91,6 +105,34 @@ async function puedeLigar(clientId: number, userId: number): Promise<boolean> {
   if (!c || !u || c.user_id !== null) return false;
   const correo = (c.email ?? '').trim().toLowerCase();
   return correo !== '' && correo === u.email.trim().toLowerCase();
+}
+
+/**
+ * ¿Puede quien pide usar esta empresa, encontrada por su nombre o su correo?
+ * El panel sí (lo escribe el equipo). Con cuenta: si es suya, o si no tiene
+ * cuenta y su correo es el de la cuenta (comprobado). Sin cuenta: solo si el
+ * correo que escribió es el de la empresa y la empresa no tiene cuenta.
+ */
+async function esDeQuienPide(c: Ref, d: DatosSolicitud, correo: string): Promise<boolean> {
+  if (d.confiarEnIds) return true;
+  if (d.userId) return c.user_id === d.userId || (c.user_id === null && (await puedeLigar(c.id, d.userId)));
+  if (c.user_id !== null || !correo) return false;
+  const e = await prisma.clients.findUnique({ where: { id: c.id }, select: { email: true } });
+  return (e?.email ?? '').trim().toLowerCase() === correo;
+}
+
+const posibleDuplicado = (empresa: string, otroId: number) =>
+  `Pidió como «${empresa.slice(0, 120)}», que ya existe con otro correo (cliente #${otroId}). Revisa si es la misma empresa antes de juntarlas.`;
+
+/** Al panel: una cuenta escribió el nombre de una empresa que ya existe y no es suya. */
+function avisarDuplicado(empresa: string, otroId: number): void {
+  void avisarPanel({
+    modulo: 'clientes',
+    evento: 'solicitud',
+    titulo: `«${empresa.slice(0, 80)}» ya existía con otro correo`,
+    cuerpo: `Se dio de alta aparte. Revisa si es la misma empresa (cliente #${otroId}) antes de juntarlas.`,
+    link: '/clientes',
+  });
 }
 
 /**
@@ -196,10 +238,16 @@ async function deLaCuenta(userId: number, empresa: string, clave: string): Promi
       await prisma.clients.update({ where: { id: existente.id }, data: { user_id: userId } });
       return { ...existente, user_id: userId };
     }
-    // Con otro correo la solicitud se archiva bajo esa empresa, pero la cuenta
-    // se queda con su propio cliente: si se borrara, quedaba sin cliente ni obras
-    // y dejaba de salir en Clientes y obras (revisión 2026-10-23).
-    return existente;
+    // Con otro correo NO se archiva bajo esa empresa (auditoría 2026-10-28):
+    // bastaba con escribir "Grúas Ramírez" para meter solicitudes y obras en la
+    // empresa de Pedro, con su crédito. La cuenta se queda con su cliente, con
+    // el nombre que escribió, y el panel decide si es la misma empresa.
+    await prisma.clients.update({
+      where: { id: provisional.id },
+      data: { name: empresa.slice(0, 190), notes: posibleDuplicado(empresa, existente.id), updated_at: new Date() },
+    });
+    avisarDuplicado(empresa, existente.id);
+    return provisional;
   }
   await prisma.clients.update({
     where: { id: provisional.id },
@@ -218,9 +266,9 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
     // SUYA (auditoría 2026-10-23): los id son consecutivos, y con uno ajeno la
     // solicitud quedaba dentro del cliente y la obra de otro. Si no lo es, se
     // ignora y se resuelve como si no hubiera elegido.
-    if (d.siteId && d.userId) {
+    if (d.siteId && (d.userId || d.confiarEnIds)) {
       const obra = await prisma.client_sites.findFirst({
-        where: { id: d.siteId, clients: { user_id: d.userId } },
+        where: d.confiarEnIds ? { id: d.siteId } : { id: d.siteId, clients: { user_id: d.userId } },
         select: { id: true, client_id: true },
       });
       if (obra) return { clientId: obra.client_id, siteId: obra.id };
@@ -230,12 +278,18 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
     const correo = (d.email ?? '').trim().toLowerCase();
     const claveEmpresa = normalizar(empresa);
 
+    // La empresa que eligió de las suyas: tiene que ser SUYA, igual que la obra.
+    let cliente: Ref | null = d.clientId && (d.userId || d.confiarEnIds)
+      ? await prisma.clients.findFirst({ where: d.confiarEnIds ? { id: d.clientId } : { id: d.clientId, user_id: d.userId }, select: { id: true, user_id: true } })
+      : null;
+
     // Quien tiene cuenta ya tiene cliente desde que la confirmó (ver
     // `clienteDeCuenta`): se parte de ese antes que de adivinar por el nombre.
-    let cliente = d.userId ? await deLaCuenta(d.userId, empresa, claveEmpresa) : null;
+    if (!cliente && d.userId) cliente = await deLaCuenta(d.userId, empresa, claveEmpresa);
     if (!cliente && !claveEmpresa && !correo) return { clientId: null, siteId: null };
 
     // Buscar el cliente. Por empresa cuando la hay; si no, por correo.
+    let ajena: number | null = null;
     if (!cliente) {
       cliente = claveEmpresa
         ? await porEmpresa(empresa, claveEmpresa)
@@ -243,6 +297,12 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
             where: { email: { equals: correo } },
             select: { id: true, user_id: true },
           });
+      // Lo encontrado por NOMBRE tiene que ser de quien pide (auditoría
+      // 2026-10-28). Si es de otro, se abre un cliente aparte y el panel lo ve.
+      if (cliente && !(await esDeQuienPide(cliente, d, correo))) {
+        ajena = cliente.id;
+        cliente = null;
+      }
     }
 
     if (!cliente) {
@@ -253,11 +313,12 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
           email: correo || null,
           phone: d.phone ?? null,
           industry: d.industry ?? null,
-          notes: 'Creado automáticamente desde una solicitud.',
+          notes: ajena ? posibleDuplicado(empresa || correo, ajena) : 'Creado automáticamente desde una solicitud.',
         },
         select: { id: true, user_id: true },
       });
       cliente = creado;
+      if (ajena) avisarDuplicado(empresa || correo, ajena);
     } else if (cliente.user_id === null && d.userId && (await puedeLigar(cliente.id, d.userId))) {
       // El cliente ya existía sin cuenta y ahora cotiza desde una con SU
       // correo: se enlazan, que es lo que permite ofrecerle sus obras la
@@ -266,23 +327,26 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
     }
 
     const direccion = (d.address ?? '').trim();
-    if (!direccion) return { clientId: cliente.id, siteId: null };
+    const nombreObra = (d.siteName ?? '').trim();
+    if (!direccion && !nombreObra) return { clientId: cliente.id, siteId: null };
 
-    // ¿Ya conoce esa dirección? Se comparan normalizadas: "Av. Vasconcelos
-    // 1500" y "av vasconcelos 1500" son la misma obra.
+    // ¿Ya conoce esa obra? Por dirección o por el nombre que le da, comparados
+    // normalizados: "Av. Vasconcelos 1500" y "av vasconcelos 1500" son la
+    // misma, y pedir dos veces para "Bodega Escobedo" no abre dos obras.
     const obras = await prisma.client_sites.findMany({
-      where: { client_id: cliente.id },
-      select: { id: true, address: true },
+      where: { client_id: cliente.id, status: 1 },
+      select: { id: true, name: true, address: true },
     });
     const clave = normalizar(direccion);
-    const ya = obras.find((o) => normalizar(o.address) === clave);
+    const claveNombre = normalizar(nombreObra);
+    const ya = obras.find((o) => (clave && normalizar(o.address) === clave) || (claveNombre && normalizar(o.name) === claveNombre));
     if (ya) return { clientId: cliente.id, siteId: ya.id };
 
     const nueva = await prisma.client_sites.create({
       data: {
         client_id: cliente.id,
-        name: nombrarObra(direccion, d.region),
-        address: direccion,
+        name: (nombreObra || nombrarObra(direccion, d.region)).slice(0, 190),
+        address: direccion || null,
         // El municipio REAL, si se reconoce (2026-10-15): `region` en el formulario
         // es el ESTADO, y guardarlo como municipio dejaba la obra sin mapa.
         municipality: [d.region, direccion]
@@ -291,7 +355,7 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
           .find(Boolean) ?? null,
         contact_name: d.contactName ?? null,
         contact_phone: d.phone ?? null,
-        notes: 'Obra deducida de una solicitud. Conviene revisar el nombre.',
+        notes: nombreObra ? 'La dio de alta el cliente al pedir.' : 'Obra deducida de una solicitud. Conviene revisar el nombre.',
       },
       select: { id: true },
     });

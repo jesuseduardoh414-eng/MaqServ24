@@ -62,17 +62,23 @@ export class PerfexService {
   }
 }
 
-/** Feed de inventario para el chatbot IA (brief Hito 5). Público. */
+/**
+ * Feed de inventario para el chatbot IA (brief Hito 5). Público.
+ *
+ * Sin precios y sin nada de los aliados (auditoría 2026-10-28): publicaba el
+ * precio de cada ficha, su precio anterior, la tarifa de flete y todos los
+ * equipos que daban de alta los aliados. Enseña lo mismo que el catálogo.
+ */
 @Controller('api')
 class FeedController {
   @Get('feed-inventario')
   async feed() {
     const rows = await prisma.products.findMany({
-      where: { status: 1 },
+      where: { status: 1, provider_id: null },
       orderBy: { id: 'desc' },
       select: {
-        id: true, name: true, cprice: true, pprice: true, stock: true, photo: true,
-        is_rental: true, rental_freight: true, Marca: true, description: true, category_id: true,
+        id: true, name: true, stock: true, photo: true,
+        is_rental: true, Marca: true, description: true, category_id: true,
       },
     });
     const cats = await prisma.categories.findMany({ select: { id: true, cat_name: true } });
@@ -85,11 +91,7 @@ class FeedController {
         nombre: p.name,
         marca: p.Marca,
         categoria: catMap.get(p.category_id) ?? null,
-        precio: p.cprice,
-        precioAnterior: p.pprice,
         enRenta: p.is_rental,
-        tarifaFletePorKm: p.rental_freight ? Number(p.rental_freight) : null,
-        stock: p.stock,
         disponible: p.stock === null || p.stock > 0,
         descripcion: p.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300),
         imagen: imageUrl(p.photo),

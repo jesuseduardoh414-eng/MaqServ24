@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { mostrarResultado } from '@maqserv/ui';
-import { Btn, EmptyState, FormField, Note, PageHeader, Panel, Stat, Stats } from '@/components/ui';
+import { Bar, Btn, EmptyState, FormField, Note, PageHeader, Panel, Stat, Stats } from '@/components/ui';
 import { DIAS_SEMANA, dinero, enviar, mesCorto, mesTitulo, pct } from '../formato';
 
 export interface ReglasDinero {
@@ -15,11 +15,14 @@ export interface ReglasDinero {
 export interface DatosMargen {
   mes: string;
   servicios: number;
+  cobrados: number;
   ventas: number;
+  /** De las ventas (sin IVA), lo que ya pagaron los clientes. */
+  cobrado: number;
   pagoAliados: number;
   margen: number;
   porLinea: Array<{ linea: string; nombre: string; servicios: number; ventas: number; margen: number }>;
-  tendencia: Array<{ mes: string; ventas: number; margen: number }>;
+  tendencia: Array<{ mes: string; ventas: number; margen: number; cobrado: number }>;
   porCobrar: number;
   vencido: number;
   porPagar: number;
@@ -32,11 +35,25 @@ const otroMes = (ym: string, d: number) => {
   m += d; if (m === 0) { m = 12; a -= 1; } if (m === 13) { m = 1; a += 1; }
   return `${a}-${String(m).padStart(2, '0')}`;
 };
+/** "$44 mil", "$269.5 mil": la cifra encima de cada barra. */
+const corto = (n: number) => `$${new Intl.NumberFormat('es-MX', { notation: 'compact', maximumFractionDigits: 1 }).format(n)}`;
+
+const Leyenda = ({ color, children }: { color: string; children: string }) => (
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+    <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, background: color }} />{children}
+  </span>
+);
 
 /**
  * MARGEN (2026-10-22, Fase A). Lo que ganó MAQSER24 con los servicios cerrados
  * del mes, sin IVA. No se captura nada: sale de cada servicio cerrado (lo
  * cotizado menos la parte del aliado). Las reglas van abajo, plegadas.
+ *
+ * 2026-10-27: cobrar no mueve el margen (se cuenta al terminar el servicio) y
+ * eso se leía como "no cambió nada". Ahora lo dice el encabezado y LA BARRA SE
+ * LLENA AL COBRAR: Ventas lleva una barrita "Cobrado $X de $Y" y en la gráfica
+ * cada mes es lo vendido, pintado de azul fuerte con lo que ya se cobró. Va en
+ * color, con su cifra y cada mes como enlace.
  */
 export function Margen({ d }: { d: DatosMargen }) {
   const hoyMes = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date()).slice(0, 7);
@@ -48,7 +65,7 @@ export function Margen({ d }: { d: DatosMargen }) {
       <PageHeader
         eyebrow={['4 · Cobrar y medir', 'Administración']}
         title="Margen"
-        subtitle="Lo que gana MAQSER24 con los servicios cerrados en el mes, sin IVA. Se calcula solo."
+        subtitle="Lo que gana MAQSER24 con los servicios terminados en el mes, sin IVA. Cuenta desde que se termina el servicio, aunque el cliente todavía no pague: lo que falta cobrar está en «Hoy»."
         actions={
           <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
             <Btn variant="ghost" icon="ph-caret-left" href={`/administracion/margen?mes=${otroMes(d.mes, -1)}`}>{mesCorto(otroMes(d.mes, -1))}</Btn>
@@ -60,7 +77,24 @@ export function Margen({ d }: { d: DatosMargen }) {
 
       <Stats>
         <Stat label="Margen" icon="ph-trend-up" tone="ok" value={dinero(d.margen)} hint={d.ventas > 0 ? `${pct(porcentaje)} de las ventas` : 'sin servicios cerrados'} />
-        <Stat label="Ventas" icon="ph-receipt" tone="info" value={dinero(d.ventas)} hint={`${d.servicios} servicio${d.servicios === 1 ? '' : 's'} cerrado${d.servicios === 1 ? '' : 's'}`} />
+        {/* Ventas con su barrita de cobrado: al registrar un cobro, se llena. */}
+        <div className="adm-stat">
+          <div className="adm-stat-label"><i className="ph ph-receipt t-info" aria-hidden /><span className="adm-ellipsis">Ventas</span></div>
+          <div className="adm-stat-line">
+            <span className="adm-stat-value">{dinero(d.ventas)}</span>
+            <span className="adm-stat-hint">{d.servicios ? `${d.servicios} servicio${d.servicios === 1 ? '' : 's'} cerrado${d.servicios === 1 ? '' : 's'}` : 'sin servicios cerrados'}</span>
+          </div>
+          {d.ventas > 0 ? (
+            <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+              <Bar pct={(d.cobrado / d.ventas) * 100} tone="info" label={`Cobrado ${dinero(d.cobrado)} de ${dinero(d.ventas)}`} />
+              <span style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>
+                {d.cobrado >= d.ventas - 0.5
+                  ? <>Todo cobrado</>
+                  : <>Cobrado <b style={{ color: 'var(--adm-text)' }}>{dinero(d.cobrado)}</b> ({pct((d.cobrado / d.ventas) * 100)}) · falta {dinero(d.ventas - d.cobrado)}</>}
+              </span>
+            </div>
+          ) : null}
+        </div>
         <Stat label="Pago a aliados" icon="ph-hand-coins" tone="muted" value={dinero(d.pagoAliados)} />
       </Stats>
 
@@ -79,25 +113,43 @@ export function Margen({ d }: { d: DatosMargen }) {
             </div>
           )}
         </Panel>
-        <Panel title="Últimos 6 meses" desc="Ventas y margen.">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, alignItems: 'end', height: 130 }} role="img" aria-label="Ventas y margen de los últimos 6 meses">
-            {d.tendencia.map((t) => (
-              <div key={t.mes} style={{ display: 'grid', gap: 4, justifyItems: 'center', height: '100%', alignContent: 'end' }} title={`${mesTitulo(t.mes)}: ventas ${dinero(t.ventas)}, margen ${dinero(t.margen)}`}>
-                <div style={{ width: '70%', display: 'grid', alignContent: 'end', height: 100 }}>
-                  <div style={{ height: `${(t.ventas / maxVentas) * 100}px`, minHeight: t.ventas > 0 ? 2 : 0, background: 'var(--adm-raised)', borderRadius: 4, display: 'grid', alignContent: 'end', overflow: 'hidden' }}>
-                    <div style={{ height: `${(Math.max(0, t.margen) / maxVentas) * 100}px`, background: 'var(--adm-ok)' }} />
+        <Panel title="Últimos 6 meses" desc={
+          <span style={{ display: 'inline-flex', gap: '4px 14px', flexWrap: 'wrap' }}>
+            <Leyenda color="var(--adm-info)">Cobrado</Leyenda>
+            <Leyenda color="color-mix(in srgb, var(--adm-info) 22%, transparent)">Falta cobrar</Leyenda>
+            <Leyenda color="var(--adm-ok)">Margen</Leyenda>
+          </span>
+        }>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, alignItems: 'end' }} role="img" aria-label="Ventas, lo cobrado y el margen de los últimos 6 meses">
+            {d.tendencia.map((t) => {
+              const sel = t.mes === d.mes;
+              const alto = (n: number) => `${(Math.max(0, n) / maxVentas) * 100}px`;
+              return (
+                <a key={t.mes} href={`/administracion/margen?mes=${t.mes}`} title={`${mesTitulo(t.mes)}: ventas ${dinero(t.ventas)}, cobrado ${dinero(t.cobrado)}, margen ${dinero(t.margen)}`}
+                  style={{ display: 'grid', gap: 5, justifyItems: 'center', textDecoration: 'none' }}>
+                  <div style={{ height: 122, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
+                    <span className="adm-num" style={{ fontSize: 10.5, color: sel ? 'var(--adm-text)' : 'var(--adm-muted)', whiteSpace: 'nowrap' }}>{t.ventas > 0 ? corto(t.ventas) : ''}</span>
+                    {/* Lo vendido (claro), pintado de abajo hacia arriba con lo cobrado (azul) y el margen (verde). */}
+                    <div style={{
+                      position: 'relative', width: '64%', height: alto(t.ventas), minHeight: t.ventas > 0 ? 3 : 0, overflow: 'hidden',
+                      borderRadius: '5px 5px 2px 2px', background: 'color-mix(in srgb, var(--adm-info) 22%, transparent)',
+                      boxShadow: sel ? '0 0 0 1px var(--adm-info)' : undefined,
+                    }}>
+                      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: alto(t.cobrado), background: `color-mix(in srgb, var(--adm-info) ${sel ? 85 : 65}%, transparent)`, transition: 'height .3s ease' }} />
+                      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: alto(t.margen), background: 'var(--adm-ok)' }} />
+                    </div>
                   </div>
-                </div>
-                <span style={{ fontSize: 11.5, color: t.mes === d.mes ? 'var(--adm-text)' : 'var(--adm-muted)' }}>{mesCorto(t.mes)}</span>
-              </div>
-            ))}
+                  <span style={{ fontSize: 11.5, fontWeight: sel ? 700 : 400, color: sel ? 'var(--adm-text)' : 'var(--adm-muted)' }}>{mesCorto(t.mes)}</span>
+                </a>
+              );
+            })}
           </div>
         </Panel>
         <Panel title="Hoy" desc="Con IVA.">
           <div style={{ display: 'grid', gap: 8, fontSize: 13.5 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/cobranza">Por cobrar</a><span className="adm-num">{dinero(d.porCobrar)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/cobros?f=cobrar">Por cobrar</a><span className="adm-num">{dinero(d.porCobrar)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>De eso, vencido</span><span className="adm-num" style={{ color: d.vencido > 0 ? 'var(--adm-bad)' : undefined }}>{dinero(d.vencido)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/pagos">Por pagar a aliados</a><span className="adm-num">{dinero(d.porPagar)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/cobros?f=pagar">Por pagar a aliados</a><span className="adm-num">{dinero(d.porPagar)}</span></div>
           </div>
         </Panel>
       </div>

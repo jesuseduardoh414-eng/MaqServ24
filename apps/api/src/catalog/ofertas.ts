@@ -18,3 +18,11 @@
  */
 export const ESTADO_POR_REVISAR = 2;
 export const ESTADO_ELIMINADO = 9;
+
+/**
+ * CATEGORÍA PROPUESTA POR UN ALIADO (2026-10-28). `categories.status`: 0
+ * apagada · 1 activa · 2 la escribió un aliado ("Otra: no está en la lista")
+ * y MAQSER24 decide en Categorías si es la misma que otra, si la autoriza
+ * (nace apagada) o si no la maneja. Todo lo público ya filtra `status = 1`.
+ */
+export const ESTADO_CATEGORIA_PROPUESTA = 2;

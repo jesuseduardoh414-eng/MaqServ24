@@ -30,9 +30,11 @@ function legible(minutos: number): string {
  *
  *   1. A la mitad de su plazo le llega al aliado UN recordatorio con el botón
  *      a su portal.
- *   2. Cuando a TODAS las ofertas vivas del servicio se les acabó el plazo, se
- *      le ofrece sola a los siguientes que llegan a la obra
- *      (`ServiceService.ofrecerALosSiguientes`) y suena la campana.
+ *   2. Cuando a TODAS las ofertas vivas del servicio se les acabó el plazo,
+ *      suena la campana del panel una vez por tanda
+ *      (`ServiceService.avisarSinRespuesta`). Desde el 2026-10-23 ya NO se le
+ *      ofrece sola a los siguientes: MAQSER24 elige a quién se la da. Vale
+ *      para toda oferta, hecha uno por uno o con "Mandar a todos".
  *
  * El plazo es el mismo del proveedor alterno (quotes/fallback.ts): tres veces
  * lo que ese aliado suele tardar, entre 1 y 24 horas; 3 horas si no hay
@@ -63,7 +65,7 @@ export class SeguimientoOfertasService implements OnModuleInit, OnModuleDestroy 
   }
 
   async revisar(ahora: Date = new Date()) {
-    const resultado = { revisadas: 0, recordatorios: 0, reofrecidas: 0, fueraDeHorario: false };
+    const resultado = { revisadas: 0, recordatorios: 0, avisadas: 0, fueraDeHorario: false };
     const hora = Number(HORA_24.format(ahora));
     if (hora < HORA_INICIO || hora >= HORA_FIN) return { ...resultado, fueraDeHorario: true };
     if (this.corriendo) return resultado; // el reloj y el cron pueden coincidir
@@ -135,7 +137,7 @@ export class SeguimientoOfertasService implements OnModuleInit, OnModuleDestroy 
           toName: p.contact_name ?? p.name,
           quoteId,
           providerId: p.id,
-          ...correoRecordatorioOferta({
+          ...(await correoRecordatorioOferta({
             aliado: p.name,
             contacto: p.contact_name,
             folio: q.quote_number,
@@ -144,16 +146,16 @@ export class SeguimientoOfertasService implements OnModuleInit, OnModuleDestroy 
             zona: zonaAproximada(q.address),
             esperando: legible(o.minutosEsperando),
             url,
-          }),
+          })),
         });
         resultado.recordatorios += 1;
       }
 
-      // 2. Si a todas las ofertas vivas de un servicio se les acabó el plazo, a los siguientes.
+      // 2. Si a todas las ofertas vivas de un servicio se les acabó el plazo, la campana (sin ofrecer a nadie más).
       for (const [quoteId, ofertas] of porServicio) {
         if (!ofertas.every((o) => o.estancada)) continue;
-        const r = await this.services.ofrecerALosSiguientes(quoteId, 'silencio');
-        if (r.ofrecidos.length) resultado.reofrecidas += 1;
+        const r = await this.services.avisarSinRespuesta(quoteId);
+        if (r.avisado) resultado.avisadas += 1;
       }
       return resultado;
     } finally {

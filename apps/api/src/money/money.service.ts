@@ -56,13 +56,37 @@ export class MoneyService {
       }),
     ]);
     const pagarEl = saldado ? await programarPago(quoteId) : null;
-    return { ok: true, monto, saldado, pagarEl };
+    // Qué sigue (2026-10-27): el panel le dice a quien cobró si al aliado ya se
+    // le puede pagar o si falta su factura. Sin esto, cobrar "no cambiaba nada".
+    const p = m.provider_id ? await prisma.providers.findUnique({ where: { id: m.provider_id }, select: { id: true, name: true, email: true, phone: true } }) : null;
+    return {
+      ok: true, monto, saldado, saldo: r2(Number(m.total) - cobrado), pagarEl,
+      diaDePago: (await reglasDinero()).diaDePago,
+      aliado: p ? { id: p.id, nombre: p.name, factura: !!(m.factura_aliado || m.factura_aliado_xml), correo: !!p.email?.trim(), telefono: p.phone } : null,
+    };
   }
 
-  /** Se le pagó a un aliado todo lo que tenía listo. Le llega el aviso con el detalle. */
-  async marcarPagado(providerId: number, referencia: string | null, adminId: number | null) {
+  /**
+   * Se le pagó al aliado UN servicio (2026-10-27, desde su renglón de Cobros y
+   * pagos). Solo si ya se puede: el cliente pagó y está la factura del aliado.
+   */
+  async pagarServicio(quoteId: number, referencia: string | null, adminId: number | null) {
+    const m = await prisma.service_money.findUnique({ where: { quote_id: BigInt(quoteId) }, select: { provider_id: true, pagado_at: true, pagar_el: true } });
+    if (!m?.provider_id) throw new NotFoundException('Ese servicio no tiene aliado.');
+    if (m.pagado_at) throw new BadRequestException('A este aliado ya se le pagó este servicio.');
+    if (!m.pagar_el) throw new BadRequestException('Todavía no se le puede pagar: falta que pague el cliente o la factura del aliado.');
+    const r = await this.marcarPagado(m.provider_id, referencia, adminId, [quoteId]);
+    const p = await prisma.providers.findUnique({ where: { id: m.provider_id }, select: { name: true } });
+    return { ...r, folio: r.folios[0] ?? String(quoteId), aliado: p?.name ?? '' };
+  }
+
+  /** Se le pagó a un aliado lo que tenía listo (o solo esos servicios). Le llega el aviso con el detalle. */
+  async marcarPagado(providerId: number, referencia: string | null, adminId: number | null, soloServicios?: number[]) {
     const listas = await prisma.service_money.findMany({
-      where: { provider_id: providerId, pagado_at: null, pagar_el: { not: null } },
+      where: {
+        provider_id: providerId, pagado_at: null, pagar_el: { not: null },
+        ...(soloServicios ? { quote_id: { in: soloServicios.map((id) => BigInt(id)) } } : {}),
+      },
     });
     if (listas.length === 0) throw new BadRequestException('Este aliado no tiene pagos listos.');
     const hoy = diaLocal();
@@ -82,10 +106,10 @@ export class MoneyService {
     if (p?.email) {
       void this.mailer.enviar({
         kind: 'pago_aliado', to: p.email, toName: p.contact_name, providerId,
-        ...correoPagoAliado({ contacto: p.contact_name, servicios, referencia: referencia?.trim() || null, fecha: FECHA(hoy) }),
+        ...(await correoPagoAliado({ contacto: p.contact_name, servicios, referencia: referencia?.trim() || null, fecha: FECHA(hoy) })),
       });
     }
-    return { ok: true, servicios: servicios.length, total: r2(servicios.reduce((a, s) => a + s.monto, 0)) };
+    return { ok: true, servicios: servicios.length, folios: servicios.map((s) => s.folio), total: r2(servicios.reduce((a, s) => a + s.monto, 0)) };
   }
 
   /** El aliado subió su factura (PDF y/o XML) de un servicio suyo. */
@@ -157,24 +181,51 @@ export class MoneyService {
         select: { id: true },
       });
       if (reciente || !q.email?.trim()) continue;
-      await this.mailer.enviar({
-        kind: 'cobro_recordatorio', to: q.email, toName: q.name, quoteId: Number(m.quote_id),
-        ...correoCobroRecordatorio({
-          nombre: q.name, folio: q.quote_number, servicio: q.product_interested, saldo, vence: FECHA(vence), dias,
-          datosPago: reglas.datosPago, url: `${SITIO()}/cuenta/cotizaciones/${encodeURIComponent(q.quote_number)}`,
-        }),
-      });
+      await this.mandarRecordatorioCobro(m, q, reglas.datosPago, dias);
       n += 1;
       if (dias >= 15) {
         void avisarPanel({
           modulo: 'administracion', evento: 'cobro',
           titulo: `${q.company_name?.trim() || q.name} lleva ${dias} días sin pagar ${q.quote_number}`,
           cuerpo: `Saldo ${saldo.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}. Ya se le mandó recordatorio; llámale.`,
-          link: '/administracion/cobranza',
+          link: '/administracion/cobros?f=cobrar',
         });
       }
     }
     return n;
+  }
+
+  /**
+   * "Recordarle" al cliente desde Cobros y pagos (2026-10-27): el mismo correo
+   * de cobro de la corrida diaria, ya. Sin correo, el panel enseña su teléfono.
+   */
+  async recordarCobroA(quoteId: number): Promise<'enviado' | 'sin_correo'> {
+    const m = await prisma.service_money.findUnique({ where: { quote_id: BigInt(quoteId) } });
+    if (!m) throw new NotFoundException('Ese servicio no tiene cuenta.');
+    if (m.cobrado_at || Number(m.total) - Number(m.cobrado) <= 0) throw new BadRequestException('Este servicio ya está cobrado.');
+    const q = await prisma.quotes.findUnique({ where: { id: m.quote_id }, select: { name: true, email: true, quote_number: true, product_interested: true } });
+    if (!q?.email?.trim()) return 'sin_correo';
+    const estado = await this.mandarRecordatorioCobro(m, q, (await reglasDinero()).datosPago, DIAS(m.vence.toISOString().slice(0, 10), diaLocal()));
+    if (estado === 'omitido') return 'sin_correo';
+    if (estado === 'fallido') throw new BadRequestException('No se pudo mandar el correo. Inténtalo de nuevo.');
+    return 'enviado';
+  }
+
+  /** El correo "tu pago de COT-… vence / venció", con lo que debe y los datos para pagar. */
+  private async mandarRecordatorioCobro(
+    m: { quote_id: bigint; total: unknown; cobrado: unknown; vence: Date },
+    q: { name: string; email: string | null; quote_number: string; product_interested: string | null },
+    datosPago: Awaited<ReturnType<typeof reglasDinero>>['datosPago'],
+    dias: number,
+  ) {
+    const vence = m.vence.toISOString().slice(0, 10);
+    return this.mailer.enviar({
+      kind: 'cobro_recordatorio', to: q.email as string, toName: q.name, quoteId: Number(m.quote_id),
+      ...(await correoCobroRecordatorio({
+        nombre: q.name, folio: q.quote_number, servicio: q.product_interested, saldo: r2(Number(m.total) - Number(m.cobrado)), vence: FECHA(vence), dias,
+        datosPago, url: `${SITIO()}/cuenta/cotizaciones/${encodeURIComponent(q.quote_number)}`,
+      })),
+    });
   }
 
   /** Al aliado que no ha subido su factura: un correo por aliado y por semana, con todos sus servicios. */
@@ -183,8 +234,6 @@ export class MoneyService {
       where: { pagado_at: null, factura_aliado_at: null, provider_id: { not: null }, created_at: { lte: new Date(ahora.getTime() - 86_400_000) } },
     });
     if (pendientes.length === 0) return 0;
-    const quotes = await prisma.quotes.findMany({ where: { id: { in: pendientes.map((p) => p.quote_id) } }, select: { id: true, quote_number: true } });
-    const folio = new Map(quotes.map((q) => [String(q.id), q.quote_number]));
     const porAliado = new Map<number, typeof pendientes>();
     for (const p of pendientes) porAliado.set(p.provider_id as number, [...(porAliado.get(p.provider_id as number) ?? []), p]);
     let n = 0;
@@ -194,21 +243,49 @@ export class MoneyService {
         select: { id: true },
       });
       if (reciente) continue;
-      const p = await prisma.providers.findUnique({ where: { id: providerId }, select: { email: true, contact_name: true, access_version: true, status: true } });
-      if (!p?.email || p.status !== 1) continue;
-      let url: string | null = null;
-      try { url = urlDeAcceso(await firmarAcceso(providerId, p.access_version ?? 1)); } catch { /* sin llave: sale sin botón */ }
-      await this.mailer.enviar({
-        kind: 'factura_aliado_pendiente', to: p.email, toName: p.contact_name, providerId,
-        ...correoFacturaAliadoPendiente({
-          contacto: p.contact_name,
-          servicios: suyas.map((s) => ({ folio: folio.get(String(s.quote_id)) ?? String(s.quote_id), monto: aFacturarPorAliado(s) })),
-          url,
-        }),
-      });
-      n += 1;
+      if ((await this.mandarRecordatorioFactura(providerId, suyas)) === 'enviado') n += 1;
     }
     return n;
+  }
+
+  /**
+   * "Recordarle" a un aliado desde Cobros y pagos (2026-10-27): el mismo correo de la
+   * corrida semanal, ya, con TODO lo que le falta facturar (también lo cerrado
+   * hoy). Sin correo, el panel enseña su teléfono para llamarle.
+   */
+  async recordarFacturaA(providerId: number): Promise<'enviado' | 'sin_correo'> {
+    const p = await prisma.providers.findUnique({ where: { id: providerId }, select: { status: true } });
+    if (!p) throw new NotFoundException('Aliado no encontrado.');
+    if (p.status !== 1) throw new BadRequestException('Este aliado está dado de baja.');
+    const suyas = await prisma.service_money.findMany({ where: { provider_id: providerId, pagado_at: null, factura_aliado_at: null } });
+    if (suyas.length === 0) throw new BadRequestException('Este aliado ya subió todas sus facturas.');
+    const r = await this.mandarRecordatorioFactura(providerId, suyas);
+    if (r === 'sin_correo') return r;
+    if (r !== 'enviado') throw new BadRequestException('No se pudo mandar el correo. Inténtalo de nuevo.');
+    return r;
+  }
+
+  /** El correo "sube tu factura" con sus servicios y el botón a su portal. */
+  private async mandarRecordatorioFactura(
+    providerId: number,
+    suyas: Array<{ quote_id: bigint; pago_aliado: unknown; iva: unknown }>,
+  ): Promise<'enviado' | 'sin_correo' | 'fallido'> {
+    const p = await prisma.providers.findUnique({ where: { id: providerId }, select: { email: true, contact_name: true, access_version: true, status: true } });
+    if (!p?.email?.trim() || p.status !== 1) return 'sin_correo';
+    const quotes = await prisma.quotes.findMany({ where: { id: { in: suyas.map((s) => s.quote_id) } }, select: { id: true, quote_number: true } });
+    const folio = new Map(quotes.map((q) => [String(q.id), q.quote_number]));
+    let url: string | null = null;
+    try { url = urlDeAcceso(await firmarAcceso(providerId, p.access_version ?? 1)); } catch { /* sin llave: sale sin botón */ }
+    const estado = await this.mailer.enviar({
+      kind: 'factura_aliado_pendiente', to: p.email, toName: p.contact_name, providerId,
+      ...(await correoFacturaAliadoPendiente({
+        contacto: p.contact_name,
+        servicios: suyas.map((s) => ({ folio: folio.get(String(s.quote_id)) ?? String(s.quote_id), monto: aFacturarPorAliado(s) })),
+        url,
+      })),
+    });
+    // "omitido" = su correo no es válido: para el panel es lo mismo que no tenerlo.
+    return estado === 'enviado' || estado === 'simulado' ? 'enviado' : estado === 'omitido' ? 'sin_correo' : 'fallido';
   }
 
   /** El día 1 (o el primer día que corra la tarea en el mes), el cierre del mes anterior a Dirección y Administración. */

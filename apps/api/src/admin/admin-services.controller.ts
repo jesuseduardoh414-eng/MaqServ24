@@ -11,6 +11,7 @@ import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { ServiceService } from '../quotes/service.service';
 import { SUGERIDOS } from '../quoter/quoter-servicio';
 import { ESTADOS, PASOS, esEstado, estadoInicial, siguientes, avance } from '../quotes/service-flow';
+import { equiposDeServicios } from '../quotes/rastreo';
 
 /**
  * TABLERO DE OPERACIONES (documento institucional, secciones 16 y 17).
@@ -70,9 +71,12 @@ export class AdminServicesController {
         id: true, quote_number: true, name: true, company_name: true, phone: true,
         service_category: true, service_state: true, service_unit: true,
         service_quantity: true, service_started_at: true, service_closed_at: true,
-        total: true, accepted_at: true, address: true, requirements: true,
+        total: true, accepted_at: true, address: true, requirements: true, product_interested: true,
+        client_sites: { select: { name: true, municipality: true } },
       },
     });
+    // Qué máquina lleva cada uno (2026-10-26, tarjeta corta): lo mismo que dice el mapa.
+    const equipoDe = await equiposDeServicios(rows.map((r) => r.requirements));
 
     // Los aliados de cada servicio, de un solo viaje: uno por servicio serían
     // tantas consultas como filas tenga el tablero.
@@ -121,6 +125,10 @@ export class AdminServicesController {
         // líneas abre un servicio por línea, y el tablero los junta por esto.
         folio: (() => { const f = (q.requirements as { folio?: unknown } | null)?.folio; return typeof f === 'string' && f ? f : null; })(),
         address: q.address,
+        /** La obra, para la tarjeta corta (2026-10-26). */
+        obra: q.client_sites ? [q.client_sites.name, q.client_sites.municipality].filter(Boolean).join(' · ') : null,
+        /** La máquina o el material: de la cotización, o lo que pidió por el formulario. */
+        equipo: equipoDe(q.requirements) ?? q.product_interested?.split(/ [·—] /).pop() ?? null,
         state: st,
         stateLabel: PASOS[st].label,
         stateHint: PASOS[st].hint,
@@ -182,6 +190,16 @@ export class AdminServicesController {
    * aliado desde su portal; aquí, para cuando no lo hizo o lo pide por
    * teléfono. Volver a mandarlo invalida el enlace anterior.
    */
+  /** El aliado se bajó a medio servicio: vuelve a Por asignar para buscar otro (2026-10-26). */
+  @Post(':id/se-bajo')
+  async seBajo(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({ nota: z.string().max(1000).optional().nullable() }).safeParse(body ?? {});
+    if (!p.success) throw new BadRequestException('Datos inválidos');
+    const r = await this.services.seBajoElAliado(id, { adminId: req.adminId, note: p.data.nota ?? null });
+    void registrarAccion(req, 'servicios', 'aliado.se_bajo', String(id), p.data.nota ?? undefined);
+    return r;
+  }
+
   @Put(':id/operador')
   async operador(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
     const p = z.object({ nombre: z.string().trim().min(2, 'Escribe el nombre del operador').max(120), telefono: zTelefono().optional().nullable() }).safeParse(body);
@@ -203,6 +221,31 @@ export class AdminServicesController {
     const b = ofrecerSchema.parse(body);
     await this.services.ofrecer(id, b.providerId, { scope: b.scope, adminId: req.adminId });
     return { ok: true };
+  }
+
+  /**
+   * MANDAR A TODOS (2026-10-23). Ya nada sale solo cuando el cliente acepta:
+   * desde "Buscar aliado" se le ofrece a uno, a varios o, con esto, a todos los
+   * que llegan a la obra (primero los que tienen ese tipo). El primero que
+   * acepta se la queda. `motivo` dice por qué no salió a nadie.
+   */
+  /** A quiénes les llegaría "Mandar a todos", sin mandar nada: la pantalla lo enseña antes de confirmar. */
+  @Get(':id/ofrecer-todos')
+  async candidatosATodos(@Param('id', ParseIntPipe) id: number) {
+    const r = await this.services.ofrecerATodos(id, { soloVer: true });
+    return { candidatos: r.ofrecidos, motivo: r.motivo };
+  }
+
+  @Post(':id/ofrecer-todos')
+  async ofrecerATodos(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
+    const q = await prisma.quotes.findUnique({ where: { id }, select: { quote_number: true, service_state: true } });
+    if (!q) throw new NotFoundException('Servicio no encontrado');
+    if (q.service_state !== 'por_asignar') throw new BadRequestException('Solo se manda a todos un servicio por asignar.');
+    const r = await this.services.ofrecerATodos(id, { adminId: req.adminId ?? null });
+    if (r.ofrecidos.length) {
+      await registrarAccion(req, 'servicios', 'servicio.ofrecer_todos', q.quote_number, r.ofrecidos.join(', '));
+    }
+    return { ofrecidos: r.ofrecidos, motivo: r.motivo };
   }
 
   /**

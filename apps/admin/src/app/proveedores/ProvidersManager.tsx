@@ -1,21 +1,27 @@
 'use client';
 
-import { Fragment, useCallback, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, centroDeMunicipio, coordenadasDe, esLineaServicio, presentacionEstado, radioDeCobertura } from '@maqserv/config';
+import { colorVivo } from '@/components/modo';
 import { AdminSelect } from '@/components/AdminSelect';
 import { AdminDatePicker } from '@/components/AdminFecha';
 import { Modal } from '@/components/Modal';
 import {
-  Btn, btnClass, Chip, EmptyState, FormField, IconBtn, Note, PageHeader, Panel, SearchBox, Stat, Stats, StatusText, Thumb, Toolbar,
+  Btn, btnClass, Chip, EmptyState, FormField, IconBtn, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Switch, Toolbar,
   type Tone,
 } from '@/components/ui';
+import { D } from '@/components/design-tokens';
 import { DocumentAlerts } from './DocumentAlerts';
 import { SolicitudesProveedor } from './SolicitudesProveedor';
 import { ProviderHistory } from './ProviderHistory';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
+import { LINEAS_MAPA, MapaRed } from './MapaRed';
+import { InvitacionesPendientes, InvitarAliado } from './InvitarAliado';
 import { QueOfrece, categoriasDelTipo, faltaEnOferta, tipoDeCategorias, type TipoOferta } from './QueOfrece';
-import { CostosReferencia, DescargarExcelProveedores } from './CostosReferencia';
+import { DescargarExcelProveedores } from './ExcelProveedores';
+import { waDe } from './wa';
 import { avisar, confirmar } from '@/components/Dialogos';
+import { mostrarResultado } from '@maqserv/ui';
 
 export interface ProviderRow {
   id: number;
@@ -38,6 +44,8 @@ export interface ProviderRow {
   status: number;
   docsStatus: 'al-dia' | 'por-vencer' | 'vencido' | 'incompleto' | 'sin-documentos';
   verified: boolean;
+  /** Los papeles obligatorios que no tiene vigentes ('fiscal', 'seguro'): sin ellos no hay sello. */
+  faltan?: string[];
   monthsInNetwork: number | null;
   documentCount: number;
   productCount: number;
@@ -95,8 +103,12 @@ interface DocRow {
   reemplazado?: boolean;
 }
 
-/** Los cuatro niveles del documento, en orden de escalera. */
-const NIVELES = ['registrado', 'validado', 'activo', 'preferente'] as const;
+/**
+ * Lo que le falta para el sello, en corto. Desde 2026-10-27 el sello sale solo
+ * de los papeles (constancia fiscal y póliza vigentes): ya no hay niveles que
+ * subir a mano, solo la marca de "preferente".
+ */
+const FALTA_CORTO: Record<string, string> = { fiscal: 'constancia fiscal', seguro: 'póliza de seguro' };
 const TIPOS_DOC: Array<[string, string]> = [
   ['fiscal', 'Fiscal'],
   ['legal', 'Legal'],
@@ -114,34 +126,32 @@ const DESC: CSSProperties = { margin: '4px 0 14px', fontSize: 13, color: 'var(--
 const VACIO: CSSProperties = { margin: 0, fontSize: 13, color: 'var(--adm-faint)', lineHeight: 1.6 };
 const AVISO: CSSProperties = { fontSize: 13, color: 'var(--adm-text-2)', lineHeight: 1.5 };
 
-/** Aliado | Documentos | Nivel | Expediente. */
-const GRID = 'minmax(0,1fr) 128px 150px 132px';
+/** Aliado | Papeles | Preferente | Expediente. */
+const GRID = 'minmax(0,1fr) 170px 140px 120px';
 
-/**
- * Lo que ofrece, separado: servicios (las líneas) y productos (cualquier otra
- * categoría). `categoryLabels` viene en el mismo orden que `categories`.
- */
-function ChipsOferta({ p }: { p: ProviderRow }) {
-  const pares = p.categories.map((slug, i) => ({ slug, nombre: p.categoryLabels?.[i] ?? slug }));
-  const servicios = pares.filter((x) => esLineaServicio(x.slug));
-  const productos = pares.filter((x) => !esLineaServicio(x.slug));
-  if (pares.length === 0) return <span style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>Sin servicios ni productos marcados</span>;
-  const grupo = (titulo: string, xs: typeof pares) =>
-    xs.length ? (
-      <>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--adm-faint)', textTransform: 'uppercase', letterSpacing: '.08em' }}>{titulo}</span>
-        {xs.map((x) => <Chip key={x.slug}>{x.nombre}</Chip>)}
-      </>
-    ) : null;
-  return <>{grupo('Servicios', servicios)}{grupo('Productos', productos)}</>;
-}
+/** Las pestañas del expediente (2026-10-27): antes eran ocho secciones una debajo de otra. */
+type Pestana = 'datos' | 'equipos' | 'papeles' | 'cumple';
+
+/** "Maquinaria, Transporte": sus líneas en corto (los nombres del mapa); lo demás, con su nombre. */
+const serviciosCortos = (p: ProviderRow) => {
+  const xs = LINEAS_MAPA.filter((l) => p.categories.includes(l.slug)).map((l) => l.nombre);
+  // Lo que no es línea de servicio va con su nombre: «Grúas (nueva)» si la propuso él.
+  p.categories.forEach((c, i) => { if (!esLineaServicio(c)) xs.push(p.categoryLabels?.[i] ?? c); });
+  return xs.join(', ');
+};
 
 const ETIQUETA_DOCS: Record<ProviderRow['docsStatus'], { texto: string; tono: Tone }> = {
   'al-dia': { texto: 'Al día', tono: 'ok' },
   'por-vencer': { texto: 'Por vencer', tono: 'warn' },
   vencido: { texto: 'Vencido', tono: 'bad' },
   incompleto: { texto: 'Faltan papeles', tono: 'warn' },
-  'sin-documentos': { texto: 'Sin documentos', tono: 'muted' },
+  'sin-documentos': { texto: 'Sin papeles', tono: 'muted' },
+};
+
+/** "Falta: constancia fiscal y póliza de seguro" (vacío si ya los tiene). */
+const textoFalta = (p: ProviderRow) => {
+  const xs = (p.faltan ?? []).map((k) => FALTA_CORTO[k] ?? k);
+  return xs.length ? `Falta: ${xs.join(' y ')}` : '';
 };
 
 /** Convierte "Apodaca, Escobedo , García" en tres municipios limpios. */
@@ -185,8 +195,17 @@ function conPuntos(xs: Array<ReactNode | null | false | undefined>) {
   ));
 }
 
-export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
+export function ProvidersManager({ initial, abrir, enfocarCorreo = false }: {
+  initial: ProviderRow[];
+  /** Abrir de entrada el expediente de este aliado (?ver=). */
+  abrir?: number;
+  /** …y llevar al campo de su correo (?dato=correo). */
+  enfocarCorreo?: boolean;
+}) {
   const [todos, setProvs] = useState(initial);
+  // En vivo (2026-10-26): al llegar un aviso la campana pide la página otra vez;
+  // la lista toma lo nuevo del servidor (lo que se escribe vive aparte y no se pierde).
+  useEffect(() => { setProvs(initial); }, [initial]);
   // Las solicitudes del sitio (status 2) van aparte: todavía no son de la red.
   const provs = useMemo(() => todos.filter((p) => p.status !== ESTADO_SOLICITUD_PROVEEDOR), [todos]);
   const solicitudes = useMemo(() => todos.filter((p) => p.status === ESTADO_SOLICITUD_PROVEEDOR), [todos]);
@@ -195,11 +214,16 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
   /** Mandarle su invitación al darlo de alta (solo si la ficha trae correo). */
   const [invitar, setInvitar] = useState(true);
   const [expediente, setExpediente] = useState<ProviderRow | null>(null);
+  /** Con qué pestaña abre el expediente: "1 por revisar" lleva a Equipos; un aviso de papeles, a Papeles. */
+  const [pestanaInicial, setPestanaInicial] = useState<Pestana>('datos');
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [invitando, setInvitando] = useState(false);
+  /** Sube con cada invitación mandada: la lista de "sin respuesta" se vuelve a pedir. */
+  const [versionInv, setVersionInv] = useState(0);
 
   const [form, setForm] = useState({
-    name: '', level: 'registrado', contactName: '', phone: '', email: '',
+    name: '', contactName: '', phone: '', email: '',
     address: '', city: '', state: 'Nuevo León', coverage: '', categories: [] as string[], responseMinutes: '',
   });
 
@@ -235,7 +259,6 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: form.name.trim(),
-        level: form.level,
         contactName: form.contactName || null,
         phone: form.phone || null,
         email: form.email || null,
@@ -255,7 +278,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
     if (!r.ok) { setErrorAlta(typeof d?.message === 'string' ? d.message : 'No se pudo guardar'); return; }
     const conCorreo = Boolean(form.email);
     setCreando(false);
-    setForm({ name: '', level: 'registrado', contactName: '', phone: '', email: '', address: '', city: '', state: 'Nuevo León', coverage: '', categories: [], responseMinutes: '' });
+    setForm({ name: '', contactName: '', phone: '', email: '', address: '', city: '', state: 'Nuevo León', coverage: '', categories: [], responseMinutes: '' });
     setInvitar(true);
     setTipoOferta('servicios');
     const invitacion = d?.acceso
@@ -267,18 +290,40 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
     recargar();
   }
 
-  async function cambiarNivel(p: ProviderRow, level: string) {
-    await fetch(`/api/admin/providers/${p.id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level }),
+  /**
+   * PREFERENTE (2026-10-27): la única marca a mano. Antes eran cuatro niveles
+   * y el sello dependía de subirlo a "validado"; ahora el sello sale solo de
+   * los papeles y esto solo pone primero a los que tú prefieres.
+   */
+  async function cambiarPreferente(p: ProviderRow) {
+    const es = p.level === 'preferente';
+    const r = await fetch(`/api/admin/providers/${p.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level: es ? 'registrado' : 'preferente' }),
     });
+    mostrarResultado(
+      !r.ok ? 'No se pudo cambiar. Inténtalo de nuevo.' : es ? `«${p.name}» ya no es preferente.` : `«${p.name}» es preferente: sale primero cuando buscas aliado para una solicitud.`,
+      r.ok ? 'ok' : 'bad',
+    );
     recargar();
   }
 
-  async function abrirExpediente(p: ProviderRow) {
+  async function abrirExpediente(p: ProviderRow, pestana: Pestana = 'datos') {
+    setPestanaInicial(pestana);
     setExpediente(p);
     const r = await fetch(`/api/admin/providers/${p.id}/documents`);
     setDocs(r.ok ? await r.json() : []);
   }
+
+  // Llegar con ?ver= abre su expediente una sola vez.
+  const [abierto, setAbierto] = useState(false);
+  useEffect(() => {
+    if (abierto || !abrir) return;
+    const p = todos.find((x) => x.id === abrir);
+    if (!p) return;
+    setAbierto(true);
+    void abrirExpediente(p);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abrir, todos, abierto]);
 
   async function agregarDoc(kind: string, nombre: string, vence: string) {
     if (!expediente) return;
@@ -286,14 +331,23 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind, name: nombre || null, expiresAt: vence || null }),
     });
-    abrirExpediente(expediente);
-    recargar();
+    await recargarDocs(expediente.id);
   }
 
   async function borrarDoc(id: number) {
     await fetch(`/api/admin/providers/documents/${id}`, { method: 'DELETE' });
-    if (expediente) abrirExpediente(expediente);
-    recargar();
+    if (expediente) await recargarDocs(expediente.id);
+  }
+
+  /** Tras agregar o quitar un papel: su lista y su sello, sin salirse de la pestaña. */
+  async function recargarDocs(id: number) {
+    const [rd, rp] = await Promise.all([fetch(`/api/admin/providers/${id}/documents`), fetch('/api/admin/providers')]);
+    if (rd.ok) setDocs(await rd.json());
+    if (rp.ok) {
+      const nuevos = (await rp.json()) as ProviderRow[];
+      setProvs(nuevos);
+      setExpediente(nuevos.find((x) => x.id === id) ?? null);
+    }
   }
 
   const conSello = provs.filter((p) => p.verified).length;
@@ -306,13 +360,13 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         .pv-row { display: grid; grid-template-columns: ${GRID}; gap: 16px; align-items: center; }
         .pv-c-act { display: flex; justify-content: flex-end; }
         .pv-m-label { display: none; }
-        /* En móvil cada aliado pasa a bloque: nombre y datos arriba; documentos,
-           nivel y expediente en una línea debajo. */
+        .pv-falta { margin-top: 3px; font-size: 12px; line-height: 1.4; color: var(--adm-muted); }
+        /* En móvil cada aliado pasa a bloque: nombre y datos arriba; papeles,
+           preferente y expediente en una línea debajo. */
         @media (max-width: 900px) {
           .pv-thead { display: none !important; }
           .pv-row { display: flex; flex-wrap: wrap; gap: 10px 14px; }
           .pv-row > .pv-c-name { flex: 1 1 100%; }
-          .pv-row > .pv-c-level { width: 150px; }
           .pv-row > .pv-c-act { margin-left: auto; }
           .pv-m-label { display: inline; margin-right: 6px; font-size: 12.5px; color: var(--adm-faint); }
         }
@@ -323,14 +377,15 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         title="Red de aliados"
         subtitle={
           <>
-            Proveedores que aportan capacidad: su expediente, papeles, cobertura y lo que te cobran (antes el CRM).
-            El sello de verificado no se pone a mano: sale del nivel y de que sus documentos estén vigentes.
+            Tus aliados, dónde están y hasta dónde llegan. Para sumar a alguien, invítalo: él llena sus datos y te llega como solicitud.
+            El sello de verificado sale solo cuando su constancia fiscal y su póliza están vigentes.
           </>
         }
         actions={
           <>
-            <DescargarExcelProveedores />
-            <Btn variant="primary" icon="ph-plus" onClick={() => setCreando(true)}>Nuevo aliado</Btn>
+            <DescargarExcelProveedores aliados={todos} />
+            <Btn icon="ph-plus" onClick={() => setCreando(true)}>Darlo de alta yo</Btn>
+            <Btn variant="primary" icon="ph-paper-plane-tilt" onClick={() => setInvitando(true)}>Invitar aliado</Btn>
           </>
         }
       />
@@ -353,40 +408,30 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
       {/*
         DONDE ESTA LA RED (documento institucional, 17).
         Un mapa contesta de un vistazo lo que una lista de municipios no: si
-        hay un hueco geografico, y de que tamano.
+        hay un hueco geografico, y de que tamano. Desde 2026-10-27 con nombre,
+        color por servicio y filtro (ver MapaRed).
       */}
-      {provs.some((x) => x.lat != null && x.lng != null) ? (
-        <div style={{ marginBottom: 28 }}>
-          <MapaCobertura
-            puntos={provs
-              .filter((x) => x.lat != null && x.lng != null && x.status === 1)
-              .map<PuntoMapa>((x) => ({
-                id: x.id,
-                nombre: x.name,
-                lat: x.lat!,
-                lng: x.lng!,
-                radioKm: x.coverageRadiusKm,
-                tipo: 'aliado',
-                detalle: (x.categoryLabels ?? x.categories).join(', '),
-              }))}
-          />
-          <p className="adm-help" style={{ margin: '8px 0 0' }}>
-            El círculo es hasta donde llega cada aliado, calculado con los municipios que cubre.
-            Los que no aparecen no tienen dirección ni municipio: complétalos en su expediente.
-          </p>
-        </div>
-      ) : null}
+      <MapaRed
+        aliados={provs}
+        onElegir={(id) => {
+          const prov = provs.find((x) => x.id === id);
+          if (prov) void abrirExpediente(prov);
+        }}
+      />
+
+      <SolicitudesProveedor solicitudes={solicitudes} onCambio={(m) => { setMsg(m); void recargar(); }} />
+
+      <InvitacionesPendientes version={versionInv} />
+      <InvitarAliado abierto={invitando} onCerrar={() => setInvitando(false)} onEnviada={() => setVersionInv((v) => v + 1)} />
 
       {/*
         Los contadores de arriba dicen CUANTOS. Esto dice que papel, de quien y
         para cuando — lo unico con lo que se puede levantar el telefono.
       */}
-      <SolicitudesProveedor solicitudes={solicitudes} onCambio={(m) => { setMsg(m); void recargar(); }} />
-
       <DocumentAlerts
         onIr={(id) => {
           const prov = provs.find((x) => x.id === id);
-          if (prov) abrirExpediente(prov);
+          if (prov) void abrirExpediente(prov, 'papeles');
         }}
       />
 
@@ -395,8 +440,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
       {/* Alta en modal (2026-09-25): antes el formulario empujaba la lista hacia abajo. */}
       <Modal
         abierto={creando}
-        titulo="Nuevo aliado"
-        subtitulo="Con correo, al darlo de alta le llega su invitación al portal."
+        titulo="Darlo de alta yo"
+        subtitulo="Para cuando ya tienes todos sus datos. Si no, mejor «Invitar aliado» y que él los llene. Con correo, al darlo de alta le llega su enlace al portal."
         onCerrar={() => { setCreando(false); setErrorAlta(null); }}
         ancho={860}
         pie={
@@ -420,12 +465,6 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
           <FormField label="Correo">
             <input className="adm-input" type="email" maxLength={190} placeholder="nombre@empresa.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </FormField>
-          {/* Los AdminSelect no van dentro de <label>: es un botón de Radix y el
-              clic en la etiqueta lo abriría dos veces. */}
-          <div className="adm-field">
-            <span className="adm-label">Nivel</span>
-            <AdminSelect ariaLabel="Nivel" value={form.level} onChange={(v) => setForm({ ...form, level: v })} options={NIVELES.map((n) => ({ value: n, label: n }))} />
-          </div>
           <FormField label="Respuesta promedio (minutos)">
             <input className="adm-input adm-num" type="number" min={0} max={10080} step={1} value={form.responseMinutes} onChange={(e) => setForm({ ...form, responseMinutes: e.target.value })} />
           </FormField>
@@ -477,7 +516,7 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 
       <Panel flush clip>
         <div className="adm-thead pv-row pv-thead">
-          <div>Aliado</div><div>Documentos</div><div>Nivel</div><div />
+          <div>Aliado</div><div>Papeles</div><div>Preferente</div><div />
         </div>
 
         {filtrados.length === 0 ? (
@@ -488,13 +527,14 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 
         {filtrados.map((p) => {
           const d = ETIQUETA_DOCS[p.docsStatus];
-          const publicados = (p.equipment ?? []).filter((e) => !e.pending);
+          const activos = (p.equipment ?? []).filter((e) => !e.pending).length;
+          // LIMPIO (2026-10-28): dos líneas por aliado. Contacto, teléfono, meses
+          // en la red y la lista de máquinas viven en su expediente.
           const datos = conPuntos([
-            p.contactName,
-            p.phone ? <span className="adm-mono">{p.phone}</span> : null,
-            p.coverage.length ? `Cubre: ${p.coverage.join(', ')}` : null,
-            p.responseMinutes !== null ? `Responde en ~${p.responseMinutes} min` : null,
-            p.monthsInNetwork !== null ? `${p.monthsInNetwork} meses en la red` : null,
+            p.city,
+            p.coverage.length ? `llega a ${p.coverage.length} municipio${p.coverage.length === 1 ? '' : 's'}` : 'sin municipios',
+            serviciosCortos(p) || 'sin servicios',
+            `${activos} equipo${activos === 1 ? '' : 's'}`,
           ]);
           return (
             // Dado de baja: sigue en la lista, pero apagado.
@@ -502,52 +542,37 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
               <div className="pv-c-name" style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span className="adm-cell-title">{p.name}</span>
-                  <Chip tone={p.verified ? 'ok' : 'muted'}>{p.verified ? 'Con sello' : 'Sin sello'}</Chip>
+                  <Chip tone={p.verified ? 'ok' : 'muted'} title={p.verified ? 'Constancia fiscal y póliza vigentes' : textoFalta(p) || 'Tiene un papel vencido'}>
+                    {p.verified ? 'Con sello' : 'Sin sello'}
+                  </Chip>
                   {p.pendingCount ? (
                     <button
                       type="button"
                       className="adm-chip t-warn"
-                      onClick={() => abrirExpediente(p)}
-                      title="Abrir su expediente para revisarlo"
+                      onClick={() => void abrirExpediente(p, 'equipos')}
+                      title="Ofreció algo que no está en tu lista: se decide en Inventario"
                       style={{ border: 0, cursor: 'pointer', fontFamily: 'inherit' }}
                     >
-                      {p.pendingCount} por revisar
+                      {p.pendingCount} nuevo{p.pendingCount === 1 ? '' : 's'}
                     </button>
                   ) : null}
                 </div>
-                {datos.length ? <div className="adm-cell-sub" style={{ lineHeight: 1.6 }}>{datos}</div> : null}
-
-                {/* Qué ofrece, a la vista: líneas y máquinas (tipo y marca). */}
-                <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <ChipsOferta p={p} />
-                </div>
-                <div className="adm-cell-sub" style={{ marginTop: 6, lineHeight: 1.6 }}>
-                  {publicados.length > 0 ? (
-                    <>
-                      <span style={{ color: 'var(--adm-text-2)', fontWeight: 600 }}>{publicados.length} equipo{publicados.length === 1 ? '' : 's'}:</span>{' '}
-                      {publicados.slice(0, 4).map((e) => `${e.name}${e.brand ? ` (${e.brand})` : ''}`).join(' · ')}
-                      {publicados.length > 4 ? ` · y ${publicados.length - 4} más` : ''}
-                    </>
-                  ) : (
-                    'Sin equipos publicados.'
-                  )}
-                </div>
+                <div className="adm-cell-sub" style={{ lineHeight: 1.6 }}>{datos}</div>
               </div>
-              <div className="pv-c-docs">
-                <span className="pv-m-label">Documentos:</span>
+              <div className="pv-c-docs" title={textoFalta(p) || undefined}>
+                <span className="pv-m-label">Papeles:</span>
                 <StatusText tone={d.tono}>{d.texto}</StatusText>
               </div>
               <div className="pv-c-level">
-                <AdminSelect
-                  size="sm"
-                  ariaLabel={`Nivel de ${p.name}`}
-                  value={p.level}
-                  onChange={(v) => cambiarNivel(p, v)}
-                  options={NIVELES.map((n) => ({ value: n, label: n }))}
+                <Switch
+                  on={p.level === 'preferente'}
+                  onClick={() => void cambiarPreferente(p)}
+                  label="Preferente"
+                  title="Los preferentes salen primero cuando buscas aliado para una solicitud"
                 />
               </div>
               <div className="pv-c-act">
-                <Btn size="sm" onClick={() => abrirExpediente(p)}>{`Expediente (${p.documentCount})`}</Btn>
+                <Btn size="sm" onClick={() => void abrirExpediente(p)}>Expediente</Btn>
               </div>
             </div>
           );
@@ -558,6 +583,8 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
         <ExpedienteModal
           p={expediente}
           docs={docs}
+          pestanaInicial={pestanaInicial}
+          enfocarCorreo={enfocarCorreo && expediente.id === abrir}
           onCerrar={() => setExpediente(null)}
           onAgregar={agregarDoc}
           onBorrar={borrarDoc}
@@ -585,46 +612,26 @@ export function ProvidersManager({ initial }: { initial: ProviderRow[] }) {
 }
 
 function ExpedienteModal({
-  p, docs, onCerrar, onAgregar, onBorrar, onRevisado, onEliminar,
+  p, docs, pestanaInicial = 'datos', enfocarCorreo = false, onCerrar, onAgregar, onBorrar, onRevisado, onEliminar,
 }: {
   p: ProviderRow;
   docs: DocRow[];
+  pestanaInicial?: Pestana;
+  /** Abrir con el cursor en su correo (desde "Agregar su correo" de Pagos). */
+  enfocarCorreo?: boolean;
   onCerrar: () => void;
   onAgregar: (kind: string, nombre: string, vence: string) => void;
   onBorrar: (id: number) => void;
-  /** Tras publicar o rechazar: mensaje y recarga. */
+  /** Tras un cambio (contacto, ubicación, qué ofrece): mensaje y recarga. */
   onRevisado: (texto: string) => void;
   /** Borra al aliado si no tiene historial; si lo tiene, lo da de baja. */
   onEliminar: () => void;
 }) {
-  const [ocupado, setOcupado] = useState<number | null>(null);
-  const [rechazando, setRechazando] = useState<number | null>(null);
-  const [motivo, setMotivo] = useState('');
+  const [pestana, setPestana] = useState<Pestana>(pestanaInicial);
   const pendientes = (p.equipment ?? []).filter((e) => e.pending);
-  const publicados = (p.equipment ?? []).filter((e) => !e.pending);
+  // Lo nuevo arriba: es lo único que está esperando algo.
+  const equipos = [...pendientes, ...(p.equipment ?? []).filter((e) => !e.pending)];
 
-  // Ya no se liga a renglones del tabulador: el cotizador guiado recomienda
-  // las máquinas publicadas. Se conserva vacío por compatibilidad con la API.
-  const cuentaComo: Record<number, string> = {};
-
-  async function revisar(e: EquipoRow, accion: 'publicar' | 'rechazar') {
-    if (accion === 'rechazar' && motivo.trim().length < 4) return;
-    setOcupado(e.id);
-    const elegido = cuentaComo[e.id];
-    const renglon = elegido ? { tipo: elegido.split(':')[0], id: elegido.split(':').slice(1).join(':') } : null;
-    const r = await fetch(`/api/admin/providers/equipos/${e.id}/${accion}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(accion === 'rechazar' ? { motivo: motivo.trim() } : { renglon }),
-    });
-    setOcupado(null);
-    const d = await r.json().catch(() => null);
-    if (!r.ok) { await avisar({ titulo: 'No se pudo completar', mensaje: d?.message ?? 'Inténtalo de nuevo.', peligro: true }); return; }
-    setRechazando(null); setMotivo('');
-    onRevisado(accion === 'publicar'
-      ? `"${e.name}" quedó publicado y ya aparece en el sitio. Le avisamos al aliado.`
-      : `"${e.name}" no se publicó. Le mandamos el motivo al aliado.`);
-  }
   // Qué ofrece (servicios, productos o ambos): se puede cambiar después del alta.
   const [editandoOferta, setEditandoOferta] = useState(false);
   const [tipoEdit, setTipoEdit] = useState<TipoOferta>('servicios');
@@ -646,272 +653,317 @@ function ExpedienteModal({
   const [vence, setVence] = useState('');
   const hoy = new Date().toISOString().slice(0, 10);
 
-  /** Tipo · marca · renta o venta · dónde está. */
-  const metaEquipo = (e: EquipoRow) =>
-    [e.category, e.brand ? `Marca ${e.brand}` : 'Sin marca', e.rental ? 'Renta' : 'Venta', e.location].filter(Boolean).join(' · ');
+  const vigentes = docs.filter((d) => !d.reemplazado).length;
+  // En una línea, arriba: lo que más se pregunta de un aliado sin abrir nada.
+  const resumen = conPuntos([
+    p.verified ? <span style={{ color: 'var(--adm-ok)' }}>Con sello</span> : <span>Sin sello{textoFalta(p) ? ` · ${textoFalta(p).toLowerCase()}` : ''}</span>,
+    p.level === 'preferente' ? 'Preferente' : null,
+    p.status === 1 ? null : <span style={{ color: 'var(--adm-bad)' }}>Dado de baja</span>,
+  ]);
 
   return (
     // El modal del panel (2026-10-08): antes era un overlay propio; este cierra
     // también con Esc y deja la X y el título como en los demás módulos.
-    <Modal abierto titulo={`Expediente · ${p.name}`} onCerrar={onCerrar} ancho={680}>
-      {/* ── Qué ofrece ── Sus máquinas del catálogo con lo que las define:
-          tipo, marca, ficha técnica y si están libres. Se agregan y editan
-          en el catálogo, ya ligadas a este aliado. */}
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <h3 style={H3}>Qué ofrece</h3>
-          <a href={`/productos/nuevo?proveedor=${p.id}`} className={btnClass('secondary', 'sm')}>
-            <i className="ph ph-plus" aria-hidden />Agregar servicio o producto
-          </a>
-        </div>
-        {editandoOferta ? (
-          <div className="adm-card" style={{ padding: 16, marginBottom: 14 }}>
-            <QueOfrece tipo={tipoEdit} onTipo={setTipoEdit} categorias={catsEdit} onCategorias={setCatsEdit} />
-            {errorOferta ? <div role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', marginTop: 10 }}>{errorOferta}</div> : null}
-            <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-              <Btn size="sm" variant="ghost" onClick={() => setEditandoOferta(false)}>Cancelar</Btn>
-              {/* Primario dentro de su formulario: solo existe mientras se edita. */}
-              <Btn size="sm" variant="primary" onClick={() => void guardarOferta()}>Guardar</Btn>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
-            <ChipsOferta p={p} />
-            <button
-              type="button"
-              className="adm-panel-link"
-              style={{ marginLeft: 6 }}
-              onClick={() => { setCatsEdit(p.categories); setTipoEdit(tipoDeCategorias(p.categories)); setErrorOferta(null); setEditandoOferta(true); }}
-            >
-              <i className="ph ph-pencil-simple" aria-hidden />Cambiar qué ofrece
-            </button>
-          </div>
-        )}
-
-        {/* Lo que mandó desde su portal: cada uno trae su propio formulario de
-            rechazo y tres acciones, por eso va como tarjeta y no como fila. */}
-        {pendientes.length > 0 ? (
-          <div style={{ display: 'grid', gap: 10, marginBottom: 14 }}>
-            <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
-              <span style={{ fontWeight: 600, color: 'var(--adm-warn)' }}>Por revisar ({pendientes.length})</span>
-              {' · lo ofreció desde su portal. Revísalo, corrígelo si hace falta y publícalo.'}
-            </div>
-            {pendientes.map((e) => (
-              <div key={e.id} className="adm-card" style={{ padding: 16 }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  {e.image ? <Thumb src={e.image} size={56} /> : null}
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span className="adm-cell-title">{e.name}</span>
-                      <Chip tone="warn">Por revisar</Chip>
-                    </div>
-                    <div className="adm-cell-sub">{metaEquipo(e)}</div>
-                    <div style={{ fontSize: 12.5, color: 'var(--adm-text-2)', marginTop: 4, lineHeight: 1.5 }}>
-                      {e.specs.length ? e.specs.map((x) => `${x.label}: ${x.valor}`).join(' · ') : 'Sin ficha técnica'}
-                    </div>
-                  </div>
-                </div>
-                {rechazando === e.id ? (
-                  <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
-                    <textarea
-                      className="adm-textarea"
-                      value={motivo}
-                      onChange={(ev) => setMotivo(ev.target.value)}
-                      rows={2}
-                      placeholder="Qué le falta o por qué no se publica (le llega por correo)"
-                      aria-label="Motivo del rechazo"
-                    />
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                      <Btn size="sm" variant="ghost" onClick={() => { setRechazando(null); setMotivo(''); }}>Cancelar</Btn>
-                      <Btn size="sm" variant="danger" disabled={ocupado === e.id || motivo.trim().length < 4} onClick={() => void revisar(e, 'rechazar')}>
-                        Rechazar y avisarle
-                      </Btn>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* El cliente ve la ficha del tipo, no la máquina (2026-10-22, Fase 4): al
-                        publicarla, a este aliado le llegan las solicitudes de ese tipo. */}
-                    <div style={{ marginTop: 12, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.55 }}>
-                      {esLineaServicio(e.categorySlug)
-                        ? e.tipo
-                          ? <>Tipo: <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{e.tipo}</strong>. Al publicarla, a este aliado le llegan las solicitudes de ese tipo y, cuando acepte una, se aparta esta máquina.</>
-                          : <>Todavía <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>sin tipo</strong>: en «Revisar y corregir» elige de qué tipo es, para que le lleguen las solicitudes de ese tipo.</>
-                        : <>Al publicarlo aparece en la tienda como producto. Si no le pusiste precio al cliente, se calcula con lo que cobra el aliado más el margen.</>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-                      <a href={`/productos/editar/${e.id}`} className={btnClass('secondary', 'sm')}>Revisar y corregir</a>
-                      <Btn size="sm" icon="ph-check" disabled={ocupado === e.id} onClick={() => void revisar(e, 'publicar')}>Publicar</Btn>
-                      <Btn size="sm" variant="danger" onClick={() => setRechazando(e.id)}>Rechazar</Btn>
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {publicados.length === 0 ? (
-          <p style={VACIO}>
-            Todavía no tiene servicios ni productos. Con «Agregar servicio o producto» creas la ficha (tipo, marca, capacidad,
-            fotos) ya a su nombre. Si la máquina ya existe en el catálogo, ábrela y en «De quién es el equipo» elígelo a él.
-          </p>
-        ) : (
-          <Panel flush clip>
-            {publicados.map((e) => {
-              const disp = presentacionEstado(e.availability);
-              return (
-                <div key={e.id} className="adm-trow" style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 16px' }}>
-                  <Thumb src={e.image} size={48} />
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className="adm-cell-title">{e.name}</span>
-                      <StatusText color={disp.color.oscuro} title={disp.nota}>{disp.nombre}</StatusText>
-                    </div>
-                    <div className="adm-cell-sub">{metaEquipo(e)}</div>
-                    {e.specs.length > 0 ? (
-                      <div style={{ fontSize: 12.5, color: 'var(--adm-text-2)', marginTop: 4, lineHeight: 1.5 }}>
-                        {e.specs.map((s) => `${s.label}: ${s.valor}`).join(' · ')}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: 'var(--adm-warn)', marginTop: 4 }}>Ficha técnica vacía: agrega capacidad, modelo e implementos.</div>
-                    )}
-                  </div>
-                  <IconBtn icon="ph-pencil-simple" label="Editar" href={`/productos/editar/${e.id}`} />
-                </div>
-              );
-            })}
-          </Panel>
-        )}
-      </section>
-
-      {/* Lo que te cobra por máquina: era la pantalla del CRM (2026-10-08). */}
-      <CostosReferencia providerId={p.id} />
-
-      <section style={SECCION}>
-        <h3 style={H3}>Papeles</h3>
-        <p style={DESC}>Un documento vencido le quita el sello al aliado aunque su nivel sea alto.</p>
-
-        {docs.length === 0 ? (
-          <p style={VACIO}>Sin documentos cargados.</p>
-        ) : (
-          <Panel flush clip>
-            {/* Los reemplazados al final y en gris: siguen ahí (con su foto),
-                pero ya no cuentan. Antes la constancia vieja seguía en rojo
-                junto a la renovada y parecía que nada había cambiado. */}
-            {[...docs].sort((a, b) => Number(!!a.reemplazado) - Number(!!b.reemplazado)).map((d) => {
-              const vencido = !d.reemplazado && d.expiresAt !== null && d.expiresAt < hoy;
-              return (
-                <div key={d.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', opacity: d.reemplazado ? 0.6 : 1 }}>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--adm-text)' }}>{d.name || TIPOS_DOC.find(([k]) => k === d.kind)?.[1] || d.kind}</div>
-                    <div className="adm-num" style={{ fontSize: 12, color: vencido ? 'var(--adm-bad)' : 'var(--adm-muted)', marginTop: 2 }}>
-                      {d.reemplazado
-                        ? `Reemplazado por su renovación${d.expiresAt ? ` · vencía el ${d.expiresAt}` : ''}`
-                        : d.expiresAt ? (vencido ? `Venció el ${d.expiresAt}` : `Vigente hasta ${d.expiresAt}`) : 'Sin vencimiento'}
-                      {d.fileUrl ? '' : ' · sin foto'}
-                    </div>
-                  </div>
-                  {/* La foto que subió el aliado: es lo que se revisa antes de
-                      subirlo a "validado". Abre en otra pestaña. */}
-                  {d.fileUrl ? (
-                    <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className={btnClass('secondary', 'sm')}>
-                      <i className="ph ph-image" aria-hidden />Ver foto
-                    </a>
-                  ) : null}
-                  <IconBtn icon="ph-trash" label="Quitar" danger onClick={() => onBorrar(d.id)} />
-                </div>
-              );
-            })}
-          </Panel>
-        )}
-
-        <div style={{ display: 'grid', gap: 14, marginTop: 16 }}>
-          <div className="adm-form-grid">
-            <div className="adm-field">
-              <span className="adm-label">Tipo</span>
-              <AdminSelect ariaLabel="Tipo de documento" value={kind} onChange={setKind} options={TIPOS_DOC.map(([k, n]) => ({ value: k, label: n }))} />
-            </div>
-            <FormField label="Vence el (opcional)">
-              <AdminDatePicker value={vence} onChange={setVence} placeholder="No vence" />
-            </FormField>
-          </div>
-          <FormField label="Nombre del documento">
-            <input className="adm-input" placeholder="Póliza de responsabilidad civil" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-          </FormField>
-          <div>
-            <Btn icon="ph-plus" onClick={() => { onAgregar(kind, nombre, vence); setNombre(''); setVence(''); }}>
-              Agregar al expediente
-            </Btn>
-          </div>
-        </div>
-      </section>
-
-      {/*
-        El acceso del aliado. Es lo que convierte la red de un directorio que
-        alguien mantiene a mano en algo que se mantiene solo.
-      */}
-      {/*
-        DONDE ESTA Y HASTA DONDE LLEGA. Con esto la cobertura pasa de
-        "escribio este municipio?" a "esta a menos de N kilometros?", que es
-        la pregunta real y la unica que funciona fuera del area metropolitana.
-      */}
-      <UbicacionAliado p={p} onCambio={onRevisado} />
-
-      <AccesoAliado p={p} />
-
-      {/*
-        Los papeles dicen si esta en regla. El cumplimiento dice si CUMPLE,
-        que es otra cosa: se puede tener todo vigente y no contestar nunca.
-      */}
-      <ProviderHistory providerId={p.id} />
-
-      {/* Eliminar: para altas duplicadas o por error. Con historial solo se da de baja. */}
-      <div style={{ ...SECCION, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5, maxWidth: 420 }}>
-          {p.status === 1
-            ? 'Si se dio de alta por error o está duplicado, elimínalo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.'
-            : 'Este aliado está dado de baja: no se le ofrecen servicios y su enlace no abre. Reactívalo para que vuelva a trabajar con MAQSER24.'}
-        </span>
-        {p.status === 1 ? (
-          <Btn
-            size="sm"
-            variant="danger"
-            icon="ph-trash"
-            onClick={async () => {
-              if (await confirmar({
-                titulo: `¿Eliminar a «${p.name}»?`,
-                mensaje: 'Si no tiene historial se borra por completo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.',
-                confirmar: 'Eliminar aliado',
-                peligro: true,
-              })) onEliminar();
-            }}
-          >
-            Eliminar aliado
-          </Btn>
-        ) : (
-          // Reactivar (2026-10-05): antes un aliado dado de baja no tenía regreso.
-          // Su enlace anterior sigue revocado; hay que mandarle uno nuevo.
-          <Btn
-            size="sm"
-            icon="ph-arrow-counter-clockwise"
-            disabled={ocupado === -1}
-            onClick={async () => {
-              if (!(await confirmar({ titulo: `¿Reactivar a «${p.name}»?`, mensaje: 'Volverá a recibir ofertas. Después mándale su enlace de acceso.', confirmar: 'Reactivar' }))) return;
-              setOcupado(-1);
-              const r = await fetch(`/api/admin/providers/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }) });
-              setOcupado(null);
-              onRevisado(r.ok ? `«${p.name}» está activo otra vez. Mándale su enlace de acceso.` : 'No se pudo reactivar. Inténtalo de nuevo.');
-            }}
-          >
-            {ocupado === -1 ? 'Reactivando…' : 'Reactivar aliado'}
-          </Btn>
-        )}
+    <Modal abierto titulo={`Expediente · ${p.name}`} subtitulo={resumen} onCerrar={onCerrar} ancho={720}>
+      {/* PESTAÑAS (2026-10-27): antes eran ocho secciones una debajo de otra y
+          lo más básico (contacto y hasta dónde llega) quedaba hasta abajo. Se
+          quedan pegadas arriba mientras se baja. */}
+      <style>{`
+        .pv-tabs { position: sticky; top: -22px; z-index: 3; background: ${D.card}; margin: -22px -22px 20px; padding: 14px 22px; border-bottom: 1px solid var(--adm-border); }
+        .pv-tab > section:first-child { border-top: 0 !important; margin-top: 0 !important; padding-top: 0 !important; }
+        .adm-trow.pv-eq { display: flex; align-items: center; gap: 12px; padding: 11px 16px; color: inherit; text-decoration: none; }
+        .pv-eq:hover .adm-cell-title { color: var(--adm-accent); }
+      `}</style>
+      <div className="pv-tabs">
+        <Segmented<Pestana>
+          ariaLabel="Partes del expediente"
+          value={pestana}
+          onChange={setPestana}
+          items={[
+            { key: 'datos', label: 'Datos' },
+            { key: 'equipos', label: pendientes.length ? `Equipos · ${pendientes.length} nuevo${pendientes.length === 1 ? '' : 's'}` : 'Equipos', count: pendientes.length ? undefined : equipos.length },
+            { key: 'papeles', label: 'Papeles', count: vigentes },
+            { key: 'cumple', label: 'Cómo cumple' },
+          ]}
+        />
       </div>
+
+      {pestana === 'datos' ? (
+        <div className="pv-tab">
+          {/*
+            DONDE ESTA Y HASTA DONDE LLEGA. Con esto la cobertura pasa de
+            "escribio este municipio?" a "esta a menos de N kilometros?", que es
+            la pregunta real y la unica que funciona fuera del area metropolitana.
+          */}
+          <ContactoAliado p={p} enfocarCorreo={enfocarCorreo} onCambio={onRevisado} />
+          <UbicacionAliado p={p} onCambio={onRevisado} />
+          {/*
+            El acceso del aliado. Es lo que convierte la red de un directorio que
+            alguien mantiene a mano en algo que se mantiene solo.
+          */}
+          <AccesoAliado p={p} />
+          <EliminarOReactivar p={p} onEliminar={onEliminar} onRevisado={onRevisado} />
+        </div>
+      ) : null}
+
+      {pestana === 'cumple' ? (
+        <div className="pv-tab">
+          {/*
+            Los papeles dicen si esta en regla. El cumplimiento dice si CUMPLE,
+            que es otra cosa: se puede tener todo vigente y no contestar nunca.
+          */}
+          <ProviderHistory providerId={p.id} />
+        </div>
+      ) : null}
+
+      {pestana === 'equipos' ? (
+        <div className="pv-tab">
+          {/* ── Equipos (limpio, 2026-10-28) ── Una línea por máquina: qué es, de
+              qué tipo y si está libre. Nada se publica: lo de un tipo cuenta
+              solo y lo "Nuevo" se decide en Inventario, no aquí. */}
+          <section>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+              <h3 style={H3}>Equipos</h3>
+              <a href={`/productos/nuevo?proveedor=${p.id}`} className={btnClass('secondary', 'sm')}>
+                <i className="ph ph-plus" aria-hidden />Agregar equipo
+              </a>
+            </div>
+            {editandoOferta ? (
+              <div className="adm-card" style={{ padding: 16, margin: '10px 0 14px' }}>
+                <QueOfrece tipo={tipoEdit} onTipo={setTipoEdit} categorias={catsEdit} onCategorias={setCatsEdit} />
+                {errorOferta ? <div role="alert" style={{ fontSize: 12.5, color: 'var(--adm-bad)', marginTop: 10 }}>{errorOferta}</div> : null}
+                <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+                  <Btn size="sm" variant="ghost" onClick={() => setEditandoOferta(false)}>Cancelar</Btn>
+                  {/* Primario dentro de su formulario: solo existe mientras se edita. */}
+                  <Btn size="sm" variant="primary" onClick={() => void guardarOferta()}>Guardar</Btn>
+                </div>
+              </div>
+            ) : (
+              // Sus servicios en una línea: deciden qué puede ofrecer desde su portal.
+              <p style={{ ...DESC, margin: '0 0 14px' }}>
+                Da: {serviciosCortos(p) || 'nada todavía'}
+                {' · '}
+                <button
+                  type="button"
+                  className="adm-link"
+                  style={{ background: 'none', border: 0, padding: 0, font: 'inherit', cursor: 'pointer' }}
+                  onClick={() => { setCatsEdit(p.categories); setTipoEdit(tipoDeCategorias(p.categories)); setErrorOferta(null); setEditandoOferta(true); }}
+                >
+                  cambiar
+                </button>
+              </p>
+            )}
+
+            {equipos.length === 0 ? (
+              <p style={VACIO}>Todavía no tiene equipos. Los agrega él desde su portal, o tú con «Agregar equipo».</p>
+            ) : (
+              <Panel flush clip>
+                {equipos.map((e) => {
+                  const disp = presentacionEstado(e.availability);
+                  const sub = [e.pending ? null : e.tipo, e.brand, e.location].filter(Boolean).join(' · ');
+                  return (
+                    <a key={e.id} href={`/productos/editar/${e.id}`} className="adm-trow pv-eq">
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span className="adm-cell-title" style={{ display: 'block' }}>{e.name}</span>
+                        {sub ? <span className="adm-cell-sub" style={{ display: 'block' }}>{sub}</span> : null}
+                      </span>
+                      {e.pending ? (
+                        <Chip tone="warn" title="No está en tu lista de tipos: se decide en Inventario">Nuevo</Chip>
+                      ) : (
+                        <StatusText color={colorVivo(disp)} title={disp.nota}>{disp.nombre}</StatusText>
+                      )}
+                    </a>
+                  );
+                })}
+              </Panel>
+            )}
+            {pendientes.length ? (
+              <p style={{ ...DESC, margin: '10px 0 0' }}>
+                Lo <strong style={{ color: 'var(--adm-warn)', fontWeight: 600 }}>Nuevo</strong> no está en tu lista de tipos: se decide en{' '}
+                <a href="/catalogo/servicios" className="adm-link">Inventario</a>. Mientras, no le llegan solicitudes de eso.
+              </p>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
+
+      {pestana === 'papeles' ? (
+        <div className="pv-tab">
+          <section style={SECCION}>
+            <h3 style={H3}>Papeles</h3>
+            <p style={DESC}>
+              El sello sale solo cuando su constancia fiscal y su póliza de seguro están vigentes. Si un papel no sirve, quítalo y el sello se va con él.
+              {textoFalta(p) ? <> <strong style={{ color: 'var(--adm-warn)', fontWeight: 600 }}>{textoFalta(p)}.</strong></> : null}
+            </p>
+
+            {docs.length === 0 ? (
+              <p style={VACIO}>Sin documentos cargados.</p>
+            ) : (
+              <Panel flush clip>
+                {/* Los reemplazados al final y en gris: siguen ahí (con su foto),
+                    pero ya no cuentan. Antes la constancia vieja seguía en rojo
+                    junto a la renovada y parecía que nada había cambiado. */}
+                {[...docs].sort((a, b) => Number(!!a.reemplazado) - Number(!!b.reemplazado)).map((d) => {
+                  const vencido = !d.reemplazado && d.expiresAt !== null && d.expiresAt < hoy;
+                  return (
+                    <div key={d.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', opacity: d.reemplazado ? 0.6 : 1 }}>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--adm-text)' }}>{d.name || TIPOS_DOC.find(([k]) => k === d.kind)?.[1] || d.kind}</div>
+                        <div className="adm-num" style={{ fontSize: 12, color: vencido ? 'var(--adm-bad)' : 'var(--adm-muted)', marginTop: 2 }}>
+                          {d.reemplazado
+                            ? `Reemplazado por su renovación${d.expiresAt ? ` · vencía el ${d.expiresAt}` : ''}`
+                            : d.expiresAt ? (vencido ? `Venció el ${d.expiresAt}` : `Vigente hasta ${d.expiresAt}`) : 'Sin vencimiento'}
+                          {d.fileUrl ? '' : ' · sin foto'}
+                        </div>
+                      </div>
+                      {/* La foto que subió el aliado: es lo que se revisa para saber si el
+                          papel sirve. Abre en otra pestaña. */}
+                      {d.fileUrl ? (
+                        <a href={d.fileUrl} target="_blank" rel="noopener noreferrer" className={btnClass('secondary', 'sm')}>
+                          <i className="ph ph-image" aria-hidden />Ver foto
+                        </a>
+                      ) : null}
+                      <IconBtn icon="ph-trash" label="Quitar" danger onClick={() => onBorrar(d.id)} />
+                    </div>
+                  );
+                })}
+              </Panel>
+            )}
+
+            <div style={{ display: 'grid', gap: 14, marginTop: 16 }}>
+              <div className="adm-form-grid">
+                <div className="adm-field">
+                  <span className="adm-label">Tipo</span>
+                  <AdminSelect ariaLabel="Tipo de documento" value={kind} onChange={setKind} options={TIPOS_DOC.map(([k, n]) => ({ value: k, label: n }))} />
+                </div>
+                <FormField label="Vence el (opcional)">
+                  <AdminDatePicker value={vence} onChange={setVence} placeholder="No vence" />
+                </FormField>
+              </div>
+              <FormField label="Nombre del documento">
+                <input className="adm-input" placeholder="Póliza de responsabilidad civil" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+              </FormField>
+              <div>
+                <Btn icon="ph-plus" onClick={() => { onAgregar(kind, nombre, vence); setNombre(''); setVence(''); }}>
+                  Agregar al expediente
+                </Btn>
+              </div>
+        </div>
+      </section>
+        </div>
+      ) : null}
     </Modal>
   );
 }
 
+
+/** Eliminar (altas duplicadas o por error; con historial solo se da de baja) o reactivar al dado de baja. */
+function EliminarOReactivar({ p, onEliminar, onRevisado }: { p: ProviderRow; onEliminar: () => void; onRevisado: (texto: string) => void }) {
+  const [ocupado, setOcupado] = useState<number | null>(null);
+  return (
+    <div style={{ ...SECCION, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5, maxWidth: 420 }}>
+        {p.status === 1
+          ? 'Si se dio de alta por error o está duplicado, elimínalo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.'
+          : 'Este aliado está dado de baja: no se le ofrecen servicios y su enlace no abre. Reactívalo para que vuelva a trabajar con MAQSER24.'}
+      </span>
+      {p.status === 1 ? (
+        <Btn
+          size="sm"
+          variant="danger"
+          icon="ph-trash"
+          onClick={async () => {
+            if (await confirmar({
+              titulo: `¿Eliminar a «${p.name}»?`,
+              mensaje: 'Si no tiene historial se borra por completo. Si ya tiene servicios, equipos o papeles, se da de baja en vez de borrarse.',
+              confirmar: 'Eliminar aliado',
+              peligro: true,
+            })) onEliminar();
+          }}
+        >
+          Eliminar aliado
+        </Btn>
+      ) : (
+        // Reactivar (2026-10-05): antes un aliado dado de baja no tenía regreso.
+        // Su enlace anterior sigue revocado; hay que mandarle uno nuevo.
+        <Btn
+          size="sm"
+          icon="ph-arrow-counter-clockwise"
+          disabled={ocupado === -1}
+          onClick={async () => {
+            if (!(await confirmar({ titulo: `¿Reactivar a «${p.name}»?`, mensaje: 'Volverá a recibir ofertas. Después mándale su enlace de acceso.', confirmar: 'Reactivar' }))) return;
+            setOcupado(-1);
+            const r = await fetch(`/api/admin/providers/${p.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 1 }) });
+            setOcupado(null);
+            onRevisado(r.ok ? `«${p.name}» está activo otra vez. Mándale su enlace de acceso.` : 'No se pudo reactivar. Inténtalo de nuevo.');
+          }}
+        >
+          {ocupado === -1 ? 'Reactivando…' : 'Reactivar aliado'}
+        </Btn>
+      )}
+    </div>
+  );
+}
+
+/**
+ * SU CONTACTO (2026-10-27). Antes el correo y el teléfono solo se ponían al
+ * darlo de alta: un aliado sin correo no recibía recordatorios ni su enlace, y
+ * no había dónde agregárselo. El cambio de correo queda en la bitácora del
+ * panel (es a donde llega su enlace de acceso).
+ */
+function ContactoAliado({ p, enfocarCorreo, onCambio }: { p: ProviderRow; enfocarCorreo: boolean; onCambio: (texto: string) => void }) {
+  const [contacto, setContacto] = useState(p.contactName ?? '');
+  const [telefono, setTelefono] = useState(p.phone ?? '');
+  const [correo, setCorreo] = useState(p.email ?? '');
+  const [msg, setMsg] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const campoCorreo = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!enfocarCorreo) return;
+    const t = setTimeout(() => { campoCorreo.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }); campoCorreo.current?.focus({ preventScroll: true }); }, 250);
+    return () => clearTimeout(t);
+  }, [enfocarCorreo]);
+
+  const cambios = contacto.trim() !== (p.contactName ?? '') || telefono.trim() !== (p.phone ?? '') || correo.trim() !== (p.email ?? '');
+
+  async function guardar() {
+    setOcupado(true); setMsg(null);
+    const r = await fetch(`/api/admin/providers/${p.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contactName: contacto.trim() || null, phone: telefono.trim() || null, email: correo.trim() || null }),
+    });
+    const d = await r.json().catch(() => null);
+    setOcupado(false);
+    if (!r.ok) { setMsg(d?.message && d.message !== 'Datos inválidos' ? d.message : 'Revisa el teléfono y el correo: alguno no es válido.'); return; }
+    onCambio(`${p.name}: contacto guardado.${correo.trim() && !p.email ? ' Ya le llegan sus recordatorios y su enlace por correo.' : ''}`);
+  }
+
+  return (
+    <section style={SECCION}>
+      <h3 style={H3}>Su contacto</h3>
+      <p style={DESC}>A este correo le llegan sus solicitudes, su enlace de acceso y los recordatorios de facturas y pagos. Sin correo, todo eso se le avisa por teléfono.</p>
+      <div className="adm-form-grid">
+        <FormField label="Nombre del contacto">
+          <input className="adm-input" maxLength={190} value={contacto} onChange={(e) => setContacto(e.target.value)} placeholder="Juan Pérez" />
+        </FormField>
+        <FormField label="Teléfono">
+          <input className="adm-input" inputMode="tel" maxLength={40} value={telefono} onChange={(e) => setTelefono(e.target.value)} placeholder="81 1234 5678" />
+        </FormField>
+        <FormField label="Correo" style={{ gridColumn: '1 / -1' }}>
+          <input ref={campoCorreo} className="adm-input" type="email" maxLength={190} value={correo} onChange={(e) => setCorreo(e.target.value)} placeholder="nombre@empresa.com" />
+        </FormField>
+      </div>
+      <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Btn variant={cambios ? 'primary' : 'secondary'} icon="ph-floppy-disk" onClick={guardar} disabled={ocupado || !cambios}>
+          {ocupado ? 'Guardando…' : 'Guardar contacto'}
+        </Btn>
+        {!p.email ? <StatusText tone="warn">Sin correo</StatusText> : null}
+      </div>
+      {msg ? <div style={{ ...AVISO, marginTop: 12 }}>{msg}</div> : null}
+    </section>
+  );
+}
 
 /**
  * ENLACE DE ACCESO DEL ALIADO (documento institucional, seccion 20).
@@ -1009,20 +1061,6 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
     </section>
   );
 }
-
-/**
- * Teléfono del aliado → número para wa.me (52 + 10 dígitos). Acepta "81 1234
- * 5678", "+52 81…" y "+52 1 81…" (el "1" de celular viejo ya no se usa y
- * wa.me no lo quiere). Null si no parece un número mexicano.
- */
-function waDe(tel: string | null): string | null {
-  const d = (tel ?? '').replace(/\D/g, '');
-  if (d.length === 10) return `52${d}`;
-  if (d.length === 12 && d.startsWith('52')) return d;
-  if (d.length === 13 && d.startsWith('521')) return `52${d.slice(3)}`;
-  return null;
-}
-
 
 /**
  * Dónde está y hasta dónde llega. Desde 2026-10-09 los km no se escriben: la
@@ -1149,7 +1187,7 @@ function UbicacionAliado({ p, onCambio }: { p: ProviderRow; onCambio: (texto: st
       {msg ? <div style={{ ...AVISO, marginTop: 12 }}>{msg}</div> : null}
 
       <div style={{ marginTop: 14 }}>
-        <MapaCobertura alto={240} puntos={puntosMapa} onMover={fijar} />
+        <MapaCobertura alto={240} tema="oscuro" puntos={puntosMapa} onMover={fijar} />
         <p className="adm-help" style={{ margin: '6px 0 0' }}>
           {coords ? 'Arrastra el punto o da clic en el mapa para corregir su lugar exacto; los km se recalculan solos.' : 'Da clic en el mapa para marcar su base.'}
         </p>

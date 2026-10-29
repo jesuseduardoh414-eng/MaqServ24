@@ -32,10 +32,41 @@ import { registrarAccion } from './audit';
 import { QuoterService } from '../quoter/quoter.service';
 import { horarioSchema, puedeVerCon, tarifasDe } from '@maqserv/config';
 import { permisosVigentes } from './permisos';
-import { ESTADO_ELIMINADO } from '../catalog/ofertas';
+import { ESTADO_CATEGORIA_PROPUESTA, ESTADO_ELIMINADO, ESTADO_POR_REVISAR } from '../catalog/ofertas';
+import { lista } from '../common/json-list';
+import { MailerService } from '../notifications/mailer.service';
+import { correoEquipoPublicado, correoEquipoRechazado } from '../notifications/email-templates';
 import { AJUSTE_MARGEN, guardarAjuste, margenAliadoPct } from '../common/platform-settings';
 import { imageUrl } from '../catalog/images';
 import { ordenDeCategorias } from '../catalog/categories.service';
+
+/**
+ * Los tipos que se parecen a lo que escribió el aliado (2026-10-28): cuántas
+ * palabras comparten, y las palabras pesan más que las medidas ("Volteo 20 t"
+ * se parece a "Volteo 14 m³" aunque el tonelaje sea otro). Las palabras que
+ * no dicen qué máquina es ("de", "hidráulica") no cuentan: si no, una grúa
+ * hidráulica se parecía a una excavadora hidráulica.
+ */
+const NO_CUENTAN = new Set(['de', 'del', 'la', 'el', 'las', 'los', 'con', 'para', 'sin', 'y', 'hidraulica', 'hidraulico', 'electrica', 'electrico', 'renta', 'servicio']);
+function parecidos<T extends { nombre: string }>(nombre: string, tipos: T[]): T[] {
+  const palabras = (x: string) =>
+    new Set(
+      x.toLowerCase().replace(/³/g, '3').normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .split(/[^a-z0-9]+/)
+        .filter((w) => (w.length > 2 || /\d/.test(w)) && !NO_CUENTAN.has(w)),
+    );
+  const mias = palabras(nombre);
+  return tipos
+    .map((t) => {
+      let puntos = 0;
+      // Medidas ("20", "m3"): 1 punto; palabras ("volteo", "pipa"): 3.
+      for (const w of palabras(t.nombre)) if (mias.has(w)) puntos += /\d/.test(w) ? 1 : 3;
+      return { t, puntos };
+    })
+    .filter((x) => x.puntos >= 3)
+    .sort((a, b) => b.puntos - a.puntos)
+    .map((x) => x.t);
+}
 
 const photoStorage = mediaStorage();
 const IMAGE_TYPES = /^image\/(png|jpe?g|webp|avif)$/;
@@ -194,7 +225,10 @@ const categorySchema = z.object({
 @Controller('admin/catalog')
 @UseGuards(AdminGuard)
 export class AdminCatalogController {
-  constructor(private readonly quoter: QuoterService) {}
+  constructor(
+    private readonly quoter: QuoterService,
+    private readonly mailer: MailerService,
+  ) {}
 
   // ---- Productos ----
 
@@ -322,25 +356,93 @@ export class AdminCatalogController {
   }
 
   /**
-   * CREAR UN TIPO desde la máquina de un aliado (2026-10-22): cuando el aliado
-   * eligió "Otro" porque su equipo no estaba en la lista. Nace la ficha sin
-   * aliado en la misma línea, sin precio y sin foto (la foto es del aliado: si
-   * su equipo se borra, se borraría con él), y la máquina queda ligada a ella.
-   * El precio se le pone después en la ficha ("Precio en el cotizador").
+   * LO NUEVO QUE OFRECEN LOS ALIADOS (2026-10-28, revisión de Proveedores).
+   *
+   * Nada de lo que ofrece un aliado se publica: lo que es de un tipo de la
+   * lista cuenta solo (le llegan las solicitudes de ese tipo). Lo que no está
+   * en la lista queda "Nuevo" (ESTADO_POR_REVISAR) y se decide aquí, en
+   * Inventario, donde viven los servicios de MAQSER24, y no en Proveedores:
+   *  - "Es el mismo que…": se liga a un tipo que ya existe (es-tipo).
+   *  - "Crear servicio nuevo": nace la ficha de MAQSER24, APAGADA, y la máquina
+   *    queda ligada (crear-tipo). Sale en el sitio cuando tenga su precio y se
+   *    prenda: un volteo de 20 t no cuesta lo mismo que uno de 10 t.
+   *  - "No lo manejamos": se quita y se le avisa al aliado con el motivo.
+   * Con los parecidos que ya existen al lado, para no crear repetidos.
+   */
+  @Get('nuevos-de-aliados')
+  async nuevosDeAliados() {
+    let nuevos = await prisma.products.findMany({
+      where: { status: ESTADO_POR_REVISAR, provider_id: { not: null } },
+      select: { id: true, name: true, stock: true, location: true, category_id: true, provider_id: true, created_at: true },
+      orderBy: { created_at: 'asc' },
+    });
+    if (!nuevos.length) return { nuevos: [], tipos: {} };
+    const [catsNuevos, aliadosActivos] = await Promise.all([
+      prisma.categories.findMany({ where: { id: { in: [...new Set(nuevos.map((n) => n.category_id))] } }, select: { id: true, status: true } }),
+      prisma.providers.findMany({ where: { status: 1, id: { in: [...new Set(nuevos.map((n) => n.provider_id as number))] } }, select: { id: true } }),
+    ]);
+    const propuestas = new Set(catsNuevos.filter((c) => c.status === ESTADO_CATEGORIA_PROPUESTA).map((c) => c.id));
+    const activos = new Set(aliadosActivos.map((p) => p.id));
+    nuevos = nuevos.filter((n) => !propuestas.has(n.category_id) && activos.has(n.provider_id as number));
+    if (!nuevos.length) return { nuevos: [], tipos: {} };
+    const idsCat = [...new Set(nuevos.map((n) => n.category_id))];
+    const [provs, cats, tipos] = await Promise.all([
+      prisma.providers.findMany({ where: { id: { in: [...new Set(nuevos.map((n) => n.provider_id as number))] } }, select: { id: true, name: true } }),
+      prisma.categories.findMany({ where: { id: { in: idsCat } }, select: { id: true, cat_name: true } }),
+      prisma.products.findMany({
+        where: { provider_id: null, status: { in: [0, 1] }, category_id: { in: idsCat } },
+        select: { id: true, name: true, category_id: true, status: true },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    const tiposDe = (cat: number) => tipos.filter((t) => t.category_id === cat).map((t) => ({ id: t.id, nombre: t.name, activo: t.status === 1 }));
+    return {
+      nuevos: nuevos.map((n) => ({
+        id: n.id,
+        nombre: n.name,
+        unidades: n.stock,
+        donde: n.location,
+        desde: n.created_at,
+        categoryId: n.category_id,
+        linea: cats.find((c) => c.id === n.category_id)?.cat_name ?? '',
+        aliado: { id: n.provider_id, nombre: provs.find((p) => p.id === n.provider_id)?.name ?? '' },
+        parecidos: parecidos(n.name, tiposDe(n.category_id)).slice(0, 3),
+      })),
+      // Todos los tipos de cada línea, para "Es el mismo que…".
+      tipos: Object.fromEntries(idsCat.map((c) => [c, tiposDe(c)])),
+    };
+  }
+
+  /** "Es el mismo que…": la máquina nueva se liga a un tipo que ya existe. */
+  @Post('products/:id/es-tipo')
+  async esTipo(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const b = z.object({ tipoId: z.coerce.number().int().positive() }).safeParse(body ?? {});
+    if (!b.success) throw new BadRequestException('Elige el tipo.');
+    const m = await this.maquinaDeAliado(id);
+    const tipo = await prisma.products.findFirst({
+      where: { id: b.data.tipoId, provider_id: null, category_id: m.category_id, status: { in: [0, 1] } },
+      select: { id: true, name: true },
+    });
+    if (!tipo) throw new BadRequestException('Ese tipo no es de la misma línea.');
+    await this.darDeAlta(m, tipo, req);
+    return { ok: true, tipo: tipo.name };
+  }
+
+  /**
+   * "Crear servicio nuevo" (y "Crear tipo nuevo" en la ficha de la máquina,
+   * 2026-10-22). Nace la ficha sin aliado en la misma línea, sin precio y
+   * APAGADA desde 2026-10-28: sale en el sitio cuando se le pone su precio y
+   * se prende. La foto se copia (la del aliado se borraría con su equipo). La
+   * máquina queda ligada y, si era nueva, ya le llegan las solicitudes.
    */
   @Post('products/:id/crear-tipo')
-  async crearTipo(@Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
-    const nombre = z.object({ nombre: z.string().trim().min(3, 'Escribe el nombre del tipo').max(190) }).safeParse(body ?? {});
+  async crearTipo(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const nombre = z.object({ nombre: z.string().trim().min(3, 'Escribe el nombre del servicio').max(190) }).safeParse(body ?? {});
     if (!nombre.success) throw new BadRequestException(nombre.error.issues[0]?.message ?? 'Nombre inválido');
-    const u = await prisma.products.findUnique({
-      where: { id },
-      select: { id: true, provider_id: true, category_id: true, is_rental: true, price_unit: true, photo: true },
-    });
-    if (!u) throw new NotFoundException();
-    if (!u.provider_id) throw new BadRequestException('Solo una máquina de aliado se clasifica en un tipo.');
+    const u = await this.maquinaDeAliado(id);
     const repetido = await prisma.products.findFirst({
       where: { provider_id: null, category_id: u.category_id, name: nombre.data.nombre, status: { in: [0, 1] } },
-      select: { id: true },
+      select: { id: true, name: true },
     });
     const ahora = new Date();
     const ficha = repetido ?? await prisma.products.create({
@@ -350,19 +452,70 @@ export class AdminCatalogController {
         category_id: u.category_id,
         name: nombre.data.nombre,
         description: nombre.data.nombre,
-        // La ficha nueva sale en el catálogo: que no salga sin foto (2026-10-22).
         photo: await copiarSubida(u.photo, 'tipo'),
         cprice: 0,
         is_rental: u.is_rental,
         price_unit: u.price_unit,
-        status: 1,
+        status: 0,
         created_at: ahora,
         updated_at: ahora,
       },
-      select: { id: true },
+      select: { id: true, name: true },
     });
-    await prisma.products.update({ where: { id }, data: { tipo_id: ficha.id, updated_at: ahora } });
-    return { id: ficha.id, nombre: nombre.data.nombre, yaExistia: !!repetido };
+    if (!repetido) await registrarAccion(req, 'catalogo', 'tipo.crear', ficha.name, `desde el equipo «${u.name}» de un aliado; nace apagado`);
+    await this.darDeAlta(u, ficha, req);
+    return { id: ficha.id, nombre: ficha.name, yaExistia: !!repetido };
+  }
+
+  /** "No lo manejamos": se quita lo nuevo y al aliado le llega el motivo. */
+  @Post('products/:id/no-lo-manejamos')
+  async noLoManejamos(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const motivo = z.object({ motivo: z.string().trim().min(4, 'Escribe el motivo: el aliado lo recibe por correo.').max(1000) }).safeParse(body ?? {});
+    if (!motivo.success) throw new BadRequestException(motivo.error.issues[0]?.message ?? 'Falta el motivo');
+    const e = await this.maquinaDeAliado(id);
+    if (e.status !== ESTADO_POR_REVISAR) throw new BadRequestException('Solo se quita lo nuevo; lo demás se da de baja desde su ficha.');
+    // También se borran las fotos del disco (QA 2026-09-25: quedaban huérfanas).
+    const fotos = [...(await prisma.galleries.findMany({ where: { product_id: id }, select: { photo: true } })).map((g) => g.photo), e.photo];
+    await prisma.galleries.deleteMany({ where: { product_id: id } });
+    await prisma.products.delete({ where: { id } });
+    void borrarSubidas(fotos);
+    await registrarAccion(req, 'catalogo', 'aliado.equipo.quitar', e.name, motivo.data.motivo);
+    const p = await prisma.providers.findUnique({ where: { id: e.provider_id as number }, select: { email: true, contact_name: true } });
+    if (p?.email) {
+      void this.mailer
+        .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: e.provider_id, ...correoEquipoRechazado({ contacto: p.contact_name, equipo: e.name, motivo: motivo.data.motivo }) })
+        .catch(() => undefined);
+    }
+    return { ok: true };
+  }
+
+  /** La máquina de un aliado (no una ficha de MAQSER24), o 404 / 400. */
+  private async maquinaDeAliado(id: number) {
+    const m = await prisma.products.findUnique({
+      where: { id },
+      select: { id: true, name: true, status: true, provider_id: true, category_id: true, is_rental: true, price_unit: true, photo: true },
+    });
+    if (!m) throw new NotFoundException();
+    if (!m.provider_id) throw new BadRequestException('Solo una máquina de aliado se clasifica en un tipo.');
+    return m;
+  }
+
+  /** Liga la máquina a su tipo; si era nueva, queda activa y se le avisa al aliado. */
+  private async darDeAlta(m: { id: number; name: string; status: number; provider_id: number | null }, tipo: { id: number; name: string }, req: AdminRequest) {
+    const eraNueva = m.status === ESTADO_POR_REVISAR;
+    const ahora = new Date();
+    await prisma.products.update({
+      where: { id: m.id },
+      data: { tipo_id: tipo.id, updated_at: ahora, ...(eraNueva ? { status: 1, availability_confirmed_at: ahora } : {}) },
+    });
+    if (!eraNueva) return;
+    await registrarAccion(req, 'catalogo', 'aliado.equipo.tipo', m.name, `queda como «${tipo.name}»`);
+    const p = m.provider_id ? await prisma.providers.findUnique({ where: { id: m.provider_id }, select: { email: true, contact_name: true } }) : null;
+    if (p?.email) {
+      void this.mailer
+        .enviar({ kind: 'provider_offer_published', to: p.email, toName: p.contact_name, providerId: m.provider_id, ...correoEquipoPublicado({ contacto: p.contact_name, equipo: m.name, tipo: tipo.name }) })
+        .catch(() => undefined);
+    }
   }
 
   @Get('providers')
@@ -560,10 +713,135 @@ export class AdminCatalogController {
 
   // ---- Categorías ----
 
+  /**
+   * CATEGORÍAS NUEVAS QUE PROPONEN LOS ALIADOS (2026-10-28, revisión de
+   * Inventario y Categorías). Lo que escribieron en "Otra: no está en la
+   * lista" al registrarse o en su portal. Solo de aliados ya aceptados: las de
+   * una solicitud esperan a que la aceptes. Con las categorías parecidas al
+   * lado, para no duplicar ("Renta de grúas" → Renta de maquinaria pesada).
+   */
+  @Get('categorias-nuevas')
+  async categoriasNuevas() {
+    const props = await prisma.categories.findMany({
+      where: { status: ESTADO_CATEGORIA_PROPUESTA },
+      select: { id: true, cat_name: true, cat_slug: true },
+      orderBy: { id: 'asc' },
+    });
+    const existentes = await prisma.categories.findMany({
+      where: { status: { in: [0, 1] } },
+      select: { id: true, cat_name: true, status: true, sort_order: true },
+      orderBy: [{ sort_order: 'asc' }, { cat_name: 'asc' }],
+    });
+    const categorias = existentes.map((c) => ({ id: c.id, nombre: c.cat_name, activa: c.status === 1 }));
+    if (!props.length) return { nuevas: [], categorias };
+    const [provs, equipos] = await Promise.all([
+      prisma.providers.findMany({ where: { status: 1 }, select: { id: true, name: true, categories: true } }),
+      prisma.products.findMany({
+        where: { category_id: { in: props.map((c) => c.id) }, provider_id: { not: null } },
+        select: { id: true, name: true, stock: true, category_id: true, provider_id: true, created_at: true },
+        orderBy: { created_at: 'asc' },
+      }),
+    ]);
+    const nuevas = props
+      .map((c) => {
+        const suyos = provs.filter((p) => lista(p.categories).includes(c.cat_slug));
+        if (!suyos.length) return null;
+        const eq = equipos.filter((e) => e.category_id === c.id && suyos.some((p) => p.id === e.provider_id));
+        return {
+          id: c.id,
+          nombre: c.cat_name,
+          desde: eq[0]?.created_at ?? null,
+          aliados: suyos.map((p) => ({ id: p.id, nombre: p.name })),
+          equipos: eq.map((e) => ({ id: e.id, nombre: e.name, unidades: e.stock })),
+          parecidas: parecidos(c.cat_name, categorias).slice(0, 3),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+    return { nuevas, categorias };
+  }
+
+  /**
+   * "Es la misma que…": sus equipos pasan a esa categoría (siguen "Nuevo" y se
+   * deciden en Inventario) y, en el expediente de cada aliado, la propuesta se
+   * cambia por ella. La propuesta se borra.
+   */
+  @Post('categories/:id/es-la-misma')
+  async categoriaEsLaMisma(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const b = z.object({ categoriaId: z.coerce.number().int().positive() }).safeParse(body ?? {});
+    if (!b.success) throw new BadRequestException('Elige la categoría.');
+    const prop = await this.categoriaPropuesta(id);
+    const destino = await prisma.categories.findFirst({ where: { id: b.data.categoriaId, status: { in: [0, 1] } }, select: { id: true, cat_name: true, cat_slug: true } });
+    if (!destino) throw new BadRequestException('Esa categoría no existe.');
+    const movidos = await prisma.products.updateMany({ where: { category_id: prop.id }, data: { category_id: destino.id, updated_at: new Date() } });
+    await this.cambiarEnExpedientes(prop.cat_slug, destino.cat_slug);
+    await prisma.categories.delete({ where: { id: prop.id } });
+    await registrarAccion(req, 'catalogo', 'categoria.nueva.misma', prop.cat_name, `es la misma que «${destino.cat_name}»; ${movidos.count} equipo(s) pasan a ella`);
+    return { ok: true, destino: destino.cat_name, equipos: movidos.count };
+  }
+
+  /** "Autorizar": queda como categoría de MAQSER24, APAGADA; sus equipos siguen "Nuevo" en Inventario. */
+  @Post('categories/:id/autorizar')
+  async autorizarCategoria(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
+    const prop = await this.categoriaPropuesta(id);
+    // El slug provisional ("gruas-nueva") se queda: ya está en el expediente de sus aliados.
+    await prisma.categories.update({ where: { id: prop.id }, data: { status: 0 } });
+    await registrarAccion(req, 'catalogo', 'categoria.nueva.autorizar', prop.cat_name, 'nace apagada');
+    return { ok: true, nombre: prop.cat_name };
+  }
+
+  /** "No la manejamos": se quitan la categoría y sus equipos; a cada aliado le llega el motivo. */
+  @Post('categories/:id/no-la-manejamos')
+  async categoriaNoLaManejamos(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const motivo = z.object({ motivo: z.string().trim().min(4, 'Escribe el motivo: el aliado lo recibe por correo.').max(1000) }).safeParse(body ?? {});
+    if (!motivo.success) throw new BadRequestException(motivo.error.issues[0]?.message ?? 'Falta el motivo');
+    const prop = await this.categoriaPropuesta(id);
+    const suyos = await prisma.products.findMany({ where: { category_id: prop.id }, select: { id: true, photo: true, provider_id: true } });
+    const ids = suyos.map((e) => e.id);
+    const fotos = [...(await prisma.galleries.findMany({ where: { product_id: { in: ids } }, select: { photo: true } })).map((g) => g.photo), ...suyos.map((e) => e.photo)];
+    await prisma.galleries.deleteMany({ where: { product_id: { in: ids } } });
+    await prisma.availability_blocks.deleteMany({ where: { product_id: { in: ids } } });
+    await prisma.products.deleteMany({ where: { id: { in: ids } } });
+    void borrarSubidas(fotos);
+    const avisados = await this.cambiarEnExpedientes(prop.cat_slug, null);
+    await prisma.categories.delete({ where: { id: prop.id } });
+    await registrarAccion(req, 'catalogo', 'categoria.nueva.quitar', prop.cat_name, motivo.data.motivo);
+    const aliados = await prisma.providers.findMany({ where: { id: { in: avisados }, status: 1 }, select: { id: true, email: true, contact_name: true } });
+    for (const p of aliados) {
+      if (!p.email) continue;
+      void this.mailer
+        .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: p.id, ...correoEquipoRechazado({ contacto: p.contact_name, equipo: `la categoría «${prop.cat_name}»`, motivo: motivo.data.motivo }) })
+        .catch(() => undefined);
+    }
+    return { ok: true };
+  }
+
+  /** Una categoría propuesta por un aliado, o 404 / 400. */
+  private async categoriaPropuesta(id: number) {
+    const c = await prisma.categories.findUnique({ where: { id }, select: { id: true, cat_name: true, cat_slug: true, status: true } });
+    if (!c) throw new NotFoundException();
+    if (c.status !== ESTADO_CATEGORIA_PROPUESTA) throw new BadRequestException('Esa categoría ya se decidió.');
+    return c;
+  }
+
+  /** En el expediente de cada aliado, cambia (o quita, con null) un slug. Devuelve a quiénes tocó. */
+  private async cambiarEnExpedientes(slug: string, por: string | null): Promise<number[]> {
+    const provs = await prisma.providers.findMany({ select: { id: true, categories: true } });
+    const tocados: number[] = [];
+    for (const p of provs) {
+      const suyas = lista(p.categories);
+      if (!suyas.includes(slug)) continue;
+      const nuevas = [...new Set(suyas.map((s) => (s === slug ? por : s)).filter((s): s is string => !!s))];
+      await prisma.providers.update({ where: { id: p.id }, data: { categories: nuevas, updated_at: new Date() } });
+      tocados.push(p.id);
+    }
+    return tocados;
+  }
+
   @Get('categories')
   async categories() {
     const [cats, counts] = await Promise.all([
-      prisma.categories.findMany({ orderBy: [{ sort_order: 'asc' }, { cat_name: 'asc' }] }),
+      // Sin las que propuso un aliado (2026-10-28): van en «Categorías nuevas».
+      prisma.categories.findMany({ where: { status: { not: ESTADO_CATEGORIA_PROPUESTA } }, orderBy: [{ sort_order: 'asc' }, { cat_name: 'asc' }] }),
       prisma.products.groupBy({ by: ['category_id'], _count: { _all: true } }),
     ]);
     const countMap = new Map(counts.map((c) => [c.category_id, c._count._all]));

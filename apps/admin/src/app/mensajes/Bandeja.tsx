@@ -68,6 +68,9 @@ const json = async (r: Response) => {
  */
 export function Bandeja({ inicial, extra }: { inicial: ItemBandeja[]; /** Herramientas extra del encabezado (subir al CRM, si está activo). */ extra?: React.ReactNode }) {
   const [items, setItems] = useState(inicial);
+  // En vivo (2026-10-26): al llegar un aviso la campana pide la página otra vez;
+  // la lista toma lo nuevo del servidor (lo que se escribe vive aparte y no se pierde).
+  useEffect(() => { setItems(inicial); }, [inicial]);
   const [estado, setEstado] = useState<'pendiente' | 'atendido' | 'archivado' | 'todos'>('pendiente');
   const [origen, setOrigen] = useState('');
   const [q, setQ] = useState('');

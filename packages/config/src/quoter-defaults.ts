@@ -83,30 +83,32 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
   moneda: 'MXN',
   iva: 0.16,
   jornada_horas: 8,
+  // Cobro por hora con mínimo de una jornada y sin flete por ahora (2026-10-29).
+  minimo_horas: 8,
+  cobrar_flete: false,
   empresa: EMPRESA,
   firma: FIRMA,
-  publico: { habilitado: true, mostrarPrecios: true },
+  // El sitio nunca enseña precios (2026-10-23); el campo ya no se lee fuera del panel.
+  publico: { habilitado: true, mostrarPrecios: false },
   saludo:
     'Por medio de la presente, y aprovechando para enviarle un cordial saludo, ponemos a su consideración la siguiente cotización de renta de maquinaria para su proyecto.',
-  tiers: [
-    { id: 'dia', label: 'Tarifa día', desde_dias: 1, hasta_dias: 5 },
-    { id: 'semana', label: 'Tarifa semana', desde_dias: 6, hasta_dias: 15 },
-    { id: 'mes', label: 'Tarifa mes', desde_dias: 16, hasta_dias: null },
-  ],
   municipios: MUNICIPIOS,
   fletes: {
     Retroexcavadora: 6000,
     Excavadora: 25000,
     Motoconformadora: 15000,
     Vibrocompactador: 10000,
+    Minicargador: 0,
   },
   equipos: [
-    { id: 'retro_cuch', nombre: 'Retroexcavadora c/ cucharón', icono: 'retro', flete_tipo: 'Retroexcavadora', tarifas: { dia: 6500, semana: 6000, mes: 5600 } },
-    { id: 'retro_mart', nombre: 'Retroexcavadora c/ martillo', icono: 'retro_mart', flete_tipo: 'Retroexcavadora', tarifas: { dia: 7500, semana: 6800, mes: 6400 } },
-    { id: 'exc_cuch', nombre: 'Excavadora 20 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', tarifas: { dia: 13200, semana: 12800, mes: 12400 } },
-    { id: 'exc_mart', nombre: 'Excavadora 20 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', tarifas: { dia: 15600, semana: 15200, mes: 14800 } },
-    { id: 'moto', nombre: 'Motoconformadora', icono: 'moto', flete_tipo: 'Motoconformadora', tarifas: { dia: 13200, semana: 12800, mes: 12400 } },
-    { id: 'vibro', nombre: 'Vibrocompactador 10 t', icono: 'vibro', flete_tipo: 'Vibrocompactador', tarifas: { dia: 6400, semana: 6000, mes: 5600 } },
+    { id: 'retro_cuch', nombre: 'Retroexcavadora c/ cucharón', icono: 'retro', flete_tipo: 'Retroexcavadora', precio_hora: 800 },
+    { id: 'retro_mart', nombre: 'Retroexcavadora c/ martillo', icono: 'retro_mart', flete_tipo: 'Retroexcavadora', precio_hora: 900 },
+    { id: 'exc_cuch', nombre: 'Excavadora 20 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 1650 },
+    { id: 'exc_mart', nombre: 'Excavadora 20 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 1950 },
+    { id: 'moto', nombre: 'Motoconformadora', icono: 'moto', flete_tipo: 'Motoconformadora', precio_hora: 1650 },
+    { id: 'vibro', nombre: 'Vibrocompactador 10 t', icono: 'vibro', flete_tipo: 'Vibrocompactador', precio_hora: 750 },
+    { id: 'bobcat_cuch', nombre: 'Bob Cat c/ cucharón', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 650 },
+    { id: 'bobcat_adit', nombre: 'Bob Cat c/ aditamentos', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 700 },
   ],
   servicios: [
     { id: 'pipa', nombre: 'Pipa de agua 10 m³', icono: 'pipa', unidad: 'viaje', precio: 3000, presets: [3000], cond: 'pipa', linea: 'transporte-y-servicios-de-obra' },
@@ -118,7 +120,6 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
     renta: {
       titulo: 'Condiciones comerciales · Renta de maquinaria',
       puntos: [
-        'El costo de la renta del equipo es por jornada de 8 hrs de trabajo.',
         'Los costos incluyen operación y diésel.',
         'El operador cuenta con DC3.',
         'El costo de la renta incluye el IMSS del operador y el seguro del equipo.',
@@ -161,7 +162,8 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
   iva_por_defecto: true,
   empresa: EMPRESA,
   firma: FIRMA,
-  publico: { habilitado: true, mostrarPrecios: true },
+  // El sitio nunca enseña precios (2026-10-23); el campo ya no se lee fuera del panel.
+  publico: { habilitado: true, mostrarPrecios: false },
   saludo:
     'Por medio de la presente ponemos a su consideración la cotización correspondiente a los materiales solicitados. Agradecemos la oportunidad de participar en su requerimiento y quedamos a sus órdenes para cualquier aclaración.',
   municipios: MUNICIPIOS,

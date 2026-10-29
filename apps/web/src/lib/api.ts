@@ -15,7 +15,7 @@ import type {
   WhyChooseUsItem,
 } from '@maqserv/types';
 
-import type { CatalogoCotizador, CotizadorTipo } from '@maqserv/config';
+import type { CatalogoCotizador, CotizadorTipo, LineaRegistro } from '@maqserv/config';
 import { cache } from 'react';
 import { CONTENT_CACHE } from '@/lib/theme';
 
@@ -193,9 +193,6 @@ export function getProducts(opts: {
   category?: string;
   subcategory?: string;
   featured?: boolean;
-  minPrice?: number;
-  maxPrice?: number;
-  minRating?: number;
   availability?: string;
   sort?: string;
   /** Servicios (se cotizan) o productos (carrito). Sin él, todo. */
@@ -209,9 +206,6 @@ export function getProducts(opts: {
   if (opts.subcategory) q.set('subcategory', opts.subcategory);
   // true = solo destacados · false = sin ellos (el catálogo los pinta aparte, en su carrusel).
   if (opts.featured !== undefined) q.set('featured', opts.featured ? '1' : '0');
-  if (opts.minPrice !== undefined) q.set('minPrice', String(opts.minPrice));
-  if (opts.maxPrice !== undefined) q.set('maxPrice', String(opts.maxPrice));
-  if (opts.minRating !== undefined) q.set('minRating', String(opts.minRating));
   if (opts.availability) q.set('availability', opts.availability);
   if (opts.sort) q.set('sort', opts.sort);
   const qs = q.toString();
@@ -300,6 +294,21 @@ export function getFaqs(): Promise<FaqItem[]> {
  * Sin caché a propósito: apagar el cotizador o cambiar una tarifa desde el panel
  * tiene que verse al recargar, no en la siguiente revalidación.
  */
+/**
+ * Lo que el registro de aliados deja elegir (2026-10-26): las categorías
+ * activas del panel con los tipos que ya se ofrecen. Sin caché: un tipo nuevo
+ * tiene que salir al recargar. Sin API, lista vacía (el formulario lo dice).
+ */
+export async function getOpcionesRegistro(): Promise<LineaRegistro[]> {
+  const r = await pedirOr<{ lineas: LineaRegistro[] }>(
+    `${API_URL}/content/provider-signup/opciones`,
+    { cache: 'no-store', signal: AbortSignal.timeout(TIMEOUT_MS) },
+    { lineas: [] },
+    (v) => typeof v === 'object' && v !== null && Array.isArray((v as { lineas?: unknown }).lineas),
+  );
+  return r.lineas;
+}
+
 export async function getQuoterCatalog(tipo: CotizadorTipo): Promise<CatalogoCotizador | null> {
   return pedirOr<CatalogoCotizador | null>(
     `${API_URL}/quoter/catalog/${tipo}`,

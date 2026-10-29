@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { Icon, type IconName } from '@/components/Icon';
 
 interface Notification {
@@ -42,7 +43,13 @@ const esHoy = (iso: string | null) => !!iso && new Date(iso).toDateString() === 
 
 /**
  * Campana de avisos del cliente. Consulta `/notifications` (solo los del usuario
- * de la sesión: la API filtra por el JWT) y se refresca sola cada 30 s.
+ * de la sesión: la API filtra por el JWT) y se refresca sola: cada 10 s en su
+ * cuenta, cada 30 s en el resto del sitio.
+ *
+ * Cuando llega un aviso NUEVO y el cliente está en su cuenta, la página se
+ * vuelve a pedir sola (2026-10-23): "llega la notificación y no cambia en el
+ * sitio, tengo que recargar". Mis cotizaciones se arma en el servidor, así que
+ * `router.refresh()` trae el estado nuevo sin perder lo que esté escribiendo.
  */
 export function NotificationsBell({ userId }: { userId: number }) {
   const [items, setItems] = useState<Notification[]>([]);
@@ -50,18 +57,28 @@ export function NotificationsBell({ userId }: { userId: number }) {
   const [open, setOpen] = useState(false);
   const [soloSinLeer, setSoloSinLeer] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const enSuCuenta = pathname?.startsWith('/cuenta') ?? false;
+  /** El aviso más nuevo que ya se vio; null hasta la primera carga. */
+  const ultimo = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
       const r = await fetch('/api/proxy/notifications');
       if (!r.ok) return;
       const d = (await r.json()) as { items: Notification[]; unread: number };
-      setItems(Array.isArray(d.items) ? d.items : []);
+      const lista = Array.isArray(d.items) ? d.items : [];
+      setItems(lista);
       setUnread(d.unread ?? 0);
+      // Llegó algo nuevo: lo que enseña su cuenta ya cambió (su cotización tiene precio, su servicio avanzó…).
+      const masNuevo = lista.reduce((m, n) => Math.max(m, n.id), 0);
+      if (ultimo.current !== null && masNuevo > ultimo.current && enSuCuenta) router.refresh();
+      ultimo.current = Math.max(ultimo.current ?? 0, masNuevo);
     } catch {
       /* la campana no debe romper el header */
     }
-  }, []);
+  }, [enSuCuenta, router]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -71,11 +88,11 @@ export function NotificationsBell({ userId }: { userId: number }) {
   useEffect(() => {
     const cadaTanto = window.setInterval(() => {
       if (document.visibilityState === 'visible') load();
-    }, 30_000);
+    }, enSuCuenta ? 10_000 : 30_000);
     const alVolver = () => { if (document.visibilityState === 'visible') load(); };
     document.addEventListener('visibilitychange', alVolver);
     return () => { window.clearInterval(cadaTanto); document.removeEventListener('visibilitychange', alVolver); };
-  }, [userId, load]);
+  }, [userId, load, enSuCuenta]);
 
   useEffect(() => {
     if (!open) return;

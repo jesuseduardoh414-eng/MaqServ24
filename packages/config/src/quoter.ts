@@ -67,10 +67,12 @@ const bloqueSchema = z.object({
 /**
  * Qué se ve del cotizador FUERA del panel.
  *
- * `mostrarPrecios: false` deja el flujo completo en el sitio público pero sin
- * importes: el visitante arma su requerimiento y lo envía, y el precio lo pone
- * una persona desde el panel. Está aquí porque publicar el tabulador completo
- * es una decisión comercial, no técnica, y se cambia sin tocar código.
+ * `habilitado`: si el cotizador existe en el sitio público.
+ *
+ * `mostrarPrecios` ya no se lee (2026-10-23): el sitio NUNCA enseña precios.
+ * El visitante arma su requerimiento y lo envía; el precio lo revisa una
+ * persona en Solicitudes y se lo manda para que lo acepte. El campo se queda
+ * para que los tabuladores guardados sigan pasando la validación.
  */
 const publicoSchema = z.object({
   habilitado: z.boolean(),
@@ -112,6 +114,7 @@ const productosDe = () => z.array(z.number().int().positive()).max(60).optional(
  */
 const ocultoDe = () => z.boolean().optional();
 
+/** Los tramos día/semana/mes del cobro por día. Desde 2026-10-29 no se usan; se aceptan para leer tabuladores viejos. */
 const tierSchema = z.object({
   id: z.string().max(30),
   label: z.string().max(60),
@@ -126,7 +129,13 @@ const equipoSchema = z.object({
   flete_tipo: z.string().min(1).max(60),
   proveedor_id: proveedorDe(),
   productos: productosDe(),
-  tarifas: z.object({ dia: z.number().min(0), semana: z.number().min(0), mes: z.number().min(0) }),
+  /**
+   * PRECIO POR HORA (2026-10-29): "todos esos costos son por hora, así es
+   * como se cobra cada uno". Uno solo, rente 1 día o 30: sin descuentos.
+   */
+  precio_hora: z.number().min(0).optional(),
+  /** El cobro de antes: tarifa por día en cada tramo. Solo se lee si falta `precio_hora`. */
+  tarifas: z.object({ dia: z.number().min(0), semana: z.number().min(0), mes: z.number().min(0) }).optional(),
   oculto: ocultoDe(),
 });
 
@@ -155,12 +164,21 @@ export const catalogoMaquinariaSchema = z.object({
   version: z.string().max(40),
   moneda: z.string().max(10),
   iva: z.number().min(0).max(1),
+  /** Horas de un día de renta: los días que pide el cliente se cobran como días × jornada. */
   jornada_horas: z.number().int().min(1).max(24),
+  /** Horas que se cobran como mínimo por equipo (2026-10-29: una jornada). Sin el campo, una jornada. */
+  minimo_horas: z.number().int().min(0).max(240).optional(),
+  /**
+   * Flete a obra (2026-10-29): "quita el flete por ahora en todos, deja el
+   * campo". Apagado, ninguna máquina lo cobra pero cada una conserva su tipo
+   * de flete y los montos se guardan para cuando vuelva. Sin el campo, se cobra.
+   */
+  cobrar_flete: z.boolean().optional(),
   empresa: empresaSchema,
   firma: firmaSchema,
   publico: publicoSchema,
   saludo: z.string().max(800),
-  tiers: z.array(tierSchema).min(1),
+  tiers: z.array(tierSchema).optional(),
   municipios: z.array(z.string().max(80)).max(400),
   fletes: z.record(z.string(), z.number().min(0)),
   equipos: z.array(equipoSchema).max(120),
@@ -224,7 +242,6 @@ export type CatalogoCotizador = z.infer<typeof catalogoCotizadorSchema>;
 export type EmpresaCotizador = z.infer<typeof empresaSchema>;
 export type FirmaCotizador = z.infer<typeof firmaSchema>;
 export type BloqueCondiciones = z.infer<typeof bloqueSchema>;
-export type TierTarifa = z.infer<typeof tierSchema>;
 export type EquipoCotizador = z.infer<typeof equipoSchema>;
 export type ServicioCotizador = z.infer<typeof servicioSchema>;
 export type ProductoTriturado = z.infer<typeof productoSchema>;
@@ -243,6 +260,11 @@ export const partidaMaquinariaSchema = z.discriminatedUnion('tipo', [
     cantidad: z.number().int().min(1).max(99).default(1),
     /** Costo/hora negociado. `null` = usar el del tabulador vigente. */
     precio_hora: z.number().min(0).max(1_000_000).nullable().optional(),
+    /**
+     * Flete por equipo negociado SOLO para esta cotización (2026-10-23, lápiz
+     * del desglose en Solicitudes). `null` o 0 = el del tabulador.
+     */
+    flete: z.number().min(0).max(10_000_000).nullable().optional(),
   }),
   z.object({
     tipo: z.literal('servicio'),
@@ -272,6 +294,8 @@ export const partidaTrituradosSchema = z.discriminatedUnion('tipo', [
     zona_id: z.string().min(1).max(40),
     producto_id: z.string().min(1).max(40),
     viajes: z.number().int().min(1).max(999).default(1),
+    /** Precio por viaje negociado SOLO para esta cotización (2026-10-23). 0 o vacío = el de la tabla de zonas. */
+    precio: z.number().min(0).max(10_000_000).optional(),
   }),
 ]);
 
@@ -334,14 +358,24 @@ const decimal = (v: unknown, min = 0) => {
 // Motor · maquinaria
 // ---------------------------------------------------------------------------
 
-/** Tramo tarifario según los días totales: 1-5 día · 6-15 semana · 16+ mes. */
-export function tierDe(cat: CatalogoMaquinaria, dias: number): TierTarifa {
-  const d = Math.max(1, entero(dias, 0));
-  for (const t of cat.tiers) {
-    if (d >= t.desde_dias && (t.hasta_dias === null || d <= t.hasta_dias)) return t;
-  }
-  return cat.tiers[cat.tiers.length - 1];
+/**
+ * Lo que cuesta una hora del equipo. Un tabulador de antes del 2026-10-29 (sin
+ * `precio_hora`) se lee como su tarifa día entre la jornada, que es como el
+ * motor sacaba la hora entonces: nada cambia de precio hasta que se captura.
+ */
+export function precioHoraDe(cat: CatalogoMaquinaria, eq: EquipoCotizador): number {
+  if (eq.precio_hora !== undefined) return Number(eq.precio_hora) || 0;
+  return eq.tarifas ? (Number(eq.tarifas.dia) || 0) / cat.jornada_horas : 0;
 }
+
+/** Horas que se cobran como mínimo por equipo. */
+export const minimoHorasDe = (cat: CatalogoMaquinaria): number => cat.minimo_horas ?? cat.jornada_horas;
+
+/** Si el flete a obra se cobra (se apagó el 2026-10-29). */
+export const cobraFlete = (cat: CatalogoMaquinaria): boolean => cat.cobrar_flete !== false;
+
+/** "8 h" / "1 h": las horas como se leen en la pantalla y en el documento. */
+const horasTexto = (n: number) => `${n} ${n === 1 ? 'hora' : 'horas'}`;
 
 export const equipoDe = (cat: CatalogoMaquinaria, id: string): EquipoCotizador | null =>
   cat.equipos.find((e) => e.id === id) ?? null;
@@ -350,7 +384,12 @@ export const servicioDe = (cat: CatalogoMaquinaria, id: string): ServicioCotizad
   cat.servicios.find((s) => s.id === id) ?? null;
 
 /**
- * Lo que cuesta UNA partida de equipo, con el tramo ya resuelto.
+ * Lo que cuesta UNA partida de equipo.
+ *
+ * COBRO POR HORA (2026-10-29): se cobran las horas de trabajo (días × jornada
+ * + horas extra) al precio por hora del equipo, con un mínimo de horas por
+ * equipo. Si piden menos, se cobra el mínimo y `notaMinimo` lo dice: cobrarlo
+ * es correcto solo si el cliente lo ve antes de aceptar.
  *
  * Se exporta porque la pantalla pinta este mismo desglose renglón por renglón
  * mientras el usuario mueve los días: si lo recalculara por su cuenta, sería la
@@ -362,22 +401,25 @@ export function calcularEquipo(cat: CatalogoMaquinaria, p: Extract<PartidaMaquin
   const dias = entero(p.dias, 0);
   const horas = entero(p.horas, 0, jornada - 1);
   const cantidad = entero(p.cantidad, 1);
-  const tier = tierDe(cat, dias);
-  const tarifaDiaCatalogo = eq ? Number(eq.tarifas[tier.id as 'dia' | 'semana' | 'mes'] ?? eq.tarifas.dia) : 0;
   // Override: solo si trae un número > 0. Un campo vacío vuelve al tabulador.
   const negociado = p.precio_hora !== null && p.precio_hora !== undefined && Number(p.precio_hora) > 0;
-  const tarifaHora = negociado ? decimal(p.precio_hora) : tarifaDiaCatalogo / jornada;
+  const tarifaHora = negociado ? decimal(p.precio_hora) : eq ? precioHoraDe(cat, eq) : 0;
   const tarifaDia = tarifaHora * jornada;
   // Sin duración no se cobra: es un renglón que el usuario acaba de agregar y
-  // todavía no configura. Cobrarle el flete por eso sería mentirle el total.
+  // todavía no configura. Cobrarle el mínimo por eso sería mentirle el total.
   const activo = dias >= 1 || horas >= 1;
-  const horasTotales = (dias * jornada + horas) * cantidad;
-  const tiempo = activo ? (dias * tarifaDia + horas * tarifaHora) * cantidad : 0;
-  const fleteUnit = eq ? Number(cat.fletes[eq.flete_tipo] ?? 0) : 0;
+  const minimo = minimoHorasDe(cat);
+  const horasPedidas = dias * jornada + horas;
+  const horasPorEquipo = activo ? Math.max(horasPedidas, minimo) : 0;
+  const notaMinimo = activo && horasPedidas < minimo ? `Mínimo ${horasTexto(minimo)} por equipo: se cobran ${horasTexto(minimo)}.` : null;
+  const horasTotales = horasPorEquipo * cantidad;
+  const tiempo = horasTotales * tarifaHora;
+  const fleteNegociado = p.flete !== null && p.flete !== undefined && Number(p.flete) > 0;
+  const fleteUnit = !cobraFlete(cat) ? 0 : fleteNegociado ? decimal(p.flete) : eq ? Number(cat.fletes[eq.flete_tipo] ?? 0) : 0;
   const flete = activo ? fleteUnit * cantidad : 0;
   return {
-    eq, tier, jornada, dias, horas, cantidad,
-    tarifaDia, tarifaHora, horasTotales, tiempo,
+    eq, jornada, dias, horas, cantidad,
+    tarifaDia, tarifaHora, horasPedidas, horasPorEquipo, horasTotales, minimo, notaMinimo, tiempo,
     fleteUnit, flete, activo, negociado,
   };
 }
@@ -389,6 +431,25 @@ export function calcularEquipo(cat: CatalogoMaquinaria, p: Extract<PartidaMaquin
  */
 const COND_ORDEN_MAQUINARIA = ['renta', 'retiro', 'banco', 'pipa'] as const;
 
+/** Así empieza la leyenda para negociar; un documento sin precios la quita (`condicionesSinPrecios`). */
+export const LEYENDA_NEGOCIAR = 'Si desea negociar el costo';
+
+/**
+ * LOS DOS PUNTOS DE LA RENTA QUE ESCRIBE EL TABULADOR (2026-10-29): cómo se
+ * cobra (por hora, con su mínimo) y la leyenda para negociar ("no va a haber
+ * descuentos; si el cliente quiere mejorar el precio, que se comunique a la
+ * línea de MAQSER24"). Salen del mínimo y del teléfono del documento, así no
+ * se contradicen con ellos cuando cambian en Tarifas.
+ */
+function puntosDeRenta(cat: CatalogoMaquinaria): { primero: string; ultimo: string } {
+  const minimo = minimoHorasDe(cat);
+  const tel = cat.empresa.telefono.trim();
+  return {
+    primero: `El costo de la renta del equipo es por hora de trabajo${minimo > 0 ? `, con un mínimo de ${horasTexto(minimo)} por equipo` : ''}.`,
+    ultimo: `${LEYENDA_NEGOCIAR}, comuníquese a la línea de ${cat.empresa.nombre || 'MAQSER24'}${tel ? `: ${tel}` : ''}.`,
+  };
+}
+
 function condicionesMaquinaria(cat: CatalogoMaquinaria, partidas: PartidaMaquinaria[]): BloqueCondiciones[] {
   const claves = new Set<string>();
   for (const p of partidas) {
@@ -399,9 +460,10 @@ function condicionesMaquinaria(cat: CatalogoMaquinaria, partidas: PartidaMaquina
     }
   }
   const orden: string[] = [...COND_ORDEN_MAQUINARIA, ...[...claves].filter((k) => !(COND_ORDEN_MAQUINARIA as readonly string[]).includes(k))];
+  const renta = puntosDeRenta(cat);
   return orden
     .filter((k) => claves.has(k) && cat.condiciones[k])
-    .map((k) => cat.condiciones[k]);
+    .map((k) => (k === 'renta' ? { ...cat.condiciones[k], puntos: [renta.primero, ...cat.condiciones[k].puntos, renta.ultimo] } : cat.condiciones[k]));
 }
 
 export function calcularMaquinaria(
@@ -424,8 +486,9 @@ export function calcularMaquinaria(
       fletes += c.flete;
 
       const unidad = modo === 'dias' ? 'JOR' : 'HRS';
+      // Las horas COBRADAS (con el mínimo), no las pedidas: cantidad × P.U. = importe.
       const cantidad = modo === 'dias'
-        ? Math.round((c.dias + c.horas / jornada) * c.cantidad * 10_000) / 10_000
+        ? Math.round((c.horasTotales / jornada) * 10_000) / 10_000
         : c.horasTotales;
       const pu = modo === 'dias' ? r2(c.tarifaDia) : r2(c.tarifaHora);
 
@@ -438,9 +501,10 @@ export function calcularMaquinaria(
         cantidad,
         pu,
         importe: r2(c.tiempo),
-        detalle: `${c.tier.label}${c.cantidad > 1 ? ` · ${c.cantidad} equipos` : ''}`,
+        detalle: [c.notaMinimo ?? 'Por hora', c.cantidad > 1 ? `${c.cantidad} equipos` : ''].filter(Boolean).join(' · '),
       });
-      renglones.push({
+      // Flete apagado (2026-10-29): sin renglón, en vez de un flete en $0.
+      if (cobraFlete(cat)) renglones.push({
         clase: 'flete',
         id: c.eq.id,
         concepto: `FLETE ${c.eq.flete_tipo.toUpperCase()} A OBRA (IDA Y VUELTA)`,
@@ -606,7 +670,7 @@ export function calcularTriturados(
     } else {
       const z = zonaDe(cat, p.zona_id);
       const prod = productoDe(cat, p.producto_id);
-      const precio = precioZona(cat, z, p.producto_id);
+      const precio = p.precio && Number(p.precio) > 0 ? decimal(p.precio) : precioZona(cat, z, p.producto_id);
       if (!z || !prod || precio === null) continue;
       const viajes = entero(p.viajes, 1);
       const importe = precio * viajes;
@@ -669,15 +733,15 @@ export interface PasoCotizador {
 /**
  * El orden NO es cosmético: cada paso depende del anterior.
  *
- * El tramo tarifario (día/semana/mes) sale de los días, y los días se piden en
- * el paso 3; por eso elegir equipo y decir cuánto tiempo son pasos distintos.
+ * Las horas que se cobran (con su mínimo; antes, el tramo día/semana/mes) se
+ * piden en el paso 3; por eso elegir equipo y decir cuánto tiempo son pasos distintos.
  * En la app original todo estaba en una sola pantalla y el usuario veía el
  * precio cambiar solo al teclear los días, sin entender por qué.
  */
 export const PASOS_MAQUINARIA: PasoCotizador[] = [
   { clave: 'obra', titulo: 'Datos de la obra', ayuda: 'Para quién es y dónde se entrega el equipo.' },
   { clave: 'equipos', titulo: 'Equipos', ayuda: 'Elige la maquinaria. Todas incluyen operador y diésel.' },
-  { clave: 'duracion', titulo: 'Duración', ayuda: 'Los días definen la tarifa: 1-5 día, 6-15 semana, 16+ mes.' },
+  { clave: 'duracion', titulo: 'Duración', ayuda: 'Se cobra por hora de trabajo: cada día es una jornada, con un mínimo por equipo.' },
   { clave: 'servicios', titulo: 'Servicios', ayuda: 'Pipas de agua y retiro de material. Este paso es opcional.' },
   { clave: 'resumen', titulo: 'Resumen', ayuda: 'Revisa el documento antes de guardarlo o enviarlo.' },
 ];
@@ -846,8 +910,8 @@ export interface RenglonDeFicha {
   /** Ausente: renglón nuevo (el id se genera al guardar). */
   id?: string;
   nombre: string;
-  /** Equipo: tarifa por día en cada tramo. */
-  tarifas?: { dia: number; semana: number; mes: number };
+  /** Equipo: precio por hora de trabajo (2026-10-29). */
+  precio_hora?: number;
   /** Equipo: qué flete se cobra (clave de `fletes`). */
   flete_tipo?: string;
   /** Servicio: por viaje. Material: por tonelada. */
@@ -863,7 +927,7 @@ export function renglonesDeFicha(cat: CatalogoCotizador, clase: ClaseRenglon, pr
   const es = deLaFicha(productId);
   if (cat.tipo === 'maquinaria' && clase === 'equipo') {
     const rs = cat.equipos.filter(es);
-    return { renglones: rs.map((e) => ({ id: e.id, nombre: e.nombre, tarifas: { ...e.tarifas }, flete_tipo: e.flete_tipo })), oculto: rs.length > 0 && rs.every((e) => e.oculto) };
+    return { renglones: rs.map((e) => ({ id: e.id, nombre: e.nombre, precio_hora: Math.round(precioHoraDe(cat, e) * 100) / 100, flete_tipo: e.flete_tipo })), oculto: rs.length > 0 && rs.every((e) => e.oculto) };
   }
   if (cat.tipo === 'maquinaria' && clase === 'servicio') {
     const rs = cat.servicios.filter(es);
@@ -909,6 +973,17 @@ function reemplazar<T>(lista: T[], es: (x: T) => boolean, nuevos: T[]): T[] {
   return [...resto.slice(0, antes), ...nuevos, ...resto.slice(antes)];
 }
 
+/** Icono de un equipo nuevo, por su nombre (2026-10-29: el Bob Cat salía como excavadora). */
+function iconoDeEquipo(nombre: string): string {
+  const n = nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const martillo = n.includes('martillo');
+  if (/bob ?cat|minicargador/.test(n)) return 'minicargador';
+  if (n.includes('retro')) return martillo ? 'retro_mart' : 'retro';
+  if (n.includes('motoconform')) return 'moto';
+  if (/vibro|compactador/.test(n)) return 'vibro';
+  return martillo ? 'martillo_exc' : 'excavadora';
+}
+
 /** Icono de un servicio nuevo, por su bloque de condiciones. */
 const ICONO_SERVICIO: Record<string, string> = { pipa: 'pipa', banco: 'banco', retiro: 'retiro' };
 
@@ -938,15 +1013,18 @@ export function aplicarRenglonesDeFicha(
   if (cat.tipo === 'maquinaria' && clase === 'equipo') {
     const previos = cat.equipos.filter(es);
     const porId = new Map(previos.map((e) => [e.id, e]));
-    const icono = previos[0]?.icono ?? 'excavadora';
+    const icono = previos[0]?.icono ?? iconoDeEquipo(renglones[0]?.nombre ?? '');
     const nuevos: EquipoCotizador[] = renglones.map((r) => {
       const { id, ya } = idPara(porId, r);
+      // Al guardarse con precio por hora, la tarifa por día de antes ya no tiene nada que decir.
+      const previo: Partial<EquipoCotizador> = ya ? { ...ya } : { icono, proveedor_id: null, productos: [productId] };
+      delete previo.tarifas;
       return {
-        ...(ya ?? { icono, proveedor_id: null, productos: [productId] }),
+        ...previo,
         id,
         nombre: r.nombre.trim(),
         flete_tipo: r.flete_tipo ?? ya?.flete_tipo ?? Object.keys(cat.fletes)[0] ?? 'Excavadora',
-        tarifas: r.tarifas ?? ya?.tarifas ?? { dia: 0, semana: 0, mes: 0 },
+        precio_hora: r.precio_hora ?? (ya ? precioHoraDe(cat, ya) : 0),
         oculto,
       } as EquipoCotizador;
     });
@@ -1080,7 +1158,7 @@ export function pasosDe(tipo: CotizadorTipo): PasoCotizador[] {
 export const COTIZADORES_META: Record<CotizadorTipo, { titulo: string; resumen: string; icono: string; ruta: string }> = {
   maquinaria: {
     titulo: 'Maquinaria',
-    resumen: 'Renta de equipo con operador y diésel, con flete a obra. Tarifa por día, semana o mes.',
+    resumen: 'Renta de equipo con operador y diésel. Se cobra por hora de trabajo.',
     icono: 'excavadora',
     ruta: '/cotizador/maquinaria',
   },

@@ -5,6 +5,8 @@ import { AdminSelect } from '@/components/AdminSelect';
 import { useRouter } from 'next/navigation';
 import { unidadesDe, atributosDe, tipoDeCatalogo, type TipoCatalogo } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
+import { NuevosDeAliados } from './NuevosDeAliados';
+import { MargenProductos } from './MargenProductos';
 import { Modal } from '@/components/Modal';
 import {
   Btn, Chip, EmptyState, FormField, IconBtn, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Switch, Thumb, Toast, Toolbar,
@@ -54,13 +56,18 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
   const nombre = tipo === 'servicio' ? 'Equipos' : 'Productos';
   const singular = tipo === 'servicio' ? 'equipo' : 'producto';
   const slugDeCat = useMemo(() => new Map(categories.map((c) => [c.name, c.slug])), [categories]);
-  const categoriasTipo = useMemo(() => categories.filter((c) => tipoDeCatalogo(c.slug) === tipo), [categories, tipo]);
+  /*
+   * UN SOLO INVENTARIO (2026-10-28): servicios y productos juntos. Antes esta
+   * pantalla enseñaba solo las 5 líneas de servicio, la de productos no estaba
+   * en el menú, y una categoría de productos (como «Andamios», autorizada en
+   * Categorías) no salía en ningún lado. Cada renglón se lee según su categoría.
+   */
+  const categoriasTipo = categories;
+  const hayProductos = categories.some((c) => tipoDeCatalogo(c.slug) === 'producto');
+  const esServicio = (p: ProductRow) => tipoDeCatalogo(slugDeCat.get(p.categoryName ?? '') ?? null) === 'servicio';
 
   const [todos, setItems] = useState<ProductRow[]>(initial);
-  const items = useMemo(
-    () => todos.filter((p) => tipoDeCatalogo(slugDeCat.get(p.categoryName ?? '') ?? null) === tipo),
-    [todos, slugDeCat, tipo],
-  );
+  const items = todos;
   const [query, setQuery] = useState('');
   const [catFilter, setCatFilter] = useState('todas');
   const [filter, setFilter] = useState<Filtro>('todos');
@@ -233,7 +240,8 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
       if (catFilter !== 'todas' && p.categoryName !== catFilter) return false;
       if (filter === 'activos' && p.status !== 1) return false;
       if (filter === 'destacados' && !p.featured) return false;
-      if (q && !(p.name.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q))) return false;
+      // También por categoría: «andamios» encuentra el «Andamio tubular».
+      if (q && !(p.name.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q) || (p.categoryName ?? '').toLowerCase().includes(q))) return false;
       return true;
     });
     if (sort === 'asc') list = [...list].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
@@ -255,10 +263,10 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
     ? 'Sin resultados'
     : `Mostrando ${start + 1}–${start + pageRows.length} de ${rows.length}${rows.length !== stats.total ? ` (de ${stats.total})` : ''}`;
 
-  const stockInfo = (stock: number | null): { tone?: Tone; label: string; val: number | string } => {
+  const stockInfo = (stock: number | null, servicio: boolean): { tone?: Tone; label: string; val: number | string } => {
     if (stock == null) return { tone: 'muted', label: 'Sin dato', val: '—' };
     // En un servicio es cuántas unidades hay, no inventario que se agota.
-    if (tipo === 'servicio') return { label: stock === 1 ? 'unidad' : 'unidades', val: stock };
+    if (servicio) return { label: stock === 1 ? 'unidad' : 'unidades', val: stock };
     if (stock === 0) return { tone: 'bad', label: 'Agotado', val: stock };
     if (stock <= 3) return { tone: 'warn', label: 'Bajo stock', val: stock };
     return { tone: 'ok', label: 'Disponible', val: stock };
@@ -302,7 +310,15 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
         eyebrow={['Red y oferta', tipo === 'servicio' ? 'Inventario' : 'Catálogo']}
         title={nombre}
         count={stats.total}
-        actions={<Btn variant="primary" icon="ph-plus" onClick={openNew}>Nuevo {singular}</Btn>}
+        actions={
+          <>
+            {/* Solo si hay alguna categoría de productos (precio fijo). */}
+            {tipo === 'servicio' && hayProductos ? (
+              <Btn icon="ph-plus" onClick={() => router.push('/productos/nuevo?tipo=producto')}>Nuevo producto</Btn>
+            ) : null}
+            <Btn variant="primary" icon="ph-plus" onClick={openNew}>Nuevo {singular}</Btn>
+          </>
+        }
       />
 
       <Stats>
@@ -316,6 +332,12 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
           <Stat label="Bajo stock" icon="ph-warning" tone={stats.bajo > 0 ? 'bad' : 'muted'} value={stats.bajo} hint="3 o menos" />
         )}
       </Stats>
+
+      {/* Lo que ofrecen los aliados y MAQSER24 no tiene (2026-10-28): se decide aquí. */}
+      <NuevosDeAliados tipo={tipo} categorias={categories} onCambio={() => void reload()} />
+
+      {/* El margen de los productos a precio fijo (antes en Tarifas): solo con alguna categoría de productos. */}
+      {hayProductos ? <MargenProductos /> : null}
 
       <Toolbar
         end={
@@ -345,7 +367,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
           ariaLabel="Categoría"
           value={catFilter}
           onChange={setCatFilter}
-          options={[{ value: 'todas', label: tipo === 'servicio' ? 'Todas las líneas' : 'Todas las categorías' }, ...categoriasTipo.map((c) => ({ value: c.name, label: c.name }))]}
+          options={[{ value: 'todas', label: 'Todas las categorías' }, ...categoriasTipo.map((c) => ({ value: c.name, label: c.name }))]}
         />
         <Segmented<Filtro>
           ariaLabel="Filtrar por estado"
@@ -379,12 +401,13 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
         }
       >
         <div className="adm-thead pr-row pr-head">
-          <div /><div>Producto</div><div>Categoría</div><div>{tipo === 'servicio' ? 'Tarifa' : 'Precio'}</div><div>{tipo === 'servicio' ? 'Unidades' : 'Stock'}</div><div>Estado</div><div style={{ textAlign: 'right' }}>Acciones</div>
+          <div /><div>Producto</div><div>Categoría</div><div>Tarifa o precio</div><div>Unidades</div><div>Estado</div><div style={{ textAlign: 'right' }}>Acciones</div>
         </div>
         {rows.length === 0 ? (
           <EmptyState icon="ph-cube" title="No se encontraron productos" sub="Ajusta los filtros o crea un nuevo producto." />
         ) : pageRows.map((p) => {
-          const s = stockInfo(p.stock);
+          const servicio = esServicio(p);
+          const s = stockInfo(p.stock, servicio);
           const confirming = confirmId === p.id;
           return (
             <div key={p.id} className="adm-trow pr-row">
@@ -410,12 +433,17 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
               {/* PRECIO ÚNICO (2026-10-08): un servicio no lleva precio propio, lo da el
                   tabulador del cotizador. Enseñar aquí un número hacía creer que la
                   ficha tenía su propio precio. */}
-              {tipo === 'servicio' ? (
+              {servicio ? (
                 <a className="pr-price adm-link" href="/cotizador/tarifas" title="La tarifa de los servicios se edita en Ajustes › Tarifas y condiciones" style={{ fontSize: 13, color: 'var(--adm-muted)' }}>
                   En el cotizador <i className="ph ph-arrow-up-right" aria-hidden />
                 </a>
               ) : (
-                <div className="pr-price adm-num" style={{ fontWeight: 600, fontSize: 14 }}>{fmt(p.price)}</div>
+                // Sin precio (p. ej. el equipo de un aliado): "Sin precio", no "$0".
+                p.price ? (
+                  <div className="pr-price adm-num" style={{ fontWeight: 600, fontSize: 14 }}>{fmt(p.price)}</div>
+                ) : (
+                  <div className="pr-price" style={{ fontSize: 13, color: 'var(--adm-faint)' }}>Sin precio</div>
+                )
               )}
               {/* Stock */}
               <div className="pr-stock">
@@ -428,10 +456,10 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
               </div>
               {/* Estado */}
               <div className="pr-state">
-                {/* status 2 = lo ofreció un aliado desde su portal: se publica
-                    desde su expediente (le avisa), no con el interruptor. */}
+                {/* status 2 = lo ofreció un aliado y no está en la lista de tipos:
+                    se decide en «Nuevos que ofrecen los aliados», arriba (2026-10-28). */}
                 {p.status === 2 ? (
-                  <a href="/proveedores" style={{ textDecoration: 'none' }}><StatusText tone="warn">Por revisar</StatusText></a>
+                  <StatusText tone="warn">Nuevo</StatusText>
                 ) : (
                   <Switch on={p.status === 1} onClick={() => toggleStatus(p)} label={p.status === 1 ? 'Activo' : 'Inactivo'} title="Activar / desactivar" />
                 )}

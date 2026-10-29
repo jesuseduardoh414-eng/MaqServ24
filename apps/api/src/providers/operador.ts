@@ -42,8 +42,20 @@ export function operadorDe(requirements: unknown): DatosOperador | null {
   return { nombre: o.nombre.trim(), telefono: typeof o.telefono === 'string' && o.telefono.trim() ? o.telefono.trim() : null, v: Number(o.v) || 1 };
 }
 
-export async function firmarOperador(quoteId: number, version: number): Promise<string> {
-  return new SignJWT({ v: version })
+/**
+ * La versión NUNCA baja (auditoría 2026-10-28): al bajarse el aliado se borra
+ * `operadorAsignado`, y el siguiente operador volvía a la versión 1, con lo que
+ * el enlace del operador anterior volvía a abrir el servicio del aliado nuevo.
+ * Por eso la última versión emitida queda aparte, en `operadorVersion`.
+ */
+export function ultimaVersionOperador(requirements: unknown): number {
+  const r = (requirements ?? {}) as { operadorVersion?: unknown };
+  return Math.max(operadorDe(requirements)?.v ?? 0, Number(r.operadorVersion) || 0);
+}
+
+/** `aliadoId`: el aliado que aceptó; si el servicio pasa a otro, el enlace deja de servir. */
+export async function firmarOperador(quoteId: number, version: number, aliadoId?: number): Promise<string> {
+  return new SignJWT(aliadoId ? { v: version, p: aliadoId } : { v: version })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer(EMISOR)
     .setSubject(String(quoteId))
@@ -65,10 +77,14 @@ export async function validarOperador(token: string | null | undefined): Promise
     // El aliado que tomó el servicio tiene que seguir activo (auditoría
     // 2026-10-23): dar de baja a un aliado corta también el enlace de su
     // operador, que si no seguía 15 días viendo la obra y el contacto.
-    const aliadoActivo = await prisma.service_assignments.count({
+    const aceptado = await prisma.service_assignments.findFirst({
       where: { quote_id: BigInt(id), state: 'aceptado', providers: { status: 1 } },
+      select: { provider_id: true },
     });
-    if (!aliadoActivo) return null;
+    if (!aceptado) return null;
+    // Y tiene que ser el MISMO aliado para el que se emitió (auditoría 2026-10-28).
+    // Los enlaces de antes no lo traen: los cubre la versión, que ya no baja.
+    if (payload.p !== undefined && Number(payload.p) !== Number(aceptado.provider_id)) return null;
     return { quoteId: id };
   } catch {
     return null;
@@ -96,12 +112,16 @@ export async function asignarOperador(quoteId: number, datos: { nombre: string; 
   const q = await prisma.quotes.findUnique({ where: { id: BigInt(quoteId) }, select: { quote_number: true, requirements: true } });
   if (!q) throw new Error('Servicio no encontrado');
   const req = (q.requirements ?? {}) as Record<string, unknown>;
-  const operador: DatosOperador = { nombre: datos.nombre.trim(), telefono: datos.telefono?.trim() || null, v: (operadorDe(req)?.v ?? 0) + 1 };
+  const operador: DatosOperador = { nombre: datos.nombre.trim(), telefono: datos.telefono?.trim() || null, v: ultimaVersionOperador(req) + 1 };
   await prisma.quotes.update({
     where: { id: BigInt(quoteId) },
-    data: { requirements: { ...req, operadorAsignado: operador } as unknown as Prisma.InputJsonValue, updated_at: new Date() },
+    data: { requirements: { ...req, operadorAsignado: operador, operadorVersion: operador.v } as unknown as Prisma.InputJsonValue, updated_at: new Date() },
   });
-  const url = urlDeOperador(await firmarOperador(quoteId, operador.v));
+  const aceptado = await prisma.service_assignments.findFirst({
+    where: { quote_id: BigInt(quoteId), state: 'aceptado' },
+    select: { provider_id: true },
+  });
+  const url = urlDeOperador(await firmarOperador(quoteId, operador.v, aceptado ? Number(aceptado.provider_id) : undefined));
   const whatsapp = whatsappDe(
     operador.telefono,
     `Hola ${operador.nombre}, este es tu enlace del servicio ${q.quote_number} de MAQSER24: ${url}\n\nÁbrelo en tu celular: ahí está la dirección de la obra y los botones para avisar cuando salgas y llegues. Mientras vas en camino, deja la página abierta para compartir tu ubicación.`,

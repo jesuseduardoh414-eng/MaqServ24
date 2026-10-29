@@ -1,8 +1,9 @@
 'use client';
 
 import { Btn, Note, PageHeader } from '@/components/ui';
-import { Cotizador, type DatosEnvio, type ResultadoEnvio } from '@maqserv/ui';
-import type { CatalogoCotizador } from '@maqserv/config';
+import { useCallback, useEffect, useState } from 'react';
+import { Cotizador, aLineas, lineasDeFicha, type ClientePanel, type DatosEnvio, type EmpresaCliente, type ResultadoEnvio } from '@maqserv/ui';
+import type { CatalogoCotizador, OpcionesCotizador, PartidaCotizador } from '@maqserv/config';
 import { useBranding } from '@/components/branding';
 
 /** Una solicitud del formulario "Cotizar" que se va a cotizar con el tabulador (2026-10-15). */
@@ -15,6 +16,12 @@ export interface SolicitudACotizar {
   pide: string | null;
   detalle: Array<[string, string]>;
   comentarios: string | null;
+  /**
+   * El documento que ya trae (2026-10-23): el cotizador abre con sus partidas
+   * en vez de vacío. `mismoFolio` = todavía no se manda al cliente, así que se
+   * actualiza ese mismo documento en vez de emitir otro.
+   */
+  documento: { tipo: string; partidas: PartidaCotizador[]; opciones: Partial<OpcionesCotizador>; mismoFolio: boolean } | null;
 }
 
 const humano = (k: string) => (k.charAt(0).toUpperCase() + k.slice(1)).replace(/_/g, ' ');
@@ -36,6 +43,7 @@ export function CotizadorPanel({
   resumen,
   solicitud,
   solicitudFallida,
+  fichaId,
 }: {
   catalogo: CatalogoCotizador;
   titulo: string;
@@ -43,8 +51,30 @@ export function CotizadorPanel({
   solicitud?: SolicitudACotizar | null;
   /** Se pidió cotizar una solicitud que ya no admite precio nuevo (aceptada, descartada o inexistente). */
   solicitudFallida?: boolean;
+  /** El tipo con el que abre ("Cotizar" en Disponibilidad, 2026-10-26). */
+  fichaId?: number | null;
 }) {
   const branding = useBranding();
+
+  /**
+   * Los clientes registrados (2026-10-23): el paso 1 elige uno y una de sus
+   * obras, o los escribe nuevos. Al volver a cotizar una solicitud no: esa ya
+   * trae su cliente y su obra.
+   */
+  const [clientes, setClientes] = useState<ClientePanel[] | null>(solicitud ? [] : null);
+  useEffect(() => {
+    if (solicitud) return;
+    let vivo = true;
+    fetch('/api/admin/quoter/clientes')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => { if (vivo) setClientes(Array.isArray(d) ? d : []); })
+      .catch(() => { if (vivo) setClientes([]); });
+    return () => { vivo = false; };
+  }, [solicitud]);
+  const obrasDe = useCallback(async (id: number): Promise<EmpresaCliente['sites']> => {
+    const r = await fetch(`/api/admin/quoter/clientes/${id}/obras`);
+    return r.ok ? r.json() : [];
+  }, []);
   // El documento se imprime sobre papel BLANCO: hace falta el logo para fondo
   // claro, no el del sidebar oscuro.
   const logo = branding.logoLight || branding.logoAlt || null;
@@ -63,6 +93,10 @@ export function CotizadorPanel({
         notas: datos.contexto.notas,
         opciones: datos.opciones,
         partidas: datos.partidas,
+        clienteId: datos.contexto.clienteId,
+        obraId: datos.contexto.obraId,
+        direccion: datos.contexto.direccion,
+        fecha: datos.contexto.fecha,
         ...(solicitud ? { solicitudId: solicitud.id } : {}),
       }),
     });
@@ -98,7 +132,7 @@ export function CotizadorPanel({
 
       {solicitudFallida ? (
         <Note tone="warn" icon="ph-warning" style={{ marginBottom: 16 }}>
-          Esa solicitud ya no se puede cotizar aquí: el cliente ya la aceptó, está descartada o ya trae su documento. Lo que guardes ahora queda como cotización suelta.
+          Esa solicitud ya no se puede volver a cotizar: el cliente ya la aceptó o está descartada. Lo que guardes ahora queda como cotización suelta.
         </Note>
       ) : null}
 
@@ -111,7 +145,11 @@ export function CotizadorPanel({
               con el tabulador. Al guardar, el documento queda ligado a la solicitud y sus importes son los que se le responden.
             </div>
             {solicitud.folioActual ? (
-              <div style={{ color: 'var(--adm-warn)' }}>Ya tenía el documento {solicitud.folioActual}: el nuevo lo reemplaza y la solicitud vuelve a «Por cotizar».</div>
+              solicitud.documento?.mismoFolio ? (
+                <div>Abre con lo que pidió en <strong className="adm-mono">{solicitud.folioActual}</strong>. Al guardar se actualiza ese mismo documento, con su folio; si viene en varias partes, cada una recibe lo suyo.</div>
+              ) : (
+                <div style={{ color: 'var(--adm-warn)' }}>Ya se le mandó el documento {solicitud.folioActual}: el nuevo lo reemplaza y la solicitud vuelve a «Por cotizar» para mandarle el precio bueno.</div>
+              )
             ) : null}
             {solicitud.detalle.length || solicitud.comentarios ? (
               <details>
@@ -131,15 +169,23 @@ export function CotizadorPanel({
         </Note>
       ) : null}
 
+      {clientes === null ? <p style={{ color: 'var(--adm-muted)' }}>Cargando clientes…</p> : (
       <Cotizador
         // Con otra solicitud el cotizador arranca de cero, no con lo capturado de la anterior.
-        key={solicitud?.id ?? 'suelta'}
+        key={solicitud?.id ?? (fichaId ? `tipo-${fichaId}` : 'suelta')}
+        clientesPanel={solicitud ? undefined : { lista: clientes, obras: obrasDe }}
         catalogo={catalogo}
         variante="panel"
         logo={logo}
         inicial={solicitud?.inicial}
+        lineasIniciales={
+          solicitud?.documento && solicitud.documento.tipo === catalogo.tipo
+            ? aLineas(solicitud.documento.partidas)
+            : fichaId && !solicitud ? lineasDeFicha(catalogo, fichaId) : undefined
+        }
         onEnviar={enviar}
       />
+      )}
     </div>
   );
 }

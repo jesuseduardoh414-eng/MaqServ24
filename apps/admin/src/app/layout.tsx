@@ -33,6 +33,13 @@ function conTope<T>(promesa: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+/**
+ * MODO CLARO (2026-10-28): la preferencia vive en localStorage y se aplica
+ * ANTES de pintar, para no ver un destello oscuro. 'system' sigue al sistema.
+ * Es el mismo `data-theme` que usa el tema del sitio, así el acento también cambia.
+ */
+const TEMA_SCRIPT = `(function(){try{var t=localStorage.getItem('maqserv_admin_theme');var r=(t==='light'||t==='dark')?t:(t==='system'&&window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');document.documentElement.setAttribute('data-theme',r);}catch(e){}})();`;
+
 /** El admin comparte los tokens del tema activo (colores/tipografía/branding de la BD). */
 export default async function RootLayout({ children }: { children: ReactNode }) {
   let tokens = defaultTheme.tokens;
@@ -45,8 +52,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const branding = tokens.branding ?? {};
 
   return (
-    <html lang="es">
+    <html lang="es" data-theme="dark" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: TEMA_SCRIPT }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* Las familias salen del tema, no escritas a mano: el manual manda

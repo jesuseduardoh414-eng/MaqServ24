@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
-import { DIAS_FRESCURA } from '../catalog/availability';
 import { DIAS_AVISO, DOC_LABEL, papelesQueFaltan } from '../catalog/provider-trust';
 import { documentosQueAvisan, textoAviso } from '../catalog/document-alerts';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
@@ -12,11 +11,10 @@ import { correoRecordatorioAliado } from './email-templates';
  *
  * "Recordatorios automáticos para confirmar disponibilidad."
  *
- * La regla de los catorce días ya existía y ya funcionaba: un equipo sin
- * confirmar deja de proponerse solo. Lo que faltaba es que alguien se entere.
- * Sin esto, la regla sólo degradaba el catálogo en silencio hasta que todo
- * aparecía "por confirmar" y el emparejamiento se quedaba sin nada que
- * ofrecer.
+ * SOLO PAPELES (2026-10-26). Antes también le pedía al aliado confirmar sus
+ * equipos cada 14 días. El dueño lo quitó: la confirmación de verdad es cuando
+ * el aliado acepta o rechaza un servicio, y el mantenimiento lo marca él desde
+ * su portal. Queda el aviso de los papeles por vencer o que faltan.
  *
  * CUATRO DECISIONES QUE VALE LA PENA DEJAR ESCRITAS:
  *
@@ -45,8 +43,6 @@ export interface CandidatoRecordatorio {
   name: string;
   email: string | null;
   contactName: string | null;
-  /** Equipos suyos que llevan demasiado sin confirmarse. */
-  equipos: Array<{ id: number; name: string; dias: number | null }>;
   /** Papeles suyos por vencer o vencidos. */
   documentos: Array<{ texto: string; nombre: string }>;
   /** Por qué se le escribe, o por qué no. */
@@ -62,7 +58,6 @@ export class RemindersService {
 
   /** A quién le tocaría un recordatorio hoy y por qué. */
   async candidatos(hoy: Date = new Date()): Promise<CandidatoRecordatorio[]> {
-    const limiteFrescura = new Date(hoy.getTime() - DIAS_FRESCURA * 86400000);
     const limiteAviso = new Date(hoy.getTime() + DIAS_AVISO * 86400000);
     const desdeUltimo = new Date(hoy.getTime() - DIAS_ENTRE_AVISOS * 86400000);
 
@@ -74,33 +69,8 @@ export class RemindersService {
     });
     if (aliados.length === 0) return [];
 
-    // Equipos sin confirmar de todos, de un viaje.
-    const equipos = await prisma.products.findMany({
-      where: {
-        status: 1,
-        provider_id: { in: aliados.map((a) => a.id) },
-        OR: [{ availability_confirmed_at: null }, { availability_confirmed_at: { lt: limiteFrescura } }],
-      },
-      select: { id: true, name: true, provider_id: true, availability_confirmed_at: true },
-      orderBy: { name: 'asc' },
-    });
-    const porAliado = new Map<number, typeof equipos>();
-    for (const e of equipos) {
-      if (e.provider_id === null) continue;
-      porAliado.set(e.provider_id, [...(porAliado.get(e.provider_id) ?? []), e]);
-    }
-
     return aliados
       .map((a) => {
-        const suyos = (porAliado.get(a.id) ?? []).map((e) => ({
-          id: e.id,
-          name: e.name,
-          dias: e.availability_confirmed_at
-            ? Math.floor((hoy.getTime() - e.availability_confirmed_at.getTime()) / 86400000)
-            : null,
-        }));
-
-        // Decisión 1: los papeles viajan en el mismo correo.
         const avisos = [
           ...documentosQueAvisan(a.provider_documents, hoy).map((d) => ({
             texto: textoAviso(d),
@@ -113,13 +83,13 @@ export class RemindersService {
             .map((k) => ({ texto: 'Falta', nombre: DOC_LABEL[k] })),
         ];
 
-        const hayQueDecirle = suyos.length > 0 || avisos.length > 0;
+        const hayQueDecirle = avisos.length > 0;
         const reciente = a.reminder_sent_at !== null && a.reminder_sent_at > desdeUltimo;
 
         let motivo: string;
         let seLeEscribe: boolean;
         if (!hayQueDecirle) {
-          motivo = 'Todo su catálogo está confirmado y sus papeles al día.';
+          motivo = 'Sus papeles están al día.';
           seLeEscribe = false;
         } else if (!a.email?.trim()) {
           // Se dice, no se calla: un aliado sin correo es un dato a corregir,
@@ -130,10 +100,7 @@ export class RemindersService {
           motivo = `Ya se le escribió hace menos de ${DIAS_ENTRE_AVISOS} días.`;
           seLeEscribe = false;
         } else {
-          const partes: string[] = [];
-          if (suyos.length) partes.push(`${suyos.length} equipo(s) sin confirmar`);
-          if (avisos.length) partes.push(`${avisos.length} papel(es) por atender`);
-          motivo = partes.join(' y ');
+          motivo = `${avisos.length} papel(es) por atender`;
           seLeEscribe = true;
         }
 
@@ -142,7 +109,6 @@ export class RemindersService {
           name: a.name,
           email: a.email,
           contactName: a.contact_name,
-          equipos: suyos,
           documentos: avisos,
           motivo,
           seLeEscribe,
@@ -151,7 +117,7 @@ export class RemindersService {
       .sort((x, y) => {
         // Primero los que sí reciben, y dentro de esos, los que más deben.
         if (x.seLeEscribe !== y.seLeEscribe) return x.seLeEscribe ? -1 : 1;
-        return y.equipos.length + y.documentos.length - (x.equipos.length + x.documentos.length);
+        return y.documentos.length - x.documentos.length;
       });
   }
 
@@ -193,12 +159,7 @@ export class RemindersService {
         aliado: c.name,
         contacto: c.contactName,
         url,
-        equipos: c.equipos.map((e) => ({
-          nombre: e.name,
-          cuando: e.dias === null ? 'nunca se ha confirmado' : `hace ${e.dias} días`,
-        })),
         documentos: c.documentos,
-        diasFrescura: DIAS_FRESCURA,
       });
 
       const estado = await this.mailer.enviar({

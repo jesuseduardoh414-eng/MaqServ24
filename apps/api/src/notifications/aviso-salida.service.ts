@@ -147,7 +147,7 @@ export class AvisoSalidaService implements OnModuleInit, OnModuleDestroy {
             toName: p.contact_name ?? p.name,
             quoteId: Number(q.id),
             providerId: p.id,
-            ...correoHoraDeSalir({ ...datos, url }),
+            ...(await correoHoraDeSalir({ ...datos, url })),
           });
         }
 

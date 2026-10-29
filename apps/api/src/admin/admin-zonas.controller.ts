@@ -25,6 +25,8 @@ const zonasSchema = z.array(z.object({
 @Controller('admin/zonas')
 @UseGuards(AdminGuard)
 export class AdminZonasController {
+  // Verla, cualquiera del panel (2026-10-26, "Zonas y cobertura"); guardar sigue siendo de configuración.
+  @Modulo('inicio')
   @Get()
   async zonas() {
     const zonas = await leerZonas();
@@ -42,7 +44,8 @@ export class AdminZonasController {
       ).cubre).length;
     };
     const salud = zonas.map((z) => {
-      const municipios = z.municipios.map((m) => ({ nombre: m, aliados: llegan(m) }));
+      // Con su cabecera en el mapa (2026-10-28): null si el nombre no está en la tabla.
+      const municipios = z.municipios.map((m) => { const c = centroDeMunicipio(m); return { nombre: m, aliados: llegan(m), lat: c?.lat ?? null, lng: c?.lng ?? null }; });
       const claves = z.municipios.map((m) => normalizarZona(m.replace(/,\s*(Coah|Chih)\.?$/i, '')));
       return {
         id: z.id,

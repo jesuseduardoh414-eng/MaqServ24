@@ -355,8 +355,6 @@ export const defaultTheme: Theme = {
       stats: [
         { value: '<24h', label: 'Tiempo de respuesta' },
         { value: 'NL', label: 'Cobertura en todo Nuevo León' },
-        { value: '3', label: 'Sucursales' },
-        { value: '+15 años', label: 'De experiencia' },
       ],
       phone: '+52 1 81 4021 3277',
       whatsapp: '+52 1 81 4021 3277',
@@ -365,11 +363,8 @@ export const defaultTheme: Theme = {
       address: '',
       urgent: { show: true, eyebrow: 'Renta urgente', title: '¿Necesitas equipo hoy mismo?', ctaLabel: 'Llamar ahora' },
       needs: ['Rentar equipo', 'Cotización', 'Soporte técnico', 'Otro'],
-      branches: [
-        { city: 'Tampico', address: 'Av. Hidalgo 2450, Col. Centro, Tampico, Tamps. — Matriz', phone: '833 224 56 78', isNew: false, image: null },
-        { city: 'Monterrey', address: 'Blvd. Díaz Ordaz 1200, San Pedro Garza García, N.L.', phone: '81 1122 3344', isNew: true, image: null },
-        { city: 'Guadalajara', address: 'Periférico Norte 850, Zapopan, Jal.', phone: '33 4455 6677', isNew: false, image: null },
-      ],
+      // Sin sucursales de ejemplo (2026-10-28): las de la plantilla no existían. Se agregan en Diseño › Contacto.
+      branches: [],
     },
     // Pie de página (footer). copyright vacío ⇒ "© {año} {marca}. Todos los derechos reservados."
     footer: {
@@ -739,16 +734,16 @@ export const defaultTheme: Theme = {
       'seo.home.description': 'Renta maquinaria pesada con operador, compra triturados y materiales, y contrata transporte o asfalto. Cotiza en línea y coordina tu obra en un solo lugar.',
       'seo.catalog.title': 'Catálogo de maquinaria, materiales y servicios',
       'seo.services.title': 'Servicios de maquinaria, transporte y materiales para obra',
-      'seo.services.description': 'Renta de maquinaria con operador, pipas y volteos, triturados, materiales y soluciones asfálticas. Elige la máquina, ve el precio y solicita en línea.',
+      'seo.services.description': 'Renta de maquinaria con operador, pipas y volteos, triturados, materiales y soluciones asfálticas. Elige lo que necesitas y te mandamos la cotización.',
       'seo.catalog.description': 'Explora maquinaria pesada, triturados, materiales para construcción, transporte y soluciones asfálticas. Compara opciones y solicita tu cotización en línea.',
       'seo.categories.title': 'Categorías: maquinaria, triturados y servicios',
       'seo.categories.description': 'Seis categorías para tu obra: renta de maquinaria, suministro de triturados, materiales para construcción, transporte y servicios de obra, carpeta asfáltica y venta de maquinaria.',
       'seo.quoter.title': 'Cotizador en línea de maquinaria y triturados',
-      'seo.quoter.description': 'Arma tu cotización paso a paso: renta de maquinaria con operador y diésel, o triturados por tonelada y por viaje. Recibes el documento al momento, listo.',
+      'seo.quoter.description': 'Arma tu solicitud paso a paso: renta de maquinaria con operador y diésel, o triturados por tonelada y por viaje. Te mandamos la cotización con precio por correo.',
       'seo.quoter.machinery.title': 'Cotizador de renta de maquinaria con operador',
-      'seo.quoter.machinery.description': 'Cotiza la renta de maquinaria pesada con operador y diésel: elige el equipo, los días de trabajo y el municipio de entrega, y recibe tu propuesta al instante.',
+      'seo.quoter.machinery.description': 'Cotiza la renta de maquinaria pesada con operador y diésel: elige el equipo, los días de trabajo y el municipio de entrega, y te mandamos la cotización con precio.',
       'seo.quoter.aggregates.title': 'Cotizador de triturados: grava, arena y base',
-      'seo.quoter.aggregates.description': 'Cotiza grava, arena, base hidráulica y CNC: por tonelada en planta o por viaje puesto en obra. Precio claro y documento listo para compartir con tu equipo.',
+      'seo.quoter.aggregates.description': 'Cotiza grava, arena, base hidráulica y CNC: por tonelada en planta o por viaje puesto en obra. Te mandamos la cotización con precio, lista para compartir con tu equipo.',
       'seo.about.title': 'Quiénes somos: maquinaria y servicios de obra',
       'seo.about.description': 'Conoce MAQSER24: la plataforma que conecta tu obra con proveedores de maquinaria pesada, triturados, transporte y materiales, con cotización y seguimiento.',
       'seo.contact.title': 'Contacto para renta de maquinaria y materiales',
@@ -760,7 +755,7 @@ export const defaultTheme: Theme = {
       'seo.sector.title': 'Maquinaria y servicios para {sector}',
       // Páginas de aterrizaje por servicio (apps/web/src/lib/landings.ts).
       'seo.landing.machinery.title': 'Renta de maquinaria pesada en Monterrey',
-      'seo.landing.machinery.description': 'Renta excavadoras, retroexcavadoras, motoconformadoras y vibrocompactadores con operador en Monterrey y todo Nuevo León. Cotiza en línea al momento.',
+      'seo.landing.machinery.description': 'Renta excavadoras, retroexcavadoras, motoconformadoras y vibrocompactadores con operador en Monterrey y todo Nuevo León. Pide tu cotización en línea.',
       'nav.providerSignup': 'Regístrate como proveedor',
       'seo.landing.machinerySale.title': 'Venta de maquinaria pesada en Monterrey',
       'seo.landing.machinerySale.description': 'Compra excavadoras, retroexcavadoras, motoconformadoras, vibrocompactadores, Bobcat, volteos y pipas con la red de proveedores MAQSER24 en Monterrey y todo Nuevo León.',
@@ -804,7 +799,7 @@ export const defaultTheme: Theme = {
       // Cotizador: entrada con submenú en el header (ver SiteHeader).
       'nav.quoter': 'Cotizador',
       'nav.quoter.machinery': 'Maquinaria',
-      'nav.quoter.machinery.hint': 'Renta con operador y diésel, con flete a obra',
+      'nav.quoter.machinery.hint': 'Renta por hora, con operador y diésel',
       'nav.quoter.aggregates': 'Triturados',
       'nav.quoter.aggregates.hint': 'Grava, arena y base por tonelada o por viaje',
       'nav.blog': 'Blog',
@@ -819,7 +814,8 @@ export const defaultTheme: Theme = {
       'nav.theme.dark': 'Oscuro',
       'topbar.hours': 'Lun–Sáb · 8:00–18:00',
       'topbar.track': 'Rastrear pedido',
-      'topbar.locale': 'MXN $ · ES',
+      // Vacío (2026-10-28): "MXN $ · ES" sugería precios y un cambio de idioma que no existe.
+      'topbar.locale': '',
       'footer.tagline':
         'Plataforma especializada en renta y venta de maquinaria industrial para proyectos de construcción.',
       'footer.col.company': 'Empresa',

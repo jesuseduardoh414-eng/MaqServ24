@@ -81,9 +81,9 @@ function ColorField({ label, hint: h, value, presets, onChange }: { label: strin
         {presets.map((col) => {
           const sel = col.toLowerCase() === value.toLowerCase();
           return <button key={col} type="button" onClick={() => onChange(col)} title={col}
-            style={{ width: 32, height: 32, borderRadius: 8, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
+            style={{ width: 32, height: 32, borderRadius: 8, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(var(--adm-ink),0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
         })}
-        <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 8, border: '2px dashed rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
+        <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 8, border: '2px dashed rgba(var(--adm-ink),0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
           <i className="ph ph-eyedropper" style={{ fontSize: 13, color: 'var(--adm-muted)' }} />
           <input type="color" value={value} onChange={(e) => onChange(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
         </label>

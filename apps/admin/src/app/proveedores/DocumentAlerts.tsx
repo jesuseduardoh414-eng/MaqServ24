@@ -120,7 +120,7 @@ export function DocumentAlerts({
                       <span className="adm-cell-title">{a.name}</span>
                     )}
                     {!a.activo ? <Chip tone="muted">Inactivo</Chip> : null}
-                    {a.pierdeSello ? <Chip tone="bad">Perdió el sello</Chip> : null}
+                    {a.pierdeSello ? <Chip tone="bad">Sin sello</Chip> : null}
                   </div>
                   {a.serviciosActivos > 0 ? (
                     // El dato que convierte un trámite pendiente en una obra

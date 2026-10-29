@@ -3,7 +3,6 @@ import { AdminAuthController, AdminGuard } from './admin-auth';
 import { AdminCatalogController } from './admin-catalog.controller';
 import { AdminProductVideoController } from './admin-product-video.controller';
 import { AdminProvidersController } from './admin-providers.controller';
-import { AdminProviderCrmController } from './admin-provider-crm.controller';
 import { AdminAvailabilityController } from './admin-availability.controller';
 import { AdminMatchingController } from './admin-matching.controller';
 import { AdminServicesController } from './admin-services.controller';
@@ -30,6 +29,7 @@ import { AdminRolesController } from './admin-roles.controller';
 import { AdminQuoterController } from './admin-quoter.controller';
 import { AdminMoneyController } from './admin-money.controller';
 import { AdminZonasController } from './admin-zonas.controller';
+import { AdminSolicitudesController } from './admin-solicitudes.controller';
 import { FreightModule } from '../freight/freight.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
@@ -41,7 +41,7 @@ import { QuoterModule } from '../quoter/quoter.module';
   // QuoterModule: el cotizador interno del panel corre con el MISMO servicio
   // (tabulador + motor) que sirve al sitio publico.
   imports: [FreightModule, NotificationsModule, IntegrationsModule, QuoterModule],
-  controllers: [AdminAuthController, AdminCatalogController, AdminProductVideoController, AdminOpsController, AdminInicioController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminBandejaController, AdminCoberturaController, AdminRastreoController, AdminCustomersController, AdminContactController, AdminAdminsController, AdminRolesController, AdminQuoterController, AdminProvidersController, AdminProviderCrmController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController, AdminAgendaController, AdminAvisosController, AdminMoneyController, AdminZonasController],
+  controllers: [AdminAuthController, AdminCatalogController, AdminProductVideoController, AdminOpsController, AdminInicioController, AdminThemesController, AdminCmsController, AdminCommunityController, AdminBandejaController, AdminCoberturaController, AdminRastreoController, AdminCustomersController, AdminContactController, AdminAdminsController, AdminRolesController, AdminQuoterController, AdminProvidersController, AdminAvailabilityController, AdminMatchingController, AdminServicesController, AdminClientsController, AdminMailController, AdminAnalyticsController, AdminIncidentsController, AdminAgendaController, AdminAvisosController, AdminMoneyController, AdminZonasController, AdminSolicitudesController],
   providers: [AdminGuard, ServiceService, MatchingService],
 })
 export class AdminModule {}

@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { ClientThrottlerGuard } from './common/throttler.guard';
 import { HealthController } from './health.controller';
+import { CambiosController } from './common/cambios';
 import { ThemeModule } from './theme/theme.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { SettingsModule } from './settings/settings.module';
@@ -38,7 +39,7 @@ import { ReviewsModule } from './reviews/reviews.module';
     }),
     AuthModule, ThemeModule, CatalogModule, SettingsModule, ContentModule, QuotesModule, QuoterModule, ProvidersModule, FreightModule, NotificationsModule, AccountModule, AdminModule, IntegrationsModule, ReviewsModule,
   ],
-  controllers: [HealthController],
+  controllers: [HealthController, CambiosController],
   providers: [{ provide: APP_GUARD, useClass: ClientThrottlerGuard }],
 })
 export class AppModule {}

@@ -97,8 +97,11 @@ export class ProductsService {
       slug: productSlug(p.name, p.id),
       name: p.name,
       brand: p.Marca,
-      price: p.cprice > 0 ? p.cprice : null,
-      oldPrice: p.pprice && p.pprice > 0 ? p.pprice : null,
+      // El sitio NUNCA enseña precios (2026-10-23): el cliente pide y MAQSER24
+      // le manda la cotización. Antes los escondía el tema (`quoteMode`), pero
+      // un precio que viaja al navegador es un precio publicado.
+      price: null,
+      oldPrice: null,
       image: imageUrl(p.photo),
       video: videoDeServicio(p.youtube),
       isRental: p.is_rental,
@@ -150,7 +153,7 @@ export class ProductsService {
             name: p.name,
             slug: p.slug,
             level: p.level as ProviderBadge['level'],
-            verified: estaVerificado(p.level, docs),
+            verified: estaVerificado(docs),
             docsStatus: docs,
             coverage: lista(p.coverage),
             responseMinutes: p.response_minutes,
@@ -272,7 +275,7 @@ export class ProductsService {
     const [servicios, productos] = await Promise.all([
       // Solo fichas de tipo: las máquinas de los aliados no salen en el sitio (Fase 4).
       prisma.products.count({ where: { status: 1, category_id: { in: ids }, provider_id: null } }),
-      prisma.products.count({ where: { status: 1, category_id: { notIn: ids } } }),
+      prisma.products.count({ where: { status: 1, category_id: { notIn: ids }, provider_id: null } }),
     ]);
     return { servicios, productos };
   }
@@ -306,7 +309,11 @@ export class ProductsService {
      * cuando los aliados publiquen las suyas saldrían cinco "Excavadora 20 t".
      * Va en AND para no chocar con el OR del filtro de existencias.
      */
-    where.AND = [{ OR: [{ provider_id: null }, { category_id: { notIn: await this.idsDeLineasServicio() } }] }];
+    // Y NADA DE LOS ALIADOS (auditoría 2026-10-28, regla del dueño: "nada se
+    // publica más que las categorías y los servicios que se agregan a MAQSER24").
+    // Antes los productos de aliados fuera de las líneas de servicio sí salían,
+    // con el nombre y la marca que escribió el aliado tal cual.
+    where.AND = [{ provider_id: null }];
     if (opts.featured === true) where.featured = 1;
     else if (opts.featured === false) where.featured = { not: 1 };
     if (opts.vendorId) where.user_id = opts.vendorId;
@@ -328,13 +335,6 @@ export class ProductsService {
       where.category_id = opts.kind === 'servicio' ? { in: ids } : { notIn: ids };
     }
 
-    // Precio: `cprice` es el precio de venta/renta mensual que ve el cliente.
-    if (opts.minPrice !== undefined || opts.maxPrice !== undefined) {
-      where.cprice = {
-        ...(opts.minPrice !== undefined ? { gte: opts.minPrice } : {}),
-        ...(opts.maxPrice !== undefined ? { lte: opts.maxPrice } : {}),
-      };
-    }
 
     if (opts.availability === 'now') {
       // Sin `stock` = sin control de existencias ⇒ disponible (mismo criterio que la card).
@@ -368,10 +368,7 @@ export class ProductsService {
           prisma.products.count({ where }),
           prisma.products.findMany({
             where,
-            orderBy:
-              opts.sort === 'low' ? { cprice: 'asc' }
-                : opts.sort === 'high' ? { cprice: 'desc' }
-                  : { created_at: 'desc' },
+            orderBy: { created_at: 'desc' },
             skip: (page - 1) * PAGE_SIZE,
             take: PAGE_SIZE,
             select: CAMPOS_TARJETA,
@@ -394,7 +391,9 @@ export class ProductsService {
   }
 
   async byId(id: number): Promise<ProductDetail> {
-    const p = await prisma.products.findFirst({ where: { id, status: 1 } });
+    // Solo lo de MAQSER24 (auditoría 2026-10-28): con el número en la dirección
+    // se abría la ficha de la máquina de cualquier aliado, con su nombre y cobertura.
+    const p = await prisma.products.findFirst({ where: { id, status: 1, provider_id: null } });
     if (!p) throw new NotFoundException(`Producto ${id} no encontrado`);
 
     const [gallery, cat, provs, bloqueos, cotizadores] = await Promise.all([
@@ -428,7 +427,7 @@ export class ProductsService {
         fichaTecnica: imageUrl(p.ficha_tecnica),
         certificacionDc3: imageUrl(p.certificacion_dc3),
       },
-      rentalFreight: p.rental_freight ? Number(p.rental_freight) : null,
+      rentalFreight: null,
       youtube: p.youtube,
       tags: p.tags ? p.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
       categoryName: cat?.cat_name ?? null,

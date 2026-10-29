@@ -31,12 +31,17 @@ export const DIAS_SEMANA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves'
 
 /** Llama a la API del panel y devuelve el mensaje de error legible, o null si salió bien. */
 export async function enviar(url: string, metodo: 'POST' | 'PATCH' | 'PUT', cuerpo: unknown): Promise<string | null> {
+  return (await pedir(url, metodo, cuerpo)).error;
+}
+
+/** Como `enviar`, pero también con lo que contestó la API (para decir "qué sigue"). */
+export async function pedir<T>(url: string, metodo: 'POST' | 'PATCH' | 'PUT', cuerpo: unknown): Promise<{ error: string | null; datos: T | null }> {
   try {
     const r = await fetch(url, { method: metodo, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo ?? {}) });
-    if (r.ok) return null;
     const d = await r.json().catch(() => null);
-    return d?.message ?? 'No se pudo guardar. Inténtalo de nuevo.';
+    if (r.ok) return { error: null, datos: d as T };
+    return { error: d?.message ?? 'No se pudo guardar. Inténtalo de nuevo.', datos: null };
   } catch {
-    return 'Sin conexión. Inténtalo de nuevo.';
+    return { error: 'Sin conexión. Inténtalo de nuevo.', datos: null };
   }
 }

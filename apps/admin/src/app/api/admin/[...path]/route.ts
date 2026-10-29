@@ -28,7 +28,21 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
   }
   const joined = path.join('/');
 
+  /**
+   * Cerrar sesión (auditoría 2026-10-28): solo con POST —un GET desde otra
+   * página bastaba para sacarte— y avisándole a la API, que cambia la versión
+   * de sesión de la cuenta: un token copiado deja de servir en ese momento.
+   */
   if (joined === 'logout') {
+    if (req.method !== 'POST') return NextResponse.json({ message: 'Usa POST' }, { status: 405 });
+    const actual = req.cookies.get(ADMIN_COOKIE)?.value;
+    if (actual) {
+      await fetch(`${API_URL}/admin/auth/logout`, {
+        method: 'POST',
+        headers: { ...clientIpHeaders(req), Authorization: `Bearer ${actual}` },
+        signal: AbortSignal.timeout(8_000),
+      }).catch(() => undefined);
+    }
     const res = NextResponse.json({ ok: true });
     res.cookies.delete(ADMIN_COOKIE);
     res.cookies.delete(ADMIN_REFRESH_COOKIE);
@@ -85,9 +99,10 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
   }
   const data = await apiRes.json().catch(() => null);
 
-  // Login exitoso → guardar cookies httpOnly (access + refresh)
-  if (joined === 'auth/login' && apiRes.ok && data?.token) {
-    const res = NextResponse.json({ admin: data.admin });
+  // Login exitoso → guardar cookies httpOnly (access + refresh). También tras
+  // "Cambiar mi contraseña": las demás sesiones caen y esta sigue con las nuevas.
+  if ((joined === 'auth/login' || joined === 'auth/mi-contrasena') && apiRes.ok && data?.token) {
+    const res = NextResponse.json(joined === 'auth/login' ? { admin: data.admin } : { ok: true });
     // El access token expira en minutos; el middleware lo renueva con el refresh.
     const opts = {
       httpOnly: true,

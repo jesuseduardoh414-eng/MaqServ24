@@ -1,32 +1,30 @@
 import {
-  BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Put,
+  BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Put,
   Req, UploadedFile, UploadedFiles, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { asignarOperador, operadorDe } from './operador';
 import { guardarUbicacion } from '../quotes/rastreo';
-import { FileFieldsInterceptor, FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor, FileInterceptor } from '@nestjs/platform-express';
 import { MoneyService } from '../money/money.service';
 import { aFacturarPorAliado, parteDelAliado } from '../money/cuentas';
 import { reglasDinero } from '../money/reglas';
 import { promises as fs } from 'node:fs';
 import { Throttle } from '@nestjs/throttler';
 import { PREFIJO_PRIVADO, borrarPrivado, facturaStorage, papelStorage, rutaPrivada } from '../common/archivos-privados';
-import { atributosDe, esLineaServicio, horarioSchema, requestFormFor, tarifasSchema, unidadesDeTarifa } from '@maqserv/config';
+import { esLineaServicio, requestFormFor } from '@maqserv/config';
 
 import { MailerService } from '../notifications/mailer.service';
 import { notasDe, pedidoDe, sinContacto, zonaAproximada } from './pedido';
 import { avisarPanel } from '../notifications/panel';
 import { correoEquipoPropuesto } from '../notifications/email-templates';
 import { prisma } from '@maqserv/db';
-import { sanitizeUserHtml } from '../common/sanitize';
 import { z } from 'zod';
 import { zCorreo, zTelefono } from '../common/campos';
-import { mediaStorage } from '../common/media-multer';
 import { imageUrl } from '../catalog/images';
 import {
   estadoDocumentos, estaVerificado, mesesEnRed, papelesQueFaltan, papelesVigentes, DIAS_AVISO, DOC_LABEL, TIPOS_DOC, type TipoDoc,
 } from '../catalog/provider-trust';
-import { disponibilidadDe, DIAS_FRESCURA } from '../catalog/availability';
+import { disponibilidadDe, PREFIJO_RESERVA } from '../catalog/availability';
 import { documentosQueAvisan, textoAviso } from '../catalog/document-alerts';
 import { historialDe, resumenHistorial } from '../catalog/provider-history';
 import { ServiceService } from '../quotes/service.service';
@@ -34,7 +32,8 @@ import { PASOS, avance, esEstado } from '../quotes/service-flow';
 import { calcSinPrecios, parteDelDocumento, partidasParaAliado } from '../quoter/parte-del-documento';
 import { lista } from '../common/json-list';
 import { ProviderLinkGuard, type AliadoRequest } from './provider-access';
-import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
+import { ESTADO_CATEGORIA_PROPUESTA, ESTADO_POR_REVISAR } from '../catalog/ofertas';
+import { categoriaPropuesta } from '../catalog/categorias-propuestas';
 import { ubicarAliado } from './cobertura-aliado';
 import { MAX_PUNTOS, SEGUNDOS_ENTRE_PUNTOS } from '../quotes/rastreo';
 
@@ -90,8 +89,6 @@ const documentoSchema = z.object({
  */
 const docStorage = papelStorage();
 
-/** Fotos de los equipos que ofrece: esas SÍ son públicas (salen en el catálogo una vez publicado). */
-const fotoStorage = mediaStorage();
 
 /**
  * Lo que manda el aliado al ofrecer un equipo. Llega en multipart (trae
@@ -99,24 +96,19 @@ const fotoStorage = mediaStorage();
  */
 const ofertaSchema = z.object({
   categoria: z.string().min(2).max(120),
-  nombre: z.string().trim().min(3, 'Escribe qué equipo es').max(200),
-  marca: z.string().trim().max(120).optional(),
-  descripcion: z.string().trim().max(4000).optional(),
-  ubicacion: z.string().trim().max(160).optional(),
-  modalidad: z.enum(['renta', 'venta']).default('renta'),
-  atributos: z.string().max(4000).optional(),
-  /** Lo que cobra por unidad, JSON {"dia": 5000, "semana": 28000}. */
-  costos: z.string().max(2000).optional(),
-  /** Unidad principal (la que se enseña en el sitio). */
-  unidad: z.string().max(20).optional(),
-  minimo: z.coerce.number().int().min(0).max(100000).optional(),
-  unidades: z.coerce.number().int().min(1).max(999).optional(),
-  /** JSON {"dias":[1,2,3,4,5,6],"desde":"08:00","hasta":"18:00"}. */
-  horario: z.string().max(400).optional(),
-  /** La ficha del tipo que eligió de la lista (2026-10-22). Vacío = "Otro, no está en la lista". */
+  /** La ficha del tipo que eligió de la lista (2026-10-22). Vacío = nuevo, no está en la lista. */
   tipoId: z.preprocess((v) => (v === '' || v == null ? undefined : v), z.coerce.number().int().positive().optional()),
+  /** Qué es, solo si es nuevo (con tipo, el nombre sale del tipo). */
+  nombre: z.string().trim().max(160).optional(),
+  marca: z.string().trim().max(120).optional(),
+  modelo: z.string().trim().max(120).optional(),
+  ubicacion: z.string().trim().max(160).optional(),
+  unidades: z.coerce.number().int().min(1).max(999).optional(),
+  /** Con `categoria: '__nueva__'`: el nombre de la categoría que no está en la lista (2026-10-28). */
+  categoriaNueva: z.string().trim().max(100).optional(),
 });
-const MAX_FOTOS_OFERTA = 6;
+/** La categoría "Otra: no está en la lista" del formulario del portal. */
+const CATEGORIA_NUEVA = '__nueva__';
 
 /** `'2027-03-01'` → Date; vacío → null (un input date sin llenar manda ''). */
 const fecha = (v: string | null | undefined): Date | null =>
@@ -200,7 +192,7 @@ export class ProviderPortalController {
       prisma.products.findMany({
         where: { provider_id: id, status: 1 },
         select: {
-          id: true, name: true, stock: true, location: true, availability_confirmed_at: true,
+          id: true, name: true, stock: true, location: true,
         },
         orderBy: { name: 'asc' },
       }),
@@ -215,12 +207,13 @@ export class ProviderPortalController {
 
     const bloques = equipos.length
       ? await prisma.availability_blocks.findMany({
+          // También lo que viene: su mantenimiento programado se ve y se puede quitar.
           where: {
             product_id: { in: equipos.map((e) => e.id) },
-            starts_on: { lte: hoy },
             OR: [{ ends_on: null }, { ends_on: { gte: hoy } }],
           },
-          select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
+          select: { id: true, product_id: true, state: true, starts_on: true, ends_on: true, note: true },
+          orderBy: { starts_on: 'asc' },
         })
       : [];
     const porEquipo = new Map<number, typeof bloques>();
@@ -268,9 +261,10 @@ export class ProviderPortalController {
       ]),
     ];
     const cats = slugs.length
-      ? await prisma.categories.findMany({ where: { cat_slug: { in: slugs } }, select: { cat_slug: true, cat_name: true } })
+      ? await prisma.categories.findMany({ where: { cat_slug: { in: slugs } }, select: { cat_slug: true, cat_name: true, status: true } })
       : [];
-    const nombreCat = new Map(cats.map((c) => [c.cat_slug, c.cat_name]));
+    // La que propuso él y MAQSER24 aún no decide se lee «(en revisión)» (2026-10-28).
+    const nombreCat = new Map(cats.map((c) => [c.cat_slug, c.status === ESTADO_CATEGORIA_PROPUESTA ? `${c.cat_name} (en revisión)` : c.cat_name]));
     const cat = (slug: string | null) => (slug ? nombreCat.get(slug) ?? slug : null);
 
     /**
@@ -311,6 +305,8 @@ export class ProviderPortalController {
         folio: folioDe.get(String(c.quote_id))?.quote_number ?? '',
         servicio: folioDe.get(String(c.quote_id))?.product_interested ?? null,
         monto: aFacturarPorAliado(c),
+        // Lo que se le paga antes de IVA (2026-10-28): la misma cifra que ve en "Te pagamos … + IVA".
+        base: Number(c.pago_aliado),
         conIva: Number(c.iva) > 0,
         estado: c.pagado_at ? 'pagado' : !factura ? 'falta-factura' : c.pagar_el ? 'programado' : 'esperando-cliente',
         pagarEl: c.pagar_el ? c.pagar_el.toISOString().slice(0, 10) : null,
@@ -326,7 +322,7 @@ export class ProviderPortalController {
         name: p.name,
         contactName: p.contact_name,
         level: p.level,
-        verified: estaVerificado(p.level, docs),
+        verified: estaVerificado(docs),
         docsStatus: docs,
         coverage: p.coverage,
         categories: p.categories,
@@ -418,29 +414,25 @@ export class ProviderPortalController {
       cobros,
 
       equipos: equipos.map((e) => {
-        const d = disponibilidadDe(
-          { stock: e.stock, location: e.location, confirmedAt: e.availability_confirmed_at, blocks: porEquipo.get(e.id) ?? [] },
-          hoy,
-        );
-        const dias = e.availability_confirmed_at
-          ? Math.floor((hoy.getTime() - e.availability_confirmed_at.getTime()) / 86400000)
-          : null;
+        const suyos = porEquipo.get(e.id) ?? [];
+        const d = disponibilidadDe({ stock: e.stock, location: e.location, blocks: suyos }, hoy);
+        // Su mantenimiento (de hoy o el próximo): lo puso él o MAQSER24, no un servicio.
+        const mant = suyos.find((b) => b.state === 'mantenimiento' && !(b.note ?? '').startsWith(PREFIJO_RESERVA)) ?? null;
         return {
           id: e.id,
           name: e.name,
           state: d.state,
           location: d.location,
-          diasSinConfirmar: dias,
-          // El texto dice el plazo, no sólo el color: en una pantalla de
-          // teléfono a media obra, el color se pierde.
-          confirmacion:
-            dias === null
-              ? 'Nunca se ha confirmado'
-              : dias === 0
-                ? 'Confirmado hoy'
-                : dias > DIAS_FRESCURA
-                  ? `Sin confirmar desde hace ${dias} días`
-                  : `Confirmado hace ${dias} día${dias === 1 ? '' : 's'}`,
+          /** Hasta cuándo sigue ocupado (AAAA-MM-DD), si hoy no está libre. */
+          hasta: d.until,
+          mantenimiento: mant
+            ? {
+                id: mant.id,
+                desde: mant.starts_on.toISOString().slice(0, 10),
+                hasta: mant.ends_on ? mant.ends_on.toISOString().slice(0, 10) : null,
+                nota: mant.note,
+              }
+            : null,
         };
       }),
 
@@ -669,18 +661,80 @@ export class ProviderPortalController {
   }
 
   /**
-   * "Sigue disponible". No cambia el inventario: dice que lo que hay sigue
-   * siendo cierto hoy. Son dos cosas distintas y mezclarlas haría que confirmar
-   * pareciera un ajuste de existencias.
+   * MANTENIMIENTO (2026-10-26). Ya no se le pide confirmar cada 14 días que su
+   * equipo sigue libre ("Sigue libre" se quitó): él avisa cuando una máquina
+   * sale de circulación, porque es el primero en saberlo. Mientras dure no se
+   * le ofrece ese equipo; MAQSER24 se entera por la campana, y si choca con un
+   * servicio ya apartado se le dice para que busque otra.
    */
-  @Patch('equipos/:productId/confirmar')
-  async confirmar(@Req() req: AliadoRequest, @Param('productId', ParseIntPipe) productId: number) {
-    const e = await prisma.products.findUnique({ where: { id: productId }, select: { provider_id: true } });
-    if (!e || e.provider_id !== req.providerId) throw new BadRequestException('Ese equipo no es tuyo.');
+  @Post('equipos/:productId/mantenimiento')
+  async mantenimiento(@Req() req: AliadoRequest, @Param('productId', ParseIntPipe) productId: number, @Body() body: unknown) {
+    const p = z
+      .object({
+        desde: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Elige desde cuándo'),
+        hasta: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+        nota: z.string().trim().max(300).optional().nullable(),
+      })
+      .safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Revisa las fechas.');
+    const { desde, hasta, nota } = p.data;
+    const hoyMty = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date());
+    if (desde < hoyMty) throw new BadRequestException('La fecha de inicio ya pasó: elige hoy o después.');
+    if (hasta && hasta < desde) throw new BadRequestException('La fecha de regreso debe ser después del inicio.');
 
-    await prisma.products.update({
-      where: { id: productId },
-      data: { availability_confirmed_at: new Date() },
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { provider_id: true, name: true, status: true } });
+    if (!e || e.provider_id !== req.providerId || e.status !== 1) throw new BadRequestException('Ese equipo no es tuyo.');
+
+    const inicio = new Date(`${desde}T00:00:00Z`);
+    const fin = hasta ? new Date(`${hasta}T00:00:00Z`) : null;
+    await prisma.availability_blocks.create({
+      data: { product_id: productId, state: 'mantenimiento', starts_on: inicio, ends_on: fin, note: nota?.trim() || 'Lo marcó el aliado' },
+    });
+
+    // ¿Choca con algo que un servicio ya apartó?
+    const choques = await prisma.availability_blocks.findMany({
+      where: {
+        product_id: productId,
+        note: { startsWith: PREFIJO_RESERVA },
+        OR: [{ ends_on: null }, { ends_on: { gte: inicio } }],
+        ...(fin ? { starts_on: { lte: fin } } : {}),
+      },
+      select: { note: true },
+    });
+    const folios = choques.map((b) => (b.note as string).slice(PREFIJO_RESERVA.length));
+    const aliado = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { name: true } });
+    const fecha = (s: string) => new Date(`${s}T12:00:00Z`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    void avisarPanel({
+      modulo: 'proveedores',
+      evento: folios.length ? 'choque_reserva' : 'mantenimiento',
+      titulo: `${aliado?.name ?? 'Un aliado'} puso en mantenimiento su ${e.name}`,
+      cuerpo: `${fecha(desde)} → ${hasta ? fecha(hasta) : 'sin fecha de regreso'}${folios.length ? ` · Choca con ${folios.join(', ')}: hay que buscar otra máquina.` : ''}`,
+      link: '/disponibilidad',
+    });
+    return { ok: true, choques: folios };
+  }
+
+  /** "Ya está lista": quita su mantenimiento antes de tiempo. */
+  @Delete('equipos/:productId/mantenimiento/:blockId')
+  async quitarMantenimiento(
+    @Req() req: AliadoRequest,
+    @Param('productId', ParseIntPipe) productId: number,
+    @Param('blockId', ParseIntPipe) blockId: number,
+  ) {
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { provider_id: true, name: true } });
+    if (!e || e.provider_id !== req.providerId) throw new BadRequestException('Ese equipo no es tuyo.');
+    const b = await prisma.availability_blocks.findUnique({ where: { id: blockId }, select: { product_id: true, state: true, note: true } });
+    if (!b || b.product_id !== productId || b.state !== 'mantenimiento' || (b.note ?? '').startsWith(PREFIJO_RESERVA)) {
+      throw new BadRequestException('Ese mantenimiento ya no existe.');
+    }
+    await prisma.availability_blocks.delete({ where: { id: blockId } });
+    const aliado = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { name: true } });
+    void avisarPanel({
+      modulo: 'proveedores',
+      evento: 'mantenimiento',
+      titulo: `${aliado?.name ?? 'Un aliado'}: su ${e.name} ya está lista`,
+      cuerpo: 'Terminó el mantenimiento; ya se le puede ofrecer.',
+      link: '/disponibilidad',
     });
     return { ok: true };
   }
@@ -700,12 +754,7 @@ export class ProviderPortalController {
 
     await prisma.products.update({
       where: { id: productId },
-      data: {
-        location: p.data.location.trim() || null,
-        // Mover un equipo es afirmar dónde está: confirmar de paso evita que
-        // el aliado tenga que apretar dos botones para decir una sola cosa.
-        availability_confirmed_at: new Date(),
-      },
+      data: { location: p.data.location.trim() || null },
     });
     return { ok: true };
   }
@@ -725,18 +774,21 @@ export class ProviderPortalController {
     const limpio = (v: string | null | undefined) => (v === undefined ? undefined : v?.trim() || null);
 
     /**
-     * El correo NO se cambia desde aquí si ya hay uno (auditoría 2026-10-23).
-     * A ese correo salen solos los enlaces nuevos (ofertas, recordatorios,
-     * pagos): quien tuviera un enlace reenviado ponía el suyo, y al revocarle
-     * el acceso el siguiente aviso le mandaba un enlace válido otra vez. Si no
-     * tenía correo, sí puede ponerlo; cambiarlo lo hace la oficina en el panel.
+     * El correo y el teléfono NO se cambian desde aquí (auditoría 2026-10-23 y
+     * 2026-10-28). A ese correo salen solos los enlaces nuevos (ofertas,
+     * recordatorios, pagos), y al teléfono el "Mandar por WhatsApp" del panel:
+     * quien tuviera un enlace reenviado ponía los suyos, y al revocarle el
+     * acceso el siguiente aviso le mandaba un enlace válido otra vez. Antes se
+     * podía poner correo si no había, y el teléfono siempre. Los cambia la
+     * oficina en el panel; mandarlos iguales (el formulario los manda) sí pasa.
      */
-    if (d.email !== undefined) {
-      const actual = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { email: true } });
-      const antes = (actual?.email ?? '').trim().toLowerCase();
-      const nuevo = (limpio(d.email) ?? '').toLowerCase();
-      if (antes && nuevo !== antes) {
-        throw new BadRequestException('Para cambiar tu correo pídelo a MAQSER24: por seguridad no se cambia desde aquí.');
+    if (d.email !== undefined || d.phone !== undefined) {
+      const actual = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { email: true, phone: true } });
+      const digitos = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '');
+      const mismoCorreo = d.email === undefined || (limpio(d.email) ?? '').toLowerCase() === (actual?.email ?? '').trim().toLowerCase();
+      const mismoTel = d.phone === undefined || digitos(limpio(d.phone)) === digitos(actual?.phone);
+      if (!mismoCorreo || !mismoTel) {
+        throw new BadRequestException('Tu correo y tu teléfono los cambia MAQSER24: escríbenos y lo hacemos. Así nadie más puede quedarse con tus avisos.');
       }
     }
 
@@ -744,8 +796,6 @@ export class ProviderPortalController {
       where: { id: req.providerId },
       data: {
         ...(d.contactName !== undefined ? { contact_name: limpio(d.contactName) } : {}),
-        ...(d.phone !== undefined ? { phone: limpio(d.phone) } : {}),
-        ...(d.email !== undefined ? { email: limpio(d.email) } : {}),
         ...(d.city !== undefined ? { city: limpio(d.city) } : {}),
         // La dirección NO se geocodifica aquí: mover el punto en el mapa cambia
         // a qué obras se le propone, y eso lo revisa la oficina desde el panel.
@@ -772,84 +822,61 @@ export class ProviderPortalController {
    * la renovación devuelve el sello sin que nadie tenga que aprobarlo a mano.
    */
   /**
-   * OFRECER UN EQUIPO (2026-09-24). Nace "por revisar": ya está a su nombre y
-   * lo ve en su portal, pero no sale en el sitio hasta que MAQSER24 lo publica.
-   * Ver `catalog/ofertas.ts`.
+   * OFRECER UN EQUIPO (2026-09-24; una sola pantalla desde 2026-10-28).
+   *
+   * Nada de lo que ofrece un aliado se publica: el sitio enseña solo las
+   * fichas de MAQSER24. Su equipo es capacidad, y lo que hace falta saber es de
+   * qué tipo es, cuántas unidades tiene y dónde está:
+   *  - Si eligió un tipo de la lista, queda activo en ese momento y le llegan
+   *    las solicitudes de ese tipo, sin que nadie lo revise.
+   *  - Si no está en la lista, queda "Nuevo" (ESTADO_POR_REVISAR) y MAQSER24
+   *    decide en Inventario si es igual a un tipo que ya existe o si se vuelve
+   *    un servicio nuevo (un volteo de 20 t donde solo había de 10 t).
+   * Antes eran siete pasos con ficha técnica, horario, precios y fotos
+   * obligatorias que el cliente ya no ve (revisión de Proveedores, 2026-10-28).
    */
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @Post('equipos')
-  @UseInterceptors(FilesInterceptor('fotos', MAX_FOTOS_OFERTA, { storage: fotoStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
-  async ofrecerEquipo(
-    @Req() req: AliadoRequest,
-    @Body() body: unknown,
-    @UploadedFiles() fotos?: Express.Multer.File[],
-  ) {
+  async ofrecerEquipo(@Req() req: AliadoRequest, @Body() body: unknown) {
     const parsed = ofertaSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Revisa los datos del equipo.');
     const d = parsed.data;
 
     const p = await prisma.providers.findUnique({ where: { id: req.providerId }, select: { id: true, name: true, categories: true } });
     if (!p) throw new BadRequestException('Aliado no encontrado');
-    // Solo en sus líneas: son las que MAQSER24 le validó.
-    // Servicio si la categoría es una línea; producto si es cualquier otra
-    // (2026-09-25). El producto se vende a precio fijo: sin cobro por tiempo,
-    // sin horario y sin mínimo, aunque el formulario mande otra cosa.
+    // UNA CATEGORÍA QUE NO ESTÁ EN LA LISTA (2026-10-28): se propone (o se usa
+    // la que otro aliado ya propuso con ese nombre), queda en su expediente y su
+    // equipo sale "Nuevo". MAQSER24 la decide en Categorías.
+    let propuesta: { slug: string; nombre: string } | null = null;
+    if (d.categoria === CATEGORIA_NUEVA) {
+      const nombreCat = d.categoriaNueva?.trim() ?? '';
+      if (nombreCat.length < 3) throw new BadRequestException('Escribe el nombre de la categoría.');
+      propuesta = await categoriaPropuesta(nombreCat);
+      d.categoria = propuesta.slug;
+      if (!lista(p.categories).includes(propuesta.slug)) {
+        await prisma.providers.update({ where: { id: p.id }, data: { categories: [...lista(p.categories), propuesta.slug], updated_at: new Date() } });
+      }
+    }
+    // Solo en sus líneas: son las que MAQSER24 le validó. Servicio si la
+    // categoría es una línea; producto si es cualquier otra (2026-09-25).
     const esProducto = !esLineaServicio(d.categoria);
-    if (!lista(p.categories).includes(d.categoria)) {
+    if (!propuesta && !lista(p.categories).includes(d.categoria)) {
       throw new BadRequestException(esProducto
         ? 'Esa categoría de productos no está en tu expediente. Escríbenos para agregarla.'
         : 'Esa línea de servicio no está en tu expediente. Escríbenos para agregarla.');
     }
     const categoria = await prisma.categories.findUnique({ where: { cat_slug: d.categoria }, select: { id: true, cat_name: true } });
     if (!categoria) throw new BadRequestException(esProducto ? 'Categoría desconocida.' : 'Línea de servicio desconocida.');
-    // El tipo tiene que ser una ficha viva de ESA línea; si no, cuenta como "Otro"
-    // y MAQSER24 lo clasifica al revisar.
+    // El tipo tiene que ser una ficha viva de ESA línea; si no, cuenta como nuevo.
     const tipo = d.tipoId && !esProducto
-      ? await prisma.products.findFirst({ where: { id: d.tipoId, provider_id: null, status: 1, category_id: categoria.id }, select: { id: true } })
+      ? await prisma.products.findFirst({
+          where: { id: d.tipoId, provider_id: null, status: 1, category_id: categoria.id },
+          select: { id: true, name: true, is_rental: true, price_unit: true },
+        })
       : null;
-    if (esProducto) { d.modalidad = 'venta'; d.horario = undefined; d.minimo = undefined; }
-    // PRECIO ÚNICO (2026-09-28): un SERVICIO no lleva precio del aliado; se cotiza
-    // con el tabulador. Aunque el cliente de la API mande costos o mínimo, se tiran
-    // (QA 2026-09-28: se guardaban y publicar los volvía precio al cliente).
-    else { d.costos = undefined; d.unidad = undefined; d.minimo = undefined; }
+    const base = tipo?.name ?? d.nombre?.trim() ?? '';
+    if (base.length < 3) throw new BadRequestException('Escribe qué equipo es.');
 
-    // Solo las preguntas de su línea, y solo con valor: lo demás no se guarda.
-    let atributos: Record<string, string> | null = null;
-    try {
-      const crudo = d.atributos ? (JSON.parse(d.atributos) as Record<string, unknown>) : {};
-      const validas = new Set(atributosDe(d.categoria).map((a) => a.clave));
-      const limpio = Object.fromEntries(
-        Object.entries(crudo)
-          .filter(([k, v]) => validas.has(k) && v !== null && String(v).trim() !== '')
-          .map(([k, v]) => [k, String(v).trim().slice(0, 200)]),
-      );
-      atributos = Object.keys(limpio).length ? limpio : null;
-    } catch {
-      throw new BadRequestException('La ficha técnica llegó incompleta. Intenta otra vez.');
-    }
-
-    // Costo por unidad: solo unidades válidas para su línea y modalidad.
-    const permitidas = new Set(unidadesDeTarifa(d.categoria, d.modalidad).map((u) => u.clave));
-    let costos: Record<string, number> = {};
-    try {
-      const crudo = tarifasSchema.parse(d.costos ? JSON.parse(d.costos) : {});
-      costos = Object.fromEntries(Object.entries(crudo).filter(([k]) => permitidas.has(k)));
-    } catch {
-      throw new BadRequestException('Revisa los precios: deben ser números.');
-    }
-    // Un producto se vende a precio fijo: sin precio no se puede publicar (QA 2026-09-28).
-    if (esProducto && Object.keys(costos).length === 0) throw new BadRequestException('Escribe el precio al que lo vendes.');
-    const unidad = d.unidad && permitidas.has(d.unidad) ? d.unidad : Object.keys(costos)[0] ?? null;
-    let horario: unknown = null;
-    if (d.horario) {
-      let crudo: unknown;
-      try { crudo = JSON.parse(d.horario); } catch { throw new BadRequestException('Revisa el horario: elige días y horas.'); }
-      const h = horarioSchema.safeParse(crudo);
-      if (!h.success) throw new BadRequestException('Revisa el horario: elige días y horas.');
-      horario = h.data;
-    }
-
-    const rutas = (fotos ?? []).map((f) => `uploads/${f.filename}`);
     const ahora = new Date();
     const creado = await prisma.products.create({
       data: {
@@ -857,44 +884,38 @@ export class ProviderPortalController {
         provider_id: p.id,
         category_id: categoria.id,
         tipo_id: tipo?.id ?? null,
-        name: d.nombre,
+        // Como en el registro del sitio: "Volteo 14 m³ Kenworth T800".
+        name: [base, d.marca, d.modelo].filter(Boolean).join(' ').slice(0, 200),
         Marca: d.marca || null,
-        // Limpia HTML: la ficha pública la pinta como HTML (QA 2026-09-25: XSS confirmado).
-        description: sanitizeUserHtml(d.descripcion || d.nombre),
-        // El precio lo pone MAQSER24 al publicar; en 0 el sitio dice "precio bajo cotización".
+        description: `Lo ofreció desde su portal (${ahora.toISOString().slice(0, 10)}).`,
         cprice: 0,
-        is_rental: d.modalidad === 'renta',
-        attributes: (atributos ?? undefined) as never,
+        // Maquinaria y transporte se rentan; materiales, triturados y asfalto se venden.
+        is_rental: tipo?.is_rental ?? (d.categoria === 'maquinaria-pesada' || d.categoria === 'transporte-y-servicios-de-obra'),
+        price_unit: tipo?.price_unit ?? null,
         location: d.ubicacion || null,
-        // Lo que cobra él. El precio al público lo fija MAQSER24 al publicar.
-        costo_aliado: (Object.keys(costos).length ? costos : undefined) as never,
-        price_unit: unidad,
-        minimo: d.minimo ?? null,
         stock: d.unidades ?? 1,
-        horario: (horario ?? undefined) as never,
-        photo: rutas[0] ?? null,
-        status: ESTADO_POR_REVISAR,
+        status: tipo ? 1 : ESTADO_POR_REVISAR,
+        ...(tipo ? { availability_confirmed_at: ahora } : {}),
         featured: 0,
         created_at: ahora,
         updated_at: ahora,
       },
       select: { id: true, name: true },
     });
-    if (rutas.length > 1) {
-      await prisma.galleries.createMany({
-        data: rutas.slice(1).map((photo) => ({ product_id: creado.id, photo, created_at: ahora, updated_at: ahora })),
-      });
-    }
+    if (tipo) return { ok: true, id: creado.id, nuevo: false };
 
+    // Lo nuevo: la campana y el correo llevan a donde se decide (Inventario, o
+    // Categorías si propuso una categoría que no existe).
     void avisarPanel({
-      modulo: 'proveedores',
+      modulo: 'catalogo',
       evento: 'oferta_aliado',
-      titulo: `${p.name} ofreció ${esProducto ? 'un producto' : 'un servicio'} para revisar`,
-      cuerpo: `${creado.name}${d.marca ? ` (${d.marca})` : ''} · ${categoria.cat_name}`,
-      link: '/proveedores',
+      titulo: propuesta ? `${p.name} propuso una categoría nueva: ${propuesta.nombre}` : `${p.name} ofreció algo nuevo: ${creado.name}`,
+      cuerpo: propuesta
+        ? `Con «${creado.name}» · decide en Categorías si es la misma que otra, si la autorizas o si no la manejas`
+        : `${categoria.cat_name} · decide en Inventario si es igual a un tipo o un servicio nuevo`,
+      link: propuesta ? '/categorias' : '/productos',
     });
-
-    // Avisar al equipo de MAQSER24; nunca tumba la propuesta, que ya quedó guardada.
+    // Avisar al equipo de MAQSER24; nunca tumba la oferta, que ya quedó guardada.
     const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;
     if (interno) {
       const panel = (process.env.ADMIN_URL ?? '').replace(/\/+$/, '');
@@ -903,19 +924,11 @@ export class ProviderPortalController {
           kind: 'provider_offer_review',
           to: interno,
           providerId: p.id,
-          ...correoEquipoPropuesto({
-            aliado: p.name,
-            equipo: creado.name,
-            marca: d.marca || null,
-            linea: categoria.cat_name,
-            fotos: rutas.length,
-            url: `${panel}/proveedores`,
-          }),
+          ...correoEquipoPropuesto({ aliado: p.name, equipo: creado.name, marca: d.marca || null, linea: propuesta ? `${propuesta.nombre} (categoría nueva)` : categoria.cat_name, url: `${panel}${propuesta ? '/categorias' : '/productos'}` }),
         })
         .catch(() => undefined);
     }
-
-    return { ok: true, id: creado.id };
+    return { ok: true, id: creado.id, nuevo: true };
   }
 
   @Throttle({ default: { ttl: 60_000, limit: 10 } })

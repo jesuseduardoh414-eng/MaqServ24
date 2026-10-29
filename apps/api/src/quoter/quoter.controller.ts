@@ -1,15 +1,14 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Logger, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { esCotizadorTipo, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
+import { condicionesSinPrecios, esCotizadorTipo, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
 import { avisarPanel } from '../notifications/panel';
 import { leerAceptacion } from './aceptar-link';
 import { leerZonas, municipiosDe } from '../common/zonas';
-import { ServiceService } from '../quotes/service.service';
 import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { QuoterService } from './quoter.service';
 import { QuoterServicio, type ServicioAbierto } from './quoter-servicio';
-import { calcularSchema, partidasPublicas, primerError, solicitudSitioSchema, tipoDe } from './quoter.dto';
+import { partidasPublicas, primerError, solicitudSitioSchema, tipoDe } from './quoter.dto';
 import { conCandado } from '../common/candado';
 import { prisma } from '@maqserv/db';
 
@@ -19,15 +18,18 @@ const TOPE_TOTAL = 99_999_999;
 /**
  * COTIZADORES EN EL SITIO PÚBLICO.
  *
- * Dos interruptores, ambos en el tabulador y editables desde el panel:
+ * `publico.habilitado` (en el tabulador, editable desde el panel): si está
+ * apagado, estas rutas devuelven 404 y el cotizador simplemente no existe fuera
+ * del panel.
  *
- *  - `publico.habilitado`: si está apagado, estas rutas devuelven 404 y el
- *    cotizador simplemente no existe fuera del panel.
- *  - `publico.mostrarPrecios`: apagado, el visitante arma su requerimiento
- *    completo y lo envía, pero NO ve importes y el endpoint de cálculo se
- *    cierra. Publicar el tabulador entero —tarifas, fletes y márgenes— es una
- *    decisión comercial, y cuando la respuesta sea "todavía no", esto evita que
- *    la única alternativa sea quitar el cotizador del sitio.
+ * EL SITIO NUNCA ENSEÑA PRECIOS (decisión del usuario, 2026-10-23). El
+ * visitante arma su requerimiento completo y lo envía sin ver un peso; el
+ * servidor lo calcula igual y la solicitud llega al panel con su precio
+ * estimado. Alguien lo revisa, lo corrige si hace falta y se lo manda al
+ * cliente, que la acepta desde su cuenta. Antes había un interruptor
+ * (`publico.mostrarPrecios`) y el cotizador enseñaba el total en el último
+ * paso; el campo se queda en el tabulador por compatibilidad, pero aquí ya no
+ * se lee: un precio que nadie revisó no puede llegarle al cliente.
  */
 @Controller('quoter')
 export class QuoterController {
@@ -36,16 +38,14 @@ export class QuoterController {
   constructor(
     private readonly quoter: QuoterService,
     private readonly servicio: QuoterServicio,
-    private readonly services: ServiceService,
   ) {}
 
   /**
-   * El tabulador tal como lo puede ver un desconocido.
+   * El tabulador tal como lo puede ver un desconocido: SIEMPRE en ceros.
    *
-   * Cuando los precios están ocultos NO se manda el tabulador con un flag para
-   * que el navegador lo esconda: se manda en ceros. Un precio que viaja al
-   * navegador es un precio publicado, aunque la pantalla no lo pinte — basta
-   * abrir la pestaña de red para leerlo.
+   * No se manda con un flag para que el navegador lo esconda: un precio que
+   * viaja al navegador es un precio publicado, aunque la pantalla no lo pinte —
+   * basta abrir la pestaña de red para leerlo.
    */
   @Get('catalog/:kind')
   async catalogo(@Param('kind') kind: string) {
@@ -58,21 +58,18 @@ export class QuoterController {
     // El sitio solo ofrece los municipios de las zonas que se anuncian (2026-10-22).
     const anunciados = municipiosDe(await leerZonas(), ['sitio']);
     const publico = anunciados.length ? { ...cat, municipios: anunciados } : cat;
-    return sinDueños(publico.publico.mostrarPrecios ? publico : sinPrecios(publico));
+    return sinDueños(sinPrecios(publico));
   }
 
-  /** Vista previa de totales. Solo si el tabulador es público. */
+  /**
+   * Vista previa de totales: cerrada al público (2026-10-23). El sitio nunca
+   * enseña precios; el panel calcula con su propia ruta (admin/quoter).
+   */
   @Throttle({ default: { ttl: 60_000, limit: 60 } })
   @Post('calculate/:kind')
-  async calcular(@Param('kind') kind: string, @Body() body: unknown) {
-    const tipo = tipoDe(kind);
-    const cat = await this.quoter.catalogo(tipo);
-    if (!cat.publico.habilitado) throw new NotFoundException('Este cotizador no está disponible en el sitio.');
-    if (!cat.publico.mostrarPrecios) throw new ForbiddenException('Los precios de este cotizador no son públicos.');
-
-    const parsed = calcularSchema.safeParse(body);
-    if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
-    return this.quoter.calcular(tipo, partidasPublicas(tipo, parsed.data.partidas, cat), parsed.data.opciones);
+  async calcular(@Param('kind') kind: string) {
+    tipoDe(kind);
+    throw new ForbiddenException('Los precios no se calculan en el sitio: pide tu cotización y te la mandamos con precio.');
   }
 
   /**
@@ -97,6 +94,10 @@ export class QuoterController {
     const parsed = solicitudSitioSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
     const datos = parsed.data;
+    // La fecha del servicio no puede ser pasada (hoy en Monterrey, no en UTC), igual que en /cotizar.
+    if (datos.fecha < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date())) {
+      throw new BadRequestException('La fecha ya pasó. Elige hoy o una fecha posterior.');
+    }
 
     const userId = req.userId;
     const cuenta = await datosDeCuenta(userId);
@@ -123,7 +124,6 @@ export class QuoterController {
       const q = await prisma.quotes.findFirst({ where: { requirements: { path: '$.folio', equals: igual.folio } }, select: { quote_number: true }, orderBy: { id: 'asc' } });
       return {
         folio: igual.folio,
-        ...(cat.publico.mostrarPrecios ? { total: Number(igual.total) } : {}),
         ...(q ? { quoteNumber: q.quote_number, url: `/cuenta/cotizaciones/${q.quote_number}` } : {}),
       };
     }
@@ -148,8 +148,8 @@ export class QuoterController {
     // Primera vez que se conoce su teléfono: se guarda en la cuenta.
     void completarTelefono(userId, datos.telefono);
 
-    // Abrir el servicio y ofrecérselo al proveedor. Si falla, el documento se
-    // queda en `solicitada` y el equipo lo atiende a mano (ver arriba).
+    // Abrir la solicitud en el panel (Solicitudes › Por cotizar). Si falla, el
+    // documento se queda en `solicitada` y el equipo lo atiende a mano (ver arriba).
     let servicio: ServicioAbierto | null = null;
     try {
       servicio = await this.servicio.abrir({
@@ -159,15 +159,15 @@ export class QuoterController {
         cuenta,
         cliente,
         userId,
+        // Empresa y obra que eligió, o la obra nueva con su dirección (2026-10-23).
+        destino: { clientId: datos.clienteId ?? null, siteId: datos.obraId ?? null, direccion: datos.direccion || null, fecha: datos.fecha },
       });
     } catch (e) {
       this.log.error(`No se pudo abrir el servicio de ${cot.folio}: ${(e as Error).message}`);
     }
 
-    // Si todo está en orden se aprueba sola y sale a los aliados; si no, se
-    // queda en "Por cotizar" y la campana dice qué revisar (2026-10-22).
-    // Sin esperar: el cliente ya tiene su folio.
-    if (servicio) void this.services.aprobarSiTodoEnOrden(servicio.servicios.map((s) => s.quoteId));
+    // Ya no se aprueba sola (2026-10-23): llega a Solicitudes › Por cotizar con
+    // su precio estimado; alguien lo revisa y se lo manda al cliente.
 
     /**
      * Los avisos salen SIN esperar a propósito.
@@ -175,15 +175,14 @@ export class QuoterController {
      * El SMTP de cPanel tarda lo suyo: encadenarlos aquí dejaría al cliente
      * mirando el botón "Enviando…" varios segundos por algo que no cambia su
      * solicitud, que ya está guardada. Si fallan, quedan en el registro de
-     * correo. A los proveedores ya les escribió `ofrecer`, con su enlace.
+     * correo.
      */
     void this.quoter.avisarSolicitud(cot.id, servicio);
 
-    // Con precios ocultos, la respuesta tampoco los trae: el acuse dice que se
-    // recibió y quién dará seguimiento, no cuánto cuesta.
+    // La respuesta tampoco trae precio (2026-10-23): el acuse dice que se
+    // recibió y que MAQSER24 le manda la cotización, no cuánto cuesta.
     return {
       folio: cot.folio,
-      ...(cat.publico.mostrarPrecios ? { total: Number(cot.total) } : {}),
       ...(servicio ? { quoteNumber: servicio.quoteNumber, url: servicio.url } : {}),
     };
     });
@@ -242,10 +241,11 @@ export class QuoterController {
       void avisarPanel({
         modulo: 'servicios',
         evento: 'solicitud',
-        titulo: `${d.client_name} aceptó ${d.folio} desde el correo`,
-        cuerpo: abierto?.proveedores.length
-          ? `Se le ofreció sola a ${abierto.proveedores.join(', ')}: el primero que acepte se la queda.`
-          : 'Ya está en Servicios por asignar: búscale aliado.',
+        // Nada sale solo a los aliados (2026-10-23): MAQSER24 elige a quién dárselo.
+        titulo: `${d.client_name} aceptó ${d.folio} desde el correo: elige a quién dárselo`,
+        cuerpo: abierto
+          ? `Ya está en Servicios por asignar (${abierto.quoteNumber}). Ofrécelo a un aliado o mándalo a todos los que llegan a la obra.`
+          : 'Ya está en Servicios por asignar: ofrécelo a un aliado o mándalo a todos.',
         link: '/servicios',
       });
       return { ok: true, yaEstaba: false, folio: d.folio };
@@ -253,13 +253,6 @@ export class QuoterController {
   }
 }
 
-/**
- * El mismo tabulador con todo importe en cero.
- *
- * Se conservan nombres, zonas, unidades y condiciones: el visitante tiene que
- * poder decir "quiero una excavadora 10 días en Apodaca" con precisión. Lo
- * único que desaparece es cuánto cuesta.
- */
 /**
  * El mismo tabulador sin decir de quién es cada partida.
  *
@@ -283,12 +276,27 @@ function sinDueños(cat: CatalogoCotizador): CatalogoCotizador {
   };
 }
 
-function sinPrecios(cat: CatalogoCotizador): CatalogoCotizador {
+/**
+ * El mismo tabulador con todo importe en cero.
+ *
+ * Se conservan nombres, zonas, unidades y condiciones: el visitante tiene que
+ * poder decir "quiero una excavadora 10 días en Apodaca" con precisión. Lo
+ * único que desaparece es cuánto cuesta.
+ */
+function sinPrecios(catalogo: CatalogoCotizador): CatalogoCotizador {
+  // El navegador lee este flag para saber que no hay importes que pintar.
+  // Las condiciones también van sin los renglones con precio (auditoría
+  // 2026-10-28): al aliado ya se le quitaban, al público no.
+  const condiciones = Object.fromEntries(
+    Object.entries(catalogo.condiciones).map(([k, b]) => [k, condicionesSinPrecios([b])[0] ?? { ...b, puntos: [] }]),
+  );
+  const cat = { ...catalogo, condiciones, publico: { ...catalogo.publico, mostrarPrecios: false } } as CatalogoCotizador;
   if (cat.tipo === 'maquinaria') {
     return {
       ...cat,
       fletes: Object.fromEntries(Object.keys(cat.fletes).map((k) => [k, 0])),
-      equipos: cat.equipos.map((e) => ({ ...e, tarifas: { dia: 0, semana: 0, mes: 0 } })),
+      // El precio por hora en cero y la tarifa por día de antes fuera (2026-10-29).
+      equipos: cat.equipos.map(({ tarifas: _antes, ...e }) => ({ ...e, precio_hora: 0 })),
       servicios: cat.servicios.map((s) => ({ ...s, precio: 0, presets: [] })),
     };
   }

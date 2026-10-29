@@ -39,6 +39,8 @@ export type Rol = 'customer' | 'admin';
 
 export interface AppClaims extends JWTPayload {
   app_metadata?: { role?: Rol; app_user_id?: number; app_admin_id?: number };
+  /** Huella de la sesión (ver `versionDeSesion`); el guard del panel la compara. */
+  pv?: string;
 }
 
 /**
@@ -82,7 +84,21 @@ export interface Identidad {
   id: number;
   /** Hash actual de la contraseña; de aquí sale `pv`. */
   hash: string;
+  /**
+   * Versión de sesión (admins.remember_token, 2026-10-28). "Cerrar sesión" la
+   * cambia y con eso caen todas las sesiones de esa cuenta; sin ella, `pv`
+   * queda igual que antes y ninguna sesión vigente se pierde al desplegar.
+   */
+  sesion?: string | null;
 }
+
+/**
+ * La huella que llevan los tokens: cambia al cambiar la contraseña o al cerrar
+ * sesión. Desde el 2026-10-28 va también en el token de acceso, y el guard del
+ * panel la compara en cada petición: antes, cambiar la contraseña dejaba vivo
+ * el acceso robado hasta una hora.
+ */
+export const versionDeSesion = (hash: string, sesion?: string | null): string => versionDe(hash + (sesion ?? ''));
 
 export interface Tokens {
   access_token: string;
@@ -95,7 +111,8 @@ async function firmar(identidad: Identidad): Promise<Tokens> {
       ? { role: 'admin' as const, app_admin_id: identidad.id }
       : { role: 'customer' as const, app_user_id: identidad.id };
   const sub = `${identidad.rol}:${identidad.id}`;
-  const access_token = await new SignJWT({ app_metadata: meta })
+  const pv = versionDeSesion(identidad.hash, identidad.sesion);
+  const access_token = await new SignJWT({ app_metadata: meta, pv })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer(EMISOR)
     .setAudience(AUDIENCIA)
@@ -103,7 +120,7 @@ async function firmar(identidad: Identidad): Promise<Tokens> {
     .setIssuedAt()
     .setExpirationTime(ACCESO_TTL)
     .sign(llave());
-  const refresh_token = await new SignJWT({ typ: 'refresh', pv: versionDe(identidad.hash) })
+  const refresh_token = await new SignJWT({ typ: 'refresh', pv })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer(EMISOR)
     .setSubject(sub)
@@ -129,12 +146,13 @@ interface Fila {
   id: number;
   hash: string | null;
   activo: boolean;
+  sesion?: string | null;
 }
 
 async function porId(rol: Rol, id: number): Promise<Fila | null> {
   if (rol === 'admin') {
-    const a = await prisma.admins.findUnique({ where: { id }, select: { id: true, password: true, status: true } });
-    return a ? { id: a.id, hash: a.password, activo: a.status === 1 } : null;
+    const a = await prisma.admins.findUnique({ where: { id }, select: { id: true, password: true, status: true, remember_token: true } });
+    return a ? { id: a.id, hash: a.password, activo: a.status === 1, sesion: a.remember_token } : null;
   }
   const u = await prisma.users.findUnique({ where: { id }, select: { id: true, password: true } });
   return u ? { id: u.id, hash: u.password, activo: true } : null;
@@ -143,8 +161,8 @@ async function porId(rol: Rol, id: number): Promise<Fila | null> {
 async function porCorreo(rol: Rol, email: string): Promise<Fila | null> {
   const correo = email.trim().toLowerCase();
   if (rol === 'admin') {
-    const a = await prisma.admins.findFirst({ where: { email: correo }, select: { id: true, password: true, status: true } });
-    return a ? { id: a.id, hash: a.password, activo: a.status === 1 } : null;
+    const a = await prisma.admins.findFirst({ where: { email: correo }, select: { id: true, password: true, status: true, remember_token: true } });
+    return a ? { id: a.id, hash: a.password, activo: a.status === 1, sesion: a.remember_token } : null;
   }
   const u = await prisma.users.findFirst({ where: { email: correo }, select: { id: true, password: true } });
   return u ? { id: u.id, hash: u.password, activo: true } : null;
@@ -176,7 +194,7 @@ export async function passwordGrant(rol: Rol, email: string, password: string): 
     return null;
   }
   limpiarFallos(llaveIntentos);
-  return { id: fila.id, ...(await firmar({ rol, id: fila.id, hash: fila.hash })) };
+  return { id: fila.id, ...(await firmar({ rol, id: fila.id, hash: fila.hash, sesion: fila.sesion })) };
 }
 
 /** Un hash que no corresponde a ninguna cuenta, para igualar el tiempo del login. */
@@ -203,8 +221,8 @@ export async function refreshGrant(token: string): Promise<Sesion | null> {
   if ((rol !== 'customer' && rol !== 'admin') || !Number.isInteger(id)) return null;
   const fila = await porId(rol, id);
   if (!fila || !fila.activo || !fila.hash) return null;
-  if (versionDe(fila.hash) !== payload.pv) return null;
-  return { id: fila.id, ...(await firmar({ rol, id: fila.id, hash: fila.hash })) };
+  if (versionDeSesion(fila.hash, fila.sesion) !== payload.pv) return null;
+  return { id: fila.id, ...(await firmar({ rol, id: fila.id, hash: fila.hash, sesion: fila.sesion })) };
 }
 
 /**
@@ -272,13 +290,14 @@ export const huellaDeHash = (hash: string): string => versionDe(hash);
 
 export const RESTABLECER_ADMIN_MINUTOS = RESTABLECER_MINUTOS;
 
-export async function firmarRestablecimientoAdmin(adminId: number, hashActual: string): Promise<string> {
+/** `minutos`: cuánto vale el enlace. La invitación al panel (2026-10-28) usa días; "olvidé" sigue con la hora. */
+export async function firmarRestablecimientoAdmin(adminId: number, hashActual: string, minutos: number = RESTABLECER_MINUTOS): Promise<string> {
   return new SignJWT({ typ: 'reset-admin', pv: versionDe(hashActual) })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer(EMISOR)
     .setSubject(`admin:${adminId}`)
     .setIssuedAt()
-    .setExpirationTime(`${RESTABLECER_MINUTOS}m`)
+    .setExpirationTime(`${minutos}m`)
     .sign(llave());
 }
 

@@ -33,6 +33,7 @@ export const MODULO_DE_CORREO: Record<string, ModuloAdmin> = {
   provider_departure_late: 'servicios',
   // La red de aliados.
   provider_access: 'proveedores',
+  provider_invite: 'proveedores',
   provider_offer_review: 'proveedores',
   provider_offer_published: 'proveedores',
   provider_offer_rejected: 'proveedores',
@@ -54,6 +55,7 @@ export const MODULO_DE_CORREO: Record<string, ModuloAdmin> = {
   cierre_mes: 'administracion',
   // Del panel.
   admin_password_reset: 'admins',
+  admin_invitacion: 'admins',
   prueba: 'configuracion',
 };
 

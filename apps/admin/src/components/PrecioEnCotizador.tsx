@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type MutableRefObject } from 'react';
-import { seccionDeLinea, type CatalogoCotizador, type ClaseRenglon, type SeccionCotizador } from '@maqserv/config';
+import { cobraFlete, minimoHorasDe, seccionDeLinea, type CatalogoCotizador, type ClaseRenglon, type SeccionCotizador } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Btn, IconBtn, Note, Switch } from '@/components/ui';
 
@@ -27,9 +27,8 @@ export interface PrecioEnCotizadorControl {
 interface Renglon {
   id?: string;
   nombre: string;
-  dia: string;
-  semana: string;
-  mes: string;
+  /** Equipo: precio por hora (2026-10-29). */
+  hora: string;
   flete: string;
   precio: string;
   cond: string;
@@ -40,20 +39,21 @@ interface Ficha {
   seccion: SeccionCotizador | null;
   activa: boolean;
   oculto: boolean;
-  renglones: Array<{ id?: string; nombre: string; tarifas?: { dia: number; semana: number; mes: number }; flete_tipo?: string; precio?: number; cond?: string }>;
+  renglones: Array<{ id?: string; nombre: string; precio_hora?: number; flete_tipo?: string; precio?: number; cond?: string }>;
   fletes: Array<{ nombre: string; monto: number }>;
   condiciones: Array<{ clave: string; titulo: string }>;
-  tramos: Array<{ id: string; label: string; desde: number; hasta: number | null }>;
+  /** Maquinaria: cómo se cobra (Tarifas › Maquinaria). */
+  cobro: { jornada: number; minimo: number; conFlete: boolean } | null;
 }
 
 const NUEVO_FLETE = '__nuevo__';
 const money = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigits: 2 })}`;
-const vacio = (cond = ''): Renglon => ({ nombre: '', dia: '', semana: '', mes: '', flete: '', precio: '', cond });
+const vacio = (cond = ''): Renglon => ({ nombre: '', hora: '', flete: '', precio: '', cond });
 
 /** Lo que sale de la API, a texto para los campos. */
 function aRenglon(r: Ficha['renglones'][number]): Renglon {
   const t = (n?: number) => (n === undefined || n === null ? '' : String(n));
-  return { id: r.id, nombre: r.nombre, dia: t(r.tarifas?.dia), semana: t(r.tarifas?.semana), mes: t(r.tarifas?.mes), flete: r.flete_tipo ?? '', precio: t(r.precio), cond: r.cond ?? '' };
+  return { id: r.id, nombre: r.nombre, hora: t(r.precio_hora), flete: r.flete_tipo ?? '', precio: t(r.precio), cond: r.cond ?? '' };
 }
 
 /** Para una ficha nueva todavía no hay a quién preguntarle: se arma con el tabulador de su línea. */
@@ -66,7 +66,7 @@ function fichaDeCatalogo(cat: CatalogoCotizador, linea: string, seccion: Seccion
     renglones: [],
     fletes: cat.tipo === 'maquinaria' ? Object.entries(cat.fletes).map(([nombre, monto]) => ({ nombre, monto })) : [],
     condiciones: Object.entries(cat.condiciones).map(([clave, b]) => ({ clave, titulo: b.titulo })),
-    tramos: cat.tipo === 'maquinaria' ? cat.tiers.map((t) => ({ id: t.id, label: t.label, desde: t.desde_dias, hasta: t.hasta_dias })) : [],
+    cobro: cat.tipo === 'maquinaria' ? { jornada: cat.jornada_horas, minimo: minimoHorasDe(cat), conFlete: cobraFlete(cat) } : null,
   };
 }
 
@@ -140,12 +140,8 @@ export function PrecioEnCotizador({
   const cambioDeLinea = !!productId && !!ficha && ficha.linea !== linea;
   const cambiado = JSON.stringify({ rs: renglones, sale }) !== inicial || Object.keys(fletesNuevos).length > 0;
 
-  const tramos = ficha?.tramos ?? [];
-  const textoTramo = (id: 'dia' | 'semana' | 'mes') => {
-    const t = tramos.find((x) => x.id === id);
-    if (!t) return id === 'dia' ? 'Por día' : id === 'semana' ? 'Por día, rentando por semana' : 'Por día, rentando por mes';
-    return `${t.label} · ${t.desde}${t.hasta ? `–${t.hasta}` : '+'} días`;
-  };
+  // Flete apagado en Tarifas (2026-10-29): el campo se queda, pero no se cobra ni se exige.
+  const conFlete = ficha?.cobro?.conFlete !== false;
 
   /** Lo que se manda. Null + mensaje si algo no cuadra. */
   const armar = (nombreFicha: string): { body: unknown } | { error: string } => {
@@ -161,15 +157,15 @@ export function PrecioEnCotizador({
         if (flete === NUEVO_FLETE) {
           const f = fletesNuevos[i];
           if (!f || f.nombre.trim().length < 2) return { error: `«${nombre}»: escribe el nombre del flete nuevo.` };
-          if (!(num(f.monto) > 0)) return { error: `«${nombre}»: pon cuánto cuesta el flete nuevo.` };
+          if (conFlete && !(num(f.monto) > 0)) return { error: `«${nombre}»: pon cuánto cuesta el flete nuevo.` };
           flete = f.nombre.trim();
-          nuevos[flete] = num(f.monto);
+          nuevos[flete] = num(f.monto) || 0;
         }
+        // Sin flete que cobrar, el equipo se queda con el primero de la lista: el campo existe para cuando vuelva.
+        if (!flete && !conFlete) flete = ficha?.fletes[0]?.nombre ?? '';
         if (!flete) return { error: `«${nombre}»: elige qué flete se le cobra.` };
-        if (sale && !(num(r.dia) > 0 && num(r.semana) > 0 && num(r.mes) > 0)) {
-          return { error: `«${nombre}»: pon las tres tarifas. En $0 se cotizaría gratis.` };
-        }
-        out.push({ id: r.id, nombre, flete_tipo: flete, tarifas: { dia: num(r.dia) || 0, semana: num(r.semana) || 0, mes: num(r.mes) || 0 } });
+        if (sale && !(num(r.hora) > 0)) return { error: `«${nombre}»: pon su precio por hora. En $0 se cotizaría gratis.` };
+        out.push({ id: r.id, nombre, flete_tipo: flete, precio_hora: num(r.hora) || 0 });
       } else {
         if (sale && !(num(r.precio) > 0)) return { error: `«${nombre}»: pon su precio. En $0 se cotizaría gratis.` };
         out.push({ id: r.id, nombre, precio: num(r.precio) || 0, ...(seccion.clase === 'servicio' ? { cond: r.cond || undefined } : {}) });
@@ -199,7 +195,7 @@ export function PrecioEnCotizador({
 
   const opcionesFlete = useMemo(
     () => [
-      ...(ficha?.fletes ?? []).map((f) => ({ value: f.nombre, label: `${f.nombre} · ${money(f.monto)}` })),
+      ...(ficha?.fletes ?? []).map((f) => ({ value: f.nombre, label: ficha?.cobro?.conFlete === false ? f.nombre : `${f.nombre} · ${money(f.monto)}` })),
       { value: NUEVO_FLETE, label: '+ Nuevo tipo de flete…' },
     ],
     [ficha],
@@ -271,32 +267,28 @@ export function PrecioEnCotizador({
               </div>
               {seccion.clase === 'equipo' ? (
                 <>
-                  <div className="pf-3">
-                    {(['dia', 'semana', 'mes'] as const).map((k) => (
-                      <label key={k} style={{ display: 'grid', gap: 6 }}>
-                        <span className="adm-label">{textoTramo(k)}</span>
-                        <input className="adm-input adm-num" type="number" min={0} step="0.01" value={r[k]} onChange={(e) => set(i, { [k]: e.target.value })} placeholder="$ por día" />
-                      </label>
-                    ))}
-                  </div>
                   <div className="pf-2">
                     <label style={{ display: 'grid', gap: 6 }}>
-                      <span className="adm-label">Flete (llevar y traer)</span>
+                      <span className="adm-label">Precio por hora</span>
+                      <input className="adm-input adm-num" type="number" min={0} step="0.01" value={r.hora} onChange={(e) => set(i, { hora: e.target.value })} placeholder="$ por hora" />
+                    </label>
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span className="adm-label">{conFlete ? 'Flete (llevar y traer)' : 'Flete · hoy no se cobra'}</span>
                       <AdminSelect ariaLabel="Tipo de flete" value={r.flete} onChange={(v) => set(i, { flete: v })} placeholder="Elige…" options={opcionesFlete} />
                     </label>
-                    {r.flete === NUEVO_FLETE ? (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 120px', gap: 8, alignItems: 'end' }}>
-                        <label style={{ display: 'grid', gap: 6 }}>
-                          <span className="adm-label">Nombre del flete</span>
-                          <input className="adm-input" value={fletesNuevos[i]?.nombre ?? ''} onChange={(e) => setFletesNuevos((f) => ({ ...f, [i]: { nombre: e.target.value, monto: f[i]?.monto ?? '' } }))} placeholder="Minicargador" />
-                        </label>
-                        <label style={{ display: 'grid', gap: 6 }}>
-                          <span className="adm-label">Cuesta</span>
-                          <input className="adm-input adm-num" type="number" min={0} value={fletesNuevos[i]?.monto ?? ''} onChange={(e) => setFletesNuevos((f) => ({ ...f, [i]: { nombre: f[i]?.nombre ?? '', monto: e.target.value } }))} placeholder="$" />
-                        </label>
-                      </div>
-                    ) : null}
                   </div>
+                  {r.flete === NUEVO_FLETE ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 160px', gap: 8, alignItems: 'end' }}>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span className="adm-label">Nombre del flete</span>
+                        <input className="adm-input" value={fletesNuevos[i]?.nombre ?? ''} onChange={(e) => setFletesNuevos((f) => ({ ...f, [i]: { nombre: e.target.value, monto: f[i]?.monto ?? '' } }))} placeholder="Minicargador" />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span className="adm-label">{conFlete ? 'Cuesta' : 'Cuesta (cuando vuelva)'}</span>
+                        <input className="adm-input adm-num" type="number" min={0} value={fletesNuevos[i]?.monto ?? ''} onChange={(e) => setFletesNuevos((f) => ({ ...f, [i]: { nombre: f[i]?.nombre ?? '', monto: e.target.value } }))} placeholder="$" />
+                      </label>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <div className="pf-2">
@@ -322,6 +314,13 @@ export function PrecioEnCotizador({
           <div><Btn size="sm" icon="ph-plus" onClick={agregar}>{AGREGAR[seccion.clase]}</Btn></div>
         </>
       )}
+      {seccion.clase === 'equipo' && ficha?.cobro && renglones.length > 0 ? (
+        <p className="adm-help" style={{ margin: 0 }}>
+          Se cobra por hora de trabajo, sin descuentos por semana o mes: cada día son {ficha.cobro.jornada} h
+          {ficha.cobro.minimo > 0 ? ` y el mínimo es de ${ficha.cobro.minimo} h por equipo` : ''}.
+          {ficha.cobro.conFlete ? '' : ' El flete está apagado en Tarifas y condiciones.'}
+        </p>
+      ) : null}
       <p className="adm-help" style={{ margin: 0 }}>
         El cliente nunca ve este precio en el catálogo: solo aparece en su cotización. Se guarda con la ficha y aplica a las cotizaciones nuevas.
       </p>

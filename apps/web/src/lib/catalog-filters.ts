@@ -15,26 +15,14 @@ export interface FilterDef {
   options: [string, string][];
 }
 
-export type FilterId = 'precio' | 'calif' | 'disp' | 'orden';
+export type FilterId = 'disp' | 'orden';
 
-/** Rangos de precio en pesos. Parten el catálogo real (27 equipos: 2 / 8 / 17). */
-const PRICE_RANGES: Record<string, { min?: number; max?: number }> = {
-  a: { max: 10000 },
-  b: { min: 10000, max: 50000 },
-  c: { min: 50000 },
-};
-
+/**
+ * Sin "Precio" ni orden por precio (auditoría 2026-10-28): el sitio nunca
+ * enseña precios, y filtrar por rango dejaba averiguar cuánto cuesta cada
+ * equipo. "Calificación" también se fue: ningún equipo tiene opiniones.
+ */
 export const FILTER_DEFS: FilterDef[] = [
-  {
-    id: 'precio',
-    label: 'Precio',
-    options: [['', 'Todos los precios'], ['a', 'Hasta $10,000'], ['b', '$10,000 – $50,000'], ['c', 'Más de $50,000']],
-  },
-  {
-    id: 'calif',
-    label: 'Calificación',
-    options: [['', 'Cualquiera'], ['4', '4★ o más'], ['3', '3★ o más'], ['2', '2★ o más']],
-  },
   {
     id: 'disp',
     label: 'Disponibilidad',
@@ -43,7 +31,7 @@ export const FILTER_DEFS: FilterDef[] = [
   {
     id: 'orden',
     label: 'Ordenar por',
-    options: [['', 'Relevancia'], ['low', 'Precio: menor a mayor'], ['high', 'Precio: mayor a menor'], ['new', 'Más recientes']],
+    options: [['', 'Relevancia'], ['new', 'Más recientes']],
   },
 ];
 
@@ -51,25 +39,14 @@ export type CatalogSearch = { precio?: string; calif?: string; disp?: string; or
 
 /** Lo que la URL trae → lo que la API entiende. Ignora valores que no existen. */
 export function filtersToQuery(sp: CatalogSearch): {
-  minPrice?: number;
-  maxPrice?: number;
-  minRating?: number;
   availability?: string;
   sort?: string;
 } {
-  const range = sp.precio ? PRICE_RANGES[sp.precio] : undefined;
-  const rating = sp.calif ? Number(sp.calif) : NaN;
   const disp = sp.disp === 'now' || sp.disp === 'rent' || sp.disp === 'offer' ? sp.disp : undefined;
-  const sort = sp.orden === 'low' || sp.orden === 'high' || sp.orden === 'new' ? sp.orden : undefined;
-  return {
-    minPrice: range?.min,
-    maxPrice: range?.max,
-    minRating: Number.isFinite(rating) && rating > 0 ? rating : undefined,
-    availability: disp,
-    sort,
-  };
+  const sort = sp.orden === 'new' ? sp.orden : undefined;
+  return { availability: disp, sort };
 }
 
-/** ¿Hay algún filtro puesto? Para ofrecer "limpiar". */
+/** ¿Hay algún filtro puesto? Para ofrecer "limpiar". Un `?precio=` viejo ya no cuenta. */
 export const hasFilters = (sp: CatalogSearch): boolean =>
-  Boolean(sp.precio || sp.calif || sp.disp || sp.orden);
+  Boolean(sp.disp || sp.orden === 'new');

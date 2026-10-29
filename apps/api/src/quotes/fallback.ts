@@ -9,13 +9,14 @@
  *
  * TRES DECISIONES QUE VALE LA PENA DEJAR ESCRITAS:
  *
- * 1. CAMBIÓ el 2026-10-21. Antes el sistema solo PREPARABA al siguiente, por
- *    miedo a dos unidades en la misma obra. Desde la oferta automática
- *    (2026-10-15) el primero que acepta se la queda y a los demás se les
- *    retira, así que ese riesgo ya no existe: cuando todos callan o todos
- *    rechazan, se le ofrece solo a los siguientes (quotes/seguimiento-ofertas
- *    .service.ts y ServiceService.ofrecerALosSiguientes). Lo de aquí sigue
- *    midiendo el silencio para el panel y para ese seguimiento.
+ * 1. CAMBIÓ dos veces. El 2026-10-21, cuando todos callaban o todos
+ *    rechazaban, se le ofrecía solo a los siguientes. Desde el 2026-10-23
+ *    MAQSER24 elige a quién se la da (puede que con alguno ya no trabajen):
+ *    el sistema ya NO ofrece por su cuenta; cuando todos callan suena la
+ *    campana (quotes/seguimiento-ofertas.service.ts y
+ *    ServiceService.avisarSinRespuesta) y cuando todos rechazan, la de
+ *    `responder`. Lo de aquí sigue midiendo el silencio para el panel y para
+ *    ese aviso.
  *
  * 2. "No contesta" NO es un plazo fijo. Se mide contra lo que ESE aliado suele
  *    tardar (historial de cumplimiento): a uno que normalmente responde en 11

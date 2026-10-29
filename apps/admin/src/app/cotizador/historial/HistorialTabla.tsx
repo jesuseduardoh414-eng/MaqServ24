@@ -8,6 +8,7 @@ import { COTIZADORES_META, COTIZADOR_TIPOS, type CotizadorTipo } from '@maqserv/
 import { money, fechaCorta } from '@maqserv/ui';
 import { Btn, EmptyState, IconBtn, Note, Panel, SearchBox, Toolbar } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
+import { ESTADOS_COTIZACION, EstadoCotizacion } from './EstadoCotizacion';
 
 export interface FilaCotizacion {
   id: number;
@@ -23,23 +24,10 @@ export interface FilaCotizacion {
   total: number;
   admin: string | null;
   fecha: string | null;
+  /** Enviada y su vigencia pasó sin respuesta (2026-10-26). */
+  vencida?: boolean;
 }
 
-/**
- * Estados de una cotización emitida.
- *
- * `solicitada` NO es un pendiente de esta pantalla (2026-10-08): es un pedido
- * del sitio cuyo servicio aún no tiene aliado, y ese trabajo se atiende en
- * Solicitudes y Servicios. Antes decía "Por atender" y contaba en el menú, así
- * que el mismo pendiente aparecía dos veces. Aquí solo se informa.
- */
-const ESTADOS: Record<string, { texto: string; color: string }> = {
-  solicitada: { texto: 'Esperando aliado', color: 'var(--adm-info)' },
-  borrador: { texto: 'Borrador', color: 'var(--adm-muted)' },
-  enviada: { texto: 'Enviada', color: 'var(--adm-warn)' },
-  aceptada: { texto: 'Aceptada', color: 'var(--adm-ok)' },
-  cancelada: { texto: 'Cancelada', color: 'var(--adm-bad)' },
-};
 
 export function HistorialTabla({
   items,
@@ -57,44 +45,11 @@ export function HistorialTabla({
   const [pendiente, empezar] = useTransition();
   const [busqueda, setBusqueda] = useState(filtros.search);
   const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
 
   function navegar(patch: Record<string, string>) {
     const p = new URLSearchParams({ ...filtros, ...patch });
     for (const [k, v] of [...p.entries()]) if (!v) p.delete(k);
     empezar(() => router.push(`/cotizador/historial${p.size ? `?${p}` : ''}`));
-  }
-
-  async function cambiarEstado(fila: FilaCotizacion, estado: string) {
-    const id = fila.id;
-    setError(null);
-    setAviso(null);
-    // Las del panel: "Aceptada" quiere decir que el cliente dijo que sí y abre su servicio (2026-10-15).
-    if (estado === 'aceptada' && fila.origen === 'panel' && fila.estado !== 'aceptada') {
-      const ok = await confirmar({
-        titulo: `¿El cliente aceptó ${fila.folio}?`,
-        mensaje: 'Se crea su servicio y se manda a los aliados que llegan a la obra. El primero que acepte se lo queda, y al cliente le llega la cotización autorizada.',
-        confirmar: 'Sí, aceptó',
-      });
-      if (!ok) return;
-    }
-    const res = await fetch(`/api/admin/quoter/quotes/${id}/state`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ estado }),
-    });
-    if (!res.ok) {
-      const b = await res.json().catch(() => null);
-      setError(b?.message ?? 'No se pudo cambiar el estado.');
-      return;
-    }
-    const b = await res.json().catch(() => null);
-    if (b?.servicio) {
-      setAviso(b.servicio.ofrecidos?.length
-        ? `Se creó el servicio ${b.servicio.quoteNumber} y se le ofreció a ${b.servicio.ofrecidos.join(', ')}. El primero que acepte se lo queda.`
-        : `Se creó el servicio ${b.servicio.quoteNumber}, pero ningún aliado llega a esa obra: búscale uno en Servicios.`);
-    }
-    empezar(() => router.refresh());
   }
 
   async function eliminar(fila: FilaCotizacion) {
@@ -131,7 +86,7 @@ export function HistorialTabla({
           onChange={(v) => navegar({ state: v })}
           options={[
             { value: '', label: 'Cualquier estado' },
-            ...Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto })),
+            ...Object.entries(ESTADOS_COTIZACION).map(([k, v]) => ({ value: k, label: v.texto })),
           ]}
         />
         {/* La búsqueda va al servidor: se manda con Enter o con el botón. */}
@@ -154,7 +109,6 @@ export function HistorialTabla({
       </Toolbar>
 
       {error ? <Note tone="bad" style={{ marginBottom: 14 }}>{error}</Note> : null}
-      {aviso ? <Note tone="ok" icon="ph-check-circle" style={{ marginBottom: 14 }}>{aviso}</Note> : null}
 
       {items.length === 0 ? (
         <Panel>
@@ -165,8 +119,28 @@ export function HistorialTabla({
         </Panel>
       ) : (
         <Panel flush clip footer={pie} style={{ opacity: pendiente ? 0.6 : 1, transition: 'opacity .15s ease' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="adm-tbl" style={{ minWidth: 760 }}>
+          {/* En tableta y teléfono, cada documento es una tarjeta (auditoría 2026-10-28):
+              la tabla de 760 px escondía total, fecha, estado y borrar fuera de la vista. */}
+          <style>{`
+            @media (max-width: 900px) {
+              .hi-wrap { overflow-x: visible !important; }
+              .hi-tbl { min-width: 0 !important; display: block; }
+              .hi-tbl thead { display: none; }
+              .hi-tbl tbody { display: block; }
+              .hi-tbl tr {
+                display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 14px; align-items: start;
+                grid-template-areas: "folio estado" "cli total" "cot fecha" "origen borrar";
+                padding: 14px 16px; border-bottom: 1px solid var(--adm-border);
+              }
+              .hi-tbl td { display: block; padding: 0 !important; border: 0 !important; }
+              .hi-folio { grid-area: folio; } .hi-estado { grid-area: estado; justify-self: end; }
+              .hi-cli { grid-area: cli; min-width: 0; } .hi-total { grid-area: total; }
+              .hi-cot { grid-area: cot; font-size: 12.5px; } .hi-fecha { grid-area: fecha; justify-self: end; font-size: 12.5px; }
+              .hi-origen { grid-area: origen; font-size: 12.5px; } .hi-borrar { grid-area: borrar; justify-self: end; }
+            }
+          `}</style>
+          <div className="hi-wrap" style={{ overflowX: 'auto' }}>
+            <table className="adm-tbl hi-tbl" style={{ minWidth: 760 }}>
               <thead>
                 <tr>
                   {['Folio', 'Cliente', 'Cotizador', 'Origen', 'Total', 'Fecha', 'Estado', ''].map((h, i) => (
@@ -176,38 +150,30 @@ export function HistorialTabla({
               </thead>
               <tbody>
                 {items.map((q) => {
-                  const est = ESTADOS[q.estado] ?? { texto: q.estado, color: 'var(--adm-muted)' };
                   return (
                     <tr key={q.id}>
-                      <td>
+                      <td className="hi-folio">
                         <Link href={`/cotizador/historial/${q.id}`} className="adm-link adm-mono" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                           {q.folio}
                         </Link>
                       </td>
-                      <td>
+                      <td className="hi-cli">
                         <div className="adm-cell-title">{q.cliente}</div>
                         {q.obra ? <div className="adm-cell-sub">{q.obra}</div> : null}
                         {q.correo || q.telefono ? (
                           <div className="adm-cell-sub">{[q.correo, q.telefono].filter(Boolean).join(' · ')}</div>
                         ) : null}
                       </td>
-                      <td style={{ color: 'var(--adm-text-2)' }}>{COTIZADORES_META[q.tipo as CotizadorTipo]?.titulo ?? q.tipo}</td>
-                      <td style={{ color: 'var(--adm-muted)' }}>{q.origen === 'sitio' ? 'Sitio público' : q.admin || 'Panel'}</td>
-                      <td className="adm-num" style={{ fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right' }}>{money(q.total)}</td>
-                      <td className="adm-num" style={{ color: 'var(--adm-muted)', whiteSpace: 'nowrap' }}>{fechaCorta(q.fecha)}</td>
-                      <td>
-                        {/* Se cambia aquí mismo: el color del texto es el del estado. */}
-                        <AdminSelect
-                          size="sm"
-                          className="w-auto min-w-[140px]"
-                          ariaLabel={`Estado de ${q.folio}`}
-                          value={q.estado}
-                          onChange={(v) => cambiarEstado(q, v)}
-                          style={{ color: est.color, fontWeight: 600 }}
-                          options={Object.entries(ESTADOS).map(([k, v]) => ({ value: k, label: v.texto }))}
-                        />
+                      <td className="hi-cot" style={{ color: 'var(--adm-text-2)' }}>{COTIZADORES_META[q.tipo as CotizadorTipo]?.titulo ?? q.tipo}</td>
+                      <td className="hi-origen" style={{ color: 'var(--adm-muted)' }}>{q.origen === 'sitio' ? 'Sitio público' : q.admin || 'Panel'}</td>
+                      <td className="adm-num hi-total" style={{ fontWeight: 600, whiteSpace: 'nowrap', textAlign: 'right' }}>{money(q.total)}</td>
+                      <td className="adm-num hi-fecha" style={{ color: 'var(--adm-muted)', whiteSpace: 'nowrap' }}>{fechaCorta(q.fecha)}</td>
+                      <td className="hi-estado">
+                        {/* Solo de lectura (2026-10-26): el estado lo pone el flujo. Aceptar por teléfono
+                            o cancelar se hace en la página del documento. */}
+                        <EstadoCotizacion estado={q.estado} vencida={q.vencida} />
                       </td>
-                      <td style={{ textAlign: 'right' }}>
+                      <td className="hi-borrar" style={{ textAlign: 'right' }}>
                         <IconBtn icon="ph-trash" label="Borrar" danger onClick={() => eliminar(q)} />
                       </td>
                     </tr>

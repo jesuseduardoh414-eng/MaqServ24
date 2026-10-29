@@ -1,32 +1,35 @@
 import { Controller, Get, NotFoundException, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { productSlug } from '@maqserv/config';
-import { toFulfillment } from '@maqserv/types';
 import { AdminGuard, Modulo } from './admin-auth';
-import { parseCart } from '../orders/cart.util';
 
 /**
- * Clientes → la gente registrada en el sitio (75 reales). Solo lectura: aquí se
- * consulta a quién le vendes, no se edita (el cliente edita su perfil en /cuenta).
+ * Cuentas del sitio → la gente registrada. Solo lectura: aquí se consulta quién
+ * entra al sitio y para quién pide; el cliente edita su perfil en /cuenta.
+ *
+ * CUENTA → EMPRESAS → OBRAS (2026-10-23). Una cuenta (`users`) puede pedir para
+ * varias empresas (`clients.user_id`), y cada empresa tiene sus obras
+ * (`client_sites`). Antes esta lista enseñaba "pedidos" y "gastado" del carrito
+ * viejo, retirado el 2026-10-08: siempre salían en cero. Ahora enseña lo que
+ * sí existe: sus empresas, sus obras y sus solicitudes.
  *
  * Vivía en `admin-community` junto con reseñas y preguntas; se separó porque no es
  * comunidad y porque la lista necesitaba señales propias.
  */
 const PAGE_SIZE = 20;
 
-/** Segmentos útiles: la lista completa mezcla compradores con basura del sistema viejo. */
-type Segment = 'compradores';
+/** "Han pedido": cuentas con al menos una solicitud. */
+type Segment = 'piden';
 
 /**
- * Ids de quienes han comprado.
+ * Ids de las cuentas que han pedido algo.
  *
- * `users` NO declara relación con `orders`: el esquema viene de la introspección del
- * Laravel viejo, que no tiene llaves foráneas. Por eso no se puede filtrar con
- * `{ orders: { some: {} } }` (Prisma lo rechaza) y los ids hay que resolverlos aparte.
+ * `quotes.user_id` es BigInt y `users` no declara la relación (el esquema viene
+ * de la introspección del Laravel viejo): se resuelven aparte.
  */
-async function buyerIds(): Promise<number[]> {
-  const rows = await prisma.orders.groupBy({ by: ['user_id'] });
-  return rows.map((r) => r.user_id);
+async function idsQuePiden(): Promise<number[]> {
+  const rows = await prisma.quotes.groupBy({ by: ['user_id'], where: { user_id: { not: null } } });
+  return rows.map((r) => Number(r.user_id));
 }
 
 @Modulo('comunidad')
@@ -40,10 +43,10 @@ export class AdminCustomersController {
     @Query('segment') segment?: string,
   ) {
     const p = Math.max(1, Number(page ?? 1) || 1);
-    const seg: Segment | null = segment === 'compradores' ? segment : null;
-    const buyers = await buyerIds();
+    const seg: Segment | null = segment === 'piden' ? segment : null;
+    const piden = await idsQuePiden();
     const where: Record<string, unknown> =
-      seg === 'compradores' ? { id: { in: buyers } } : {};
+      seg === 'piden' ? { id: { in: piden } } : {};
 
     // Sin `mode`: la colación utf8mb4_unicode_ci de MySQL ya ignora mayúsculas y acentos (Postgres necesitaba `mode: 'insensitive'`, que MySQL no admite).
     // Sin esto, buscar "prueba" no encontraba a "Cliente Prueba" y "PRUEBA" no
@@ -57,10 +60,9 @@ export class AdminCustomersController {
       ];
     }
 
-    // Todo lo que no dependa de nada más va JUNTO: cada consulta a Supabase cuesta un
-    // viaje de red (~100 ms), así que lo que importa es cuántas van en serie, no cuántas
-    // hay. `compradores` estaba suelto en su propio `await` y sumaba un viaje entero.
-    const [total, rows, all, compradores] = await Promise.all([
+    // Todo lo que no dependa de nada más va JUNTO: cada consulta cuesta un viaje
+    // de red, así que lo que importa es cuántas van en serie, no cuántas hay.
+    const [total, rows, all, conPedido] = await Promise.all([
       prisma.users.count({ where }),
       prisma.users.findMany({
         where,
@@ -70,64 +72,104 @@ export class AdminCustomersController {
         select: { id: true, name: true, email: true, phone: true, created_at: true },
       }),
       prisma.users.count(),
-      // Un `user_id` de una orden puede apuntar a un usuario borrado (pasa con la data
-      // de 2021): se cuentan los que existen, no los ids sueltos.
-      prisma.users.count({ where: { id: { in: buyers } } }),
+      // Un `user_id` de una solicitud puede apuntar a una cuenta borrada: se
+      // cuentan las que existen, no los ids sueltos.
+      prisma.users.count({ where: { id: { in: piden } } }),
     ]);
 
+    // Empresas, obras y solicitudes SOLO de los de esta página, en tres consultas.
     const ids = rows.map((u) => u.id);
-    // Órdenes y monto en UN agregado, solo de los de esta página.
-    // Se excluyen las canceladas: sumarlas inflaría lo que el cliente realmente pidió.
-    const agg = ids.length
-      ? await prisma.orders.groupBy({
-        by: ['user_id'],
-        where: { user_id: { in: ids }, status: { not: 'declined' } },
-        _count: { _all: true },
-        _sum: { pay_amount: true },
-      })
-      : [];
-    const byUser = new Map(agg.map((a) => [a.user_id, a]));
+    const [empresas, solicitudes] = ids.length
+      ? await Promise.all([
+          prisma.clients.findMany({
+            where: { user_id: { in: ids } },
+            orderBy: { id: 'asc' },
+            select: { id: true, name: true, user_id: true, _count: { select: { client_sites: { where: { status: 1 } } } } },
+          }),
+          prisma.quotes.groupBy({
+            by: ['user_id'],
+            where: { user_id: { in: ids.map((i) => BigInt(i)) } },
+            _count: { _all: true },
+            _max: { created_at: true },
+          }),
+        ])
+      : [[], []];
+    const porSolic = new Map(solicitudes.map((s) => [Number(s.user_id), s]));
 
     return {
       total,
       page: p,
       pages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-      counts: { all, compradores },
+      counts: { all, piden: conPedido },
       items: rows.map((u) => {
-        const a = byUser.get(u.id);
+        const suyas = empresas.filter((e) => e.user_id === u.id);
+        const s = porSolic.get(u.id);
         return {
           id: u.id,
           name: u.name,
           email: u.email,
           phone: u.phone,
-          orders: a?._count._all ?? 0,
-          spent: a?._sum.pay_amount ?? 0,
+          empresas: suyas.map((e) => ({ id: e.id, name: e.name })),
+          sites: suyas.reduce((n, e) => n + e._count.client_sites, 0),
+          quotes: s?._count._all ?? 0,
+          lastQuoteAt: s?._max.created_at ? s._max.created_at.toISOString() : null,
           createdAt: u.created_at ? u.created_at.toISOString() : null,
         };
       }),
     };
   }
 
-  /** Ficha del cliente: la lista decía "4 pedidos" pero no había forma de verlos. */
+  /**
+   * Ficha de la cuenta: sus empresas con sus obras, sus solicitudes y lo que ha
+   * dicho en el sitio. Los pedidos del carrito ya no salen: el carrito se
+   * retiró el 2026-10-08 y lo que se pide ahora son solicitudes.
+   */
   @Get(':id')
   async detail(@Param('id', ParseIntPipe) id: number) {
     const u = await prisma.users.findUnique({ where: { id } });
-    if (!u) throw new NotFoundException('Cliente no encontrado');
+    if (!u) throw new NotFoundException('Cuenta no encontrada');
 
-    const [orders, quotes, comments, questions] = await Promise.all([
-      prisma.orders.findMany({ where: { user_id: id }, orderBy: { id: 'desc' }, take: 50 }),
-      prisma.quotes.findMany({ where: { user_id: id }, orderBy: { id: 'desc' }, take: 20 }),
+    const [empresas, quotes, comments, questions] = await Promise.all([
+      prisma.clients.findMany({
+        where: { user_id: id },
+        orderBy: { id: 'asc' },
+        select: {
+          id: true, name: true, status: true,
+          client_sites: {
+            orderBy: [{ status: 'desc' }, { name: 'asc' }],
+            select: { id: true, name: true, address: true, municipality: true, status: true },
+          },
+        },
+      }),
+      prisma.quotes.findMany({
+        where: { user_id: BigInt(id) },
+        orderBy: { id: 'desc' },
+        take: 30,
+        select: { id: true, quote_number: true, total: true, status: true, created_at: true, client_id: true, site_id: true, service_category: true },
+      }),
       prisma.comments.findMany({ where: { user_id: id }, orderBy: { id: 'desc' }, take: 20 }),
       prisma.product_questions.findMany({ where: { user_id: id }, orderBy: { id: 'desc' }, take: 20 }),
     ]);
 
     const productIds = [...new Set([...comments.map((c) => c.product_id), ...questions.map((q) => q.product_id).filter((x): x is number => x != null)])];
-    const products = productIds.length
-      ? await prisma.products.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } })
-      : [];
+    const [products, cats] = await Promise.all([
+      productIds.length
+        ? prisma.products.findMany({ where: { id: { in: productIds } }, select: { id: true, name: true } })
+        : Promise.resolve([]),
+      prisma.categories.findMany({
+        where: { cat_slug: { in: [...new Set(quotes.map((q) => q.service_category).filter((s): s is string => !!s))] } },
+        select: { cat_slug: true, cat_name: true },
+      }),
+    ]);
     const pName = new Map(products.map((p) => [p.id, p.name]));
+    const linea = new Map(cats.map((c) => [c.cat_slug, c.cat_name]));
 
-    const live = orders.filter((o) => o.status !== 'declined');
+    // A qué empresa y obra fue cada solicitud, con los nombres que ya se trajeron.
+    const empresaDe = new Map(empresas.map((e) => [e.id, e.name]));
+    const obraDe = new Map(empresas.flatMap((e) => e.client_sites.map((s) => [s.id, s.name] as const)));
+    const pedidasPorObra = new Map<number, number>();
+    for (const q of quotes) if (q.site_id !== null) pedidasPorObra.set(q.site_id, (pedidasPorObra.get(q.site_id) ?? 0) + 1);
+
     return {
       id: u.id,
       name: u.name,
@@ -141,22 +183,24 @@ export class AdminCustomersController {
         residency: u.residency,
       },
       stats: {
-        orders: live.length,
-        spent: live.reduce((s, o) => s + o.pay_amount, 0),
+        empresas: empresas.length,
+        sites: empresas.reduce((n, e) => n + e.client_sites.filter((s) => s.status === 1).length, 0),
         quotes: quotes.length,
         comments: comments.length,
         questions: questions.length,
       },
-      orders: orders.map((o) => ({
-        id: o.id,
-        orderNumber: o.order_number,
-        total: o.pay_amount,
-        status: o.status,
-        paymentStatus: o.payment_status,
-        // Estado del ENVÍO (módulo de envíos); null en órdenes que nunca pasaron por él.
-        fulfillment: toFulfillment(o.fulfillment),
-        items: parseCart(o.cart).items.length,
-        createdAt: o.created_at ? o.created_at.toISOString() : null,
+      empresas: empresas.map((e) => ({
+        id: e.id,
+        name: e.name,
+        status: e.status,
+        sites: e.client_sites.map((s) => ({
+          id: s.id,
+          name: s.name,
+          address: s.address,
+          municipality: s.municipality,
+          status: s.status,
+          quotes: pedidasPorObra.get(s.id) ?? 0,
+        })),
       })),
       quotes: quotes.map((q) => ({
         id: Number(q.id),
@@ -164,6 +208,9 @@ export class AdminCustomersController {
         total: Number(q.total),
         status: q.status,
         createdAt: q.created_at ? q.created_at.toISOString() : null,
+        empresa: q.client_id !== null ? empresaDe.get(q.client_id) ?? null : null,
+        obra: q.site_id !== null ? obraDe.get(q.site_id) ?? null : null,
+        linea: q.service_category ? linea.get(q.service_category) ?? q.service_category : 'Formulario',
       })),
       comments: comments.map((c) => ({
         id: c.id,

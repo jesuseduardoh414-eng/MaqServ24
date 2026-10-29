@@ -32,6 +32,8 @@ const ALLOWLIST = [
   /^quotes\/mis-obras$/,
   // "Aceptar cotización" (QuoteAccept). La API filtra por el dueño y la vigencia.
   /^quotes\/[A-Za-z0-9_-]+\/accept$/,
+  // Hora del último guardado en el sistema: con ella la pantalla se pone al día sola (ActualizarEnVivo, 2026-10-26).
+  /^cambios$/,
   /**
    * Cotizadores internos en el sitio público (maquinaria y triturados).
    *
@@ -127,5 +129,8 @@ async function forward(req: NextRequest, ctx: { params: Promise<{ path: string[]
 
 export const GET = forward;
 export const POST = forward;
+// "Guardar y armar su enlace" del operador en el portal del aliado usa PUT
+// (auditoría 2026-10-28): sin esto el puente respondía 405 y no se guardaba.
+export const PUT = forward;
 export const PATCH = forward;
 export const DELETE = forward;

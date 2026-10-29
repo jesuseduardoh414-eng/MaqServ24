@@ -6,8 +6,7 @@ import {
   Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, SearchBox, Segmented, StatusText, Toolbar, type Tone,
 } from '@/components/ui';
 import { QuoteRespond } from './QuoteRespond';
-import { QuoteApprove } from './QuoteApprove';
-import { AprobacionAutomatica } from './AprobacionAutomatica';
+import { AvisosRevision, useRevision } from './QuoteRevision';
 import { QuoteMatches } from './QuoteMatches';
 import { QuoteContact } from './QuoteContact';
 
@@ -33,7 +32,7 @@ export interface QuoteItem {
   respondedBy: string | null;
   acceptedAt: string | null;
   serviceCategory: string | null;
-  /** Formulario "Cotizar" (sin precio) o cotizador del sitio (con precio, ya aceptada). */
+  /** Formulario "Cotizar" o cotizador del sitio; los dos llegan con precio estimado y nada se aprueba solo (2026-10-23). */
   origen: 'formulario' | 'cotizador' | 'maquina' | 'panel';
   productInterested: string | null;
   address: string | null;
@@ -100,7 +99,7 @@ const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigi
 const ageLabel = (d: number) => (d === 0 ? 'hoy' : d === 1 ? 'ayer' : `hace ${d} días`);
 
 const ETAPAS: Array<{ key: Etapa; label: string; hint: string; tone: Tone; icon: string }> = [
-  { key: 'por_cotizar', label: 'Por cotizar', hint: 'Llegó sin precio: hay que responder', tone: 'accent', icon: 'ph-tray-arrow-down' },
+  { key: 'por_cotizar', label: 'Por cotizar', hint: 'Revisa el precio estimado y mándaselo al cliente', tone: 'accent', icon: 'ph-tray-arrow-down' },
   { key: 'esperando', label: 'Esperando al cliente', hint: 'Ya tiene precio; el cliente decide', tone: 'warn', icon: 'ph-hourglass-medium' },
   { key: 'en_servicio', label: 'En servicio', hint: 'Aceptada: se sigue en Servicios', tone: 'info', icon: 'ph-truck' },
   { key: 'cerrada', label: 'Cerradas', hint: 'Servicio terminado y cerrado', tone: 'ok', icon: 'ph-check-circle' },
@@ -108,8 +107,8 @@ const ETAPAS: Array<{ key: Etapa; label: string; hint: string; tone: Tone; icon:
 const PERDIDA = { key: 'perdida' as const, label: 'Perdidas', hint: 'Vencidas, rechazadas o canceladas', tone: 'bad' as Tone, icon: 'ph-x-circle' };
 
 const ORIGEN: Record<QuoteItem['origen'], { label: string; title: string }> = {
-  formulario: { label: 'Formulario', title: 'Llegó por "Cotizar" del sitio, sin precio' },
-  cotizador: { label: 'Cotizador web', title: 'El cliente vio el precio en el cotizador y lo mandó' },
+  formulario: { label: 'Formulario', title: 'Llegó por "Cotizar" del sitio; el precio sale de la ficha' },
+  cotizador: { label: 'Cotizador web', title: 'Lo armó en el cotizador del sitio sin ver precios; llega con el precio del tabulador' },
   panel: { label: 'Cotizador del panel', title: 'La armó MAQSER24 y el cliente la aceptó por teléfono o WhatsApp' },
   maquina: { label: 'Cotizador de máquinas', title: 'Eligió una máquina con su precio en el sitio' },
 };
@@ -145,7 +144,7 @@ function chipDe(q: QuoteItem, e: Etapa): { texto: string; tone: Tone } {
 }
 
 // precioAjustado y productId son cuentas internas del cotizador (2026-10-15).
-const REQ_OCULTOS = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'precioAjustado', 'productId']);
+const REQ_OCULTOS = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'precioAjustado', 'productId', 'productos', 'renglones', 'sin_reserva', 'operadorAsignado']);
 
 /**
  * Con qué cotizador del panel se le pone precio a una solicitud del
@@ -164,19 +163,25 @@ const cotizarHref = (q: QuoteItem) => {
 };
 const folioDe = (q: QuoteItem) => (typeof q.requirements?.folio === 'string' ? q.requirements.folio : null);
 /**
- * Del cotizador del sitio con el precio que el cliente vio: se APRUEBA y sale a
- * los aliados, sin volver a preguntarle (2026-10-15). Si se le cambió el
- * precio ("Volver a cotizar"), se le responde y la acepta él.
+ * El total que recibe el cliente: un documento del cotizador partido por línea
+ * se le manda entero (2026-10-23). Sin documento, el de la solicitud.
  */
-const seAprueba = (q: QuoteItem) => q.origen === 'cotizador' && !q.requirements?.precioAjustado;
+function totalDelDocumento(q: QuoteItem, todas: QuoteItem[]): number {
+  const folio = folioDe(q);
+  if (!folio) return q.total;
+  return todas.filter((x) => folioDe(x) === folio && etapaDe(x) === etapaDe(q)).reduce((s, x) => s + x.total, 0);
+}
 
-/** El botón que abre el cotizador ya llenado con la solicitud. */
-function CotizarConTabulador({ q, principal }: { q: QuoteItem; principal?: boolean }) {
-  const href = cotizarHref(q);
-  if (!href) return null;
+/**
+ * "Volver a cotizar" (2026-10-23): ya no abre el cotizador de pasos, abre la
+ * FICHA DE LA COTIZACIÓN (/cotizaciones/[id]): lo que se cotiza a detalle,
+ * sus costos y el resumen, y ahí mismo se edita. Cuando el cliente ya la
+ * aceptó, la ficha es de consulta: "Ver cotización".
+ */
+function CotizarConTabulador({ q, principal, label }: { q: QuoteItem; principal?: boolean; label?: string }) {
   return (
-    <Btn size="sm" variant={principal ? 'primary' : 'secondary'} href={href} icon="ph-calculator">
-      {folioDe(q) ? 'Volver a cotizar' : 'Cotizar con tabulador'}
+    <Btn size="sm" variant={principal ? 'primary' : 'secondary'} href={`/cotizaciones/${q.id}`} icon="ph-calculator">
+      {label ?? 'Volver a cotizar'}
     </Btn>
   );
 }
@@ -232,7 +237,9 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
   return (
     <div>
       <style>{`
-        .sl-row{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,2fr) minmax(0,.8fr) minmax(0,.95fr) auto; gap:16px; align-items:center; }
+        /* La última columna con ancho FIJO (2026-10-28): con "auto" cada fila la medía
+           según sus botones y cliente, monto y etapa brincaban de una fila a otra. */
+        .sl-row{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,2fr) minmax(0,.8fr) minmax(0,.95fr) 240px; gap:16px; align-items:center; }
         .sl-open{ all:unset; cursor:pointer; display:block; min-width:0; border-radius:6px; }
         .sl-open:focus-visible{ outline:2px solid var(--adm-accent); outline-offset:4px; }
         .sl-open:hover .sl-name{ color:var(--adm-accent); }
@@ -244,18 +251,26 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
         .sl-tl li{ display:grid; grid-template-columns:18px minmax(0,1fr) auto; gap:10px; align-items:start; padding:6px 0; font-size:13.5px; }
         /* La fila tiene cinco columnas y la de acciones lleva hasta dos botones:
            bajo 1200px pasa a dos columnas y bajo 620px a una. */
+        /* Tableta y teléfono: una tarjeta en orden de lectura (2026-10-28). Antes, dos
+           columnas en zigzag: folio y monto a la izquierda, cliente y etapa a la derecha. */
         @media (max-width: 1200px){
-          .sl-row{ grid-template-columns:minmax(0,1fr) minmax(0,1fr); row-gap:12px; }
+          .sl-row{ grid-template-columns:minmax(0,1fr) auto; row-gap:10px;
+            grid-template-areas:"cli etapa" "folio total" "acc acc"; align-items:start; }
           .sl-thead{ display:none !important; }
+          .sl-c-cli{ grid-area:cli; } .sl-c-etapa{ grid-area:etapa; justify-items:end !important; text-align:right; }
+          .sl-c-folio{ grid-area:folio; } .sl-c-total{ grid-area:total; } .sl-c-acc{ grid-area:acc; }
         }
-        @media (max-width: 620px){ .sl-row{ grid-template-columns:minmax(0,1fr); } }
+        @media (max-width: 620px){
+          .sl-row{ grid-template-areas:"cli cli" "etapa total" "folio folio" "acc acc"; }
+          .sl-c-etapa{ justify-items:start !important; text-align:left; }
+          .sl-c-acc{ justify-content:flex-start !important; }
+        }
       `}</style>
 
       <PageHeader
         eyebrow="1 · Recibir"
         title="Solicitudes"
-        subtitle="Lo que piden los clientes hasta que pasa a servicio. Lo del cotizador en orden se aprueba solo; aquí queda lo que necesita a alguien."
-        actions={<AprobacionAutomatica />}
+        subtitle="Lo que piden los clientes hasta que pasa a servicio. Nada se manda solo: revisa el precio estimado y mándaselo al cliente."
       />
       {/* Sin los recuadros por etapa (2026-10-22): repetían los mismos números que las pestañas de abajo. */}
 
@@ -326,7 +341,7 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
           const urgente = e === 'por_cotizar' && q.days >= URGENT_DAYS;
           return (
             <div key={q.id} className="adm-trow sl-row">
-              <div style={{ minWidth: 0 }}>
+              <div className="sl-c-folio" style={{ minWidth: 0 }}>
                 <div className="adm-mono" style={{ fontSize: 13, fontWeight: 600, color: 'var(--adm-text)' }}>{q.quoteNumber}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
                   <Chip title={ORIGEN[q.origen].title}>{ORIGEN[q.origen].label}</Chip>
@@ -334,7 +349,7 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
                 </div>
               </div>
 
-              <button type="button" className="sl-open" onClick={() => setDetalleId(q.id)} aria-label={`Ver la solicitud ${q.quoteNumber}`}>
+              <button type="button" className="sl-open sl-c-cli" onClick={() => setDetalleId(q.id)} aria-label={`Ver la solicitud ${q.quoteNumber}`}>
                 <div className="sl-name adm-cell-title adm-ellipsis" style={{ transition: 'color .15s' }}>
                   {q.company || q.name}{q.company && q.name && q.company !== q.name ? <span style={{ color: 'var(--adm-muted)', fontWeight: 500 }}> · {q.name}</span> : null}
                 </div>
@@ -342,32 +357,32 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
                 <div className="adm-cell-sub adm-ellipsis">{q.phone || q.email}{q.region ? ` · ${q.region}` : ''}</div>
               </button>
 
-              <div style={{ textAlign: 'right' }}>
+              <div className="sl-c-total" style={{ textAlign: 'right' }}>
                 {q.total > 0 ? (
                   <>
                     <div className="adm-num" style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' }}>{money(q.total)}</div>
-                    {q.freightCost > 0 ? <div className="adm-cell-sub">incl. traslado</div> : null}
+                    {e === 'por_cotizar'
+                      ? <div className="adm-cell-sub">estimado{q.freightCost > 0 ? ' · incl. traslado' : ''}</div>
+                      : q.freightCost > 0 ? <div className="adm-cell-sub">incl. traslado</div> : null}
                   </>
                 ) : (
-                  <div style={{ fontSize: 13, color: 'var(--adm-faint)' }}>Sin precio</div>
+                  <div style={{ fontSize: 13, color: e === 'por_cotizar' ? 'var(--adm-warn)' : 'var(--adm-faint)' }}>Falta precio</div>
                 )}
               </div>
 
-              <div style={{ display: 'grid', gap: 4, justifyItems: 'start', minWidth: 0 }}>
+              <div className="sl-c-etapa" style={{ display: 'grid', gap: 4, justifyItems: 'start', minWidth: 0 }}>
                 <StatusText tone={chip.tone}>{chip.texto}</StatusText>
                 {e === 'por_cotizar' && q.firstContactAt ? <span style={{ fontSize: 12, color: 'var(--adm-ok)' }}>✓ Ya se le habló</span> : null}
                 {e === 'en_servicio' ? <span style={{ fontSize: 12, color: 'var(--adm-faint)' }}>en Servicios</span> : null}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
+              <div className="sl-c-acc" style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
                 {e === 'por_cotizar' ? (
                   <>
                     {/* En la fila, solo la acción principal (2026-10-22); "Ya le hablé",
                         "¿Quién puede?" y "Volver a cotizar" están en el detalle. */}
                     <Btn size="sm" variant="ghost" onClick={() => setDetalleId(q.id)}>Detalle</Btn>
-                    {seAprueba(q)
-                      ? <QuoteApprove quoteId={q.id} folio={folioDe(q)} total={q.total} />
-                      : <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} cotizarHref={cotizarHref(q)} />}
+                    <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} totalDocumento={totalDelDocumento(q, items)} cotizarHref={cotizarHref(q)} />
                   </>
                 ) : e === 'en_servicio' ? (
                   <>
@@ -396,13 +411,15 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
       </Panel>
 
       {/* ── Detalle: la historia completa de una solicitud ─────────── */}
-      {detalle ? <Detalle q={detalle.q} e={detalle.e} onClose={() => setDetalleId(null)} /> : null}
+      {detalle ? <Detalle q={detalle.q} e={detalle.e} totalDocumento={totalDelDocumento(detalle.q, items)} onClose={() => setDetalleId(null)} /> : null}
     </div>
   );
 }
 
-function Detalle({ q, e, onClose }: { q: QuoteItem; e: Etapa; onClose: () => void }) {
+function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; totalDocumento: number; onClose: () => void }) {
   const chip = chipDe(q, e);
+  // Por cotizar: avisos y desglose con el lápiz (2026-10-23).
+  const revision = useRevision(q.id, e === 'por_cotizar');
   const reqs = Object.entries(q.requirements ?? {}).filter(([k, v]) => !REQ_OCULTOS.has(k) && v !== null && v !== '' && typeof v !== 'object');
   const folioDoc = typeof q.requirements?.folio === 'string' ? q.requirements.folio : null;
   const quoterId = typeof q.requirements?.quoterId === 'number' ? q.requirements.quoterId : null;
@@ -423,7 +440,7 @@ function Detalle({ q, e, onClose }: { q: QuoteItem; e: Etapa; onClose: () => voi
   // se abren los modales de responder y de "¿Quién puede?".
   return (
     <div role="dialog" aria-modal="true" aria-label={`Solicitud ${q.quoteNumber}`} onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}>
+      style={{ position: 'fixed', inset: 0, background: 'var(--adm-sombra)', zIndex: 200, display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={(ev) => ev.stopPropagation()}
         style={{ width: 'min(560px, 100%)', height: '100%', overflowY: 'auto', background: 'var(--adm-card)', borderLeft: '1px solid var(--adm-border-strong)', boxShadow: '-30px 0 80px -20px rgba(0,0,0,0.8)', padding: '22px 24px 28px', display: 'grid', gap: 24, alignContent: 'start' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -437,6 +454,8 @@ function Detalle({ q, e, onClose }: { q: QuoteItem; e: Etapa; onClose: () => voi
           </div>
           <IconBtn icon="ph-x" label="Cerrar" plain onClick={onClose} style={{ marginTop: -4, marginRight: -6 }} />
         </div>
+
+        {e === 'por_cotizar' ? <AvisosRevision datos={revision.datos} /> : null}
 
         <section>
           <h3 className="sl-h3">Historia</h3>
@@ -478,13 +497,15 @@ function Detalle({ q, e, onClose }: { q: QuoteItem; e: Etapa; onClose: () => voi
               </dl>
             ) : null}
             {q.comments ? (
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--adm-text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.55, padding: '10px 12px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--adm-border)', borderRadius: 8 }}>{q.comments}</p>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--adm-text-2)', whiteSpace: 'pre-wrap', lineHeight: 1.55, padding: '10px 12px', background: 'rgba(var(--adm-ink),0.02)', border: '1px solid var(--adm-border)', borderRadius: 8 }}>{q.comments}</p>
             ) : null}
           </section>
         ) : null}
 
+        {/* El detalle es el resumen (2026-10-23): cómo se calculó cada renglón,
+            con sus precios y el lápiz, está en la ficha («Volver a cotizar»). */}
         <section>
-          <h3 className="sl-h3">Importe</h3>
+          <h3 className="sl-h3">{e === 'por_cotizar' ? 'Importe estimado' : 'Importe'}</h3>
           {q.total > 0 ? (
             <div style={{ display: 'grid', gap: 2 }}>
               {[
@@ -503,8 +524,13 @@ function Detalle({ q, e, onClose }: { q: QuoteItem; e: Etapa; onClose: () => voi
               {q.validUntilLabel ? <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', marginTop: 6 }}>Precio válido hasta el {q.validUntilLabel}</div> : null}
             </div>
           ) : (
-            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--adm-muted)' }}>Todavía sin precio. Respóndela para enviarle la cotización al cliente.</p>
+            <p style={{ margin: 0, fontSize: 13.5, color: 'var(--adm-muted)' }}>Todavía sin precio. Ábrela con «Volver a cotizar» o pon el precio al mandarlo.</p>
           )}
+          {totalDocumento - q.total >= 0.01 ? (
+            <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', marginTop: 8 }}>
+              Es una parte del documento {folioDe(q)}; el cliente recibe un solo total de <span className="adm-num" style={{ color: 'var(--adm-text)' }}>{money(totalDocumento)}</span>.
+            </div>
+          ) : null}
         </section>
 
         {q.included || q.excluded || q.conditions ? (
@@ -526,15 +552,18 @@ function Detalle({ q, e, onClose }: { q: QuoteItem; e: Etapa; onClose: () => voi
               <QuoteMatches quoteId={q.id} />
               <CotizarConTabulador q={q} />
               {/* Aquí sí es la acción principal: el panel es de una sola solicitud. */}
-              {seAprueba(q)
-                ? <QuoteApprove quoteId={q.id} folio={folioDe(q)} total={q.total} principal />
-                : <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} cotizarHref={cotizarHref(q)} principal />}
+              <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} totalDocumento={totalDocumento} cotizarHref={cotizarHref(q)} principal />
             </>
           ) : null}
           {/* Ya respondida (o vencida) y sin aceptar: se puede volver a cotizar
               con el tabulador; regresa a "Por cotizar" para mandarle el precio nuevo. */}
           {e === 'esperando' || q.state === 'vencida' ? <CotizarConTabulador q={q} /> : null}
-          {e === 'en_servicio' || e === 'cerrada' ? <Btn size="sm" href="/servicios">Ver en Servicios <i className="ph ph-arrow-right" aria-hidden /></Btn> : null}
+          {e === 'en_servicio' || e === 'cerrada' ? (
+            <>
+              <CotizarConTabulador q={q} label="Ver cotización" />
+              <Btn size="sm" href="/servicios">Ver en Servicios <i className="ph ph-arrow-right" aria-hidden /></Btn>
+            </>
+          ) : null}
           {quoterId ? <Btn size="sm" href={`/cotizador/historial/${quoterId}`} icon="ph-file-text">Documento {folioDoc ?? ''}</Btn> : null}
         </div>
       </div>

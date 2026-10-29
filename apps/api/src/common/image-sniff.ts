@@ -50,7 +50,17 @@ export function sniffImageMime(buf: Buffer): string | null {
  */
 function isSafeSvg(buf: Buffer): boolean {
   const text = buf.toString('utf8');
-  return !/<\s*script|<\s*foreignObject|\son\w+\s*=|javascript:|<\s*!ENTITY/i.test(text);
+  // Auditoría 2026-10-28: pasaban `<s:script>` (con prefijo), `<h:script xmlns:h=…xhtml>`
+  // y `&#106;avascript:` (con entidades). Ahora se rechaza también:
+  //  - cualquier elemento peligroso con prefijo (script, foreignObject, iframe…);
+  //  - las entidades numéricas (&#…;), que sirven para esconder palabras;
+  //  - "javascript:" aunque venga partido con espacios o saltos;
+  //  - href/xlink:href a data: que no sea imagen.
+  if (/<\s*([\w.-]+:)?(script|foreignobject|iframe|embed|object|handler|listener)\b/i.test(text)) return false;
+  if (/&#/.test(text)) return false;
+  if (/j\s*a\s*v\s*a\s*s\s*c\s*r\s*i\s*p\s*t\s*:/i.test(text)) return false;
+  if (/href\s*=\s*["']?\s*data:(?!image\/(png|jpe?g|gif|webp))/i.test(text)) return false;
+  return !/\son\w+\s*=|<\s*!ENTITY/i.test(text);
 }
 
 /**

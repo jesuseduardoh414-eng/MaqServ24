@@ -9,7 +9,10 @@ import { requestAnswersToText } from '@maqserv/config';
 import { useCart } from '@/components/CartProvider';
 import { Icon } from '@/components/Icon';
 import { RequirementFields, CLAVES_UBICACION, CLAVES_FECHA, hoyLocal } from './RequirementFields';
-import { SitePicker, type ObraCliente } from './SitePicker';
+import {
+  SitePicker, DESTINO_VACIO, empresaElegida, esObraNueva, faltaEnDestino,
+  type Destino, type EmpresaCliente,
+} from './SitePicker';
 import { Stepper } from './Stepper';
 
 /**
@@ -134,11 +137,41 @@ export function QuoteForm({
   const [done, setDone] = useState<QuoteDetail | null>(null);
   const [reqs, setReqs] = useState<Record<string, string>>({});
   /**
-   * Obra elegida, cuando el cliente ya tiene obras registradas. Se guarda el
-   * objeto y no solo el id porque tambien rellena la direccion y el contacto.
+   * EMPRESA Y OBRA (2026-10-23): toda solicitud lleva las dos. `empresas` son
+   * las de su cuenta, cada una con sus obras (null mientras cargan). La obra
+   * elegida se guarda entera y no solo su id porque también rellena la
+   * dirección.
    */
-  const [obra, setObra] = useState<ObraCliente | null>(null);
+  const [empresas, setEmpresas] = useState<EmpresaCliente[] | null>(null);
+  const [destino, setDestino] = useState<Destino>(DESTINO_VACIO);
+  const [faltaObra, setFaltaObra] = useState<string | null>(null);
+  const obra = destino.obra;
+  const obraNueva = esObraNueva(empresas ?? [], destino);
   const [direccion, setDireccion] = useState(user?.address ?? '');
+
+  useEffect(() => {
+    let vivo = true;
+    fetch('/api/proxy/quotes/mis-obras')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!vivo) return;
+        // Si la API todavía contesta como antes (una sola empresa), se arma igual.
+        const lista: EmpresaCliente[] = Array.isArray(d?.empresas)
+          ? d.empresas
+          : d?.client ? [{ id: d.client.id, name: d.client.name, sites: Array.isArray(d.sites) ? d.sites : [] }] : [];
+        setEmpresas(lista);
+        // La primera empresa ya va elegida; la obra no: a qué obra va lo decide él.
+        if (lista[0]) setDestino((x) => (x.empresa ? x : { ...x, empresa: String(lista[0].id), nueva: lista[0].sites.length === 0 }));
+      })
+      .catch(() => { if (vivo) setEmpresas([]); });
+    return () => { vivo = false; };
+  }, []);
+
+  /** Lo que falta de empresa, obra o dirección de la obra nueva, o null. */
+  function faltaUbicacion(): string | null {
+    return faltaEnDestino(empresas ?? [], destino)
+      ?? (obraNueva && !direccion.trim() ? 'Escribe la dirección de la obra nueva.' : null);
+  }
 
   /*
    * LO QUE YA SE SABE NO SE VUELVE A PREGUNTAR (2026-10-22). Si viene de un
@@ -215,6 +248,12 @@ export function QuoteForm({
 
   function siguiente() {
     if (!pasoValido()) return;
+    // Elegir una obra no es un campo: el navegador no lo revisa (2026-10-23).
+    if (claveDe(paso) === 'ubicacion') {
+      const falta = faltaUbicacion();
+      setFaltaObra(falta);
+      if (falta) return;
+    }
     setError(null);
     setPaso((p) => Math.min(pasos.length - 1, p + 1));
   }
@@ -283,6 +322,7 @@ export function QuoteForm({
   /** Lo que se manda a la API: igual para la vista previa y para el envío. */
   function cuerpoSolicitud(form: FormData) {
     const respuestas = conUbicacion(reqs);
+    const emp = empresaElegida(empresas ?? [], destino);
     return {
       items,
       ...(servicio ? { service: servicio } : {}),
@@ -290,12 +330,16 @@ export function QuoteForm({
         name: String(form.get('name') ?? ''),
         email: String(form.get('email') ?? ''),
         phone: String(form.get('phone') ?? ''),
-        company: String(form.get('company') ?? '') || undefined,
+        // La empresa sale del paso de la obra (2026-10-23): la elegida de las
+        // suyas, o la que escribió. Con ella el documento y el correo la nombran.
+        company: emp?.name ?? (destino.empresaNueva.trim() || undefined),
         region: String(form.get('region') ?? '') || undefined,
         industry: String(form.get('industry') ?? '') || undefined,
       },
       address: String(form.get('address') ?? '') || undefined,
       ...(obra ? { siteId: obra.id } : {}),
+      ...(emp ? { clientId: emp.id } : {}),
+      ...(!obra && obraNueva && destino.obraNueva.trim() ? { siteName: destino.obraNueva.trim() } : {}),
       // El resumen legible se antepone a los comentarios para que quien
       // cotiza lo lea sin depender de una pantalla nueva; el JSON va aparte.
       comments: [
@@ -363,6 +407,13 @@ export function QuoteForm({
     // Con `servicio` (pipas, triturados) no hay equipo que agregar: lo que
     // define la cotización va en el texto de la solicitud.
     if (items.length === 0 && !servicio) { setError('Agrega al menos un equipo a cotizar'); return; }
+    // Se pudo llegar aquí tocando los pasos de arriba sin pasar por "Continuar".
+    const faltaDestino = faltaUbicacion();
+    if (faltaDestino) {
+      setFaltaObra(faltaDestino);
+      setPaso(Math.max(0, pasos.findIndex((p) => p.clave === 'ubicacion')));
+      return;
+    }
     setError(null);
     setLoading(true);
     const form = new FormData(e.currentTarget);
@@ -539,19 +590,34 @@ export function QuoteForm({
             intro="Con esto calculamos el traslado y vemos qué aliados cubren esa zona."
           />
         ) : null}
-        {/* A quien ya nos dijo donde trabaja no se le vuelve a preguntar.
-            Si no tiene obras, esto no pinta nada. */}
-        <SitePicker
-          onElegir={(o) => {
-            setObra(o);
-            // Rellena, no bloquea: una obra grande tiene varios accesos y el
-            // cliente tiene que poder escribir "por la puerta 4".
-            if (o?.address) setDireccion(o.address);
-          }}
-        />
+        {/* Empresa y obra (2026-10-23): las suyas para elegir, o nuevas. */}
+        {empresas === null ? (
+          <section className="ms-panel">
+            <p className="ms-hint" role="status">Cargando tus obras…</p>
+          </section>
+        ) : (
+          <SitePicker
+            empresas={empresas}
+            destino={destino}
+            falta={faltaObra}
+            onCambio={(d) => {
+              setFaltaObra(null);
+              // Elegir una obra rellena la dirección, no la bloquea: una obra
+              // grande tiene varios accesos y el cliente tiene que poder
+              // escribir "por la puerta 4". Pasar a una obra nueva la vacía
+              // si era la de la obra que tenía elegida.
+              if (d.obra && d.obra.id !== destino.obra?.id && d.obra.address) setDireccion(d.obra.address);
+              else if (!d.obra && destino.obra && direccion === (destino.obra.address ?? '')) setDireccion('');
+              setDestino(d);
+            }}
+          />
+        )}
         <section className="ms-panel">
           <div className="ms-field">
-            <label htmlFor="qf-address" className="ms-label">Dirección de entrega{pideUbicacion ? <span className="ms-req" aria-hidden>*</span> : null}</label>
+            <label htmlFor="qf-address" className="ms-label">
+              {obraNueva ? 'Dirección de la obra' : 'Dirección de entrega'}
+              {pideUbicacion || obraNueva ? <span className="ms-req" aria-hidden>*</span> : null}
+            </label>
             {/* Controlado SOLO este campo: elegir una obra tiene que poder
                 rellenarlo, y un defaultValue no se vuelve a leer despues del
                 primer render. Los demas siguen saliendo de FormData. */}
@@ -560,11 +626,15 @@ export function QuoteForm({
               className="ms-input"
               name="address"
               value={direccion}
-              required={pideUbicacion}
+              required={pideUbicacion || obraNueva}
               onChange={(e) => setDireccion(e.target.value)}
               placeholder={labels.address}
             />
-            <p className="ms-hint">Entre más exacta, mejor calculamos el costo de traslado.</p>
+            <p className="ms-hint">
+              {obra
+                ? 'Viene de tu obra. Cámbiala solo si se entrega por otro acceso.'
+                : 'Calle, número, colonia y municipio. Entre más exacta, mejor calculamos el costo de traslado.'}
+            </p>
           </div>
         </section>
         {/* Sin preguntas propias del servicio, la fecha se pide aquí: un paso
@@ -634,10 +704,7 @@ export function QuoteForm({
               <p className="ms-hint ms-span">
                 {labels.emailLocked}{!user.phone ? ` ${labels.phoneSaved}` : ''}
               </p>
-              <div className="ms-field">
-                <label htmlFor="qf-company" className="ms-label">{labels.company}</label>
-                <input id="qf-company" className="ms-input" name="company" />
-              </div>
+              {/* La empresa ya no se pide aquí (2026-10-23): se eligió con la obra. */}
               <div className="ms-field">
                 <label htmlFor="qf-industry" className="ms-label">{labels.industry}</label>
                 <input id="qf-industry" className="ms-input" name="industry" />
@@ -672,6 +739,8 @@ export function QuoteForm({
           ) : (
             <dl className="qf-kv">
               <Resumen etiqueta="Servicio" valor={servicio ?? (product ? product.name : `${picked.length} equipo(s)`)} />
+              <Resumen etiqueta="Empresa" valor={empresaElegida(empresas ?? [], destino)?.name ?? destino.empresaNueva} />
+              <Resumen etiqueta="Obra" valor={obra?.name ?? destino.obraNueva} />
               {formulario
                 ? formulario.fields
                     .filter((f) => (reqs[f.key] ?? '').trim())

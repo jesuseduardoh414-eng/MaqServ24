@@ -10,8 +10,11 @@ interface UserRow {
   name: string;
   email: string;
   phone: string | null;
-  orders: number;
-  spent: number;
+  /** Las empresas para las que pide (2026-10-23): una cuenta puede tener varias. */
+  empresas: Array<{ id: number; name: string }>;
+  sites: number;
+  quotes: number;
+  lastQuoteAt: string | null;
   createdAt: string | null;
 }
 
@@ -23,16 +26,24 @@ interface UsersResponse {
   counts: Record<string, number>;
 }
 
-const GRID = 'minmax(0,1.7fr) minmax(0,1.8fr) minmax(0,0.8fr) minmax(0,1fr) minmax(0,0.9fr)';
+const GRID = 'minmax(0,1.5fr) minmax(0,1.6fr) minmax(0,1.9fr) 70px minmax(0,1fr) minmax(0,0.9fr)';
 
 const TABS: Array<{ key: string; label: string }> = [
-  { key: '', label: 'Todos' },
-  { key: 'compradores', label: 'Han comprado' },
+  { key: '', label: 'Todas' },
+  { key: 'piden', label: 'Han pedido' },
 ];
 
-const money = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigits: 0 })}`;
+const fecha = (iso: string | null) =>
+  iso ? new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(iso)) : '—';
 
-/** Clientes → la gente registrada. Solo lectura: el cliente edita su perfil en /cuenta. */
+/**
+ * Cuentas del sitio: quién entra y para quién pide. Solo lectura: el cliente
+ * edita su perfil en /cuenta.
+ *
+ * CUENTA → EMPRESAS → OBRAS (2026-10-23): cada cuenta dice sus empresas y
+ * cuántas obras y solicitudes tiene. Antes enseñaba "pedidos" y "gastado" del
+ * carrito que se retiró el 2026-10-08, siempre en cero.
+ */
 export default async function AdminUsers({
   searchParams,
 }: {
@@ -92,23 +103,23 @@ export default async function AdminUsers({
         <PageHeader
           eyebrow={['1 · Recibir', 'Clientes']}
           title="Cuentas del sitio"
-          subtitle="Quién está registrado y qué ha hecho. Abre uno para ver sus pedidos."
+          subtitle="Quién entra al sitio y para qué empresas pide. Cada cuenta puede tener varias empresas, y cada empresa sus obras (en Clientes y obras)."
         />
 
         <Stats>
-          <Stat label="Registrados" icon="ph-users" value={counts.all ?? 0} />
+          <Stat label="Registradas" icon="ph-users" value={counts.all ?? 0} />
           <Stat
-            label="Han comprado"
-            icon="ph-shopping-bag"
+            label="Han pedido"
+            icon="ph-file-text"
             tone="ok"
-            value={counts.compradores ?? 0}
+            value={counts.piden ?? 0}
             hint={`de ${counts.all ?? 0}`}
           />
         </Stats>
 
         <Toolbar end={`${data?.total ?? 0} de ${counts.all ?? 0}`}>
           <Segmented
-            ariaLabel="Filtrar clientes"
+            ariaLabel="Filtrar cuentas"
             value={segment || 'all'}
             items={TABS.map((t) => ({
               key: t.key || 'all',
@@ -127,7 +138,7 @@ export default async function AdminUsers({
             <>
               {/* Antes esto era un texto plano: 55 de 75 clientes eran inalcanzables. */}
               <span>
-                <span className="adm-num" style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{data?.total ?? 0}</span> clientes{segment ? ' en este filtro' : ''}{q ? ` para “${q}”` : ''}
+                <span className="adm-num" style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{data?.total ?? 0}</span> cuentas{segment ? ' en este filtro' : ''}{q ? ` para “${q}”` : ''}
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {pager(link({ page: String(Math.max(1, page - 1)) }), page <= 1, 'ph-caret-left', 'Página anterior')}
@@ -138,10 +149,11 @@ export default async function AdminUsers({
           }
         >
           <div className="adm-thead cu-row cu-head">
-            <div>Cliente</div>
+            <div>Cuenta</div>
             <div>Contacto</div>
-            <div className="cu-r">Pedidos</div>
-            <div className="cu-r">En pedidos</div>
+            <div>Empresas</div>
+            <div className="cu-r">Obras</div>
+            <div className="cu-r">Solicitudes</div>
             <div className="cu-r">Alta</div>
           </div>
 
@@ -159,15 +171,25 @@ export default async function AdminUsers({
                   {u.phone ? <div className="adm-mono" style={{ fontSize: 12, color: 'var(--adm-muted)', marginTop: 3 }}>{u.phone}</div> : null}
                 </div>
 
-                <div className="cu-r adm-num" style={{ fontSize: 13.5, fontWeight: 600, color: u.orders > 0 ? 'var(--adm-text)' : 'var(--adm-faint)' }}>{u.orders}</div>
+                {/* Cada empresa abre su ficha en Clientes y obras. */}
+                <div style={{ minWidth: 0, fontSize: 13, display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+                  {u.empresas.length === 0 ? (
+                    <span style={{ color: 'var(--adm-faint)' }}>Sin empresa</span>
+                  ) : u.empresas.slice(0, 3).map((e) => (
+                    <Link key={e.id} href={`/clientes?ver=${e.id}`} className="adm-link adm-ellipsis" style={{ maxWidth: '100%' }}>{e.name}</Link>
+                  ))}
+                  {u.empresas.length > 3 ? <span style={{ color: 'var(--adm-muted)' }}>+{u.empresas.length - 3} más</span> : null}
+                </div>
 
-                {/* Sustituye a "Ciudad", que estaba vacía en 73 de 75 clientes. */}
-                <div className="cu-r adm-num" style={{ fontSize: 13.5, fontWeight: 600, color: u.spent > 0 ? 'var(--adm-text)' : 'var(--adm-faint)' }}>
-                  {u.spent > 0 ? money(u.spent) : '—'}
+                <div className="cu-r adm-num" style={{ fontSize: 13.5, fontWeight: 600, color: u.sites > 0 ? 'var(--adm-text)' : 'var(--adm-faint)' }}>{u.sites}</div>
+
+                <div className="cu-r" style={{ minWidth: 0 }}>
+                  <div className="adm-num" style={{ fontSize: 13.5, fontWeight: 600, color: u.quotes > 0 ? 'var(--adm-text)' : 'var(--adm-faint)' }}>{u.quotes}</div>
+                  {u.lastQuoteAt ? <div style={{ fontSize: 12, color: 'var(--adm-muted)', marginTop: 2 }}>última {fecha(u.lastQuoteAt)}</div> : null}
                 </div>
 
                 <div className="cu-r" style={{ fontSize: 12.5, color: 'var(--adm-muted)' }}>
-                  {u.createdAt ? new Intl.DateTimeFormat('es-MX', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(u.createdAt)) : '—'}
+                  {fecha(u.createdAt)}
                 </div>
               </div>
             );
@@ -176,7 +198,7 @@ export default async function AdminUsers({
           {items.length === 0 ? (
             <EmptyState
               icon="ph-users"
-              title={q || segment ? 'Sin resultados' : 'Aún no hay clientes'}
+              title={q || segment ? 'Sin resultados' : 'Aún no hay cuentas'}
               sub={q || segment ? 'Prueba con otro término o quita el filtro.' : 'Los registros del sitio aparecerán aquí.'}
             />
           ) : null}

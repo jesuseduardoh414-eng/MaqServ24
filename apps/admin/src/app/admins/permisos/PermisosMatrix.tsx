@@ -40,7 +40,7 @@ export function PermisosMatrix({ modulos, roles }: { modulos: ModuloFila[]; role
       <style>{`
         .pm-mod { border: 1px solid var(--adm-border-strong); background: transparent; transition: border-color .15s ease, background .15s ease; }
         .pm-mod.is-on { border-color: color-mix(in srgb, var(--adm-accent) 40%, transparent); background: color-mix(in srgb, var(--adm-accent) 8%, transparent); }
-        .pm-mod:not(.is-on):hover { border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.02); }
+        .pm-mod:not(.is-on):hover { border-color: rgba(var(--adm-ink),0.18); background: rgba(var(--adm-ink),0.02); }
       `}</style>
       {roles.map((rol) => (
         <TarjetaRol key={rol.clave} rol={rol} modulos={modulos} />
@@ -96,7 +96,7 @@ function TarjetaRol({ rol, modulos }: { rol: RolFila; modulos: ModuloFila[] }) {
   }
 
   return (
-    <section className="adm-card" style={{ opacity: rol.fijo ? 0.72 : 1 }}>
+    <section className="adm-card" style={{ opacity: rol.fijo ? 'var(--adm-atenuado)' : 1 }}>
       <header style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -134,7 +134,7 @@ function TarjetaRol({ rol, modulos }: { rol: RolFila; modulos: ModuloFila[] }) {
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
                     borderRadius: 8, cursor: m.obligatorio ? 'default' : 'pointer',
-                    opacity: m.obligatorio ? 0.6 : 1,
+                    opacity: m.obligatorio ? 'var(--adm-atenuado)' : 1,
                   }}
                 >
                   <input

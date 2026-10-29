@@ -49,13 +49,6 @@ interface Respuesta {
   matches: Match[];
 }
 
-const NIVEL: Record<string, string> = {
-  preferente: 'Preferente',
-  activo: 'Activo',
-  validado: 'Validado',
-  registrado: 'Registrado',
-};
-
 export function QuoteMatches({ quoteId }: { quoteId: number }) {
   const [open, setOpen] = useState(false);
   const [data, setData] = useState<Respuesta | null>(null);
@@ -187,10 +180,11 @@ export function QuoteMatches({ quoteId }: { quoteId: number }) {
                       {m.distanceKm != null ? (
                         <span className="adm-num" style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{m.distanceKm} km · </span>
                       ) : null}
-                      {NIVEL[m.level] ?? m.level}
+                      {/* El único nivel que se marca a mano desde 2026-10-27. */}
+                      {m.level === 'preferente' ? 'Preferente · ' : null}
                       {/* El puntaje se muestra en chico y al final: es para ordenar,
                           no para que nadie decida con él. Lo que se lee son las razones. */}
-                      <span className="adm-num" style={{ color: 'var(--adm-faint)' }}> · {m.score} pts</span>
+                      <span className="adm-num" style={{ color: 'var(--adm-faint)' }}>{m.score} pts</span>
                     </span>
                   </div>
 

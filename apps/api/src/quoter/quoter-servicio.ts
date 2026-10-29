@@ -12,6 +12,7 @@ import {
   type PartidaCotizador,
 } from '@maqserv/config';
 import { NotificationsService } from '../notifications/notifications.service';
+import { avisarPanel } from '../notifications/panel';
 import { ServiceService } from '../quotes/service.service';
 import { newQuoteNumber } from '../quotes/quotes.service';
 import { estadoInicial } from '../quotes/service-flow';
@@ -26,10 +27,11 @@ import { claveDeRenglon } from './parte-del-documento';
  *
  * CAMBIO 2026-10-15: lo que manda el cliente desde el cotizador ya NO entra
  * aceptado. Llega a Solicitudes › Por cotizar con su documento; en el panel se
- * confirman datos y precios y se le responde; él la acepta desde su cuenta y
- * entonces se le ofrece sola a los aliados (el primero que acepta se la queda,
- * ver ServiceService.ofrecerATodos). Lo de abajo sobre "ya respondida y ya
- * aceptada" describe cómo era antes.
+ * confirman datos y precios y se le responde; él la acepta desde su cuenta.
+ * CAMBIO 2026-10-23: el cliente ya no ve precios en el sitio, y al aceptar
+ * NADA sale solo a los aliados: MAQSER24 elige a quién se la da desde
+ * Servicios › Buscar aliado. Lo de abajo sobre "ya respondida y ya aceptada"
+ * describe cómo era antes.
  *
  * Lo que sale del cotizador público no es "una solicitud de cotización": el
  * cliente YA vio el precio. Es la SOLICITUD DEL SERVICIO con esa cotización.
@@ -63,6 +65,17 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 /** Prefijo de la nota con los aliados sugeridos; el tablero de Servicios la lee por él. */
 export const SUGERIDOS = 'Aliados con ese equipo publicado:';
 const dinero = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** Empresa y obra elegidas en el sitio, o la dirección de la obra nueva. */
+export interface Destino {
+  clientId: number | null;
+  siteId: number | null;
+  direccion: string | null;
+  /** Fecha de inicio o entrega (AAAA-MM-DD): la leen las reservas, la ficha y el aliado. */
+  fecha?: string | null;
+  /** Del panel: cliente y obra elegidos de todos los registrados (ver resolverClienteYObra). */
+  confiable?: boolean;
+}
 
 export interface ServicioAbierto {
   /** El primer servicio abierto (el que se enseña al cliente como principal). */
@@ -101,11 +114,16 @@ export class QuoterServicio {
      * `por_confirmar` (sitio, 2026-10-15): el cliente la pidió viendo el precio
      * y MAQSER24 la revisa antes de mandarla a los aliados.
      * `aceptada` (cotizador del panel): el cliente ya dijo que sí por teléfono
-     * o WhatsApp; nace en servicio y se ofrece de una vez.
+     * o WhatsApp; nace en servicio, por asignar (2026-10-23: ya no se ofrece sola).
      */
     modo?: 'por_confirmar' | 'aceptada';
     /** Quién la marcó aceptada en el panel (solo `aceptada`). */
     adminNombre?: string | null;
+    /**
+     * A qué empresa y obra va (sitio, 2026-10-23): una de las suyas, o una obra
+     * nueva con su dirección (su nombre es `cotizacion.work`).
+     */
+    destino?: Destino | null;
   }): Promise<ServicioAbierto> {
     const { cotizacion: cot, catalogo, partidas, cuenta, userId } = entrada;
     const modo = entrada.modo ?? 'por_confirmar';
@@ -175,35 +193,43 @@ export class QuoterServicio {
       servicios.push({ ...abierto, linea, proveedores: [] });
     }
 
-    // ── 4. Avisar al cliente y cerrar el documento del cotizador ──
-    const todos: string[] = [];
+    // ── 4. Avisar al cliente y al panel ──
     const principal = servicios[0];
 
-    // Del panel: el cliente ya aceptó, así que sale de una vez a los aliados
-    // (el primero que acepta se la queda; ServiceService.ofrecerATodos).
+    /**
+     * Del panel (el cliente ya dijo que sí): nace en Servicios › Por asignar y
+     * NO sale sola a los aliados (2026-10-23). MAQSER24 elige a quién se la da
+     * desde "Buscar aliado" (uno, varios o "Mandar a todos"). La campana la
+     * pone quien llama: aceptada desde el correo avisa en quoter.controller; la
+     * que marcó una persona en el panel no necesita avisarle a ella misma.
+     */
     if (modo === 'aceptada') {
-      for (const sv of servicios) {
-        const r = await this.services.ofrecerATodos(sv.quoteId);
-        sv.proveedores = r.ofrecidos;
-        todos.push(...r.ofrecidos);
-      }
-      return { quoteId: principal.quoteId, quoteNumber: principal.quoteNumber, proveedores: [...new Set(todos)], url: principal.url, servicios };
+      return { quoteId: principal.quoteId, quoteNumber: principal.quoteNumber, proveedores: [], url: principal.url, servicios };
     }
 
+    // Del sitio (2026-10-23): el cliente no vio precios. Lo revisa MAQSER24 y
+    // se lo manda; nada sale a los aliados hasta que él acepte.
     if (userId) await this.notifications.push({
       userId,
       type: 'service_status',
-      title: `Recibimos tu cotización ${cot.folio}`,
-      body: 'La revisamos y se la mandamos a los proveedores. Te avisamos en cuanto uno la tome.',
+      title: `Recibimos tu solicitud ${cot.folio}`,
+      body: 'La revisamos y te mandamos la cotización con precio por correo y a tu cuenta.',
       link: principal.url,
     });
-    // La campana del panel ya no sale aquí (2026-10-22): la manda la aprobación
-    // automática, que dice si se aprobó sola o qué hay que revisar
-    // (ServiceService.aprobarSiTodoEnOrden, llamada desde quoter.controller).
-    // El documento sigue "solicitada"; pasa a "enviada" al responderle y a
-    // "aceptada" cuando el cliente la acepta.
+    // Ya no hay aprobación automática (2026-10-23): esta es la campana de que
+    // llegó algo por revisar. El documento sigue "solicitada"; pasa a "enviada"
+    // al mandarle el precio y a "aceptada" cuando el cliente la acepta.
+    void avisarPanel({
+      modulo: 'cotizaciones',
+      evento: 'cotizacion',
+      titulo: `Nueva solicitud ${cot.folio} de ${entrada.cliente || cuenta.name}: revisa el precio y mándaselo`,
+      cuerpo: servicios.length > 1
+        ? `Viene en ${servicios.length} partes (${servicios.map((s) => nombresLinea.get(s.linea) ?? s.linea).join(', ')}). Llegó con precio estimado del tabulador.`
+        : `${nombresLinea.get(principal.linea) ?? principal.linea}. Llegó con precio estimado del tabulador.`,
+      link: `/cotizaciones?ver=${principal.quoteId}`,
+    });
 
-    return { quoteId: principal.quoteId, quoteNumber: principal.quoteNumber, proveedores: todos, url: principal.url, servicios };
+    return { quoteId: principal.quoteId, quoteNumber: principal.quoteNumber, proveedores: [], url: principal.url, servicios };
   }
 
   /**
@@ -211,8 +237,8 @@ export class QuoterServicio {
    *
    * Las cotizaciones que arma MAQSER24 en su cotizador (clientes que llaman o
    * escriben por WhatsApp) eran solo un documento. Al marcarla "Aceptada" en
-   * Cotizaciones emitidas, ahora se abre su servicio y se ofrece a los aliados
-   * igual que lo demás. Si ya tenía servicio (o viene de una solicitud del
+   * Cotizaciones emitidas, ahora se abre su servicio, que queda por asignar
+   * igual que lo demás (desde el 2026-10-23 no se ofrece solo: MAQSER24 elige). Si ya tenía servicio (o viene de una solicitud del
    * sitio, que sigue su propio camino), no hace nada.
    */
   async abrirDesdePanel(docId: number, catalogo: CatalogoCotizador, adminNombre: string | null): Promise<ServicioAbierto | null> {
@@ -232,11 +258,23 @@ export class QuoterServicio {
       userId: doc.user_id ?? null,
       modo: 'aceptada',
       adminNombre,
+      // El cliente y la obra que se eligieron al cotizar (2026-10-23).
+      destino: (() => {
+        const snap = doc.snapshot as { destino?: { clientId?: number; siteId?: number | null }; fecha?: string } | null;
+        const dst = snap?.destino;
+        const fecha = snap?.fecha ?? null;
+        if (dst?.clientId) return { clientId: dst.clientId, siteId: dst.siteId ?? null, direccion: null, fecha, confiable: true };
+        return fecha ? { clientId: null, siteId: null, direccion: null, fecha } : null;
+      })(),
     });
   }
 
-  /** Crea la cotización aceptada + el servicio de UNA línea, con su historial y su cliente/obra. */
-  private async crearServicio(d: {
+  /**
+   * Crea la cotización (por confirmar o aceptada) + el servicio de UNA línea,
+   * con su historial y su cliente/obra. Público desde el 2026-10-23: al volver a
+   * cotizar, una línea nueva del documento abre su propia parte con esto.
+   */
+  async crearServicio(d: {
     cot: { id: number; folio: string; work: string | null; attention: string | null; municipality: string | null; phone: string | null; notes: string | null };
     tipo: CotizadorTipo;
     nombreCotizador: string;
@@ -244,7 +282,7 @@ export class QuoterServicio {
     lineaNombre: string;
     calc: CalculoCotizacion;
     grupo: PartidaAnalizada[];
-    entrada: { cuenta: DatosCuenta; cliente: string; userId: number | null; adminNombre?: string | null };
+    entrada: { cuenta: DatosCuenta; cliente: string; userId: number | null; adminNombre?: string | null; destino?: Destino | null };
     modo: 'por_confirmar' | 'aceptada';
     /** El documento trae otras líneas: esta solicitud es solo una parte de él. */
     parte: boolean;
@@ -270,6 +308,34 @@ export class QuoterServicio {
     const diasEquipo = Math.max(0, ...d.grupo.map(({ partida: p }) =>
       p.tipo === 'equipo' ? (p.dias ?? 0) + ((p.horas ?? 0) > 0 ? 1 : 0) : 0));
 
+    /**
+     * A qué cliente y obra pertenece, ANTES de crearla (2026-10-23): la
+     * dirección de la solicitud es la de su obra. Del sitio llega la obra que
+     * eligió o una nueva con nombre y dirección; las partes de un mismo
+     * documento caen en la misma obra (la segunda la encuentra por su nombre).
+     * Sin destino (el panel) se deduce como antes. Nunca lanza.
+     * "Cliente o empresa" va como EMPRESA (2026-10-19): sin ella, la cuenta
+     * recién creada seguía con el nombre de la persona.
+     */
+    const destino = entrada.destino ?? null;
+    const ligada = await resolverClienteYObra({
+      companyName: entrada.cliente || null,
+      // El contacto de la obra es una persona ("Atención a" o el de la cuenta), no la empresa.
+      contactName: cot.attention || entrada.cuenta.name || entrada.cliente,
+      email: entrada.cuenta.email,
+      phone: cot.phone,
+      address: destino?.direccion ? [destino.direccion, cot.municipality].filter(Boolean).join(', ') : cot.work,
+      region: cot.municipality,
+      userId: entrada.userId ?? undefined,
+      siteId: destino?.siteId ?? null,
+      clientId: destino?.clientId ?? null,
+      siteName: destino ? cot.work : null,
+      confiarEnIds: destino?.confiable ?? false,
+    });
+    const obra = ligada.siteId
+      ? await prisma.client_sites.findUnique({ where: { id: ligada.siteId }, select: { address: true, municipality: true } })
+      : null;
+
     const q = await prisma.quotes.create({
       data: {
         user_id: entrada.userId ?? null,
@@ -277,7 +343,7 @@ export class QuoterServicio {
         email: entrada.cuenta.email,
         phone: cot.phone || entrada.cuenta.phone || '',
         region: cot.municipality,
-        address: [cot.work, cot.municipality].filter(Boolean).join(', ') || null,
+        address: obra?.address || [cot.work, cot.municipality].filter(Boolean).join(', ') || null,
         product_interested: `${d.lineaNombre} · cotizador de ${d.nombreCotizador} · ${cot.folio}`.slice(0, 250),
         acquisition_option: d.tipo === 'maquinaria' ? 'renta' : 'compra',
         comments: [
@@ -329,6 +395,8 @@ export class QuoterServicio {
           ...(cot.municipality ? { obra_ubicacion: cot.municipality } : {}),
           // La misma llave que el formulario de /cotizar: la lee quotes/reservas.ts.
           ...(diasEquipo > 0 ? { duracion: `${diasEquipo} ${diasEquipo === 1 ? 'día' : 'días'}` } : {}),
+          // La fecha que pidió (2026-10-23), con la misma llave que /cotizar.
+          ...(entrada.destino?.fecha ? { fecha_inicio: entrada.destino.fecha } : {}),
         } as Prisma.InputJsonValue,
         quote_number: newQuoteNumber(),
         created_at: ahora,
@@ -347,18 +415,6 @@ export class QuoterServicio {
       });
     }
 
-    // A qué cliente y obra pertenece. Nunca lanza. "Cliente o empresa" va como
-    // EMPRESA (2026-10-19): sin ella, la cuenta recién creada seguía con el
-    // nombre de la persona y el siguiente pedido por /cotizar abría otro cliente.
-    const ligada = await resolverClienteYObra({
-      companyName: entrada.cliente || null,
-      contactName: entrada.cliente || entrada.cuenta.name,
-      email: entrada.cuenta.email,
-      phone: cot.phone,
-      address: cot.work,
-      region: cot.municipality,
-      userId: entrada.userId ?? undefined,
-    });
     if (ligada.clientId) {
       await prisma.quotes.update({ where: { id: q.id }, data: { client_id: ligada.clientId, site_id: ligada.siteId } });
     }

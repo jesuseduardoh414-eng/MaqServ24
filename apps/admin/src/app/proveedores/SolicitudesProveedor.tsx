@@ -5,6 +5,7 @@ import { Modal } from '@/components/Modal';
 import { Btn, Chip, Panel } from '@/components/ui';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
 import { confirmar } from '@/components/Dialogos';
+import { waDe } from './wa';
 
 export interface SolicitudRow {
   id: number;
@@ -252,12 +253,3 @@ function DetalleSolicitud({ s }: { s: SolicitudRow }) {
 }
 
 const H3 = { margin: '0 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--adm-text)' } as const;
-
-/** 10 dígitos de México → 52XXXXXXXXXX para wa.me. */
-function waDe(tel: string | null): string | null {
-  const d = (tel ?? '').replace(/\D/g, '');
-  if (d.length === 10) return `52${d}`;
-  if (d.length === 12 && d.startsWith('52')) return d;
-  if (d.length === 13 && d.startsWith('521')) return `52${d.slice(3)}`;
-  return null;
-}

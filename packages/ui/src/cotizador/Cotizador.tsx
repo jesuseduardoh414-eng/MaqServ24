@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   calcularCotizacion,
+  condicionesSinPrecios,
   pasosDe,
   problemaEmail,
   problemaTelefono,
@@ -23,6 +24,7 @@ import { ShButton } from '../shadcn/button';
 import { ShCombobox } from '../shadcn/combobox';
 import { ShInput, ShTextarea } from '../shadcn/input';
 import { ShSelect, ShSelectContent, ShSelectItem, ShSelectTrigger, ShSelectValue } from '../shadcn/select';
+import { ShDatePicker } from '../shadcn/date-picker';
 import {
   CONTEXTO_VACIO,
   aPartidas,
@@ -32,7 +34,9 @@ import {
   lineaDeZona,
   nuevoUid,
   num,
+  type ClientePanel,
   type ContextoCotizador,
+  type EmpresaCliente,
   type LineaCotizador,
   type LineaEquipo,
   type LineaMaquinaria,
@@ -81,6 +85,18 @@ export interface CotizadorProps {
   inicial?: Partial<ContextoCotizador>;
   /** Partidas con las que abre (2026-10-22): el tipo desde el que se llegó del catálogo. */
   lineasIniciales?: LineaCotizador[];
+  /**
+   * Sitio (2026-10-23): las empresas de la cuenta con sus obras. Con esto el
+   * paso 1 pide empresa y obra de un seleccionador (o una nueva) y la obra es
+   * obligatoria. El panel no lo pasa y sigue con campos de texto.
+   */
+  empresas?: EmpresaCliente[];
+  /**
+   * Panel (2026-10-23): los clientes registrados y cómo leer las obras de uno.
+   * Con esto el paso 1 elige cliente y obra (o los escribe nuevos, y se dan
+   * de alta al guardar). Sin esto, campos de texto como antes.
+   */
+  clientesPanel?: { lista: ClientePanel[]; obras: (clienteId: number) => Promise<EmpresaCliente['sites']> };
   /** Logo para el documento (fondo claro). */
   logo?: string | null;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
@@ -94,18 +110,16 @@ export interface CotizadorProps {
  * `pasos-triturados`; lo que comparten —el avance, el resumen en vivo, el
  * documento y el envío— vive aquí.
  *
- * POR QUÉ POR PASOS y no todo en una pantalla, que es como venía: el precio de
- * un equipo depende de cuántos días se renta (1-5 día, 6-15 semana, 16+ mes), y
- * en la pantalla única el usuario veía la tarifa moverse sola mientras
- * tecleaba, sin saber por qué. Separando "qué equipo" de "cuánto tiempo", el
- * tramo se anuncia cuando se decide.
+ * POR QUÉ POR PASOS y no todo en una pantalla, que es como venía: separando
+ * "qué equipo" de "cuánto tiempo", lo que cambia el precio (las horas y su
+ * mínimo; antes, el tramo día/semana/mes) se anuncia cuando se decide.
  *
  * El cálculo corre EN EL NAVEGADOR mientras se edita (mismo motor que la API,
  * importado de `@maqserv/config`) y el servidor lo repite al guardar. No es
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
   const pasos = pasosDe(tipo);
   const esPanel = variante === 'panel';
@@ -113,21 +127,23 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
   /**
    * DOS PREGUNTAS DISTINTAS, que antes eran una sola.
    *
-   * `verPrecios` — si esta cotización LLEVA importes. En el panel siempre; en
-   * el sitio manda el tabulador (y cuando dice que no, la API ya mandó el
-   * catálogo en ceros: aquí no hay nada que esconder porque nunca llegó).
+   * `verPrecios` — si esta cotización LLEVA importes. Solo en el panel: desde
+   * el 2026-10-23 el sitio NUNCA enseña precios (la API ya manda el catálogo en
+   * ceros: aquí no hay nada que esconder porque nunca llegó). El cliente pide,
+   * MAQSER24 revisa el precio en Solicitudes y se lo manda para que lo acepte.
    *
    * `preciosEnPasos` — si esos importes acompañan la CAPTURA. Solo en el
    * panel, que es la herramienta con la que se fija y se negocia la tarifa. En
-   * el sitio el visitante elige equipo, tiempo y cantidades SIN ver un peso, y
-   * el costo aparece de una sola vez en el último paso, sobre el documento: se
-   * lee como una propuesta y no como un carrito que se va sumando. De paso
-   * desaparecen del navegador los campos de precio negociado, que ahí nunca
-   * debieron poder tocarse.
+   * el sitio el visitante elige equipo, tiempo y cantidades SIN ver un peso; de
+   * paso desaparecen del navegador los campos de precio negociado, que ahí
+   * nunca debieron poder tocarse.
+   *
+   * `preciosAlFinal` era el sitio con tabulador público (el costo de una vez en
+   * el último paso). Ya no ocurre; se queda para que el código que lo pinta no
+   * dependa de quién llama.
    */
-  const verPrecios = esPanel || catalogo.publico.mostrarPrecios;
+  const verPrecios = esPanel;
   const preciosEnPasos = esPanel;
-  /** Hay costo, pero se enseña al final: el sitio con tabulador público. */
   const preciosAlFinal = verPrecios && !preciosEnPasos;
 
   const [paso, setPaso] = useState(0);
@@ -166,6 +182,18 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
   const opciones: Partial<OpcionesCotizador> = tipo === 'maquinaria' ? { modo_unidad: modoUnidad } : { con_iva: conIva };
   const partidas = useMemo(() => aPartidas(lineas), [lineas]);
   const calc = useMemo(() => calcularCotizacion(catalogo, partidas, opciones), [catalogo, partidas, modoUnidad, conIva]);
+  /**
+   * LO QUE SE ENSEÑA EN EL SITIO (2026-10-23). El tabulador llega en ceros y el
+   * motor descarta los renglones de importe cero —servicios, material por
+   * tonelada, banco—, así que el documento y el resumen salían vacíos y el
+   * último paso decía "la cotización está vacía". Para conceptos y cantidades
+   * se calcula con un tabulador de precio simbólico y se borran los importes:
+   * nada de esto es un precio, el de verdad lo pone el servidor.
+   */
+  const calcVista = useMemo(
+    () => (verPrecios ? calc : sinImportes(calcularCotizacion(conPrecioSimbolico(catalogo), partidas, opciones))),
+    [verPrecios, calc, catalogo, partidas, modoUnidad, conIva],
+  );
   /**
    * Lo que se puede ELEGIR: sin lo que su ficha sacó del cotizador
    * (2026-10-19). El cálculo sigue con el tabulador completo, y lo que ya trae
@@ -230,12 +258,32 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
       ? 'Qué material y cuánto. El costo, la tarifa del flete y la factura se ven en el último paso.'
       : preciosAlFinal && clave === 'resumen'
         ? 'Aquí aparece el costo. Revísalo antes de solicitar el servicio.'
-        : (pasos[paso]?.ayuda ?? '');
+        // En el sitio no se habla de tarifas ni de costo (2026-10-23).
+        : !esPanel && clave === 'duracion'
+          ? 'Cuántos días u horas necesitas cada equipo.'
+          : !esPanel && clave === 'resumen'
+            ? tipo === 'triturados'
+              ? 'Dinos si necesitas factura y revisa tu solicitud. El precio te lo mandamos por correo.'
+              : 'Revisa tu solicitud antes de enviarla. El precio te lo mandamos por correo.'
+            : (pasos[paso]?.ayuda ?? '');
 
   /** El desglose lateral, solo cuando el costo ya está a la vista. */
   const importesALaVista = verPrecios && (preciosEnPasos || clave === 'resumen');
-  const faltante = useMemo(() => validar(clave, { ctx, lineas, esPanel, calc }), [clave, ctx, lineas, esPanel, calc]);
+  const faltante = useMemo(() => validar(clave, { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel }), [clave, ctx, lineas, esPanel, calcVista, clientesPanel]);
   const puedeAvanzar = faltante === null;
+
+  /**
+   * Al cambiar de paso, la pantalla sube a la barra de pasos (2026-10-28): en el
+   * teléfono se quedaba en el botón "Continuar" y el paso nuevo empezaba más arriba.
+   */
+  const primerPaso = useRef(true);
+  useEffect(() => {
+    if (primerPaso.current) { primerPaso.current = false; return; }
+    const el = barraPasos.current;
+    if (!el) return;
+    const arriba = el.getBoundingClientRect().top;
+    if (arriba < 0 || arriba > window.innerHeight * 0.35) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [paso]);
 
   const avanzar = () => {
     setTocado(true);
@@ -260,8 +308,18 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
     empresa: catalogo.empresa,
     firma: catalogo.firma,
     saludo: catalogo.saludo,
-    calc,
+    calc: calcVista,
+    // Cuándo y dónde (2026-10-23): lo que el cliente pidió para su obra.
+    ...(ctx.fecha || ctx.direccion
+      ? {
+          detalle: [
+            ...(ctx.fecha ? [{ label: tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega', valor: fechaLarga(ctx.fecha) }] : []),
+            ...(ctx.direccion ? [{ label: 'Dirección de la obra', valor: [ctx.direccion, ctx.municipio].filter(Boolean).join(', ') }] : []),
+          ],
+        }
+      : {}),
     mostrarPrecios: verPrecios,
+    ...(verPrecios ? {} : { notaSinPrecios: 'Esta solicitud no incluye importes. MAQSER24 la revisa y le envía la cotización con precio y vigencia por correo.' }),
     logo: logo ?? null,
     acento: leerAcento(),
   });
@@ -304,11 +362,11 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
         <style>{COTIZADOR_CSS}</style>
         <div className="cz-card cz-done">
           <div className="mark"><Check className="size-8" /></div>
-          <h2>{esPanel ? 'Cotización guardada' : 'Cotización enviada'}</h2>
+          <h2>{esPanel ? 'Cotización guardada' : 'Solicitud enviada'}</h2>
           <p>
             {esPanel
               ? 'Ya está en el historial del cotizador. Mándasela al cliente por correo (con el botón para aceptarla) o imprímela.'
-              : 'Recibimos tu solicitud. Se la mandamos a los proveedores de tu zona y te avisamos por correo en cuanto uno la tome; no tienes que hacer nada más. Guarda tu folio.'}
+              : 'Recibimos tu solicitud. La revisamos y te mandamos la cotización con precio por correo; la aceptas desde tu cuenta y entonces asignamos al proveedor que te atiende. Guarda tu folio.'}
           </p>
           <div className="cz-folio">{hecho.folio}</div>
           <div className="cz-done-acts">
@@ -369,12 +427,15 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
       {/* La ayuda del paso va FUERA de la rejilla, a todo el ancho. Dentro de
           la columna izquierda empujaba esa columna hacia abajo y las dos
           tarjetas —la del paso y el resumen— arrancaban a alturas distintas. */}
-      <p className="cz-sub cz-ayuda">{ayuda}</p>
+      <div className="cz-ayuda">
+        <span className="cz-ayuda-n">Paso {paso + 1} de {pasos.length}</span>
+        <span className="cz-ayuda-t">{ayuda}</span>
+      </div>
 
       <div className="cz-grid">
         <div>
           {clave === 'obra' ? (
-            <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} />
+            <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} />
           ) : null}
 
           {tipo === 'maquinaria' && clave === 'equipos' ? (
@@ -434,7 +495,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
                   ? 'Revísalo antes de guardarlo. Al guardar se congela: aunque mañana suba una tarifa, esta cotización seguirá diciendo lo mismo.'
                   : preciosAlFinal
                     ? 'Este es el costo de lo que armaste. Revísalo y, si todo está bien, envía tu solicitud.'
-                    : 'Revisa que todo esté correcto antes de enviar tu solicitud.'}
+                    : 'Revisa que todo esté correcto antes de enviar tu solicitud. Va sin precios: te mandamos la cotización con precio por correo.'}
               </p>
 
               {tipo === 'maquinaria' && verPrecios ? (
@@ -456,6 +517,15 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
               {tipo === 'triturados' && preciosEnPasos ? (
                 <div className="cz-qty wide" style={{ marginBottom: 14 }}>
                   <span className="cz-lbl">Facturación · cambia el total y las condiciones del documento</span>
+                  <Facturacion cat={catalogo as CatalogoTriturados} conIva={conIva} setConIva={setConIva} />
+                </div>
+              ) : null}
+
+              {/* Sin precios también se pregunta (2026-10-23): con o sin factura
+                  cambia la cotización que se le manda, y es el cliente quien lo sabe. */}
+              {tipo === 'triturados' && !verPrecios ? (
+                <div className="cz-qty wide" style={{ marginBottom: 14 }}>
+                  <span className="cz-lbl">¿Necesitas factura?</span>
                   <Facturacion cat={catalogo as CatalogoTriturados} conIva={conIva} setConIva={setConIva} />
                 </div>
               ) : null}
@@ -492,13 +562,13 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
               ) : null}
 
               <div style={{ marginTop: 14 }}>
-                <Campo label="Notas para el cliente (opcional)" ancho="full">
+                <Campo label={esPanel ? 'Notas para el cliente (opcional)' : 'Algo más que debamos saber (opcional)'} ancho="full">
                   {(id) => (
                     <ShTextarea
                       id={id}
                       value={ctx.notas}
                       maxLength={2000}
-                      placeholder="Vigencia, condiciones especiales, contacto en obra…"
+                      placeholder={esPanel ? 'Vigencia, condiciones especiales, contacto en obra…' : 'Horario de acceso, contacto en obra, fechas…'}
                       onChange={(e) => setCtx({ ...ctx, notas: e.target.value })}
                     />
                   )}
@@ -514,8 +584,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
               {!esPanel ? (
                 <div style={{ marginTop: 14 }}>
                   <Aviso>
-                    Al solicitar el servicio, esta cotización le llega al proveedor del equipo para que la
-                    revise. Si la acepta, te avisamos por correo y en tu cuenta.
+                    Al enviarla, MAQSER24 revisa tu solicitud y te manda la cotización con precio por correo.
+                    Si te conviene, la aceptas desde tu cuenta y asignamos al proveedor que te atiende.
                   </Aviso>
                 </div>
               ) : null}
@@ -540,7 +610,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
             </ShButton>
             {esUltimo ? (
               <ShButton onClick={enviar} disabled={enviando}>
-                {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Solicitar servicio'}
+                {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Pedir cotización'}
               </ShButton>
             ) : (
               <ShButton onClick={avanzar}>
@@ -551,13 +621,14 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
         </div>
 
         <ResumenLateral
-          calc={calc}
+          calc={calcVista}
           tipo={tipo}
           importes={importesALaVista}
-          pie={verPrecios ? 'El costo aparece en el último paso' : 'Un asesor te enviará el precio'}
+          pie={verPrecios ? 'El costo aparece en el último paso' : 'Te mandamos el precio por correo'}
           // Con precios, solo las partidas que ya cuentan (con material y
           // cantidad): un renglón recién agregado y vacío no es una partida.
           partidas={verPrecios ? calc.renglones.filter((r) => r.clase !== 'flete').length : partidas.length}
+          para={{ cliente: ctx.cliente, obra: ctx.obra, fecha: ctx.fecha ? fechaCorta(ctx.fecha) : '' }}
         />
       </div>
     </div>
@@ -566,6 +637,16 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, logo, 
 
 // ---------------------------------------------------------------------------
 
+const OTRA_EMPRESA = '__otra__';
+
+/** Hoy en Monterrey, AAAA-MM-DD: ninguna fecha del servicio puede ser pasada. */
+const hoyLocal = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date());
+const fechaCorta = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const fechaLarga = (iso: string) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const OBRA_NUEVA = '__nueva__';
+
 /** PASO 1 · para quién y dónde. Igual en los dos cotizadores. */
 function PasoObra({
   ctx,
@@ -573,14 +654,22 @@ function PasoObra({
   catalogo,
   pideContacto,
   tocado,
+  empresas,
+  clientesPanel,
 }: {
   ctx: ContextoCotizador;
   setCtx: (c: ContextoCotizador) => void;
   catalogo: CatalogoCotizador;
   pideContacto: boolean;
   tocado: boolean;
+  /** Solo el sitio: sus empresas con sus obras (puede venir vacío). */
+  empresas?: EmpresaCliente[];
+  /** Solo el panel: los clientes registrados. */
+  clientesPanel?: CotizadorProps['clientesPanel'];
 }) {
   const set = (patch: Partial<ContextoCotizador>) => setCtx({ ...ctx, ...patch });
+  if (empresas) return <PasoObraSitio ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} empresas={empresas} />;
+  if (clientesPanel) return <PasoObraPanel ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} clientes={clientesPanel} />;
   // Mismas reglas que la API (@maqserv/config). En el sitio son obligatorios;
   // en el panel, opcionales, pero si se escriben tienen que estar bien.
   const errCorreo = tocado ? errorContacto('correo', ctx.correo, pideContacto) : null;
@@ -649,6 +738,277 @@ function PasoObra({
 }
 
 /**
+ * PASO 1 EN EL PANEL (2026-10-23): CLIENTE Y OBRA REGISTRADOS, O NUEVOS.
+ *
+ * "En el panel se escogen los clientes y obras, o se pueden agregar ahí
+ * mismo." El cliente se busca entre los registrados; si se escribe uno que no
+ * está, se da de alta al guardar. Con un cliente registrado salen sus obras
+ * (u "Obra nueva…"); con uno nuevo, la obra se escribe. Correo y teléfono se
+ * llenan con los del cliente si están vacíos.
+ */
+function PasoObraPanel({
+  ctx,
+  set,
+  catalogo,
+  tocado,
+  clientes,
+}: {
+  ctx: ContextoCotizador;
+  set: (patch: Partial<ContextoCotizador>) => void;
+  catalogo: CatalogoCotizador;
+  tocado: boolean;
+  clientes: NonNullable<CotizadorProps['clientesPanel']>;
+}) {
+  const [obras, setObras] = useState<EmpresaCliente['sites']>([]);
+  const [nueva, setNueva] = useState(false);
+  const leerObras = clientes.obras;
+  useEffect(() => {
+    let vivo = true;
+    if (!ctx.clienteId) { setObras([]); return; }
+    leerObras(ctx.clienteId).then((o) => { if (vivo) setObras(o); }).catch(() => { if (vivo) setObras([]); });
+    return () => { vivo = false; };
+  }, [ctx.clienteId, leerObras]);
+  const nombres = useMemo(() => [...new Set(clientes.lista.map((c) => c.name))], [clientes.lista]);
+  const obraElegida = obras.find((o) => o.id === ctx.obraId) ?? null;
+  const pideNueva = !obraElegida && (nueva || !ctx.clienteId || obras.length === 0);
+  const errCorreo = tocado ? errorContacto('correo', ctx.correo, false) : null;
+  const errTelefono = tocado ? errorContacto('telefono', ctx.telefono, false) : null;
+  const falta = (cond: boolean, texto: string) => (tocado && cond ? texto : null);
+
+  const elegirCliente = (v: string) => {
+    setNueva(false);
+    const c = clientes.lista.find((x) => x.name.toLowerCase() === v.trim().toLowerCase()) ?? null;
+    set({
+      cliente: c ? c.name : v,
+      clienteId: c?.id ?? null,
+      obraId: null,
+      obra: '',
+      direccion: '',
+      ...(c && !ctx.correo.trim() && c.email ? { correo: c.email } : {}),
+      ...(c && !ctx.telefono.trim() && c.phone ? { telefono: c.phone } : {}),
+    });
+  };
+  const elegirObra = (v: string) => {
+    if (v === OBRA_NUEVA) { setNueva(true); set({ obraId: null, obra: '', direccion: '' }); return; }
+    const o = obras.find((x) => String(x.id) === v);
+    if (!o) return;
+    setNueva(false);
+    set({ obraId: o.id, obra: o.name, direccion: o.address ?? '', municipio: o.municipality || ctx.municipio });
+  };
+
+  return (
+    <div className="cz-card">
+      <h2 className="cz-card-h">Cliente y obra</h2>
+      <p className="cz-card-s">Elige un cliente registrado o escribe uno nuevo: se da de alta al guardar, con su obra. Sale impreso en el encabezado.</p>
+      <div className="cz-row">
+        <Campo label="Cliente o empresa" req ancho="full" help={ctx.cliente.trim() && !ctx.clienteId ? 'Cliente nuevo: se da de alta al guardar.' : undefined}
+          error={falta(ctx.cliente.trim().length < 2, 'Elige o escribe a nombre de quién va la cotización.')}>
+          {(id) => <ShCombobox id={id} value={ctx.cliente} onChange={elegirCliente} options={nombres} placeholder="Busca o escribe el cliente…" buscar="Busca el cliente…" />}
+        </Campo>
+        {ctx.clienteId && obras.length ? (
+          <Campo label="Obra" req ancho="full" error={falta(!obraElegida && !nueva, 'Elige la obra o «Obra nueva…».')}>
+            {(id) => (
+              <ShSelect value={obraElegida ? String(obraElegida.id) : nueva ? OBRA_NUEVA : ''} onValueChange={elegirObra}>
+                <ShSelectTrigger id={id} aria-label="Obra"><ShSelectValue placeholder="Elige la obra…" /></ShSelectTrigger>
+                <ShSelectContent>
+                  {obras.map((o) => <ShSelectItem key={o.id} value={String(o.id)}>{o.name}{o.municipality ? ` · ${o.municipality}` : ''}</ShSelectItem>)}
+                  <ShSelectItem value={OBRA_NUEVA}>Obra nueva…</ShSelectItem>
+                </ShSelectContent>
+              </ShSelect>
+            )}
+          </Campo>
+        ) : null}
+        {obraElegida ? (
+          <p className="cz-help" style={{ gridColumn: '1 / -1', margin: 0 }}>
+            {[obraElegida.address, obraElegida.municipality].filter(Boolean).join(' · ') || 'Sin dirección registrada.'}
+          </p>
+        ) : null}
+        {pideNueva ? (
+          <>
+            <Campo label="Nombre de la obra" req error={falta(ctx.obra.trim().length < 2, 'Ponle un nombre a la obra.')}>
+              {(id) => <ShInput id={id} value={ctx.obra} maxLength={190} placeholder="Ej. Fraccionamiento Los Encinos" onChange={(e) => set({ obra: e.target.value })} />}
+            </Campo>
+            <Campo label="Dirección de la obra">
+              {(id) => <ShInput id={id} value={ctx.direccion} maxLength={300} placeholder="Calle, número y colonia" onChange={(e) => set({ direccion: e.target.value })} />}
+            </Campo>
+          </>
+        ) : null}
+        <Campo
+          label={catalogo.tipo === 'maquinaria' ? 'Fecha de inicio del servicio' : 'Fecha de entrega'}
+          req
+          help="Cuándo se necesita en la obra"
+          error={falta(!ctx.fecha, 'Elige la fecha.')}
+        >
+          {(id) => <ShDatePicker id={id} value={ctx.fecha} min={hoyLocal()} onChange={(v) => set({ fecha: v })} placeholder="Elegir fecha" />}
+        </Campo>
+        <Campo label="Atención a">
+          {(id) => <ShInput id={id} value={ctx.atencion} maxLength={190} placeholder="Ing. / Lic." onChange={(e) => set({ atencion: e.target.value })} />}
+        </Campo>
+        <Campo label="Municipio de entrega" help="Define la zona de flete">
+          {(id) => (
+            <ShCombobox id={id} value={ctx.municipio} onChange={(v) => set({ municipio: v })} options={catalogo.municipios} placeholder="Ej. Apodaca" buscar="Busca o escribe el municipio…" />
+          )}
+        </Campo>
+        <Campo label="Correo del cliente (opcional)" error={errCorreo}>
+          {(id) => <ShInput id={id} type="email" value={ctx.correo} maxLength={190} aria-invalid={!!errCorreo} onChange={(e) => set({ correo: e.target.value })} />}
+        </Campo>
+        <Campo label="Teléfono del cliente (opcional)" error={errTelefono}>
+          {(id) => <ShInput id={id} type="tel" inputMode="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />}
+        </Campo>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * PASO 1 EN EL SITIO (2026-10-23): EMPRESA Y OBRA, siempre.
+ *
+ * "Cada vez que cotice, si ya tiene obras, que le salgan con un seleccionador,
+ * y si es nueva que la anote." Una cuenta puede tener varias empresas y cada
+ * empresa varias obras: primero la empresa (o "Otra empresa…"), luego sus obras
+ * (u "Obra nueva…", que pide nombre, dirección y municipio). Sin obra no se
+ * avanza: es a donde va la máquina y con lo que se ordena Clientes y obras.
+ * La obra NO se preselecciona: una obra equivocada manda la máquina a otro lado.
+ */
+function PasoObraSitio({
+  ctx,
+  set,
+  catalogo,
+  tocado,
+  empresas,
+}: {
+  ctx: ContextoCotizador;
+  set: (patch: Partial<ContextoCotizador>) => void;
+  catalogo: CatalogoCotizador;
+  tocado: boolean;
+  empresas: EmpresaCliente[];
+}) {
+  const [nueva, setNueva] = useState(false);
+  const empresa = empresas.find((e) => e.id === ctx.clienteId) ?? null;
+  const obras = empresa?.sites ?? [];
+  const obraElegida = obras.find((o) => o.id === ctx.obraId) ?? null;
+  // Sin obras registradas en esa empresa, la única opción es una nueva.
+  const pideNueva = !obraElegida && (nueva || obras.length === 0);
+  const errCorreo = tocado ? errorContacto('correo', ctx.correo, true) : null;
+  const errTelefono = tocado ? errorContacto('telefono', ctx.telefono, true) : null;
+  const falta = (cond: boolean, texto: string) => (tocado && cond ? texto : null);
+
+  const elegirEmpresa = (v: string) => {
+    setNueva(false);
+    const e = empresas.find((x) => String(x.id) === v);
+    set(e
+      ? { clienteId: e.id, cliente: e.name, obraId: null, obra: '', direccion: '' }
+      : { clienteId: null, cliente: '', obraId: null, obra: '', direccion: '' });
+  };
+  const elegirObra = (v: string) => {
+    if (v === OBRA_NUEVA) {
+      setNueva(true);
+      set({ obraId: null, obra: '', direccion: '' });
+      return;
+    }
+    const o = obras.find((x) => String(x.id) === v);
+    if (!o) return;
+    setNueva(false);
+    set({ obraId: o.id, obra: o.name, direccion: o.address ?? '', municipio: o.municipality || ctx.municipio });
+  };
+
+  return (
+    <div className="cz-card">
+      <h2 className="cz-card-h">Empresa y obra</h2>
+      <p className="cz-card-s">A nombre de quién va la cotización y a qué obra llega el equipo. Sale impreso en el encabezado.</p>
+      <div className="cz-row">
+        {empresas.length ? (
+          <Campo label="Empresa o persona" req>
+            {(id) => (
+              <ShSelect value={ctx.clienteId ? String(ctx.clienteId) : OTRA_EMPRESA} onValueChange={elegirEmpresa}>
+                <ShSelectTrigger id={id} aria-label="Empresa o persona"><ShSelectValue /></ShSelectTrigger>
+                <ShSelectContent>
+                  {empresas.map((e) => <ShSelectItem key={e.id} value={String(e.id)}>{e.name}</ShSelectItem>)}
+                  <ShSelectItem value={OTRA_EMPRESA}>Otra empresa…</ShSelectItem>
+                </ShSelectContent>
+              </ShSelect>
+            )}
+          </Campo>
+        ) : null}
+        {!ctx.clienteId ? (
+          <Campo label={empresas.length ? 'Nombre de la otra empresa' : 'Empresa o persona'} req error={falta(ctx.cliente.trim().length < 2, 'Escribe a nombre de quién va la cotización.')}>
+            {(id) => <ShInput id={id} value={ctx.cliente} maxLength={190} placeholder="Ej. Constructora del Norte" onChange={(e) => set({ cliente: e.target.value })} />}
+          </Campo>
+        ) : null}
+
+        {obras.length ? (
+          <Campo label="Obra" req ancho="full" error={falta(!obraElegida && !nueva, 'Elige la obra o «Obra nueva…».')}>
+            {(id) => (
+              <ShSelect value={obraElegida ? String(obraElegida.id) : nueva ? OBRA_NUEVA : ''} onValueChange={elegirObra}>
+                <ShSelectTrigger id={id} aria-label="Obra"><ShSelectValue placeholder="Elige la obra…" /></ShSelectTrigger>
+                <ShSelectContent>
+                  {obras.map((o) => (
+                    <ShSelectItem key={o.id} value={String(o.id)}>{o.name}{o.municipality ? ` · ${o.municipality}` : ''}</ShSelectItem>
+                  ))}
+                  <ShSelectItem value={OBRA_NUEVA}>Obra nueva…</ShSelectItem>
+                </ShSelectContent>
+              </ShSelect>
+            )}
+          </Campo>
+        ) : null}
+        {obraElegida ? (
+          <p className="cz-help" style={{ gridColumn: '1 / -1', margin: 0 }}>
+            {[obraElegida.address, obraElegida.municipality].filter(Boolean).join(' · ') || 'Sin dirección registrada.'}
+          </p>
+        ) : null}
+
+        {pideNueva ? (
+          <>
+            <Campo label="Nombre de la obra" req error={falta(ctx.obra.trim().length < 2, 'Ponle un nombre a la obra.')}>
+              {(id) => <ShInput id={id} value={ctx.obra} maxLength={190} placeholder="Ej. Bodega Escobedo" onChange={(e) => set({ obra: e.target.value })} />}
+            </Campo>
+            <Campo label="Dirección de la obra" req error={falta(ctx.direccion.trim().length < 5, 'Calle, número y colonia.')}>
+              {(id) => <ShInput id={id} value={ctx.direccion} maxLength={300} placeholder="Calle, número y colonia" onChange={(e) => set({ direccion: e.target.value })} />}
+            </Campo>
+          </>
+        ) : null}
+        {pideNueva || (obraElegida && !obraElegida.municipality) ? (
+          <Campo label="Municipio de la obra" req help="Define la zona de flete" error={falta(!ctx.municipio.trim(), 'Elige el municipio.')}>
+            {(id) => (
+              <ShCombobox
+                id={id}
+                value={ctx.municipio}
+                onChange={(v) => set({ municipio: v })}
+                options={catalogo.municipios}
+                placeholder="Ej. Apodaca"
+                buscar="Busca o escribe el municipio…"
+              />
+            )}
+          </Campo>
+        ) : null}
+
+        <Campo
+          label={catalogo.tipo === 'maquinaria' ? 'Fecha de inicio del servicio' : 'Fecha de entrega'}
+          req
+          help="Cuándo se necesita en la obra"
+          error={falta(!ctx.fecha, 'Elige la fecha.')}
+        >
+          {(id) => <ShDatePicker id={id} value={ctx.fecha} min={hoyLocal()} onChange={(v) => set({ fecha: v })} placeholder="Elegir fecha" />}
+        </Campo>
+        <Campo label="Atención a">
+          {(id) => <ShInput id={id} value={ctx.atencion} maxLength={190} placeholder="Ing. / Lic." onChange={(e) => set({ atencion: e.target.value })} />}
+        </Campo>
+        <Campo label="Correo" req error={errCorreo}>
+          {(id) => (
+            <ShInput id={id} type="email" value={ctx.correo} maxLength={190} placeholder="tu@empresa.com" aria-invalid={!!errCorreo} onChange={(e) => set({ correo: e.target.value })} />
+          )}
+        </Campo>
+        <Campo label="Teléfono" req error={errTelefono}>
+          {(id) => (
+            <ShInput id={id} type="tel" inputMode="tel" autoComplete="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />
+          )}
+        </Campo>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Resumen en vivo. Acompaña todos los pasos.
  *
  * Enseña IMPORTES solo cuando el costo ya está a la vista; el resto del tiempo
@@ -662,6 +1022,7 @@ function ResumenLateral({
   importes,
   pie,
   partidas,
+  para,
 }: {
   calc: ReturnType<typeof calcularCotizacion>;
   tipo: 'maquinaria' | 'triturados';
@@ -670,6 +1031,8 @@ function ResumenLateral({
   /** Qué decir en lugar del total mientras no hay importes. */
   pie: string;
   partidas: number;
+  /** Para quién es (2026-10-26): el resumen lo dice desde el primer paso. */
+  para?: { cliente: string; obra: string; fecha: string };
 }) {
   const vacio = calc.renglones.length === 0;
   return (
@@ -678,6 +1041,13 @@ function ResumenLateral({
         <h3>{importes ? 'Resumen' : 'Tu solicitud'}</h3>
         <span>{partidas === 1 ? '1 partida' : `${partidas} partidas`}</span>
       </div>
+      {para && (para.cliente.trim() || para.obra.trim()) ? (
+        <div className="cz-side-para">
+          <span>Para</span>
+          <b>{para.cliente.trim() || 'Cliente por definir'}</b>
+          <em>{[para.obra.trim(), para.fecha].filter(Boolean).join(' · ')}</em>
+        </div>
+      ) : null}
       {vacio ? (
         <div className="cz-side-empty">
           <span className="ico">
@@ -775,6 +1145,41 @@ function ResumenLateral({
 // ---------------------------------------------------------------------------
 
 /**
+ * El tabulador con un precio simbólico en todo (2026-10-23): sirve SOLO para
+ * que el motor arme los renglones del sitio, que recibe el tabulador en ceros.
+ * Sus importes se borran antes de enseñarse (`sinImportes`).
+ */
+function conPrecioSimbolico(cat: CatalogoCotizador): CatalogoCotizador {
+  if (cat.tipo === 'maquinaria') {
+    return {
+      ...cat,
+      fletes: Object.fromEntries(Object.keys(cat.fletes).map((k) => [k, 1])),
+      equipos: cat.equipos.map(({ tarifas: _antes, ...e }) => ({ ...e, precio_hora: 1 })),
+      servicios: cat.servicios.map((s) => ({ ...s, precio: 1 })),
+    };
+  }
+  return {
+    ...cat,
+    productos: cat.productos.map((p) => ({ ...p, precio_ton: 1 })),
+    material_banco: { ...cat.material_banco, precio_m3_default: 1 },
+    zonas: cat.zonas.map((z) => ({ ...z, flete: 1, precios: undefined })),
+  };
+}
+
+/** El mismo cálculo sin un solo importe: conceptos, cantidades y condiciones. */
+function sinImportes(calc: ReturnType<typeof calcularCotizacion>): ReturnType<typeof calcularCotizacion> {
+  return {
+    ...calc,
+    renglones: calc.renglones.map((r) => ({ ...r, pu: 0, importe: 0 })),
+    desglose: { renta: 0, servicios: 0, fletes: 0, materiales: 0 },
+    subtotal: 0,
+    iva: 0,
+    total: 0,
+    condiciones: condicionesSinPrecios(calc.condiciones),
+  };
+}
+
+/**
  * Qué falta para poder continuar. Devuelve el motivo o `null`.
  *
  * El mensaje se guarda hasta que la persona intenta avanzar (`tocado`): marcar
@@ -787,12 +1192,23 @@ function validar(
     lineas: LineaCotizador[];
     esPanel: boolean;
     calc: ReturnType<typeof calcularCotizacion>;
+    /** Panel con clientes registrados: la obra también se pide. */
+    conClientes?: boolean;
   },
 ): string | null {
   const { ctx, lineas, esPanel, calc } = d;
 
   if (clave === 'obra') {
     if (ctx.cliente.trim().length < 2) return 'Escribe a nombre de quién va la cotización.';
+    // En el sitio toda solicitud es para una obra (2026-10-23): una de las suyas o una nueva completa.
+    if (!esPanel && !ctx.obraId) {
+      if (ctx.obra.trim().length < 2) return 'Elige tu obra o escribe el nombre de la obra nueva.';
+      if (ctx.direccion.trim().length < 5) return 'Escribe la dirección de la obra: calle, número y colonia.';
+      if (!ctx.municipio.trim()) return 'Elige el municipio de la obra.';
+    }
+    if (!esPanel && !ctx.fecha) return 'Elige la fecha del servicio.';
+    if (esPanel && d.conClientes && !ctx.obraId && ctx.obra.trim().length < 2) return 'Elige la obra del cliente o escribe el nombre de la obra nueva.';
+    if (esPanel && d.conClientes && !ctx.fecha) return 'Elige la fecha del servicio.';
     return errorContacto('correo', ctx.correo, !esPanel) ?? errorContacto('telefono', ctx.telefono, !esPanel);
   }
 

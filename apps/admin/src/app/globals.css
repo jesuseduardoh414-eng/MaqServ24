@@ -67,6 +67,18 @@ h1, h2, h3 {
 /* La paleta vive en :root y no en `.adm-shell`: los modales y menús que se
    abren en un portal (colgados de <body>) también la necesitan. */
 :root {
+  color-scheme: dark;
+  /* La "tinta" de los realces (bordes, hover, fondos tenues): blanca sobre
+     oscuro, casi negra sobre claro. Se usa como rgba(var(--adm-ink), .06). */
+  --adm-ink: 255, 255, 255;
+  /* Sombras y atenuados (2026-10-28): en claro, una sombra negra al 85 % era un halo pesado y lo atenuado no se leía. */
+  --adm-sombra: rgba(0, 0, 0, .85);
+  --adm-atenuado: .72;
+  /* Las etapas de un servicio (Servicios en curso): tarjetas y etiquetas. El mapa usa los mismos tonos desde el código. */
+  --etapa-asignado: #A78BFA; --etapa-camino: #008CFF; --etapa-obra: #2DD4BF; --etapa-espera: #E0A32E;
+  --etapa-terminado: #22C55E; --etapa-cerrado: #8A8A93; --etapa-cancelado: #F87171;
+  /* Texto de los renglones del menú lateral (gris en oscuro; en claro casi negro, 2026-10-28). */
+  --adm-nav-text: #a1a1aa;
   --adm-accent: var(--color-primary, #f0b429);
   --adm-page: #0a0a0b;
   --adm-sidebar: #0d0d0f;
@@ -74,8 +86,8 @@ h1, h2, h3 {
   --adm-card: #111113;
   --adm-card-hover: #151518;
   --adm-raised: #18181b;
-  --adm-border: rgba(255, 255, 255, 0.07);
-  --adm-border-strong: rgba(255, 255, 255, 0.12);
+  --adm-border: rgba(var(--adm-ink), 0.07);
+  --adm-border-strong: rgba(var(--adm-ink), 0.12);
   --adm-text: #f4f4f5;
   /* Texto de segundo nivel: descripciones de fila, etiquetas de métrica. */
   --adm-text-2: #c4c4cb;
@@ -90,6 +102,39 @@ h1, h2, h3 {
   --adm-radius: 12px;
   --adm-radius-sm: 8px;
   --adm-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* MODO CLARO (2026-10-28, pedido del dueño). Mismo cromo con la paleta del
+   manual para fondos claros: blanco técnico, plata en bordes, negro
+   tecnológico en el texto. Se elige en Mi cuenta (abajo del menú lateral);
+   `data-theme` lo pone un script antes de pintar, y el acento sigue al tema
+   del sitio (--color-primary cambia solo con el mismo atributo). */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --adm-ink: 17, 22, 28;
+  --adm-sombra: rgba(17, 22, 28, .2);
+  --adm-atenuado: .9;
+  --etapa-asignado: #6D28D9; --etapa-camino: #1D4ED8; --etapa-obra: #0F766E; --etapa-espera: #A16207;
+  --etapa-terminado: #15803D; --etapa-cerrado: #52525B; --etapa-cancelado: #C81E1E;
+  --adm-nav-text: #2a3440;
+  --adm-page: #f3f5f8;
+  --adm-sidebar: #ffffff;
+  --adm-topbar: rgba(243, 245, 248, 0.78);
+  --adm-card: #ffffff;
+  --adm-card-hover: #f8fafc;
+  --adm-raised: #ffffff;
+  --adm-border: rgba(17, 22, 28, 0.09);
+  --adm-border-strong: rgba(17, 22, 28, 0.16);
+  --adm-text: #0b0f14;
+  --adm-text-2: #232c36;
+  --adm-muted: #3f4a56;
+  --adm-faint: #55606c;
+  --adm-info: #1d63e0;
+  --ui-surface: #ffffff;
+  --ui-surface-2: #f3f5f8;
+  --ui-border: rgba(17, 22, 28, 0.12);
+  --ui-text: #0b0f14;
+  --ui-muted: #3f4a56;
 }
 
 .adm-shell {
@@ -109,12 +154,12 @@ h1, h2, h3 {
 .adm-shell *::-webkit-scrollbar { width: 10px; height: 10px; }
 .adm-shell *::-webkit-scrollbar-track { background: transparent; }
 .adm-shell *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(var(--adm-ink), 0.08);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-.adm-shell *::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.16); background-clip: padding-box; }
+.adm-shell *::-webkit-scrollbar-thumb:hover { background: rgba(var(--adm-ink), 0.16); background-clip: padding-box; }
 
 /* ---- Sidebar ---- */
 .adm-sidebar {
@@ -158,7 +203,7 @@ h1, h2, h3 {
   padding-top: 15px;
   /* Más marcada que `--adm-border` (6%), que aquí desaparecía: esta línea está
      para verse de reojo, no para insinuarse. */
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(var(--adm-ink), 0.12);
   margin-left: -12px;
   margin-right: -12px;
   padding-left: 12px;
@@ -195,33 +240,33 @@ h1, h2, h3 {
 .adm-navlink {
   display: flex; align-items: center; gap: 11px; width: 100%;
   padding: 9px 11px; border: none; border-radius: 8px; position: relative; overflow: hidden;
-  background: transparent; color: #a1a1aa;
+  background: transparent; color: var(--adm-nav-text);
   font-family: inherit; font-size: 14px; font-weight: 500;
   cursor: pointer; text-align: left; text-decoration: none;
   transition: background .15s ease, color .15s ease;
 }
-.adm-navlink:hover { background: rgba(255, 255, 255, 0.04); color: var(--adm-text); }
+.adm-navlink:hover { background: rgba(var(--adm-ink), 0.04); color: var(--adm-text); }
 /* Activo: superficie neutra con borde fino y la barra de acento a la izquierda.
    Antes era un bloque teñido del color de marca con el texto también de color:
    gritaba más que el contenido de la página. */
 .adm-navlink.active {
-  background: rgba(255, 255, 255, 0.06); color: var(--adm-text); font-weight: 600;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  background: rgba(var(--adm-ink), 0.06); color: var(--adm-text); font-weight: 600;
+  box-shadow: inset 0 0 0 1px rgba(var(--adm-ink), 0.07);
 }
-.adm-navlink.active:hover { background: rgba(255, 255, 255, 0.075); }
+.adm-navlink.active:hover { background: rgba(var(--adm-ink), 0.075); }
 .adm-navlink.active .adm-navico { color: var(--adm-accent); }
 .adm-navico { font-size: 18px; flex-shrink: 0; width: 18px; text-align: center; }
 .adm-navlabel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm-active-bar { position: absolute; left: 0; top: 8px; bottom: 8px; width: 2px; border-radius: 0 2px 2px 0; background: var(--adm-accent); }
 .adm-badge {
-  margin-left: auto; background: rgba(255, 255, 255, 0.07); color: #d4d4d8;
+  margin-left: auto; background: rgba(var(--adm-ink), 0.07); color: var(--adm-text-2);
   font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 6px; line-height: 1.5;
   font-variant-numeric: tabular-nums;
 }
 .adm-navlink.adm-pronto { cursor: default; opacity: 0.5; }
-.adm-navlink.adm-pronto:hover { background: transparent; color: #a1a1aa; }
+.adm-navlink.adm-pronto:hover { background: transparent; color: var(--adm-nav-text); }
 .adm-pronto-chip { font-size: 10px; letter-spacing: 0.4px; text-transform: uppercase; }
-.adm-navlink.active .adm-badge { background: rgba(255, 255, 255, 0.1); color: var(--adm-text); }
+.adm-navlink.active .adm-badge { background: rgba(var(--adm-ink), 0.1); color: var(--adm-text); }
 
 /* Marcas de las pruebas generales: solo en local (ver components/estado-pruebas.ts). */
 [data-prueba="probado"] { --prueba-c: #4ade80; }
@@ -257,17 +302,17 @@ h1, h2, h3 {
   padding: 9px 10px; border-radius: 8px; border: none; background: transparent;
   cursor: pointer; text-align: left; font-family: inherit; transition: background .15s ease;
 }
-.adm-profile:hover { background: rgba(255, 255, 255, 0.05); }
+.adm-profile:hover { background: rgba(var(--adm-ink), 0.05); }
 .adm-avatar {
   width: 34px; height: 34px; border-radius: 999px; flex-shrink: 0;
-  background: #1c1c20; border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--adm-raised); border: 1px solid rgba(var(--adm-ink), 0.1);
   display: flex; align-items: center; justify-content: center;
   font-weight: 600; font-size: 14px; color: var(--adm-text);
 }
 .adm-profile-text { display: flex; flex-direction: column; line-height: 1.25; overflow: hidden; flex: 1; }
 .adm-profile-name { font-size: 13.5px; font-weight: 700; white-space: nowrap; color: var(--adm-text); }
-.adm-profile-mail { font-size: 11.5px; color: #71717a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.adm-profile-signout { font-size: 18px; color: #71717a; }
+.adm-profile-mail { font-size: 11.5px; color: var(--adm-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-profile-signout { font-size: 18px; color: var(--adm-faint); }
 
 /* ---- Main + topbar ---- */
 .adm-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -285,11 +330,11 @@ h1, h2, h3 {
 .leaflet-container { isolation: isolate; }
 .adm-iconbtn {
   width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; position: relative;
-  border: 1px solid var(--adm-border-strong); background: transparent; color: #d4d4d8;
+  border: 1px solid var(--adm-border-strong); background: transparent; color: var(--adm-text-2);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
   transition: background .15s ease, color .15s ease;
 }
-.adm-iconbtn:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.adm-iconbtn:hover { background: rgba(var(--adm-ink), 0.06); color: var(--adm-text); }
 .adm-iconbtn i { font-size: 18px; }
 .adm-iconbtn.sm { width: 36px; height: 36px; border-radius: 8px; }
 .adm-topbar-search { position: relative; flex: 1; max-width: 400px; }
@@ -297,15 +342,15 @@ h1, h2, h3 {
 .adm-topbar-search > i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 16px; color: #8f8f98; pointer-events: none; }
 .adm-topbar-search input {
   width: 100%; height: 36px; padding: 0 14px 0 36px; border-radius: 8px;
-  border: 1px solid var(--adm-border-strong); background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--adm-border-strong); background: rgba(var(--adm-ink), 0.02);
   color: var(--adm-text); font-family: inherit; font-size: 13.5px; outline: none;
   transition: border-color .15s ease, background .15s ease;
 }
 .adm-topbar-search input::placeholder { color: #8f8f98; }
-.adm-topbar-search input:focus { border-color: color-mix(in srgb, var(--adm-accent) 50%, transparent); background: rgba(255, 255, 255, 0.05); }
-.adm-notif-dot { position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; border-radius: 999px; background: var(--adm-accent); box-shadow: 0 0 0 2px #0d0d0f; }
+.adm-topbar-search input:focus { border-color: color-mix(in srgb, var(--adm-accent) 50%, transparent); background: rgba(var(--adm-ink), 0.05); }
+.adm-notif-dot { position: absolute; top: 9px; right: 10px; width: 7px; height: 7px; border-radius: 999px; background: var(--adm-accent); box-shadow: 0 0 0 2px var(--adm-page); }
 .adm-topbar-spacer { flex: 1; }
-.adm-topbar-divider { width: 1px; height: 26px; background: rgba(255, 255, 255, 0.08); }
+.adm-topbar-divider { width: 1px; height: 26px; background: rgba(var(--adm-ink), 0.08); }
 
 /* Formulario del blog: la fila de 2 columnas colapsa en pantallas angostas.
    La clase existía en el JSX sin CSS detrás — la trampa conocida del proyecto. */
@@ -376,6 +421,8 @@ a.adm-stat:hover .adm-stat-label { color: var(--adm-text); }
   font-size: 13px; font-weight: 500; color: var(--adm-text-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: color .15s ease;
 }
+/* En tableta los nombres de las cifras se cortaban ("Libres h…", "Esperand…"): mejor en dos renglones. */
+@media (max-width: 1100px) { .adm-stat-label { white-space: normal; align-items: flex-start; line-height: 1.3; } }
 .adm-stat-label i { font-size: 15px; flex-shrink: 0; color: var(--adm-muted); }
 .adm-stat-line { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 9px; margin-top: 7px; }
 .adm-stat-value {
@@ -423,17 +470,17 @@ a.adm-stat:hover .adm-stat-label { color: var(--adm-text); }
 .adm-search > i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); font-size: 15px; color: var(--adm-faint); pointer-events: none; }
 .adm-search input {
   width: 100%; height: 36px; padding: 0 12px 0 34px; border-radius: var(--adm-radius-sm);
-  border: 1px solid var(--adm-border-strong); background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--adm-border-strong); background: rgba(var(--adm-ink), 0.02);
   color: var(--adm-text); font-family: inherit; font-size: 13.5px; outline: none;
   transition: border-color .15s ease, background .15s ease;
 }
 .adm-search input::placeholder { color: var(--adm-faint); }
-.adm-search input:focus { border-color: color-mix(in srgb, var(--adm-accent) 55%, transparent); background: rgba(255, 255, 255, 0.035); }
+.adm-search input:focus { border-color: color-mix(in srgb, var(--adm-accent) 55%, transparent); background: rgba(var(--adm-ink), 0.035); }
 
 /* Filtros segmentados: lo activo es una superficie clara, no un bloque de color. */
 .adm-seg {
   display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; padding: 3px;
-  border: 1px solid var(--adm-border-strong); border-radius: 9px; background: rgba(255, 255, 255, 0.015);
+  border: 1px solid var(--adm-border-strong); border-radius: 9px; background: rgba(var(--adm-ink), 0.015);
 }
 .adm-seg-item {
   display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px;
@@ -441,8 +488,8 @@ a.adm-stat:hover .adm-stat-label { color: var(--adm-text); }
   font-family: inherit; font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap;
   cursor: pointer; text-decoration: none; transition: background .15s ease, color .15s ease;
 }
-.adm-seg-item:hover { color: var(--adm-text); background: rgba(255, 255, 255, 0.04); }
-.adm-seg-item.is-active { background: rgba(255, 255, 255, 0.09); color: var(--adm-text); font-weight: 600; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+.adm-seg-item:hover { color: var(--adm-text); background: rgba(var(--adm-ink), 0.04); }
+.adm-seg-item.is-active { background: rgba(var(--adm-ink), 0.09); color: var(--adm-text); font-weight: 600; box-shadow: inset 0 0 0 1px rgba(var(--adm-ink), 0.06); }
 .adm-seg-count { font-size: 11.5px; font-weight: 500; color: var(--adm-faint); font-variant-numeric: tabular-nums; }
 .adm-seg-item.is-active .adm-seg-count { color: var(--adm-text-2); }
 
@@ -461,10 +508,10 @@ a.adm-stat:hover .adm-stat-label { color: var(--adm-text); }
 .adm-btn[aria-disabled='true'] { opacity: .55; pointer-events: none; }
 .adm-btn-primary { background: var(--adm-accent); color: var(--color-primary-fg, #fff); }
 .adm-btn-primary:hover:not(:disabled) { filter: brightness(1.08); color: var(--color-primary-fg, #fff); }
-.adm-btn-secondary { background: rgba(255, 255, 255, 0.03); border-color: var(--adm-border-strong); color: var(--adm-text); }
-.adm-btn-secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.18); }
+.adm-btn-secondary { background: rgba(var(--adm-ink), 0.03); border-color: var(--adm-border-strong); color: var(--adm-text); }
+.adm-btn-secondary:hover:not(:disabled) { background: rgba(var(--adm-ink), 0.07); border-color: rgba(var(--adm-ink), 0.18); }
 .adm-btn-ghost { background: transparent; color: var(--adm-text-2); }
-.adm-btn-ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.05); color: var(--adm-text); }
+.adm-btn-ghost:hover:not(:disabled) { background: rgba(var(--adm-ink), 0.05); color: var(--adm-text); }
 .adm-btn-danger { background: transparent; border-color: color-mix(in srgb, var(--adm-bad) 45%, transparent); color: var(--adm-bad); }
 .adm-btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--adm-bad) 10%, transparent); }
 /* Confirmar algo que borra (diálogos del sistema): rojo lleno, no solo el borde. */
@@ -482,7 +529,7 @@ a.adm-stat:hover .adm-stat-label { color: var(--adm-text); }
   cursor: pointer; text-decoration: none; transition: background .15s ease, color .15s ease, border-color .15s ease;
 }
 .adm-ibtn i { font-size: 15px; }
-.adm-ibtn:hover { background: rgba(255, 255, 255, 0.06); color: var(--adm-text); }
+.adm-ibtn:hover { background: rgba(var(--adm-ink), 0.06); color: var(--adm-text); }
 .adm-ibtn.is-danger:hover { color: var(--adm-bad); border-color: color-mix(in srgb, var(--adm-bad) 40%, transparent); background: color-mix(in srgb, var(--adm-bad) 8%, transparent); }
 .adm-ibtn.is-plain { border-color: transparent; }
 .adm-ibtn:disabled { opacity: .5; cursor: default; }
@@ -497,14 +544,14 @@ a.adm-stat:hover .adm-stat-label { color: var(--adm-text); }
 }
 .adm-tbl td { padding: 12px 16px; border-bottom: 1px solid var(--adm-border); font-size: 13.5px; color: var(--adm-text); vertical-align: middle; }
 .adm-tbl tbody tr:last-child td { border-bottom: 0; }
-.adm-tbl tbody tr:hover td { background: rgba(255, 255, 255, 0.018); }
+.adm-tbl tbody tr:hover td { background: rgba(var(--adm-ink), 0.018); }
 .adm-thead {
   padding: 11px 20px; border-bottom: 1px solid var(--adm-border);
   font-size: 11.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--adm-faint);
 }
 .adm-trow { padding: 13px 20px; border-bottom: 1px solid var(--adm-border); transition: background .12s ease; }
 .adm-trow:last-child { border-bottom: 0; }
-.adm-trow:hover { background: rgba(255, 255, 255, 0.018); }
+.adm-trow:hover { background: rgba(var(--adm-ink), 0.018); }
 a.adm-trow { display: block; color: inherit; text-decoration: none; }
 
 /* Texto de celda / fila de lista. */
@@ -521,7 +568,7 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
 .adm-chip {
   display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: 6px;
   font-size: 11.5px; font-weight: 600; line-height: 1; white-space: nowrap;
-  background: rgba(255, 255, 255, 0.06); color: var(--adm-text-2);
+  background: rgba(var(--adm-ink), 0.06); color: var(--adm-text-2);
 }
 .adm-status { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 500; white-space: nowrap; color: var(--adm-text-2); }
 .adm-status::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; flex-shrink: 0; }
@@ -534,7 +581,7 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
 /* Selectores EXACTOS de tono: un `[class*='t-']` también atrapaba
    `adm-sta*t-*hint` o iconos como `ph-lis*t-*checks` y los pintaba sin color. */
 .adm-chip:is(.t-accent, .t-ok, .t-warn, .t-bad, .t-info, .t-muted) { background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--tone); }
-.adm-chip.t-muted { background: rgba(255, 255, 255, 0.06); color: var(--adm-muted); }
+.adm-chip.t-muted { background: rgba(var(--adm-ink), 0.06); color: var(--adm-muted); }
 .adm-status:is(.t-accent, .t-ok, .t-warn, .t-bad, .t-info, .t-muted) { color: var(--tone); }
 .adm-stat-label i:is(.t-accent, .t-ok, .t-warn, .t-bad, .t-info, .t-muted) { color: var(--tone); }
 .adm-stat-hint:is(.t-accent, .t-ok, .t-warn, .t-bad, .t-info, .t-muted), .adm-stat-value:is(.t-accent, .t-ok, .t-warn, .t-bad, .t-info, .t-muted) { color: var(--tone); }
@@ -543,7 +590,7 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
 /* ---- Interruptor ---- */
 .adm-switch {
   position: relative; width: 34px; height: 20px; flex-shrink: 0; padding: 0;
-  border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.14);
+  border: 0; border-radius: 999px; background: rgba(var(--adm-ink), 0.14);
   cursor: pointer; transition: background .15s ease;
 }
 .adm-switch::after {
@@ -561,13 +608,13 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
 .adm-help { font-size: 12px; line-height: 1.5; color: var(--adm-faint); }
 .adm-input, .adm-textarea, .adm-select {
   width: 100%; height: 38px; padding: 0 12px; border-radius: var(--adm-radius-sm);
-  border: 1px solid var(--adm-border-strong); background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--adm-border-strong); background: rgba(var(--adm-ink), 0.025);
   color: var(--adm-text); font-family: inherit; font-size: 14px; outline: none;
   transition: border-color .15s ease, background .15s ease;
 }
 .adm-textarea { height: auto; padding: 10px 12px; line-height: 1.5; resize: vertical; }
 .adm-input::placeholder, .adm-textarea::placeholder { color: var(--adm-faint); }
-.adm-input:focus, .adm-textarea:focus, .adm-select:focus { border-color: color-mix(in srgb, var(--adm-accent) 60%, transparent); background: rgba(255, 255, 255, 0.04); }
+.adm-input:focus, .adm-textarea:focus, .adm-select:focus { border-color: color-mix(in srgb, var(--adm-accent) 60%, transparent); background: rgba(var(--adm-ink), 0.04); }
 .adm-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 16px; }
 
 /* ---- Caja de contenido (formularios, bloques de edición) ---- */
@@ -576,7 +623,7 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
 /* ---- Aviso en línea ---- */
 .adm-note {
   display: flex; align-items: flex-start; gap: 10px; padding: 11px 14px; border-radius: var(--adm-radius-sm);
-  border: 1px solid var(--adm-border-strong); background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--adm-border-strong); background: rgba(var(--adm-ink), 0.02);
   font-size: 13px; line-height: 1.55; color: var(--adm-text-2);
 }
 .adm-note > i { font-size: 16px; margin-top: 1px; flex-shrink: 0; color: var(--tone, var(--adm-muted)); }
@@ -591,15 +638,22 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
 /* ---- Miniatura, barra de progreso, aviso flotante ---- */
 .adm-thumb {
   width: 40px; height: 40px; flex-shrink: 0; overflow: hidden; display: grid; place-items: center;
-  border-radius: var(--adm-radius-sm); border: 1px solid var(--adm-border); background: #18181b; color: var(--adm-faint);
+  border-radius: var(--adm-radius-sm); border: 1px solid var(--adm-border); background: var(--adm-raised); color: var(--adm-faint);
 }
 .adm-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .adm-thumb i { font-size: 16px; }
-.adm-bar { height: 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.adm-bar { height: 4px; border-radius: 999px; background: rgba(var(--adm-ink), 0.08); overflow: hidden; }
 .adm-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--tone, var(--adm-accent)); }
 .adm-divider { height: 1px; background: var(--adm-border); border: 0; margin: 20px 0; }
 
 @media (max-width: 760px) {
+  /* Paquete D (2026-10-28): zonas de toque cerca de 40 px y pestañas en una sola fila que se desliza
+     (se partían en dos renglones y se veían rotas). */
+  .adm-seg { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .adm-seg::-webkit-scrollbar { display: none; }
+  .adm-seg-item { height: 36px; flex-shrink: 0; }
+  .adm-btn-sm { height: 36px; }
+  .adm-ibtn { width: 38px; height: 38px; }
   .adm-stats { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 0; }
   .adm-stat { padding: 0 16px; }
   .adm-stat:nth-child(odd) { padding-left: 0; border-left: 0; }
@@ -630,9 +684,9 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
     width: 272px !important; /* gana a .is-collapsed, que es de escritorio */
     transform: translateX(-100%);
     transition: transform .22s ease;
-    box-shadow: 20px 0 50px -20px rgba(0, 0, 0, .7);
   }
-  .adm-shell.is-mobile-open .adm-sidebar { transform: none; }
+  /* La sombra solo con el cajón abierto (2026-10-28): cerrado dejaba una franja gris en el borde, visible en claro. */
+  .adm-shell.is-mobile-open .adm-sidebar { transform: none; box-shadow: 20px 0 50px -20px var(--adm-sombra); }
 
   /* Colapsado es un estado de escritorio: en el drawer siempre va completo. */
   .adm-shell.is-collapsed .adm-navlabel,
@@ -681,7 +735,7 @@ a.adm-trow { display: block; color: inherit; text-decoration: none; }
 :root {
   --ui-surface: #141416;
   --ui-surface-2: #101012;
-  --ui-border: rgba(255, 255, 255, 0.08);
+  --ui-border: rgba(var(--adm-ink), 0.08);
   --ui-text: #f5f5f4;
   --ui-muted: #8a8a93;
   --ui-accent: var(--color-primary);
@@ -702,3 +756,29 @@ input:-webkit-autofill:focus {
   caret-color: var(--ui-text);
   transition: background-color 9999s ease-in-out 0s;
 }
+
+/* ============================================================
+   MODO CLARO, AJUSTES FINOS (paquete C de la auditoría, 2026-10-28).
+   Lo que se había escrito pensando solo en el fondo oscuro.
+   ============================================================ */
+/* 7. Buscador de arriba: el gris #8f8f98 (elegido para el oscuro) daba 2.8:1. */
+:root[data-theme="light"] .adm-topbar-search > i,
+:root[data-theme="light"] .adm-topbar-search input::placeholder { color: var(--adm-faint); }
+/* 10. Textos de ejemplo de todos los campos (los editores de Diseño no traían regla). */
+:root[data-theme="light"] input::placeholder,
+:root[data-theme="light"] textarea::placeholder { color: var(--adm-faint); opacity: 1; }
+/* 6. Interruptor apagado: el riel casi no se veía y la bolita blanca se perdía. */
+:root[data-theme="light"] .adm-switch:not([aria-checked='true']):not([data-on='true']) { background: rgba(var(--adm-ink), .28); box-shadow: inset 0 0 0 1px var(--adm-border-strong); }
+:root[data-theme="light"] .adm-switch::after { box-shadow: 0 1px 3px rgba(17, 22, 28, .3); }
+/* 11. Pastillas teñidas: el texto del tono sobre su propio velo quedaba entre 3.5 y 4.4:1. */
+:root[data-theme="light"] .adm-chip:is(.t-accent, .t-ok, .t-warn, .t-bad, .t-info) { color: color-mix(in srgb, var(--tone) 72%, #000); }
+:root[data-theme="light"] .in-step:not(.t-muted) { color: color-mix(in srgb, var(--tone) 72%, #000); }
+:root[data-theme="light"] .ng-dice { color: color-mix(in srgb, var(--ng-c) 72%, #000); }
+/* 8. El logo plateado sobre blanco: más oscuro, sin perder el azul. */
+.logo-sobre-claro { filter: brightness(.5) contrast(1.35) saturate(1.2); }
+/* El "/" entre las migas de arriba: con su opacidad quedaba a 2.3:1 sobre el fondo claro. */
+:root[data-theme="light"] .adm-eyebrow-sep { opacity: 1; color: var(--adm-faint); }
+/* Estados en texto de color (Enviado, Activo…): un punto más oscuros sobre blanco. */
+:root[data-theme="light"] .adm-status:is(.t-ok, .t-warn, .t-info, .t-accent) { color: color-mix(in srgb, var(--tone) 85%, #000); }
+/* Los filtros de Disponibilidad sin equipos (desactivados) se leen, sin parecer activos. */
+:root[data-theme="light"] .av-ley:disabled { opacity: .62; }

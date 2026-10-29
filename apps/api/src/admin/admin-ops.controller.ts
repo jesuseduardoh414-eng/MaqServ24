@@ -12,9 +12,10 @@ import { correoCotizacionRespondida } from '../notifications/email-templates';
 import { DIAS_AVISO } from '../catalog/provider-trust';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { PASOS, esEstado } from '../quotes/service-flow';
-import { ServiceService, guardarReglaAprobacion, reglaAprobacion } from '../quotes/service.service';
+import { ServiceService } from '../quotes/service.service';
 import { registrarAccion } from './audit';
 import { sincronizarReserva } from '../quotes/reservas';
+import { cancelarDocumentoSiNadaSigue } from '../quoter/documento-estado';
 
 /**
  * De dónde llegó una solicitud (rediseño de Solicitudes, 2026-10-08). El
@@ -94,7 +95,8 @@ export class AdminOpsController {
       // Mismo criterio que los mensajes de contacto: alguien esperando.
       prisma.quoter_quotes.count({ where: { state: 'solicitada' } }),
       // Equipos que un aliado ofreció desde su portal y esperan revisión.
-      prisma.products.count({ where: { status: ESTADO_POR_REVISAR } }),
+      // Solo de aliados de la red: lo que declara una solicitud se ve al revisarla (2026-10-26).
+      prisma.providers.findMany({ where: { status: 1 }, select: { id: true } }).then((red) => prisma.products.count({ where: { status: ESTADO_POR_REVISAR, provider_id: { in: red.map((p) => p.id) } } })),
     ]);
 
     return {
@@ -203,41 +205,6 @@ export class AdminOpsController {
     return { ok: true, yaEstaba: false, at: at.toISOString(), via: p.data.via ?? 'llamada' };
   }
 
-  @Modulo('cotizaciones')
-  /**
-   * APROBAR Y MANDAR A PROVEEDORES (2026-10-15).
-   *
-   * Para lo que llega del cotizador del sitio: el cliente ya vio el precio y
-   * pidió el servicio, así que no se le vuelve a preguntar. MAQSER24 revisa
-   * que todo esté bien y con esto queda en servicio y se ofrece sola a los
-   * aliados que llegan a la obra; al cliente le llega "autorizada" cuando uno
-   * la toma. Si al revisar se le cambió el precio ("Volver a cotizar"), ya no
-   * es lo que él vio: entonces se le responde y la acepta él.
-   */
-  @Post('quotes/:id/aprobar')
-  async aprobar(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
-    const r = await this.services.aprobarDelCotizador(id, { adminId: req.adminId ?? null, adminNombre: req.adminNombre ?? null });
-    await registrarAccion(req, 'cotizaciones', 'solicitud.aprobar', r.quoteNumber, r.ofrecidos.length ? `ofrecida a ${r.ofrecidos.join(', ')}` : 'ningún aliado llega a la obra');
-    return { ok: true, partes: r.partes, ofrecidos: r.ofrecidos };
-  }
-
-  /** La regla de la aprobación automática (2026-10-22): encendida o no, y hasta qué total. */
-  @Modulo('cotizaciones')
-  @Get('quotes-aprobacion')
-  aprobacionAutomatica() {
-    return reglaAprobacion();
-  }
-
-  @Modulo('cotizaciones')
-  @Put('quotes-aprobacion')
-  async guardarAprobacionAutomatica(@Req() req: AdminRequest, @Body() body: unknown) {
-    const d = z.object({ activa: z.boolean(), montoMaximo: z.number().min(0).max(100_000_000) }).safeParse(body);
-    if (!d.success) throw new BadRequestException('Regla inválida');
-    await guardarReglaAprobacion(d.data, req.adminEmail ?? 'panel');
-    await registrarAccion(req, 'cotizaciones', 'aprobacion.automatica', 'regla', `${d.data.activa ? 'encendida' : 'apagada'} · hasta ${d.data.montoMaximo}`);
-    return { ok: true };
-  }
-
   /**
    * Responder cotización: ajustar montos/condiciones y marcar completed.
    *
@@ -317,6 +284,11 @@ export class AdminOpsController {
       },
     });
 
+    // Descartada (2026-10-26): si ya nada de su folio sigue, el documento pasa a Cancelada.
+    if (parsed.data.status === 'rejected' && q.status !== 'rejected') {
+      await cancelarDocumentoSiNadaSigue(q.requirements);
+    }
+
     // El documento sale con la respuesta: en el historial del cotizador pasa a "Enviada".
     if (respondiendo && documentoId) {
       await prisma.quoter_quotes.updateMany({ where: { id: documentoId, state: { in: ['borrador', 'solicitada'] } }, data: { state: 'enviada', updated_at: new Date() } });
@@ -382,7 +354,7 @@ export class AdminOpsController {
        * No se envuelve en try/catch porque `enviar` nunca lanza: si el correo
        * falla, queda registrado y la cotización se responde igual.
        */
-      const plantilla = correoCotizacionRespondida({
+      const plantilla = await correoCotizacionRespondida({
         nombre: q.name,
         folio: q.quote_number,
         total: totalDocumento,

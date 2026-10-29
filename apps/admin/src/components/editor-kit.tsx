@@ -35,12 +35,12 @@ export function ColorField({ label, value, onChange }: { label: string; value: s
     <div style={{ display: 'grid', gap: 8 }}>
       <span style={smallLabel}>{label}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => onChange(null)} title="Heredar del tema" style={{ height: 32, padding: '0 12px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: isTheme ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : 'transparent', color: isTheme ? D.amber : D.muted2, border: `2px solid ${isTheme ? D.amber : 'rgba(255,255,255,0.12)'}` }}>Tema</button>
+        <button type="button" onClick={() => onChange(null)} title="Heredar del tema" style={{ height: 32, padding: '0 12px', borderRadius: 9, cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', background: isTheme ? 'color-mix(in srgb, var(--color-primary) 16%, transparent)' : 'transparent', color: isTheme ? D.amber : D.muted2, border: `2px solid ${isTheme ? D.amber : 'rgba(var(--adm-ink),0.12)'}` }}>Tema</button>
         {PRESETS.map((col) => {
           const sel = !isTheme && col.toLowerCase() === (value ?? '').toLowerCase();
-          return <button key={col} type="button" onClick={() => onChange(col)} title={col} style={{ width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(255,255,255,0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
+          return <button key={col} type="button" onClick={() => onChange(col)} title={col} style={{ width: 32, height: 32, borderRadius: 9, background: col, cursor: 'pointer', padding: 0, border: sel ? '2px solid #fff' : '2px solid rgba(var(--adm-ink),0.12)', boxShadow: sel ? '0 0 0 3px color-mix(in srgb, var(--color-primary) 50%, transparent)' : 'none' }} />;
         })}
-        <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 9, border: '2px dashed rgba(255,255,255,0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
+        <label style={{ position: 'relative', width: 32, height: 32, borderRadius: 9, border: '2px dashed rgba(var(--adm-ink),0.2)', display: 'grid', placeItems: 'center', cursor: 'pointer', overflow: 'hidden' }} title="Personalizado">
           <i className="ph ph-eyedropper" style={{ fontSize: 13, color: D.muted2 }} />
           <input type="color" value={value ?? '#008CFF'} onChange={(e) => onChange(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
         </label>

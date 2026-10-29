@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { ShSelectCampo } from '@maqserv/ui';
 import { useState, type ReactNode } from 'react';
-import { OFERTAS_PROVEEDOR, TIPOS_PROVEEDOR, centroDeMunicipio, problemaEmail, problemaNombre, problemaTelefono, radioDeCobertura, type OfertaProveedor, type TipoProveedor } from '@maqserv/config';
+import { TIPOS_PROVEEDOR, centroDeMunicipio, problemaEmail, problemaNombre, problemaTelefono, radioDeCobertura, type LineaRegistro, type TipoProveedor } from '@maqserv/config';
 import { evento } from '@/lib/analitica';
 import { Icon } from '@/components/Icon';
+
+/** El renglón de una categoría nueva: su nombre, la etiqueta y Quitar. */
+const CSS_NUEVA = `.rp-nueva{ display:flex; gap:8px; align-items:center; margin-bottom:10px; } .rp-nueva .ms-input{ flex:1 1 auto; min-width:0; }`;
 
 const ESTADOS_MX = [
   'Aguascalientes', 'Baja California', 'Baja California Sur', 'Campeche', 'Chiapas', 'Chihuahua', 'Ciudad de México',
@@ -58,19 +61,43 @@ function KmCalculados({ municipio, estado, cobertura }: { municipio: string; est
  * Pide lo mismo que el alta del panel (2026-10-09): su dirección, su
  * municipio y los municipios a los que llega. Antes solo ciudad y estado, y al
  * aceptarlo había que volver a pedirle dónde estaba y hasta dónde llegaba.
+ *
+ * SUS EQUIPOS (2026-10-26). Antes era un texto libre ("cuéntanos de tu
+ * maquinaria"). Ahora elige las categorías que MAQSER24 tiene en el panel y,
+ * en cada una, marca los tipos que tiene con cuántas unidades, o agrega otro.
+ * Al aceptarlo, esos equipos ya quedan a su nombre en Disponibilidad.
  */
-export function RegistroProveedorForm() {
+
+/** Un equipo marcado de la lista: cuántas, y marca/modelo si quiere. */
+interface Marcado { unidades: string; marca: string; modelo: string }
+/** Un equipo "otro" que no está en la lista. */
+interface Otro { id: number; categoria: string; nombre: string; marca: string; modelo: string; unidades: string }
+
+export function RegistroProveedorForm({ lineas, inicial }: {
+  lineas: LineaRegistro[];
+  /** Lo que trae la invitación del panel (2026-10-27): ya escrito, se puede corregir. */
+  inicial?: { nombre: string; contacto: string; correo: string; telefono: string };
+}) {
   const [tipo, setTipo] = useState<TipoProveedor>('empresa');
-  const [nombre, setNombre] = useState('');
-  const [contacto, setContacto] = useState('');
-  const [telefono, setTelefono] = useState('');
-  const [correo, setCorreo] = useState('');
+  const [nombre, setNombre] = useState(inicial?.nombre ?? '');
+  const [contacto, setContacto] = useState(inicial?.contacto ?? '');
+  const [telefono, setTelefono] = useState(inicial?.telefono ?? '');
+  const [correo, setCorreo] = useState(inicial?.correo ?? '');
   const [direccion, setDireccion] = useState('');
   const [ciudad, setCiudad] = useState('');
   const [estado, setEstado] = useState('Nuevo León');
   const [municipios, setMunicipios] = useState('');
   const [respuesta, setRespuesta] = useState('');
-  const [ofrece, setOfrece] = useState<OfertaProveedor[]>([]);
+  const [ofrece, setOfrece] = useState<string[]>([]);
+  /** Tipos marcados, por id de la ficha. */
+  const [marcados, setMarcados] = useState<Record<number, Marcado>>({});
+  const [otros, setOtros] = useState<Otro[]>([]);
+  /**
+   * CATEGORÍAS QUE NO ESTÁN EN LA LISTA (2026-10-28): "Otra" abre una con su
+   * nombre y sus equipos. Llega a MAQSER24 como categoría nueva, que decide si
+   * es la misma que otra, si la autoriza o si no la maneja.
+   */
+  const [nuevas, setNuevas] = useState<Array<{ clave: string; nombre: string }>>([]);
   const [mensaje, setMensaje] = useState('');
   const [sitio, setSitio] = useState(''); // trampa para bots
   const [tocado, setTocado] = useState(false);
@@ -87,12 +114,51 @@ export function RegistroProveedorForm() {
     ciudad: tocado && !ciudad.trim(),
     municipios: tocado && aLista(municipios).length === 0,
     ofrece: tocado && ofrece.length === 0,
-    mensaje: tocado && mensaje.trim().length < 10,
   };
 
-  function alternar(clave: OfertaProveedor) {
+  // Lo que se manda: los tipos marcados de las líneas elegidas y los "otro" con nombre.
+  // Las categorías nuevas van al final, sin tipos: solo "otro".
+  const elegidas: Array<LineaRegistro & { nueva?: boolean }> = [
+    ...lineas.filter((l) => ofrece.includes(l.slug)),
+    ...nuevas.filter((n) => ofrece.includes(n.clave)).map((n) => ({ slug: n.clave, nombre: n.nombre, tipos: [], nueva: true })),
+  ];
+  const equipos = [
+    ...elegidas.flatMap((l) => l.tipos.filter((t) => marcados[t.id]).map((t) => ({
+      categoria: l.slug, tipoId: t.id, nombre: t.nombre, marca: marcados[t.id].marca.trim(), modelo: marcados[t.id].modelo.trim(), unidades: Number(marcados[t.id].unidades) || 1,
+    }))),
+    ...otros.filter((o) => ofrece.includes(o.categoria) && o.nombre.trim().length >= 3).map((o) => ({
+      categoria: o.categoria, tipoId: null, nombre: o.nombre.trim(), marca: o.marca.trim(), modelo: o.modelo.trim(), unidades: Number(o.unidades) || 1,
+    })),
+  ];
+  const errEquipos = tocado && ofrece.length > 0 && equipos.length === 0;
+  const errNueva = tocado && nuevas.some((n) => n.nombre.trim().length < 3);
+
+  /** "Otra: no está en la lista": una categoría nueva, ya con un renglón para su primer equipo. */
+  function agregarNueva() {
+    const clave = `nueva-${Date.now()}`;
+    setNuevas((l) => [...l, { clave, nombre: '' }]);
+    setOfrece((v) => [...v, clave]);
+    setOtros((lst) => [...lst, { id: Date.now(), categoria: clave, nombre: '', marca: '', modelo: '', unidades: '1' }]);
+  }
+  function quitarNueva(clave: string) {
+    setNuevas((l) => l.filter((n) => n.clave !== clave));
+    setOfrece((v) => v.filter((x) => x !== clave));
+    setOtros((lst) => lst.filter((o) => o.categoria !== clave));
+  }
+
+  function alternar(clave: string) {
     setOfrece((v) => (v.includes(clave) ? v.filter((x) => x !== clave) : [...v, clave]));
   }
+
+  function marcar(id: number) {
+    setMarcados((m) => {
+      const n = { ...m };
+      if (n[id]) delete n[id]; else n[id] = { unidades: '1', marca: '', modelo: '' };
+      return n;
+    });
+  }
+  const cambiarMarcado = (id: number, campo: keyof Marcado, v: string) => setMarcados((m) => ({ ...m, [id]: { ...m[id], [campo]: v } }));
+  const cambiarOtro = (id: number, campo: keyof Otro, v: string) => setOtros((l) => l.map((o) => (o.id === id ? { ...o, [campo]: v } : o)));
 
   async function enviar() {
     setTocado(true);
@@ -100,7 +166,8 @@ export function RegistroProveedorForm() {
     if (
       nombre.trim().length < 2 || !telefonoOk(telefono) || (correo.trim() && !correoOk(correo.trim())) ||
       (empresa && problemaNombre(contacto)) ||
-      !ciudad.trim() || aLista(municipios).length === 0 || ofrece.length === 0 || mensaje.trim().length < 10
+      !ciudad.trim() || aLista(municipios).length === 0 || ofrece.length === 0 || equipos.length === 0 ||
+      nuevas.some((n) => n.nombre.trim().length < 3)
     ) return;
     setEnviando(true);
     try {
@@ -110,7 +177,7 @@ export function RegistroProveedorForm() {
         body: JSON.stringify({
           tipo, nombre, contacto: empresa ? contacto : '', telefono, correo,
           direccion, ciudad, estado, municipios: aLista(municipios), respuesta: respuesta ? Number(respuesta) : null,
-          ofrece, mensaje, sitio,
+          ofrece, equipos, nuevas: nuevas.map((n) => ({ clave: n.clave, nombre: n.nombre.trim() })), mensaje, sitio,
         }),
       });
       if (!res.ok) {
@@ -149,6 +216,7 @@ export function RegistroProveedorForm() {
 
   return (
     <div style={{ display: 'grid', gap: 20 }}>
+      <style>{CSS_NUEVA}</style>
       <div className="ms-field">
         <span className="ms-label" id="rp-tipo">Te registras como<span className="ms-req">*</span></span>
         <div className="ms-tabs" role="radiogroup" aria-labelledby="rp-tipo">
@@ -218,24 +286,103 @@ export function RegistroProveedorForm() {
 
       <div className="ms-field">
         <span className="ms-label" id="rp-ofrece">¿Qué ofreces?<span className="ms-req">*</span></span>
-        <div className="ms-tabs" role="group" aria-labelledby="rp-ofrece">
-          {OFERTAS_PROVEEDOR.map((o) => {
-            const on = ofrece.includes(o.clave);
-            return (
-              <button key={o.clave} type="button" className="ms-tab" data-on={on} aria-pressed={on} onClick={() => alternar(o.clave)}>
-                {on ? <Icon name="check" size={14} /> : null}{o.nombre}
+        {lineas.length === 0 ? (
+          <p className="ms-error">No pudimos cargar las opciones. Recarga la página en unos segundos.</p>
+        ) : (
+          <div className="ms-tabs" role="group" aria-labelledby="rp-ofrece">
+            {lineas.map((l) => {
+              const on = ofrece.includes(l.slug);
+              return (
+                <button key={l.slug} type="button" className="ms-tab" data-on={on} aria-pressed={on} onClick={() => alternar(l.slug)}>
+                  {on ? <Icon name="check" size={14} /> : null}{l.nombre}
+                </button>
+              );
+            })}
+            {nuevas.length < 3 ? (
+              <button type="button" className="ms-tab" onClick={agregarNueva}>
+                + Otra: no está en la lista
               </button>
-            );
-          })}
-        </div>
+            ) : null}
+          </div>
+        )}
         {err.ofrece ? <p className="ms-error">Elige al menos una opción.</p> : <p className="ms-hint">Puedes elegir varias.</p>}
       </div>
 
+      {/* Sus equipos, por cada línea elegida: los tipos que MAQSER24 ya ofrece, o uno nuevo. */}
+      {elegidas.length > 0 ? (
+        <div style={{ display: 'grid', gap: 14 }}>
+          <div>
+            <h3 className="ms-h3">Tus equipos<span className="ms-req">*</span></h3>
+            <p className="ms-hint" style={{ marginTop: 4 }}>Marca lo que tienes y cuántas unidades. Si no está en la lista, agrégalo.</p>
+          </div>
+          {elegidas.map((l) => (
+            <fieldset key={l.slug} className="rp-linea">
+              {l.nueva ? (
+                <div className="rp-nueva">
+                  <input
+                    className="ms-input"
+                    aria-label="Nombre de la categoría nueva"
+                    value={l.nombre}
+                    maxLength={100}
+                    onChange={(e) => setNuevas((lst) => lst.map((n) => (n.clave === l.slug ? { ...n, nombre: e.target.value } : n)))}
+                    placeholder="¿Qué categoría es? (ej. Grúas)"
+                  />
+                  <span className="ms-chip">Nueva</span>
+                  <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" onClick={() => quitarNueva(l.slug)}>Quitar</button>
+                </div>
+              ) : (
+                <legend className="ms-label">{l.nombre}</legend>
+              )}
+              <div style={{ display: 'grid', gap: 8 }}>
+                {l.tipos.map((t) => {
+                  const m = marcados[t.id];
+                  return (
+                    <div key={t.id} className="rp-equipo" data-on={Boolean(m)}>
+                      <label className="rp-equipo-n">
+                        <input type="checkbox" checked={Boolean(m)} onChange={() => marcar(t.id)} />
+                        <span>{t.nombre}</span>
+                      </label>
+                      {m ? (
+                        <div className="rp-equipo-d">
+                          <input className="ms-input" aria-label={`Unidades de ${t.nombre}`} inputMode="numeric" value={m.unidades} onChange={(e) => cambiarMarcado(t.id, 'unidades', e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="1" />
+                          <input className="ms-input" aria-label={`Marca de ${t.nombre}`} value={m.marca} maxLength={120} onChange={(e) => cambiarMarcado(t.id, 'marca', e.target.value)} placeholder="Marca (opcional)" />
+                          <input className="ms-input" aria-label={`Modelo de ${t.nombre}`} value={m.modelo} maxLength={120} onChange={(e) => cambiarMarcado(t.id, 'modelo', e.target.value)} placeholder="Modelo (opcional)" />
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {otros.filter((o) => o.categoria === l.slug).map((o) => (
+                  <div key={o.id} className="rp-equipo" data-on>
+                    <div className="rp-equipo-d rp-otro">
+                      <input className="ms-input" aria-label="Qué equipo es" value={o.nombre} maxLength={160} onChange={(e) => cambiarOtro(o.id, 'nombre', e.target.value)} placeholder="Qué es (ej. Grúa 30 t)" />
+                      <input className="ms-input" aria-label="Unidades" inputMode="numeric" value={o.unidades} onChange={(e) => cambiarOtro(o.id, 'unidades', e.target.value.replace(/\D/g, '').slice(0, 2))} placeholder="1" />
+                      <input className="ms-input" aria-label="Marca" value={o.marca} maxLength={120} onChange={(e) => cambiarOtro(o.id, 'marca', e.target.value)} placeholder="Marca (opcional)" />
+                      <input className="ms-input" aria-label="Modelo" value={o.modelo} maxLength={120} onChange={(e) => cambiarOtro(o.id, 'modelo', e.target.value)} placeholder="Modelo (opcional)" />
+                      <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" aria-label="Quitar este equipo" onClick={() => setOtros((lst) => lst.filter((x) => x.id !== o.id))}>Quitar</button>
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="ms-btn ms-btn-sec ms-btn-sm"
+                  style={{ justifySelf: 'start' }}
+                  onClick={() => setOtros((lst) => [...lst, { id: Date.now(), categoria: l.slug, nombre: '', marca: '', modelo: '', unidades: '1' }])}
+                >
+                  Agregar otro equipo
+                </button>
+              </div>
+            </fieldset>
+          ))}
+          {errEquipos ? <p className="ms-error">Marca al menos un equipo o agrega uno.</p> : null}
+          {errNueva ? <p className="ms-error">Escribe el nombre de la categoría nueva.</p> : null}
+        </div>
+      ) : null}
+
       <div className="ms-field">
-        <label htmlFor="rp-mensaje" className="ms-label">Cuéntanos de tu maquinaria o servicios<span className="ms-req">*</span></label>
-        <textarea id="rp-mensaje" className="ms-textarea" value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={5} aria-invalid={err.mensaje}
-          placeholder="Equipos (tipo, marca, modelo, cantidad), si rentas con operador…" />
-        {err.mensaje ? <p className="ms-error">Cuéntanos brevemente qué ofreces.</p> : null}
+        <label htmlFor="rp-mensaje" className="ms-label">¿Algo más que debamos saber?</label>
+        <textarea id="rp-mensaje" className="ms-textarea" value={mensaje} onChange={(e) => setMensaje(e.target.value)} rows={3}
+          placeholder="Si rentas con operador, horarios, años de experiencia…" />
       </div>
 
       {/* Trampa para bots: fuera de la vista y del teclado. */}

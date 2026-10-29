@@ -154,7 +154,15 @@ function atencion(f: FilaMunicipio): { texto: string; tono: Tone | null } {
 
 const COLOR_TONO: Record<string, string> = { bad: 'var(--adm-bad)', warn: 'var(--adm-warn)' };
 
-export function Cobertura({ datos }: { datos: DatosCobertura }) {
+export function Cobertura({ datos, incrustado = false }: {
+  datos: DatosCobertura;
+  /**
+   * Dentro de "Zonas y cobertura" (2026-10-26): sin su encabezado ni su mapa.
+   * El mapa pasó a ser el de los servicios (Servicios en curso), con la red de
+   * aliados como capa.
+   */
+  incrustado?: boolean;
+}) {
   const [filtro, setFiltro] = useState<Filtro>('todas');
   const [verAliados, setVerAliados] = useState(true);
   const [verObras, setVerObras] = useState(true);
@@ -260,12 +268,14 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
         }
       `}</style>
 
-      <PageHeader
-        eyebrow={['2 · Cotizar', 'Geolocalización']}
-        title="Mapa y cobertura"
-        subtitle="Dónde llega la red de aliados contra dónde está la demanda de los últimos 90 días, para ver los huecos y saber dónde reclutar."
-        actions={<Btn href="/proveedores" icon="ph-handshake">Ver aliados</Btn>}
-      />
+      {incrustado ? null : (
+        <PageHeader
+          eyebrow={['2 · Cotizar', 'Geolocalización']}
+          title="Mapa y cobertura"
+          subtitle="Dónde llega la red de aliados contra dónde está la demanda de los últimos 90 días, para ver los huecos y saber dónde reclutar."
+          actions={<Btn href="/proveedores" icon="ph-handshake">Ver aliados</Btn>}
+        />
+      )}
 
       {vacio ? (
         <Note style={{ marginBottom: 20 }}>
@@ -276,12 +286,12 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
 
       <Toolbar
         style={{ marginBottom: 26 }}
-        end={
+        end={incrustado ? undefined : (
           <div className="cv-capas">
             <Switch on={verAliados} onClick={() => setVerAliados((v) => !v)} label="Aliados" />
             <Switch on={verObras} onClick={() => setVerObras((v) => !v)} label="Obras y solicitudes" />
           </div>
-        }
+        )}
       >
         <Segmented<Filtro>
           value={filtro}
@@ -321,6 +331,7 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
       </Stats>
 
       <div>
+        {incrustado ? null : (
         <Panel
           title="Red de aliados y demanda"
           icon="ph-map-trifold"
@@ -351,6 +362,7 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
             {datos.sinUbicacion > 0 ? ` ${datos.sinUbicacion} ${sol(datos.sinUbicacion)} no se ${datos.sinUbicacion === 1 ? 'cuenta' : 'cuentan'}: su ubicación no se reconoció como municipio.` : ''}
           </p>
         </Panel>
+        )}
 
         {/*
           UNA SOLA LISTA (2026-10-19). Antes eran dos tablas —"Cobertura por
@@ -372,7 +384,10 @@ export function Cobertura({ datos }: { datos: DatosCobertura }) {
           {filas.length === 0 ? (
             <EmptyState icon="ph-map-pin" title={filtro === 'todas' ? 'Sin solicitudes en los últimos 90 días' : 'Sin solicitudes de esta línea'} sub="La cobertura se mide contra la demanda: aparecerá cuando lleguen solicitudes." />
           ) : filas.map((f) => (
-            <FilaTabla key={f.m.id} f={f} filtro={filtro} onAbrir={() => setViendo(f.m.id)} />
+            // id por municipio (2026-10-28): el mapa de Zonas salta aquí al tocarlo.
+            <div key={f.m.id} id={`cob-${f.m.id.replace(/[^a-z0-9]+/gi, '-')}`} style={{ scrollMarginTop: 90 }}>
+              <FilaTabla f={f} filtro={filtro} onAbrir={() => setViendo(f.m.id)} />
+            </div>
           ))}
         </Panel>
       </div>

@@ -97,7 +97,7 @@ export function Pagination({
                 aria-current={it === current ? 'page' : undefined}
                 onClick={() => go(it)}
                 style={it === current
-                  ? { ...btnBase, background: 'rgba(255,255,255,0.09)', color: C.ink, fontWeight: 600, cursor: 'default' }
+                  ? { ...btnBase, background: 'rgba(var(--adm-ink),0.09)', color: C.ink, fontWeight: 600, cursor: 'default' }
                   : btnBase}
               >
                 {it}

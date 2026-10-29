@@ -1,6 +1,7 @@
 import {
-  BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, ParseIntPipe, Post, Query, Req, UseGuards,
+  BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Query, Req, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { prisma } from '@maqserv/db';
 import { MODULOS_CON_CORREO, puedeVerCon, tiposDeCorreoDe } from '@maqserv/config';
 import { z } from 'zod';
@@ -9,6 +10,14 @@ import { permisosVigentes } from './permisos';
 import { ENLACE_OCULTO, MailerService, type TipoCorreo } from '../notifications/mailer.service';
 import { RemindersService } from '../notifications/reminders.service';
 import { correoDePrueba } from '../notifications/email-templates';
+import { CORREOS, disenoDelSistema, guardarDiseno, guardarTextos, leerDiseno, leerTextos, problemaDeTexto, type DisenoCorreo } from '../notifications/textos-correo';
+import { previaDe } from '../notifications/previa-correo';
+import { registrarAccion } from './audit';
+import { mediaStorage } from '../common/media-multer';
+import { imageUrl } from '../catalog/images';
+
+/** El logo del correo: una imagen más de uploads/ (PNG o JPG). */
+const logoStorage = mediaStorage();
 
 /**
  * Los tipos de correo que este administrador puede ver; `null` son todos.
@@ -56,6 +65,9 @@ async function resueltos(fallos: Array<{ id: number; to_email: string; kind: str
  * requisito: un correo que no sale y no avisa es peor que no tener correos,
  * porque la operación cree que informó y nadie informó.
  */
+/** Solo los correos que de verdad existen: `CORREOS['constructor']` daba 500 (auditoría 2026-10-28). */
+const esCorreoEditable = (kind: string): boolean => Object.prototype.hasOwnProperty.call(CORREOS, kind);
+
 @Modulo('configuracion')
 @Controller('admin/mail')
 @UseGuards(AdminGuard)
@@ -300,4 +312,111 @@ export class AdminMailController {
               : 'Falló. Revisa el detalle en el registro de abajo.',
     };
   }
+
+  // ── Textos y diseño de los correos, editables (2026-10-28) ────────────────
+
+  /** Los correos editables: su definición (huecos, etiquetas, ejemplo) y lo editado. */
+  @Get('textos')
+  async textos() {
+    const [editados, diseno] = await Promise.all([leerTextos(), leerDiseno()]);
+    return {
+      correos: Object.entries(CORREOS).map(([kind, def]) => ({
+        kind,
+        nombre: def.nombre,
+        para: def.para,
+        cuando: def.cuando,
+        huecos: Object.entries(def.huecos).map(([clave, h]) => ({
+          clave,
+          etiqueta: h.etiqueta,
+          fabrica: h.fabrica,
+          texto: editados[kind]?.[clave] ?? '',
+          variables: h.variables ?? {},
+          obligatorias: h.obligatorias ?? [],
+          largo: Boolean(h.largo),
+        })),
+        editado: Object.values(editados[kind] ?? {}).some((v) => typeof v === 'string' && v.trim()),
+      })),
+      diseno,
+      // La dirección real del logo guardado, para verlo en el panel (2026-10-28).
+      logoUrl: diseno.logo ? imageUrl(diseno.logo) : null,
+      fabrica: await disenoDelSistema(),
+    };
+  }
+
+  /** Guarda los textos de UN correo (vacío = volver al de fábrica en ese hueco). */
+  @Patch('textos/:kind')
+  async guardarTextosDe(@Param('kind') kind: string, @Body() body: unknown, @Req() req: AdminRequest) {
+    if (!esCorreoEditable(kind)) throw new NotFoundException('Ese correo no se edita desde aquí.');
+    const p = z.record(z.string(), z.string().max(1200)).safeParse(body ?? {});
+    if (!p.success) throw new BadRequestException('Textos inválidos.');
+    const limpios: Record<string, string> = {};
+    for (const [clave, texto] of Object.entries(p.data)) {
+      if (!Object.prototype.hasOwnProperty.call(CORREOS[kind].huecos, clave)) continue;
+      const t = texto.trim();
+      if (!t) continue;
+      const problema = problemaDeTexto(kind, clave, t);
+      if (problema) throw new BadRequestException(`${CORREOS[kind].huecos[clave].etiqueta}: ${problema}`);
+      limpios[clave] = t;
+    }
+    const todos = await leerTextos();
+    if (Object.keys(limpios).length) todos[kind] = limpios; else delete todos[kind];
+    await guardarTextos(todos, req.adminEmail);
+    await registrarAccion(req, 'configuracion', 'correo.textos', CORREOS[kind].nombre, Object.keys(limpios).length ? `${Object.keys(limpios).length} texto(s) editados` : 'de vuelta a fábrica');
+    return { ok: true };
+  }
+
+  /** El diseño común: logo, colores, pie y firma. */
+  @Patch('diseno')
+  async guardarDisenoCorreo(@Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({
+      logo: z.string().max(500),
+      nombre: z.string().trim().min(1).max(60),
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'El color va como #RRGGBB.'),
+      colorTexto: z.string().regex(/^#[0-9a-fA-F]{6}$/, 'El color va como #RRGGBB.'),
+      cabecera: z.union([z.literal(''), z.string().regex(/^#[0-9a-fA-F]{6}$/, 'El color va como #RRGGBB.')]).default(''),
+      pie: z.string().trim().max(400),
+      firma: z.string().trim().max(600),
+    }).safeParse(body ?? {});
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Diseño inválido.');
+    await guardarDiseno(p.data, req.adminEmail);
+    await registrarAccion(req, 'configuracion', 'correo.diseno', 'Diseño de los correos', `color ${p.data.color} · ${p.data.logo ? 'con logo' : 'sin logo'}`);
+    return { ok: true, diseno: p.data };
+  }
+
+  /** El logo del correo. Se guarda en uploads/ como cualquier imagen del sitio. */
+  @Post('diseno/logo')
+  @UseInterceptors(FileInterceptor('logo', { storage: logoStorage, limits: { fileSize: 2 * 1024 * 1024 } }))
+  async subirLogo(@UploadedFile() logo?: Express.Multer.File) {
+    if (!logo) throw new BadRequestException('Elige una imagen (PNG o JPG, hasta 2 MB).');
+    const ruta = `uploads/${logo.filename}`;
+    return { ruta, url: imageUrl(ruta) };
+  }
+
+  /**
+   * Vista previa de un correo con datos de ejemplo. Se arma con la MISMA
+   * plantilla que manda el sistema, aplicando los textos que se mandan en el
+   * cuerpo (sin guardarlos) y el diseño del panel: lo que se ve es lo que sale.
+   */
+  // En su propia ruta (2026-10-28): el panel calla los avisos de "Listo" por
+  // prefijo, y armar una vista previa no es guardar nada.
+  @Post('previa/:kind')
+  async previa(@Param('kind') kind: string, @Body() body: unknown) {
+    const def = esCorreoEditable(kind) ? CORREOS[kind] : undefined;
+    if (!def) throw new NotFoundException('Ese correo no se edita desde aquí.');
+    const p = z.object({ textos: z.record(z.string(), z.string().max(1200)).default({}), diseno: z.record(z.string(), z.string()).optional() }).safeParse(body ?? {});
+    if (!p.success) throw new BadRequestException('Vista previa inválida.');
+    return previaDe(kind, p.data.textos, p.data.diseno as Partial<DisenoCorreo> | undefined);
+  }
+
+  /** Un correo de prueba con el diseño y textos guardados, a la dirección que se diga. */
+  @Post('textos/:kind/prueba')
+  async pruebaDe(@Param('kind') kind: string, @Body() body: unknown) {
+    if (!esCorreoEditable(kind)) throw new NotFoundException('Ese correo no se edita desde aquí.');
+    const p = z.object({ to: z.string().email() }).safeParse(body ?? {});
+    if (!p.success) throw new BadRequestException('Escribe un correo válido.');
+    const { subject, html } = await previaDe(kind, {}, undefined);
+    const estado = await this.mailer.enviar({ kind: 'prueba', to: p.data.to, subject: `[Prueba] ${subject}`, html });
+    return { estado, mensaje: estado === 'enviado' ? 'Salió. Revisa la bandeja.' : estado === 'simulado' ? 'No salió: el envío sigue apagado. Quedó en el registro.' : 'No se pudo mandar.' };
+  }
+
 }

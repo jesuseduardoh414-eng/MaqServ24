@@ -106,48 +106,64 @@ export const COTIZADOR_CSS = `
 
 /* Ayuda del paso: a todo el ancho y ANTES de la rejilla, para que la tarjeta
    del paso y el resumen empiecen a la misma altura. */
-.cz-ayuda{ margin:0 0 14px; }
+.cz-ayuda{ display:flex; align-items:baseline; gap:6px 12px; flex-wrap:wrap; margin:0 0 16px; }
+.cz-ayuda-n{ font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--cz-accent);
+  padding:3px 9px; border-radius:999px; background:var(--cz-accent-soft); white-space:nowrap; }
+.cz-ayuda-t{ font-size:13.5px; color:var(--cz-muted); }
 
 /* ---- Rejilla principal ---- */
 .cz-grid{ display:grid; grid-template-columns:minmax(0,1fr) 336px; gap:22px; align-items:start; }
 @media (max-width:1000px){ .cz-grid{ grid-template-columns:minmax(0,1fr); } }
 
-.cz-card{ background:var(--cz-surface); border:1px solid var(--cz-border); border-radius:var(--cz-radius); padding:20px; }
+.cz-card{ background:var(--cz-surface); border:1px solid var(--cz-border); border-radius:var(--cz-radius); padding:22px;
+  box-shadow:0 1px 0 color-mix(in srgb, #fff 4%, transparent) inset, 0 18px 40px -30px rgba(0,0,0,.55); }
 .cz-card + .cz-card{ margin-top:14px; }
-.cz-card-h{ margin:0 0 4px; font-size:15.5px; font-weight:700; font-family:var(--font-heading, inherit); }
-.cz-card-s{ margin:0 0 16px; font-size:12.5px; color:var(--cz-muted); }
+.cz-card-h{ display:flex; align-items:center; gap:10px; margin:0 0 5px; font-size:16px; font-weight:700; font-family:var(--font-heading, inherit); }
+.cz-card-h::before{ content:''; width:4px; height:18px; border-radius:3px; flex-shrink:0;
+  background:linear-gradient(180deg, var(--cz-accent), color-mix(in srgb, var(--cz-accent) 45%, transparent)); }
+.cz-card-s{ margin:0 0 18px 14px; font-size:12.5px; line-height:1.55; color:var(--cz-muted); }
 
 /* ---- Campos ---- */
 .cz-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:13px; }
 .cz-field{ display:grid; gap:6px; min-width:0; align-content:start; }
 .cz-field.full{ grid-column:1/-1; }
-.cz-lbl{ font-size:13px; font-weight:500; color:var(--cz-text, inherit); }
+.cz-lbl{ font-size:11.5px; font-weight:700; letter-spacing:.025em; color:var(--cz-muted); }
 .cz-lbl .req{ color:var(--cz-accent); }
 .cz-input, .cz-select, .cz-textarea{
   width:100%; height:44px; padding:0 13px; border-radius:8px; font-size:14px; font-family:inherit;
   border:1px solid var(--cz-border); background:var(--cz-surface-2); color:var(--cz-text); outline:none;
 }
 .cz-textarea{ height:auto; min-height:86px; padding:11px 13px; line-height:1.55; resize:vertical; }
+/* 16 px en el teléfono (2026-10-28): con menos, el iPhone acerca la pantalla en cada campo. */
+@media (max-width: 640px){ .cz-input, .cz-select, .cz-textarea{ font-size:16px; } }
+.cz-steps{ scroll-margin-top:84px; }
 .cz-input:focus, .cz-select:focus, .cz-textarea:focus{ border-color:var(--cz-accent); }
 .cz-input[aria-invalid="true"]{ border-color:var(--cz-bad); }
 .cz-help{ font-size:11.5px; color:var(--cz-muted); }
 .cz-err{ font-size:12px; color:var(--cz-bad); }
 
 /* ---- Tarjetas de catálogo ---- */
-.cz-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:11px; }
+.cz-cards{ display:grid; grid-template-columns:repeat(auto-fill,minmax(176px,1fr)); gap:12px; }
 /* El "+" y el contador van FUERA del botón: un <button> dentro de otro no es
    HTML válido y el navegador lo desanida, con lo que el "+" dejaba de recibir
    sus propios clics. */
 .cz-pick-wrap{ position:relative; display:flex; }
-.cz-pick{ flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:7px;
-  padding:15px 14px; border-radius:var(--cz-radius); border:1px solid var(--cz-border);
+.cz-pick{ flex:1; display:flex; flex-direction:column; align-items:flex-start; gap:8px;
+  padding:16px 15px; border-radius:var(--cz-radius); border:1px solid var(--cz-border);
   background:var(--cz-surface-2); color:var(--cz-text); cursor:pointer; text-align:left;
   transition:border-color .16s, transform .16s, background .16s; }
-.cz-pick:hover{ border-color:color-mix(in srgb, var(--cz-accent) 55%, var(--cz-border)); transform:translateY(-2px); }
-.cz-pick[data-on="1"]{ border-color:var(--cz-accent); background:var(--cz-accent-soft); }
-.cz-pick .ico{ color:var(--cz-accent); display:flex; }
-.cz-pick b{ font-size:13.5px; line-height:1.3; }
-.cz-pick .pu{ font-size:11.5px; color:var(--cz-muted); }
+.cz-pick:hover{ border-color:color-mix(in srgb, var(--cz-accent) 55%, var(--cz-border)); transform:translateY(-2px);
+  box-shadow:0 14px 28px -20px color-mix(in srgb, var(--cz-accent) 70%, transparent); }
+.cz-pick[data-on="1"]{ border-color:var(--cz-accent); background:var(--cz-accent-soft);
+  box-shadow:0 0 0 1px var(--cz-accent) inset, 0 14px 30px -22px color-mix(in srgb, var(--cz-accent) 80%, transparent); }
+.cz-pick .ico{ color:var(--cz-accent); display:grid; place-items:center; width:46px; height:46px; border-radius:12px;
+  background:var(--cz-accent-soft); margin-bottom:2px; }
+.cz-pick .ico svg{ width:30px; height:30px; }
+.cz-pick[data-on="1"] .ico{ background:var(--cz-accent); color:var(--cz-accent-fg); }
+.cz-pick b{ font-size:14px; line-height:1.3; }
+.cz-pick .pu{ font-size:12.5px; font-weight:500; color:var(--cz-muted); }
+/* En el panel la nota es el precio ("desde $5,600 / día"): va en color. En el sitio no hay precios. */
+.cz[data-variante="panel"] .cz-pick .pu{ font-weight:600; color:var(--cz-accent); }
 /* Dice en palabras lo que hace el segundo toque: el color por sí solo no
    distingue "elegido" de "elegido y se puede quitar". */
 .cz-pick-quitar{ display:inline-flex; align-items:center; gap:4px; margin-top:2px;
@@ -161,22 +177,24 @@ export const COTIZADOR_CSS = `
 .cz-pick-mas:hover{ background:var(--cz-accent); color:var(--cz-accent-fg); }
 
 /* ---- Líneas del carrito ---- */
-.cz-line{ border:1px solid var(--cz-border); border-radius:var(--cz-radius); background:var(--cz-surface-2); padding:14px; }
-.cz-line + .cz-line{ margin-top:11px; }
-.cz-line-h{ display:flex; align-items:flex-start; gap:11px; margin-bottom:12px; }
-.cz-line-h .ico{ color:var(--cz-accent); flex-shrink:0; }
+.cz-line{ border:1px solid var(--cz-border); border-radius:var(--cz-radius); background:var(--cz-surface-2); padding:16px; }
+.cz-line + .cz-line{ margin-top:12px; }
+.cz-line-h{ display:flex; align-items:center; gap:12px; margin-bottom:16px; padding-bottom:14px; border-bottom:1px solid var(--cz-border); }
+.cz-line-h .ico{ color:var(--cz-accent); flex-shrink:0; display:grid; place-items:center; width:42px; height:42px; border-radius:11px; background:var(--cz-accent-soft); }
+.cz-line-h .ico svg{ width:26px; height:26px; }
 .cz-line-h .nm{ flex:1; min-width:0; }
-.cz-line-h .nm b{ display:block; font-size:14px; }
-.cz-line-h .nm span{ display:block; font-size:11.5px; color:var(--cz-muted); margin-top:2px; }
+.cz-line-h .nm b{ display:block; font-size:15px; }
+.cz-line-h .nm span{ display:block; font-size:12px; color:var(--cz-muted); margin-top:3px; }
 .cz-tier{ font-size:12px; font-weight:600;
   color:var(--cz-accent); background:var(--cz-accent-soft); padding:4px 9px; border-radius:999px; white-space:nowrap; }
 .cz-rm{ border:none; background:transparent; color:var(--cz-muted); cursor:pointer; font-size:17px; line-height:1; padding:2px 4px; }
 .cz-rm:hover{ color:var(--cz-bad); }
-.cz-ctrl{ display:flex; flex-wrap:wrap; gap:11px; }
-.cz-qty{ flex:1 1 120px; min-width:104px; display:grid; gap:5px; }
-.cz-qty.wide{ flex-basis:100%; }
+/* En rejilla: los cuatro campos (días, horas, equipos, costo) del mismo ancho y a la misma altura. */
+.cz-ctrl{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px 12px; align-items:start; }
+.cz-qty{ min-width:0; display:grid; gap:6px; align-content:start; }
+.cz-qty.wide{ grid-column:1/-1; }
 .cz-stp{ display:flex; align-items:center; border:1px solid var(--cz-border);
-  border-radius:var(--cz-radius); overflow:hidden; background:var(--cz-surface-2); }
+  border-radius:var(--cz-radius); overflow:hidden; background:var(--cz-surface); }
 .cz-stp:focus-within{ border-color:var(--cz-accent); }
 .cz-stp button{ width:38px; height:42px; border:none; background:transparent; color:var(--cz-text);
   display:grid; place-items:center; cursor:pointer; flex-shrink:0; }
@@ -191,29 +209,34 @@ export const COTIZADOR_CSS = `
   border-radius:999px; padding:6px 11px; font-size:12px; font-weight:600; cursor:pointer; }
 .cz-chip:hover{ border-color:var(--cz-accent); color:var(--cz-text); }
 .cz-chip[data-on="1"]{ background:var(--cz-accent); border-color:var(--cz-accent); color:var(--cz-accent-fg); }
-.cz-money{ margin-top:12px; padding-top:11px; border-top:1px dashed var(--cz-border); display:grid; gap:4px; }
-.cz-money .mr{ display:flex; justify-content:space-between; gap:12px; font-size:12.5px; color:var(--cz-muted); }
-.cz-money .mr.sub{ color:var(--cz-text); font-weight:700; font-size:13.5px; }
+.cz-money{ margin-top:16px; padding:12px 14px; border-radius:calc(var(--cz-radius) - 2px); background:var(--cz-surface); display:grid; gap:5px; }
+.cz-money .mr{ display:flex; justify-content:space-between; gap:12px; font-size:12.5px; color:var(--cz-muted); font-variant-numeric:tabular-nums; }
+.cz-money .mr.sub{ color:var(--cz-text); font-weight:800; font-size:14.5px; margin-top:4px; padding-top:8px; border-top:1px solid var(--cz-border); }
+.cz-money .mr.sub:first-child{ margin-top:0; padding-top:0; border-top:0; }
 
 /* ---- Triturados: una sección por forma de venta (2026-10-15) ---- */
 .cz-bloque + .cz-bloque{ margin-top:14px; }
 .cz-bloque-h{ display:flex; align-items:flex-start; gap:12px; }
-.cz-bloque-h .ico{ color:var(--cz-accent); flex-shrink:0; margin-top:-1px; }
+.cz-bloque-h .ico{ color:var(--cz-accent); flex-shrink:0; display:grid; place-items:center; width:40px; height:40px; border-radius:11px; background:var(--cz-accent-soft); }
+/* La sección ya lleva su ícono: sin la barra de color del título, y la ayuda alineada con él. */
+.cz-bloque-h .cz-card-h::before{ display:none; }
+.cz-bloque-h .cz-card-s{ margin-left:0; }
 .cz-bloque-h .cz-card-s{ margin-bottom:14px; }
 .cz-bloque[data-vacio] .cz-bloque-h .cz-card-s{ margin-bottom:12px; }
 .cz-filas{ display:grid; gap:10px; margin-bottom:12px; }
 .cz-fila{ position:relative; display:flex; flex-wrap:wrap; align-items:flex-start; gap:11px 12px;
   border:1px solid var(--cz-border); border-radius:var(--cz-radius); background:var(--cz-surface-2); padding:13px 44px 13px 14px; }
-.cz-fila > .cz-field{ flex:1 1 170px; min-width:0; }
+.cz-fila > .cz-field{ flex:1 1 100px; min-width:0; }
 /* El primer campo (material, zona) es el de texto largo: más ancho. */
-.cz-fila > .cz-field:first-child{ flex:2 1 220px; }
+.cz-fila > .cz-field:first-child{ flex:2.4 1 220px; }
 /* La columna del campo acotada: sin esto el texto largo de un desplegable
    ("Base hidráulica · $260/ton") medía su ancho y se encimaba al campo vecino. */
 .cz-fila .cz-field, .cz-flete .cz-field{ grid-template-columns:minmax(0, 1fr); }
-.cz-fila > .cz-qty{ flex:1 1 150px; }
-.cz-fila-imp{ flex:1 1 150px; display:grid; gap:3px; align-content:end; justify-items:end; min-height:66px; text-align:right; }
-.cz-fila-imp span{ font-size:11.5px; color:var(--cz-muted); }
-.cz-fila-imp b{ font-size:15px; font-variant-numeric:tabular-nums; }
+.cz-fila > .cz-qty{ flex:1 1 130px; }
+/* El importe al final del renglón, alineado con los campos (antes caía solo en otra línea). */
+.cz-fila-imp{ flex:0 1 118px; display:grid; gap:3px; align-content:end; justify-items:end; min-height:66px; text-align:right; padding-bottom:4px; }
+.cz-fila-imp span{ font-size:11.5px; color:var(--cz-muted); white-space:nowrap; }
+.cz-fila-imp b{ font-size:16px; font-variant-numeric:tabular-nums; color:var(--cz-accent); }
 .cz-fila-rm{ position:absolute; top:8px; right:8px; width:30px; height:30px; display:grid; place-items:center; border-radius:8px; }
 .cz-fila-rm:hover{ background:color-mix(in srgb, var(--cz-bad) 12%, transparent); }
 .cz-agregar{ display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:44px;
@@ -222,6 +245,12 @@ export const COTIZADOR_CSS = `
   transition:background .15s ease, border-color .15s ease; }
 .cz-agregar:hover{ background:var(--cz-accent-soft); border-color:var(--cz-accent); }
 .cz-agregar:focus-visible{ outline:2px solid var(--cz-accent); outline-offset:2px; }
+.cz-sugerencia{ display:inline-flex; align-items:center; gap:8px; justify-self:start; max-width:100%; padding:7px 12px; border-radius:999px;
+  border:1px solid color-mix(in srgb, var(--cz-accent) 40%, var(--cz-border)); background:var(--cz-accent-soft); color:var(--cz-text);
+  font:inherit; font-size:12.5px; font-weight:600; cursor:pointer; text-align:left; transition:border-color .15s ease; }
+.cz-sugerencia svg{ color:var(--cz-accent); flex-shrink:0; }
+.cz-sugerencia b{ color:var(--cz-accent); }
+.cz-sugerencia:hover{ border-color:var(--cz-accent); }
 .cz-flete{ display:grid; gap:11px; margin-top:14px; padding-top:14px; border-top:1px dashed var(--cz-border); }
 .cz-flete-h{ display:grid; gap:2px; }
 .cz-flete-h b{ font-size:13.5px; }
@@ -237,23 +266,30 @@ export const COTIZADOR_CSS = `
 @media (max-width:1000px){ .cz-side{ position:static; } }
 .cz-side-h{ display:flex; align-items:center; justify-content:space-between; gap:10px;
   padding:14px 17px; border-bottom:1px solid var(--cz-border); }
-.cz-side-h h3{ margin:0; font-size:14.5px; font-family:var(--font-heading, inherit); }
+.cz-side-h h3{ margin:0; font-size:15px; font-family:var(--font-heading, inherit); display:flex; align-items:center; gap:8px; }
+.cz-side-h h3::before{ content:''; width:8px; height:8px; border-radius:50%; background:var(--cz-accent); box-shadow:0 0 0 4px var(--cz-accent-soft); }
+.cz-side-para{ display:grid; gap:2px; padding:13px 17px; border-bottom:1px solid var(--cz-border); background:var(--cz-surface-2); }
+.cz-side-para > span{ font-size:10.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--cz-muted); }
+.cz-side-para b{ font-size:13.5px; }
+.cz-side-para em{ font-style:normal; font-size:12px; color:var(--cz-muted); }
 .cz-side-h span{ font-size:11.5px; color:var(--cz-muted); }
 .cz-side-b{ padding:14px 17px; display:grid; gap:7px; }
 .cz-fr{ display:flex; justify-content:space-between; gap:12px; font-size:13px; color:var(--cz-muted); }
 .cz-fr b{ color:var(--cz-text); font-weight:600; }
-.cz-fr.total{ margin-top:6px; padding-top:11px; border-top:1px solid var(--cz-border);
-  font-size:15px; color:var(--cz-text); font-weight:800; }
-.cz-fr.total b{ font-size:21px; font-weight:800; letter-spacing:-0.02em; }
-.cz-side-empty{ padding:26px 17px; text-align:center; color:var(--cz-muted); font-size:12.5px; }
-.cz-side-empty .ico{ color:var(--cz-border); display:flex; justify-content:center; margin-bottom:8px; }
+.cz-fr.total{ align-items:center; margin:8px -17px -14px; padding:15px 17px; border-top:1px solid color-mix(in srgb, var(--cz-accent) 35%, var(--cz-border));
+  background:var(--cz-accent-soft); font-size:14px; color:var(--cz-accent); font-weight:800; letter-spacing:.02em; }
+.cz-fr.total b{ font-size:24px; font-weight:800; letter-spacing:-0.02em; color:var(--cz-text); }
+.cz-side-empty{ padding:22px 17px; text-align:center; color:var(--cz-muted); font-size:12.5px; line-height:1.5; }
+.cz-side-empty .ico{ width:52px; height:52px; margin:0 auto 10px; border-radius:14px; display:grid; place-items:center;
+  color:var(--cz-accent); background:var(--cz-accent-soft); }
 
 /* ---- Botones ---- */
 .cz-nav{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:18px; flex-wrap:wrap; }
 .cz-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:46px; padding:0 20px;
   border-radius:var(--radius-button, 10px); font-size:14px; font-weight:700; cursor:pointer; border:1px solid transparent; }
 .cz-btn:disabled{ opacity:.5; cursor:not-allowed; }
-.cz-btn.primary{ background:var(--cz-accent); color:var(--cz-accent-fg); }
+.cz-btn.primary{ background:var(--cz-accent); color:var(--cz-accent-fg); box-shadow:0 10px 24px -12px color-mix(in srgb, var(--cz-accent) 85%, transparent); transition:transform .15s ease, box-shadow .15s ease; }
+.cz-btn.primary:hover:not(:disabled){ transform:translateY(-1px); box-shadow:0 14px 28px -12px color-mix(in srgb, var(--cz-accent) 95%, transparent); }
 .cz-btn.ghost{ background:transparent; border-color:var(--cz-border); color:var(--cz-text); }
 .cz-btn.ghost:hover:not(:disabled){ border-color:var(--cz-accent); color:var(--cz-accent); }
 .cz-btn.sm{ height:38px; padding:0 14px; font-size:13px; }
@@ -290,6 +326,9 @@ export const COTIZADOR_CSS = `
 /* ---- Vista previa del documento ---- */
 .cz-preview{ border:1px solid var(--cz-border); border-radius:var(--cz-radius); overflow:auto; background:#fff; }
 .cz-preview .czdoc{ min-width:620px; }
+/* En el teléfono el documento se encoge entero para leerlo sin deslizar de lado (2026-10-28). */
+@media (max-width: 640px){ .cz-preview .czdoc{ zoom:.56; } }
+@media (max-width: 380px){ .cz-preview .czdoc{ zoom:.5; } }
 
 /* ---- Acuse ---- */
 .cz-done{ text-align:center; padding:38px 20px; }

@@ -45,7 +45,7 @@ export default function OlvidePage() {
       <AccessShell title="Revisa tu correo" subtitle="Si esa dirección tiene cuenta en el panel, ya va en camino un enlace para elegir una contraseña nueva.">
         <p className="mt-6 text-[13px] leading-relaxed text-[var(--ui-muted)]">
           El enlace sirve una sola vez y caduca en 60 minutos. Si no llega, mira en no deseados; y si
-          tampoco está ahí, pide a Dirección que te la restablezca desde Administradores.
+          tampoco está ahí, pide a Dirección que te mande un enlace desde Equipo del panel.
         </p>
         <Link href="/login" className="mt-6 inline-block text-[13.5px] font-semibold text-[var(--ui-accent)] no-underline hover:underline">
           ← Volver a entrar

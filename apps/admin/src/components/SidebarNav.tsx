@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { MODULOS_CON_CORREO, modulosDe, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
-import { MARCAR_PRUEBAS, RONDA_ACTUAL, atributosPrueba, marcaDeVarias, marcaPrueba } from './estado-pruebas';
+import { MARCAR_PRUEBAS, RONDA_ACTUAL, atributosPrueba, avancePruebas, marcaDeVarias, marcaPrueba } from './estado-pruebas';
 
 /**
  * `useLayoutEffect` en cliente y `useEffect` en el servidor.
@@ -56,7 +56,7 @@ const SECCIONES: ReadonlyArray<{ titulo: string | null; grupos: readonly string[
   // 2. Se busca quién puede, si está libre, si llega, y se arma el precio.
   // Sin "Matching" (2026-10-15): los aliados sugeridos ya viven en cada
   // solicitud y en "Buscar aliado" de Servicios; una pantalla aparte repetía eso.
-  { titulo: '2 · Cotizar', grupos: ['Disponibilidad', 'Geolocalización', 'Cotización'] },
+  { titulo: '2 · Cotizar', grupos: ['Disponibilidad', 'Cotización'] },
   // 3. Se asigna, se da seguimiento y se cierra con evidencias.
   // Sin "Documentos" (2026-10-15): los papeles de cada aliado y sus
   // vencimientos ya se ven en Proveedores.
@@ -149,12 +149,6 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
     ],
   },
   {
-    title: 'Geolocalización', icon: 'ph-map-trifold',
-    items: [
-      { modulo: 'proveedores', href: '/cobertura', label: 'Mapa y cobertura', icon: 'ph-map-trifold' },
-    ],
-  },
-  {
     title: 'Proveedores', icon: 'ph-handshake',
     items: [
       { modulo: 'proveedores', href: '/proveedores', label: 'Proveedores', icon: 'ph-handshake' },
@@ -186,8 +180,8 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
   {
     title: 'Administración', icon: 'ph-bank',
     items: [
-      { modulo: 'administracion', href: '/administracion/cobranza', label: 'Cobranza a clientes', icon: 'ph-invoice' },
-      { modulo: 'administracion', href: '/administracion/pagos', label: 'Pagos a aliados', icon: 'ph-hand-coins' },
+      // Cobranza y Pagos a aliados, en una sola lista desde el 2026-10-27.
+      { modulo: 'administracion', href: '/administracion/cobros', label: 'Cobros y pagos', icon: 'ph-hand-coins' },
       { modulo: 'administracion', href: '/administracion/margen', label: 'Margen', icon: 'ph-scales' },
     ],
   },
@@ -201,11 +195,12 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
     title: 'Configuración', icon: 'ph-gear',
     items: [
       { modulo: 'tarifas', href: '/cotizador/tarifas', label: 'Tarifas y condiciones', icon: 'ph-sliders-horizontal' },
-      { modulo: 'configuracion', href: '/zonas', label: 'Zonas', icon: 'ph-map-pin-area' },
+      // Zonas y cobertura (2026-10-26): todos la ven, solo Dirección (configuración) la edita.
+      { modulo: 'configuracion', tambien: ['inicio'], href: '/zonas', label: 'Zonas y cobertura', icon: 'ph-map-pin-area' },
       // Cada rol ve ahí los correos de sus módulos (2026-10-12).
       { modulo: 'configuracion', tambien: MODULOS_CON_CORREO, href: '/correo', label: 'Correo', icon: 'ph-envelope-simple-open' },
-      { modulo: 'admins', href: '/admins', label: 'Administradores', icon: 'ph-user-gear' },
-      { modulo: 'admins', href: '/admins/permisos', label: 'Permisos', icon: 'ph-lock-key' },
+      // Equipo del panel (2026-10-28): las cuentas y, en una pestaña, los permisos.
+      { modulo: 'admins', href: '/admins', label: 'Equipo del panel', icon: 'ph-user-gear' },
     ],
   },
   {
@@ -346,7 +341,8 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
   }
 
   // Contadores en vivo (pendientes) desde el resumen del panel.
-  // Se recargan también cuando la campana recibe un aviso nuevo (`adm:avisos`).
+  // Se recargan también cuando la campana recibe un aviso nuevo (`adm:avisos`)
+  // o cuando algo se guardó en el sistema (`adm:cambios`).
   useEffect(() => {
     let alive = true;
     const cargar = () =>
@@ -362,9 +358,11 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
         .catch(() => {});
     void cargar();
     window.addEventListener('adm:avisos', cargar);
+    window.addEventListener('adm:cambios', cargar);
     return () => {
       alive = false;
       window.removeEventListener('adm:avisos', cargar);
+      window.removeEventListener('adm:cambios', cargar);
     };
   }, []);
 
@@ -554,7 +552,13 @@ export function SidebarNav({ collapsed, query, rol, modulos }: { collapsed: bool
       {/* Solo en local: qué se probó ya (ver estado-pruebas.ts). */}
       {MARCAR_PRUEBAS && showLabels ? (
         <div className="adm-prueba-leyenda" aria-label="Estado de las pruebas">
-          <span className="adm-prueba-leyenda-t">Pruebas · Ronda {RONDA_ACTUAL}</span>
+          <span className="adm-prueba-leyenda-t">
+            {RONDA_ACTUAL
+              ? `Pruebas · Ronda ${RONDA_ACTUAL}`
+              : avancePruebas().probadas > 0
+                ? `Revisión por módulos · ${avancePruebas().probadas} de ${avancePruebas().total}`
+                : 'Pruebas generales · por empezar'}
+          </span>
           <span data-prueba="probado">Probado</span>
           <span data-prueba="probando">Probando</span>
           <span data-prueba="falta">Falta</span>

@@ -31,8 +31,13 @@ const quoteSchema = z.object({
   acquisitionOption: z.string().max(100).optional(),
   address: z.string().max(400).optional(),
     siteId: z.coerce.number().int().positive().optional(),
+  clientId: z.coerce.number().int().positive().optional(),
+  siteName: z.string().trim().max(190).optional(),
   comments: z.string().max(2000).optional(),
-});
+})
+  // Toda solicitud es para una obra (2026-10-23): una de las suyas o una nueva
+  // con su dirección. Sin obra no hay a dónde mandar a nadie.
+  .refine((d) => !!d.siteId || !!d.address?.trim(), { message: 'Elige tu obra o escribe la dirección de la obra nueva.', path: ['address'] });
 
 @Controller('quotes')
 export class QuotesController {

@@ -43,7 +43,7 @@ const VACIO = '__vacio__';
  * puede bajarlo con `className` (p. ej. `h-[30px]`), que gana por tailwind-merge.
  */
 export function claseCampoAdmin(size: 'sm' | 'md' = 'md') {
-  const kit = 'rounded-[8px] border-[var(--adm-border-strong)] bg-[rgba(255,255,255,0.025)]';
+  const kit = 'rounded-[8px] border-[var(--adm-border-strong)] bg-[rgba(var(--adm-ink),0.025)]';
   const medida = size === 'sm' ? 'h-9 px-3 text-[13px] gap-1.5' : 'h-[38px] px-3 text-[14px]';
   return `${kit} ${medida}`;
 }

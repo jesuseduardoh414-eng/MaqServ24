@@ -28,6 +28,9 @@ function enQuinceDias(): string {
  * `principal` pinta el botón como acción principal. En la lista va en cada
  * fila y ahí NO lo es: diez botones de acento seguidos dejan de decir nada.
  * En el detalle de una solicitud sí.
+ *
+ * "Mandar precio" (2026-10-23): ya nada se aprueba solo; todo lo que pide un
+ * cliente pasa por aquí después de revisar el desglose.
  */
 export function QuoteRespond({
   quoteId,
@@ -35,8 +38,10 @@ export function QuoteRespond({
   freight: freightActual = 0,
   tax: taxActual = 0,
   documento,
+  totalDocumento,
   cotizarHref,
   principal,
+  onListo,
 }: {
   quoteId: number;
   subtotal: number;
@@ -44,9 +49,13 @@ export function QuoteRespond({
   tax?: number;
   /** Folio del documento del cotizador ligado a la solicitud. */
   documento?: string | null;
+  /** Lo que recibe el cliente: el documento entero aunque venga partido por línea. */
+  totalDocumento?: number;
   /** Dónde se cotiza con el tabulador, si la línea tiene cotizador. */
   cotizarHref?: string | null;
   principal?: boolean;
+  /** Después de mandarlo (la ficha de la cotización se vuelve a leer). */
+  onListo?: () => void | Promise<void>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -72,6 +81,8 @@ export function QuoteRespond({
   const fle = documento ? freightActual : freight;
   const imp = documento ? taxActual : tax;
   const total = sub + fle + imp;
+  // Partido por línea: al mandar una parte se mandan todas, con un solo total.
+  const variasPartes = Boolean(documento && totalDocumento && Math.abs(totalDocumento - total) >= 0.01);
   const sinPrecio = total <= 0;
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -99,6 +110,7 @@ export function QuoteRespond({
     }
     setOpen(false);
     router.refresh();
+    await onListo?.();
   }
 
   const cerrar = () => { if (!loading) setOpen(false); };
@@ -112,8 +124,8 @@ export function QuoteRespond({
 
   return (
     <>
-      <Btn size="sm" variant={principal ? 'primary' : 'secondary'} onClick={() => setOpen(true)}>
-        Responder
+      <Btn size="sm" variant={principal ? 'primary' : 'secondary'} icon="ph-paper-plane-tilt" onClick={() => setOpen(true)}>
+        Mandar precio
       </Btn>
 
       {/* El Modal del kit deja los botones fijos al pie mientras el cuerpo hace
@@ -123,15 +135,15 @@ export function QuoteRespond({
           el atributo `form` para que Enter siga enviando. */}
       <Modal
         abierto={open}
-        titulo="Responder cotización"
-        subtitulo="Al enviarla, el cliente la verá como “Cotizada” en su cuenta."
+        titulo="Mandar precio al cliente"
+        subtitulo="Le llega por correo con el botón para aceptarla y la ve en su cuenta."
         onCerrar={cerrar}
         ancho={480}
         pie={
           <>
             <Btn variant="ghost" onClick={() => setOpen(false)} disabled={loading}>Cancelar</Btn>
             <Btn variant="primary" type="submit" form={formId} disabled={loading || sinPrecio}>
-              {loading ? 'Enviando…' : 'Enviar cotización'}
+              {loading ? 'Enviando…' : 'Mandar al cliente'}
             </Btn>
           </>
         }
@@ -140,7 +152,7 @@ export function QuoteRespond({
           <div style={{ display: 'grid', gap: 14 }}>
             {documento ? (
               <Note tone="info" icon="ph-file-text">
-                Los importes son los del documento <strong className="adm-mono">{documento}</strong>. Para cambiarlos, vuelve a cotizarla con el tabulador.
+                Los importes son los del documento <strong className="adm-mono">{documento}</strong>. Para cambiarlos usa el lápiz de «Cómo se calculó» en el detalle, o vuelve a cotizarla con el tabulador.
               </Note>
             ) : (
               <>
@@ -205,9 +217,15 @@ export function QuoteRespond({
             {fle > 0 ? <div style={row}><span>Traslado</span><span className="adm-num" style={cifra}>{money(fle)}</span></div> : null}
             {imp > 0 ? <div style={row}><span>{documento ? 'IVA' : 'Impuesto'}</span><span className="adm-num" style={cifra}>{money(imp)}</span></div> : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, paddingTop: 10, marginTop: 6, borderTop: '1px solid var(--adm-border)' }}>
-              <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>Total al cliente</span>
-              <strong className="adm-num" style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--adm-text)' }}>{money(total)}</strong>
+              <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>{variasPartes ? 'Esta parte' : 'Total al cliente'}</span>
+              <strong className="adm-num" style={{ fontSize: variasPartes ? 15 : 20, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--adm-text)' }}>{money(total)}</strong>
             </div>
+            {variasPartes ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, paddingTop: 8 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--adm-text)' }}>Total al cliente (documento completo)</span>
+                <strong className="adm-num" style={{ fontSize: 20, fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--adm-text)' }}>{money(totalDocumento ?? total)}</strong>
+              </div>
+            ) : null}
             {sinPrecio ? <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--adm-warn)' }}>Sin precio no se puede enviar.</div> : null}
           </div>
           {error ? <div style={{ marginTop: 12 }}><Note tone="bad" icon="ph-warning">{error}</Note></div> : null}

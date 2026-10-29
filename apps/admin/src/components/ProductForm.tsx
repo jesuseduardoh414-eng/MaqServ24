@@ -132,8 +132,10 @@ const POR_REVISAR = 2;
  *    a la derecha.
  *  - Ficha técnica con los MISMOS campos que el aliado llenó (`atributosDe`),
  *    más datos extra libres.
- *  - Con `status = 2` es una revisión: aviso arriba y, a un lado, "Cuenta como
- *    en el cotizador", Guardar y publicar, y Rechazar con motivo.
+ *  - Con `status = 2` es lo NUEVO de un aliado (no estaba en la lista de
+ *    tipos): a un lado, elegir o crear su tipo y Guardar, o "No lo manejamos".
+ *    Ya no hay "Publicar" (2026-10-28): la máquina de un aliado no sale en el
+ *    sitio; con tipo, cuenta y le llegan las solicitudes de ese tipo.
  *  - Lote y caducidad ya no se muestran; el PATCH no los toca si no llegan.
  */
 export function ProductForm({
@@ -254,10 +256,13 @@ export function ProductForm({
     });
     const d = await r.json().catch(() => null) as { id: number; nombre: string; yaExistia: boolean; message?: string } | null;
     if (!r.ok || !d) { setError(d?.message ?? 'No se pudo crear el tipo.'); return; }
-    setTipos((ts) => (ts.some((t) => t.id === d.id) ? ts : [...ts, { id: d.id, name: d.nombre, category_id: Number(categoryId), status: 1 }]));
+    // Nace apagado (2026-10-28): sale en el sitio cuando tenga precio y se prenda.
+    setTipos((ts) => (ts.some((t) => t.id === d.id) ? ts : [...ts, { id: d.id, name: d.nombre, category_id: Number(categoryId), status: 0 }]));
     setTipoSel(String(d.id));
     setNuevoTipo(null);
-    mostrarResultado(d.yaExistia ? `Ya existía el tipo "${d.nombre}": quedó asignado.` : `Se creó el tipo "${d.nombre}". Ponle su precio en su ficha, en Inventario.`, 'ok');
+    mostrarResultado(d.yaExistia ? `Ya existía el tipo "${d.nombre}": quedó asignado.` : `Se creó "${d.nombre}", apagado. Ponle su precio y préndelo en Inventario para que salga en el sitio.`, 'ok');
+    // Si era nuevo, ya quedó dado de alta: de vuelta a Inventario.
+    if (enRevision) { router.push(rutaPanelDeCatalogo(tipoActual)); router.refresh(); }
   }
 
   // ---- Foto principal ----
@@ -441,52 +446,53 @@ export function ProductForm({
     const ok = await guardar();
     setBusy(null);
     if (!ok) return;
-    router.push(enRevision ? '/proveedores' : rutaPanelDeCatalogo(tipoActual));
+    router.push(rutaPanelDeCatalogo(tipoActual));
     router.refresh();
   }
 
+  /** Lo nuevo de un aliado: se guarda y, si ya tiene tipo, queda dado de alta en él. */
   async function onPublicar() {
+    if (!tipoSel) { setError('Elige su tipo en la tarjeta «Tipo» (o créalo) para darlo de alta.'); return; }
     setBusy('publicar');
     if (!(await guardar())) { setBusy(null); return; }
-    // El tipo ya va en lo guardado (2026-10-22).
-    const r = await fetch(`/api/admin/providers/equipos/${initial.id}/publicar`, {
+    const r = await fetch(`/api/admin/catalog/products/${initial.id}/es-tipo`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ tipoId: Number(tipoSel) }),
     });
     const d = await r.json().catch(() => null);
     setBusy(null);
-    if (!r.ok) { setError(d?.message ?? 'Se guardó, pero no se pudo publicar.'); return; }
-    router.push('/proveedores');
+    if (!r.ok) { setError(d?.message ?? 'Se guardó, pero no se pudo dar de alta.'); return; }
+    mostrarResultado(`Quedó como «${d.tipo}»: ya le llegan las solicitudes de ese tipo.`, 'ok');
+    router.push(rutaPanelDeCatalogo(tipoActual));
     router.refresh();
   }
 
   async function onRechazar() {
     if (motivo.trim().length < 4) return;
     setBusy('rechazar');
-    const r = await fetch(`/api/admin/providers/equipos/${initial.id}/rechazar`, {
+    const r = await fetch(`/api/admin/catalog/products/${initial.id}/no-lo-manejamos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ motivo: motivo.trim() }),
     });
     const d = await r.json().catch(() => null);
     setBusy(null);
-    if (!r.ok) { setError(d?.message ?? 'No se pudo rechazar.'); return; }
-    router.push('/proveedores');
+    if (!r.ok) { setError(d?.message ?? 'No se pudo quitar.'); return; }
+    router.push(rutaPanelDeCatalogo(tipoActual));
     router.refresh();
   }
 
   const titulo = isEdit ? initial.name ?? (tipoActual === 'servicio' ? 'Servicio' : 'Producto') : `Nuevo ${singular}`;
-  const volver = enRevision
-    ? { href: '/proveedores', texto: 'Proveedores' }
-    : { href: rutaPanelDeCatalogo(tipoActual), texto: tipoActual === 'servicio' ? 'Servicios' : 'Productos' };
+  const volver = { href: rutaPanelDeCatalogo(tipoActual), texto: tipoActual === 'servicio' ? 'Servicios' : 'Productos' };
 
+  // La máquina de un aliado no se publica: está activa o no (2026-10-28).
   const estado = enRevision
-    ? <Chip tone="warn">Por revisar</Chip>
+    ? <Chip tone="warn">Nuevo</Chip>
     : isEdit && initial.status === 0
       ? <Chip tone="muted">Inactivo</Chip>
       : isEdit
-        ? <Chip tone="ok">Publicado</Chip>
+        ? <Chip tone="ok">{proveedor ? 'Activo' : 'Publicado'}</Chip>
         : null;
 
   return (
@@ -511,9 +517,9 @@ export function ProductForm({
       />
 
       {enRevision ? (
-        <Note tone="warn" icon="ph-clipboard-text" style={{ marginBottom: 18 }}>
-          <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>Revisa lo que mandó el aliado.</strong> Corrige lo que haga falta (nombre, ficha, fotos), confirma
-          de qué tipo es y publícalo. Si no sirve, recházalo con el motivo: le llega por correo.
+        <Note tone="warn" icon="ph-sparkle" style={{ marginBottom: 18 }}>
+          <strong style={{ color: 'var(--adm-text)', fontWeight: 600 }}>Es nuevo: no está en tu lista de tipos.</strong> Elige de qué tipo es en la tarjeta «Tipo»,
+          o crea un servicio nuevo (nace apagado, sin precio). Si MAQSER24 no lo maneja, quítalo con el motivo.
         </Note>
       ) : null}
 
@@ -743,7 +749,7 @@ export function ProductForm({
         {/* ════════ Columna lateral ════════ */}
         <aside className="pf-side">
           {enRevision ? (
-            <Tarjeta titulo="Revisión" icono="ph-seal-check" acento>
+            <Tarjeta titulo="Es nuevo" icono="ph-sparkle" acento>
               {error ? <div role="alert"><Note tone="bad">{error}</Note></div> : null}
               {esUnidad ? (
                 <p style={{ margin: 0, fontSize: 13, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
@@ -754,21 +760,21 @@ export function ProductForm({
               ) : null}
               {rechazando ? (
                 <div style={{ display: 'grid', gap: 8 }}>
-                  <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} placeholder="Qué le falta o por qué no se publica (le llega por correo)" aria-label="Motivo del rechazo" className="adm-textarea" />
+                  <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} placeholder="Por qué MAQSER24 no lo maneja (le llega por correo)" aria-label="Motivo" className="adm-textarea" />
                   <Btn variant="danger" disabled={busy !== null || motivo.trim().length < 4} onClick={() => void onRechazar()}>
-                    {busy === 'rechazar' ? 'Rechazando…' : 'Rechazar y avisarle'}
+                    {busy === 'rechazar' ? 'Quitando…' : 'Quitar y avisarle'}
                   </Btn>
                   <Btn variant="ghost" onClick={() => { setRechazando(false); setMotivo(''); }}>Cancelar</Btn>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>
                   <Btn variant="primary" disabled={busy !== null} onClick={() => void onPublicar()}>
-                    {busy === 'publicar' ? 'Publicando…' : 'Guardar y publicar'}
+                    {busy === 'publicar' ? 'Guardando…' : 'Guardar con este tipo'}
                   </Btn>
                   <Btn type="submit" disabled={busy !== null}>
-                    {busy === 'guardar' ? 'Guardando…' : 'Guardar sin publicar'}
+                    {busy === 'guardar' ? 'Guardando…' : 'Guardar y decidir después'}
                   </Btn>
-                  <Btn variant="danger" onClick={() => setRechazando(true)}>Rechazar</Btn>
+                  <Btn variant="ghost" onClick={() => setRechazando(true)}>No lo manejamos</Btn>
                 </div>
               )}
             </Tarjeta>
@@ -886,7 +892,7 @@ export function ProductForm({
               defaultValue={initial.providerId ? String(initial.providerId) : ''}
               options={[
                 { value: '', label: tipoActual === 'servicio' ? 'Sin aliado · ficha del tipo' : 'Sin aliado' },
-                ...providers.map((p) => ({ value: String(p.id), label: `${p.name}${p.level ? ` · ${p.level}` : ''}` })),
+                ...providers.map((p) => ({ value: String(p.id), label: `${p.name}${p.level === 'preferente' ? ' · preferente' : ''}` })),
               ]}
             />
             <p style={{ margin: 0, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
@@ -961,7 +967,7 @@ function Opcion({ activo, onClick, children }: { activo: boolean; onClick: () =>
 }
 
 const CSS = `
-.pf { max-width: 1120px; margin: 0 auto; padding: 4px 0 24px; }
+.pf { max-width: 1120px; margin: 0 auto; padding: 4px 0 0; }
 .pf-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
 .pf-side { display: grid; gap: 16px; position: sticky; top: 16px; }
 .pf-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 16px; }
@@ -977,10 +983,13 @@ const CSS = `
    prenden (acento), no un filtro segmentado. */
 .adm-btn.pf-dia { min-width: 40px; padding: 0 8px; color: var(--adm-muted); font-weight: 500; }
 .adm-btn.pf-dia.is-on { color: var(--adm-text); font-weight: 600; border-color: color-mix(in srgb, var(--adm-accent) 60%, transparent); background: color-mix(in srgb, var(--adm-accent) 13%, transparent); }
+/* Hasta abajo (2026-10-28): el contenido hace scroll dentro de .adm-content, que lleva 56 px de
+   relleno abajo (40 en el teléfono); sin compensarlo la barra flotaba a media pantalla. */
 .pf-bar {
-  position: sticky; bottom: 0; margin-top: 18px; display: flex; gap: 8px; align-items: center;
-  padding: 14px 0; background: var(--adm-page); border-top: 1px solid var(--adm-border);
+  position: sticky; bottom: -56px; margin: 18px 0 -56px; display: flex; gap: 8px; align-items: center;
+  padding: 14px 0 70px; background: var(--adm-page); border-top: 1px solid var(--adm-border);
 }
+@media (max-width: 760px) { .pf-bar { bottom: -40px; margin-bottom: -40px; padding-bottom: 54px; } }
 @media (max-width: 980px) {
   .pf-cols { grid-template-columns: minmax(0, 1fr); }
   .pf-side { position: static; }

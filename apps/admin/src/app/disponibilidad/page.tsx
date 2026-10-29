@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { AvailabilityManager, type EquipoRow } from './AvailabilityManager';
+import { AvailabilityManager, type Disponibilidad } from './AvailabilityManager';
 
 /**
  * DISPONIBILIDAD (documento institucional, 21).
@@ -15,11 +15,11 @@ export default async function AdminDisponibilidad() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'disponibilidad');
-  const equipos = (await adminFetch<EquipoRow[]>('/admin/availability')) ?? [];
+  const datos = (await adminFetch<Disponibilidad>('/admin/availability')) ?? { equipos: [], sinServicios: [], categorias: [] };
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <AvailabilityManager initial={equipos} />
+      <AvailabilityManager initial={datos} />
     </AdminShell>
   );
 }

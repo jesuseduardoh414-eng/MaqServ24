@@ -46,6 +46,10 @@ export interface QuoteRequestInput {
    * la dirección escrita: si eligió su obra, no hay nada que adivinar.
    */
   siteId?: number;
+  /** Empresa elegida de las de su cuenta (2026-10-23): una cuenta puede tener varias. */
+  clientId?: number;
+  /** Nombre de la obra nueva, cuando no eligió una de las suyas. */
+  siteName?: string;
   comments?: string;
 }
 

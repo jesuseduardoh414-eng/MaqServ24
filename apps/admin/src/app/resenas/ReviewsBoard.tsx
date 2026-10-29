@@ -46,6 +46,9 @@ const GRID = '28px minmax(0,1.5fr) 92px minmax(0,2.4fr) 110px 110px 112px';
 
 export function ReviewsBoard({ initial }: { initial: Review[] }) {
   const [reviews, setReviews] = useState<Review[]>(initial);
+  // En vivo (2026-10-26): al llegar un aviso la campana pide la página otra vez;
+  // la lista toma lo nuevo del servidor (lo que se escribe vive aparte y no se pierde).
+  useEffect(() => { setReviews(initial); }, [initial]);
   const [tab, setTab] = useState<'todas' | 'pend' | 'aprob'>('todas');
   const [query, setQuery] = useState('');
   const [sel, setSel] = useState<Record<string, boolean>>({});
@@ -145,7 +148,7 @@ export function ReviewsBoard({ initial }: { initial: Review[] }) {
   const check = <i className="ph-bold ph-check" style={{ fontSize: 11, color: 'var(--color-primary-fg, #fff)' }} aria-hidden />;
   const pageBtn = (on: boolean): CSSProperties => ({
     width: 'auto', minWidth: 32, padding: '0 9px', fontFamily: 'inherit', fontSize: 13, fontVariantNumeric: 'tabular-nums',
-    ...(on ? { background: 'rgba(255,255,255,0.09)', color: 'var(--adm-text)', fontWeight: 600, cursor: 'default' } : null),
+    ...(on ? { background: 'rgba(var(--adm-ink),0.09)', color: 'var(--adm-text)', fontWeight: 600, cursor: 'default' } : null),
   });
 
   return (

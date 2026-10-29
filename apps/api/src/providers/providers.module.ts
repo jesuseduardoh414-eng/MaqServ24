@@ -4,6 +4,7 @@ import { OperadorController } from './operador.controller';
 import { ServiceService } from '../quotes/service.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PapelesPrivados } from './papeles-privados';
+import { EquiposConTipo } from './equipos-con-tipo';
 
 /**
  * EL PORTAL DEL ALIADO (documento institucional, sección 20).
@@ -17,6 +18,7 @@ import { PapelesPrivados } from './papeles-privados';
   // El enlace del operador de la unidad (2026-10-15): un servicio, sin lo del aliado.
   controllers: [ProviderPortalController, OperadorController],
   // PapelesPrivados: al arrancar, muda a la carpeta privada los papeles viejos (2026-10-23).
-  providers: [ServiceService, PapelesPrivados],
+  // EquiposConTipo: al arrancar, da de alta lo que tenía tipo y esperaba "Publicar" (2026-10-28).
+  providers: [ServiceService, PapelesPrivados, EquiposConTipo],
 })
 export class ProvidersModule {}

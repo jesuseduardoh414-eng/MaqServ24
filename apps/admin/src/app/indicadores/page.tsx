@@ -3,42 +3,27 @@ import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { AnalyticsBoard, type Tablero } from './AnalyticsBoard';
 
+const PERIODOS = ['mes', '90', '180', '365'];
+
 /**
- * INDICADORES (documento institucional, sección 25).
+ * INDICADORES · ¿CÓMO VA EL NEGOCIO? (documento institucional, sección 25;
+ * rediseñado el 2026-10-27).
  *
- * "MAQSER24 debe diseñarse como una empresa de datos desde el principio."
- *
- * El panel de inicio cuenta pendientes: dice qué hay que atender. Esto dice si
- * lo que se hizo sirvió, que es una pregunta distinta y la que nadie podía
- * contestar.
+ * El panel de inicio cuenta pendientes: dice qué hay que atender. Esto dice
+ * cómo va el negocio: si llega trabajo, si respondemos rápido, si aceptan y
+ * dónde nos falta red.
  */
-export default async function AdminIndicadores({
-  searchParams,
-}: {
-  searchParams: Promise<{ dias?: string; categoria?: string; zona?: string }>;
-}) {
+export default async function AdminIndicadores({ searchParams }: { searchParams: Promise<{ periodo?: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'indicadores');
-  const sp = await searchParams;
-
-  const qs = new URLSearchParams();
-  if (sp.dias) qs.set('dias', sp.dias);
-  if (sp.categoria) qs.set('categoria', sp.categoria);
-  if (sp.zona) qs.set('zona', sp.zona);
-
-  const [tablero, categorias] = await Promise.all([
-    adminFetch<Tablero>(`/admin/analytics${qs.size ? `?${qs}` : ''}`),
-    adminFetch<Array<{ id: number; name: string; slug: string }>>('/admin/catalog/categories'),
-  ]);
+  const p = (await searchParams).periodo;
+  const periodo = p && PERIODOS.includes(p) ? p : '90';
+  const tablero = await adminFetch<Tablero>(`/admin/analytics?periodo=${periodo}`);
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <AnalyticsBoard
-        tablero={tablero}
-        categorias={(categorias ?? []).map((c) => ({ slug: c.slug, name: c.name }))}
-        filtros={{ dias: sp.dias ?? '90', categoria: sp.categoria ?? '', zona: sp.zona ?? '' }}
-      />
+      <AnalyticsBoard tablero={tablero} periodo={periodo} />
     </AdminShell>
   );
 }

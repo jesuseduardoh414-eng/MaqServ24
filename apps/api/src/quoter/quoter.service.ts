@@ -8,8 +8,11 @@ import {
   calcularCotizacion,
   catalogoCotizadorSchema,
   centroDeMunicipio,
+  cobraFlete,
   conRenglonesGuardados,
-  partidasPorProveedor,
+  minimoHorasDe,
+  precioHoraDe,
+  precioZona,
   renglonesDeFicha,
   seccionDeLinea,
   tieneImporte,
@@ -22,13 +25,16 @@ import {
 } from '@maqserv/config';
 import { conCandado } from '../common/candado';
 import { MailerService } from '../notifications/mailer.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { sincronizarReserva } from '../quotes/reservas';
+import { vigenciaPorDefecto } from '../quotes/quote-validity';
 import { firmarAceptacion, rutaAceptar } from './aceptar-link';
 import { leerZonas, municipiosDe } from '../common/zonas';
+import type { RefTarifa } from './tarifa-ref';
+import { documentosVencidos, tieneSolicitud } from './documento-estado';
 import {
   correoAcuseSolicitud,
   correoCotizacionDelPanel,
-  correoSolicitudAProveedor,
   correoSolicitudInterna,
 } from '../notifications/email-templates';
 
@@ -45,7 +51,10 @@ import {
 export class QuoterService {
   private readonly log = new Logger('Quoter');
 
-  constructor(private readonly mailer: MailerService) {}
+  constructor(
+    private readonly mailer: MailerService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * Caché corta del tabulador.
@@ -165,6 +174,24 @@ export class QuoterService {
     return this.catalogo(tipo);
   }
 
+  /**
+   * Un cambio de datos que se hace solo al arrancar (ver `cobro-por-hora.ts`):
+   * `cambiar` recibe el tabulador guardado y devuelve el nuevo, o null si no
+   * hay nada que hacer. Bajo el mismo candado que el panel y validado igual.
+   */
+  async migrarTabulador(tipo: CotizadorTipo, cambiar: (cat: CatalogoCotizador) => Promise<CatalogoCotizador | null>, quien: string): Promise<boolean> {
+    let hecho = false;
+    await conCandado([`tabulador:${tipo}`], async () => {
+      const nuevo = await cambiar(structuredClone(await this.catalogoGuardado(tipo)));
+      if (!nuevo) return;
+      const ok = catalogoCotizadorSchema.safeParse(nuevo);
+      if (!ok.success) throw new Error(`${ok.error.issues[0]?.path.join('.') ?? ''} ${ok.error.issues[0]?.message ?? 'dato inválido'}`.trim());
+      await this.escribir(tipo, ok.data, quien);
+      hecho = true;
+    });
+    return hecho;
+  }
+
   /** Vuelve lo general a los valores de fábrica. Los precios de cada tipo no se tocan: viven en su ficha. */
   async restaurarCatalogo(tipo: CotizadorTipo, correo: string): Promise<CatalogoCotizador> {
     return this.guardarCatalogo(tipo, CATALOGOS_DEFAULT[tipo], correo);
@@ -186,7 +213,7 @@ export class QuoterService {
     const linea = (await prisma.categories.findUnique({ where: { id: p.category_id }, select: { cat_slug: true } }))?.cat_slug ?? null;
     const seccion = seccionDeLinea(linea);
     const base = { productId: p.id, nombreFicha: p.name, linea, seccion, deAliado: p.provider_id !== null, activa: p.status === 1 };
-    if (!seccion) return { ...base, renglones: [], oculto: false, fletes: [], condiciones: [], tramos: [] };
+    if (!seccion) return { ...base, renglones: [], oculto: false, fletes: [], condiciones: [], cobro: null };
     const cat = await this.catalogoGuardado(seccion.tipo);
     const { renglones, oculto } = renglonesDeFicha(cat, seccion.clase, p.id);
     return {
@@ -195,9 +222,10 @@ export class QuoterService {
       oculto,
       fletes: cat.tipo === 'maquinaria' ? Object.entries(cat.fletes).map(([nombre, monto]) => ({ nombre, monto })) : [],
       condiciones: Object.entries(cat.condiciones).map(([clave, b]) => ({ clave, titulo: b.titulo })),
-      tramos: cat.tipo === 'maquinaria'
-        ? cat.tiers.map((t) => ({ id: t.id, label: t.label, desde: t.desde_dias, hasta: t.hasta_dias }))
-        : [],
+      // Cómo se cobra la maquinaria (2026-10-29), para que la ficha lo diga junto al precio.
+      cobro: cat.tipo === 'maquinaria'
+        ? { jornada: cat.jornada_horas, minimo: minimoHorasDe(cat), conFlete: cobraFlete(cat) }
+        : null,
     };
   }
 
@@ -245,6 +273,79 @@ export class QuoterService {
       await this.escribir(seccion.tipo, siguiente.data, correo);
     });
     return { tipo: seccion.tipo, nombre: p.name, ficha: await this.fichaEnCotizador(p.id) };
+  }
+
+  /**
+   * CORREGIR UNA TARIFA DESDE EL DESGLOSE DE UNA SOLICITUD (2026-10-23).
+   *
+   * "Si el administrador ve que hay una tarifa mal, la puede corregir en ese
+   * momento y se actualiza en todo el sistema." Escribe en el MISMO tabulador
+   * que leen los dos cotizadores y la ficha del tipo, así que no hay una
+   * segunda copia que se quede atrás. Devuelve el valor anterior (en la misma
+   * unidad en que se editó) para la bitácora y para reconocer, en las demás
+   * solicitudes pendientes, los renglones que traían la tarifa vieja.
+   */
+  async corregirTarifa(tipo: CotizadorTipo, ref: RefTarifa, valor: number, correo: string): Promise<{ antes: number | null; nombre: string }> {
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    let antes: number | null = null;
+    let nombre = '';
+    await conCandado([`tabulador:${tipo}`], async () => {
+      const cat = structuredClone(await this.catalogoGuardado(tipo));
+      const falta = () => new BadRequestException('Esa tarifa ya no está en el tabulador: vuelve a abrir la solicitud.');
+      if (cat.tipo === 'maquinaria') {
+        if (ref.clase === 'equipo') {
+          // Por hora (2026-10-29). Una solicitud de antes trae `tramo`: su valor (y el de antes) es por día.
+          const e = cat.equipos.find((x) => x.id === ref.id);
+          if (!e) throw falta();
+          const porDia = ref.tramo ? cat.jornada_horas : 1;
+          antes = r2(precioHoraDe(cat, e) * porDia);
+          e.precio_hora = r2(valor / porDia);
+          delete e.tarifas;
+          nombre = `${e.nombre} · por hora`;
+        } else if (ref.clase === 'flete') {
+          if (!(ref.tipo in cat.fletes)) throw falta();
+          antes = cat.fletes[ref.tipo];
+          cat.fletes[ref.tipo] = r2(valor);
+          nombre = `Flete ${ref.tipo}`;
+        } else if (ref.clase === 'servicio') {
+          const s = cat.servicios.find((x) => x.id === ref.id);
+          if (!s) throw falta();
+          antes = s.precio;
+          s.precio = r2(valor);
+          nombre = s.nombre;
+        } else throw falta();
+      } else {
+        if (ref.clase === 'material') {
+          const p = cat.productos.find((x) => x.id === ref.id);
+          if (!p) throw falta();
+          antes = p.precio_ton;
+          p.precio_ton = r2(valor);
+          nombre = p.nombre;
+        } else if (ref.clase === 'flete_zona') {
+          const z = cat.zonas.find((x) => x.id === ref.zonaId);
+          if (!z || cat.ton_por_viaje <= 0) throw falta();
+          // Se piensa por tonelada (así sale en el documento) y se guarda por viaje.
+          antes = Math.round(z.flete / cat.ton_por_viaje);
+          z.flete = r2(valor * cat.ton_por_viaje);
+          nombre = `Flete zona ${z.nombre}`;
+        } else if (ref.clase === 'banco') {
+          antes = cat.material_banco.precio_m3_default;
+          cat.material_banco.precio_m3_default = r2(valor);
+          nombre = cat.material_banco.nombre;
+        } else if (ref.clase === 'zona') {
+          const z = cat.zonas.find((x) => x.id === ref.zonaId);
+          const p = cat.productos.find((x) => x.id === ref.productoId);
+          if (!z || !p) throw falta();
+          antes = precioZona(cat, z, p.id);
+          z.precios = { ...(z.precios ?? {}), [p.id]: r2(valor) };
+          nombre = `${p.nombre} · ${z.nombre}`;
+        } else throw falta();
+      }
+      const ok = catalogoCotizadorSchema.safeParse(cat);
+      if (!ok.success) throw new BadRequestException(`No se pudo guardar la tarifa: ${ok.error.issues[0]?.message ?? 'dato inválido'}`);
+      await this.escribir(tipo, ok.data, correo);
+    });
+    return { antes, nombre };
   }
 
   /**
@@ -352,6 +453,13 @@ export class QuoterService {
     adminId?: number | null;
     adminNombre?: string | null;
     userId?: number | null;
+    /**
+     * Cliente y obra registrados (panel, 2026-10-23). Van en el documento
+     * congelado para que, al aceptarse, su servicio caiga en ellos.
+     */
+    destino?: { clientId: number | null; siteId: number | null } | null;
+    /** Fecha de inicio o entrega (panel, 2026-10-23): sale en el documento y pasa al servicio. */
+    fecha?: string | null;
   }) {
     const cat = await this.catalogo(entrada.tipo);
     const calc = calcularCotizacion(cat, entrada.partidas, entrada.opciones);
@@ -366,6 +474,8 @@ export class QuoterService {
       firma: cat.firma,
       saludo: cat.saludo,
       emitida: new Date().toISOString(),
+      ...(contexto.destino?.clientId ? { destino: contexto.destino } : {}),
+      ...(contexto.fecha ? { fecha: contexto.fecha } : {}),
     };
 
     const base = {
@@ -416,6 +526,9 @@ export class QuoterService {
    * Se puede volver a cotizar mientras el cliente no acepte. Si ya se le había
    * respondido con otro precio, la solicitud regresa a "Por cotizar" para que
    * se le mande el bueno.
+   *
+   * Desde el 2026-10-23 también las del cotizador del sitio en VARIAS partes:
+   * el documento se recotiza entero y cada parte recibe lo suyo (Recotizar).
    */
   async solicitudLigable(quoteId: number) {
     const q = await prisma.quotes.findUnique({
@@ -430,22 +543,21 @@ export class QuoterService {
     if (!q) throw new NotFoundException('Solicitud no encontrada');
     const req = (q.requirements ?? {}) as Record<string, unknown>;
     if (req.origen === 'maquina') throw new BadRequestException('Esta solicitud ya trae su documento del cotizador.');
-    // Del cotizador del sitio (2026-10-15): llega por confirmar y se puede ajustar
-    // con el tabulador, siempre que sea de UNA parte (si el cliente pidió varias
-    // líneas, el documento es de todas y se responde tal como lo armó).
-    if (req.origen === 'cotizador' && typeof req.folio === 'string') {
-      const partes = await prisma.quotes.count({ where: { requirements: { path: '$.folio', equals: req.folio } } });
-      if (partes > 1) throw new BadRequestException('Esta cotización del sitio viene en varias partes: respóndela tal como la armó el cliente.');
-    }
     if (q.accepted_at) throw new BadRequestException('El cliente ya aceptó esta cotización: su precio ya no se cambia.');
     if (q.status === 'rejected') throw new BadRequestException('Esta solicitud está descartada.');
     return q;
   }
 
-  /** Lo que el cotizador necesita para abrirse ya llenado, y lo que pidió el cliente para tenerlo a la vista. */
+  /**
+   * Lo que el cotizador necesita para abrirse ya llenado, y lo que pidió el
+   * cliente para tenerlo a la vista. Con documento, también sus partidas
+   * (2026-10-23): "Volver a cotizar" abría el cotizador vacío y había que
+   * capturar todo otra vez.
+   */
   async datosParaCotizar(quoteId: number) {
     const q = await this.solicitudLigable(quoteId);
     const req = (q.requirements ?? {}) as Record<string, unknown>;
+    const doc = typeof req.quoterId === 'number' ? await prisma.quoter_quotes.findUnique({ where: { id: req.quoterId } }) : null;
     const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
     const internas = new Set(['origen', 'cotizador', 'folio', 'quoterId', 'obra', 'obra_ubicacion', 'productos', 'productId', 'renglones']);
     // El municipio casi nunca viene solo: va al final de la dirección ("Av. …, San
@@ -473,44 +585,16 @@ export class QuoterService {
         .slice(0, 12)
         .map(([k, v]) => [k, String(v)] as [string, string]),
       comentarios: q.comments ?? null,
+      documento: doc
+        ? {
+            tipo: doc.kind,
+            partidas: doc.items as unknown as PartidaCotizador[],
+            opciones: (doc.options ?? {}) as Partial<OpcionesCotizador>,
+            // Sin mandar todavía: se actualiza ese mismo documento (mismo folio).
+            mismoFolio: ['solicitada', 'borrador'].includes(doc.state),
+          }
+        : null,
     };
-  }
-
-  /** Liga el documento recién emitido a la solicitud y le pasa sus importes. */
-  async ligarASolicitud(
-    q: Awaited<ReturnType<QuoterService['solicitudLigable']>>,
-    cot: { id: number; folio: string; subtotal: Prisma.Decimal; tax: Prisma.Decimal; total: Prisma.Decimal },
-  ) {
-    const req = (q.requirements ?? {}) as Record<string, unknown>;
-    const anterior = typeof req.quoterId === 'number' && req.quoterId !== cot.id ? req.quoterId : null;
-    await prisma.$transaction([
-      prisma.quotes.update({
-        where: { id: q.id },
-        data: {
-          requirements: {
-            ...req,
-            folio: cot.folio,
-            quoterId: cot.id,
-            // Del cotizador del sitio con precio nuevo: ya no es lo que el cliente
-            // vio, así que se le responde y la acepta él (no se aprueba directo).
-            ...(req.origen === 'cotizador' ? { precioAjustado: true } : {}),
-          } as Prisma.InputJsonValue,
-          // El flete ya va dentro de las partidas del documento.
-          subtotal: cot.subtotal,
-          tax: cot.tax,
-          freight_cost: 0,
-          total: cot.total,
-          ...(q.status === 'completed' ? { status: 'pending' } : {}),
-          updated_at: new Date(),
-        },
-      }),
-      // El documento que reemplaza no se borra (queda el rastro), pero ya no vale.
-      ...(anterior
-        ? [prisma.quoter_quotes.updateMany({ where: { id: anterior, state: { in: ['borrador', 'solicitada', 'enviada'] } }, data: { state: 'cancelada', updated_at: new Date() } })]
-        : []),
-    ]);
-    // Si regresó a "Por cotizar", suelta lo que apartaba; al responder se vuelve a apartar.
-    await sincronizarReserva(Number(q.id));
   }
 
   /**
@@ -605,11 +689,12 @@ export class QuoterService {
         select: {
           id: true, kind: true, folio: true, origin: true, state: true,
           client_name: true, work: true, municipality: true, email: true, phone: true,
-          total: true, admin_name: true, created_at: true,
+          total: true, admin_name: true, created_at: true, updated_at: true,
         },
       }),
       prisma.quoter_quotes.count({ where }),
     ]);
+    const vencidas = await documentosVencidos(items);
 
     return {
       items: items.map((q) => ({
@@ -626,6 +711,8 @@ export class QuoterService {
         total: Number(q.total),
         admin: q.admin_name,
         fecha: q.created_at,
+        /** Enviada y su vigencia ya pasó sin respuesta (2026-10-26). */
+        vencida: vencidas.has(q.id),
       })),
       total,
       pagina,
@@ -663,6 +750,9 @@ export class QuoterService {
       total: Number(q.total),
       admin: q.admin_name,
       fecha: q.created_at,
+      /** Salió de una solicitud: esa la acepta el cliente desde su cuenta (2026-10-26). */
+      ligada: await tieneSolicitud(q.folio),
+      vencida: (await documentosVencidos([q])).has(q.id),
     };
   }
 
@@ -690,77 +780,43 @@ export class QuoterService {
   /**
    * LO QUE PASA CUANDO ENTRA UNA SOLICITUD DEL SITIO.
    *
-   * Tres correos, y ninguno es decorativo:
+   * Dos correos, y ninguno es decorativo:
    *
-   *  - Al PROVEEDOR dueño de cada partida. Es lo que convierte el cotizador en
-   *    algo que el proveedor usa: publica su máquina y se entera de que se la
-   *    pidieron. Uno por proveedor, no por renglón — pedirle tres equipos es un
-   *    solo trabajo para él.
    *  - Al equipo de MAQSER24. Antes, la promesa del acuse —"un asesor se
    *    pondrá en contacto"— dependía de que alguien abriera el panel por su
    *    cuenta, y una solicitud podía dormir días sin que nadie lo supiera.
+   *    Lleva el precio ESTIMADO: el cliente no lo vio (2026-10-23).
    *  - Al visitante, con su folio, que hasta ahora solo vivía en la pantalla.
+   *    Sin importes: el precio se lo manda una persona desde el panel.
+   *
+   * A los proveedores ya NO se les escribe aquí (2026-10-23): nada sale a los
+   * aliados hasta que MAQSER24 revisa el precio, el cliente lo acepta y alguien
+   * elige a quién se le da (Servicios › Buscar aliado).
    *
    * NUNCA tumba la solicitud: se llama sin esperar desde el controlador y
    * atrapa todo. Si el servidor de correo está caído, la cotización ya quedó
    * guardada y el panel la enseña igual — el correo avisa de lo que pasó, no es
    * la cosa que pasó.
-   */
-  /**
-   * @param servicio Si la solicitud ya se convirtió en servicio (ver
-   *   `QuoterServicio`), a los proveedores ya les escribió `ofrecer` con su
-   *   enlace del portal: aquí NO se les vuelve a escribir. Dos correos el
-   *   mismo minuto por lo mismo enseñan a archivar sin leer.
+   *
+   * @param servicio La solicitud ya abierta en Solicitudes (ver
+   *   `QuoterServicio`): de ahí salen el enlace del cliente y el del panel.
    */
   async avisarSolicitud(
     id: number,
-    servicio?: { quoteNumber: string; proveedores: string[]; url: string } | null,
+    servicio?: { quoteId?: number; quoteNumber: string; url: string } | null,
   ): Promise<void> {
     try {
       const q = await prisma.quoter_quotes.findUnique({ where: { id } });
       if (!q) return;
 
       const tipo = q.kind as CotizadorTipo;
-      const cat = await this.catalogo(tipo);
-      const partidas = q.items as unknown as PartidaCotizador[];
       const cotizador = COTIZADORES_META[tipo].titulo.toLowerCase();
       const calc = (q.snapshot as unknown as { calc: CalculoCotizacion }).calc;
       const conceptos = (calc?.renglones ?? [])
         .filter((r) => r.clase !== 'flete')
         .map((r) => `${r.concepto} · ${r.cantidad} ${r.unidad}`);
 
-      // 1. A cada proveedor, lo suyo (solo si NO se le ofreció ya como servicio).
-      const avisados: string[] = servicio ? [...servicio.proveedores] : [];
-      const reparto = servicio ? [] : partidasPorProveedor(cat, partidas);
-      if (reparto.length > 0) {
-        const provs = await prisma.providers.findMany({
-          where: { id: { in: reparto.map((r) => r.proveedorId) } },
-          select: { id: true, name: true, email: true, contact_name: true },
-        });
-        for (const { proveedorId, conceptos: suyos } of reparto) {
-          const p = provs.find((x) => x.id === proveedorId);
-          // Un proveedor sin correo no detiene nada: el aviso interno dirá a
-          // quién sí se le avisó, y de ahí se ve quién falta por capturar.
-          if (!p?.email) continue;
-          await this.mailer.enviar({
-            kind: 'quoter_request_provider',
-            to: p.email,
-            toName: p.contact_name,
-            providerId: p.id,
-            ...correoSolicitudAProveedor({
-              contacto: p.contact_name,
-              folio: q.folio,
-              cotizador,
-              municipio: q.municipality,
-              obra: q.work,
-              conceptos: suyos,
-            }),
-          });
-          avisados.push(p.name);
-        }
-      }
-
-      // 2. Al equipo. Va al buzón desde el que sale el correo de la plataforma:
+      // 1. Al equipo. Va al buzón desde el que sale el correo de la plataforma:
       //    es el único que se sabe que existe — el publicado en el sitio no.
       const interno = process.env.MAIL_FROM ?? process.env.SMTP_USER ?? null;
       if (interno) {
@@ -778,13 +834,13 @@ export class QuoterService {
             obra: q.work,
             total: Number(q.total),
             conceptos,
-            proveedoresAvisados: avisados,
-            url: `${panel}/cotizador/historial/${q.id}`,
+            // Directo a la solicitud, que es donde se revisa y se responde.
+            url: servicio?.quoteId ? `${panel}/cotizaciones?ver=${servicio.quoteId}` : `${panel}/cotizador/historial/${q.id}`,
           }),
         });
       }
 
-      // 3. Al cliente: qué pasó con su solicitud y dónde seguirla.
+      // 2. Al cliente: que se recibió y dónde seguirla. Sin precio.
       if (q.email) {
         const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
         await this.mailer.enviar({
@@ -795,8 +851,6 @@ export class QuoterService {
             nombre: q.client_name,
             folio: q.folio,
             cotizador,
-            total: cat.publico.mostrarPrecios ? Number(q.total) : null,
-            proveedores: servicio?.proveedores ?? [],
             url: servicio ? `${sitio}${servicio.url}` : null,
           }),
         });
@@ -820,7 +874,7 @@ export class QuoterService {
    * con el correo apagado o rebotado es la clase de mentira que se descubre
    * cuando el cliente llama preguntando por algo que nunca recibió.
    */
-  async enviarAlCliente(id: number): Promise<{ ok: true; estado: string; correo: string }> {
+  async enviarAlCliente(id: number, adminNombre: string | null = null): Promise<{ ok: true; estado: string; correo: string; respondidas: string[] }> {
     const q = await prisma.quoter_quotes.findUnique({ where: { id } });
     if (!q) throw new NotFoundException('Cotización no encontrada');
     if (!q.email?.trim()) {
@@ -840,11 +894,23 @@ export class QuoterService {
      * cuenta, con su propio camino). Sin llave para firmar, sale sin botón.
      */
     let aceptarUrl: string | null = null;
-    if (q.origin === 'panel' && q.state !== 'aceptada' && q.state !== 'cancelada') {
+    /**
+     * LA RESPUESTA DE UNA SOLICITUD (2026-10-23). Si el documento es de una
+     * solicitud, mandarlo ES responderla: antes solo salía el correo y en su
+     * cuenta seguía "Precio en revisión", sin la cotización. Ahora sus partes
+     * pasan a cotizadas (como con "Mandar precio") y el botón del correo lleva
+     * a su cuenta, donde la ve y la acepta.
+     */
+    const partes = await prisma.quotes.findMany({
+      where: { requirements: { path: '$.folio', equals: q.folio }, accepted_at: null, status: { in: ['pending', 'completed'] } },
+      orderBy: { id: 'asc' },
+    });
+    const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
+    if (partes[0]?.user_id) aceptarUrl = sitio + '/cuenta/cotizaciones/' + encodeURIComponent(partes[0].quote_number);
+    if (q.origin === 'panel' && q.state !== 'aceptada' && q.state !== 'cancelada' && !aceptarUrl) {
       const ligada = await prisma.quotes.count({ where: { requirements: { path: '$.folio', equals: q.folio } } });
       if (ligada === 0) {
         try {
-          const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
           aceptarUrl = `${sitio}${rutaAceptar(await firmarAceptacion(q.id))}`;
         } catch (e) {
           this.log.warn(`Cotización ${q.folio} sin botón para aceptar: ${(e as Error).message}`);
@@ -895,15 +961,68 @@ export class QuoterService {
       data: { state: 'enviada', updated_at: new Date() },
     });
 
-    return { ok: true, estado: 'enviada', correo: q.email };
+    // Las partes que seguían por cotizar quedan respondidas, con la vigencia de siempre.
+    const ahora = new Date();
+    const respondidas: string[] = [];
+    for (const p of partes.filter((x) => x.status === 'pending')) {
+      await prisma.quotes.update({
+        where: { id: p.id },
+        data: {
+          status: 'completed',
+          responded_at: ahora,
+          responded_by: adminNombre,
+          valid_until: p.valid_until ?? new Date(vigenciaPorDefecto() + 'T00:00:00Z'),
+          ...(p.first_contact_at ? {} : { first_contact_at: ahora, first_contact_via: 'cotizacion' }),
+          updated_at: ahora,
+        },
+      });
+      await sincronizarReserva(Number(p.id));
+      respondidas.push(p.quote_number);
+    }
+    if (respondidas.length && partes[0]?.user_id) {
+      await this.notifications.push({
+        userId: Number(partes[0].user_id),
+        type: 'quote_answered',
+        title: 'Ya tienes precio: ' + q.folio,
+        body: 'Total: ' + Number(q.total).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }) + '. Revísala y acéptala en tu cuenta.',
+        link: '/cuenta/cotizaciones/' + partes[0].quote_number,
+      });
+    }
+
+    return { ok: true, estado: 'enviada', correo: q.email, respondidas };
   }
 
   private static readonly ESTADOS = ['solicitada', 'borrador', 'enviada', 'aceptada', 'cancelada'];
 
+  /**
+   * A mano solo quedan dos cosas (2026-10-26); lo demás lo pone el flujo:
+   *  - "aceptada": el cliente dijo que sí por teléfono o WhatsApp. Solo las que
+   *    armó el panel sin solicitud: las otras las acepta el cliente en su cuenta.
+   *  - "cancelada": deja de valer, y su solicitud, si seguía pendiente, se descarta.
+   */
   async cambiarEstado(id: number, estado: string) {
     if (!QuoterService.ESTADOS.includes(estado)) throw new BadRequestException('Estado desconocido');
-    const existe = await prisma.quoter_quotes.count({ where: { id } });
-    if (!existe) throw new NotFoundException('Cotización no encontrada');
+    const doc = await prisma.quoter_quotes.findUnique({ where: { id }, select: { state: true, folio: true } });
+    if (!doc) throw new NotFoundException('Cotización no encontrada');
+    if (estado === 'aceptada') {
+      if (!['borrador', 'enviada'].includes(doc.state)) throw new BadRequestException('Solo se marca aceptada una cotización en borrador o enviada.');
+      if (await tieneSolicitud(doc.folio)) throw new BadRequestException('Esta salió de una solicitud: la acepta el cliente desde su cuenta o desde el correo.');
+    } else if (estado === 'cancelada') {
+      if (!['solicitada', 'borrador', 'enviada'].includes(doc.state)) {
+        throw new BadRequestException(doc.state === 'aceptada' ? 'Ya está aceptada: para cancelarla, cancela su servicio en Servicios en curso.' : 'Ya está cancelada.');
+      }
+      // Su solicitud, si seguía esperando, se descarta con ella.
+      const pendientes = await prisma.quotes.findMany({
+        where: { requirements: { path: '$.folio', equals: doc.folio }, accepted_at: null, status: { in: ['pending', 'completed'] } },
+        select: { id: true },
+      });
+      if (pendientes.length) {
+        await prisma.quotes.updateMany({ where: { id: { in: pendientes.map((p) => p.id) } }, data: { status: 'rejected', updated_at: new Date() } });
+        for (const p of pendientes) await sincronizarReserva(Number(p.id));
+      }
+    } else {
+      throw new BadRequestException('Ese estado lo pone el sistema solo: al mandar el precio, cuando el cliente acepta o al volver a cotizar.');
+    }
     await prisma.quoter_quotes.update({ where: { id }, data: { state: estado, updated_at: new Date() } });
     return { ok: true, estado };
   }

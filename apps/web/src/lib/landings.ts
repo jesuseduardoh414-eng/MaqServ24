@@ -81,7 +81,7 @@ export const LANDINGS: Landing[] = [
       },
       {
         pregunta: '¿Por cuánto tiempo puedo rentar un equipo?',
-        respuesta: 'Por días de trabajo. Capturas los días y las horas en el cotizador y el resumen se actualiza al momento.',
+        respuesta: 'Por días de trabajo. Capturas los días y las horas en el cotizador y te mandamos la cotización con el precio de ese tiempo.',
       },
       {
         pregunta: '¿Quién me entrega la máquina?',
@@ -196,7 +196,7 @@ export const LANDINGS: Landing[] = [
     h1: 'Grava, arena y base hidráulica para construcción',
     intro: [
       'Compra triturados para tu obra: arena 4, arena 5, grava 1, grava 2, base hidráulica y CNC. Cotizas en línea por tonelada en planta o por viaje puesto en obra.',
-      `Surtimos en ${ZONA}. El documento de cotización te llega al momento y lo puedes compartir con tu equipo.`,
+      `Surtimos en ${ZONA}. Te mandamos la cotización con precio por correo y la puedes compartir con tu equipo.`,
     ],
     incluye: {
       titulo: 'Materiales disponibles',

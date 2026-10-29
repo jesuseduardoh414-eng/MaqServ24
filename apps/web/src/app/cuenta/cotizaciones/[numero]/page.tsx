@@ -143,12 +143,11 @@ export default async function CotizacionDetalle({ params }: { params: Promise<{ 
     enviada: 'var(--color-warning)', en_revision: 'var(--color-warning)', aprobada: 'var(--color-success)',
     rechazada: 'var(--color-error)', cancelada: 'var(--color-error)', completada: 'var(--color-success)',
   } as const;
+  // Pendiente nunca trae precio (2026-10-23): la del cotizador también se revisa
+  // y se le manda con su precio para que la acepte.
   const est = q.request
     ? { texto: q.request.label, nota: q.request.message, color: COLOR_SOLICITUD[q.request.state] }
-    // Con precio y en revisión: la pidió desde el cotizador viendo el costo (2026-10-15).
-    : q.state === 'pendiente' && q.total > 0
-      ? { ...ESTADO.pendiente, nota: 'La estamos revisando para asignarte el proveedor. Te avisamos en cuanto quede autorizada.' }
-      : ESTADO[q.state];
+    : ESTADO[q.state];
   /** Los cuatro pasos que ve el cliente: enviada → en revisión → aprobada → completada. */
   const PASOS_SOLICITUD = [
     { k: 'enviada', t: 'Enviada' },

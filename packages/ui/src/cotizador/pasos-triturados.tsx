@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Plus, X } from 'lucide-react';
+import { MapPin, Plus, X } from 'lucide-react';
 import { precioZona, zonaDe, type CatalogoTriturados } from '@maqserv/config';
 import { money, money2 } from './formato';
 import { Campo, Chip, Contador, NumeroTexto } from './piezas';
@@ -376,9 +376,14 @@ export function fleteTonDeZona(cat: CatalogoTriturados, z: { flete: number } | n
   return z && cat.ton_por_viaje > 0 ? Math.round(Number(z.flete) / cat.ton_por_viaje) : 0;
 }
 
-/** ¿Ya se dijo si se lleva a obra (y a qué zona) o si recogen en planta? */
+/**
+ * ¿Ya se dijo si se lleva a obra (y a qué zona) o si recogen en planta?
+ *
+ * Basta con la zona (2026-10-23): en el sitio el tabulador llega en ceros y
+ * elegir zona deja el flete en $0; el servidor lo pone con esa zona.
+ */
 export function entregaDecidida(l: LineaMaterial): boolean {
-  return l.fleteTon > 0 || l.fleteZona.trim() === RECOGE_EN_PLANTA;
+  return l.fleteTon > 0 || l.fleteZona.trim() !== '';
 }
 
 const normal = (s: string) =>
@@ -451,8 +456,9 @@ function ZonaEntrega({ cat, materiales, aTodos, tocado, municipio }: {
           </ShSelectContent>
         </ShSelect>
         {sugerida ? (
-          <button type="button" className="cz-agregar" onClick={() => usar(sugerida)}>
-            La obra es en {municipio}: usar «{sugerida.nombre}»
+          <button type="button" className="cz-sugerencia" onClick={() => usar(sugerida)}>
+            <MapPin className="size-4" aria-hidden />
+            <span>La obra es en {municipio}: usar <b>{sugerida.nombre}</b></span>
           </button>
         ) : null}
         </>

@@ -102,3 +102,27 @@ export async function guardarUbicacion(
   if (viejos.length) await prisma.service_locations.deleteMany({ where: { id: { in: viejos.map((v) => v.id) } } });
   return { ok: true };
 }
+
+/**
+ * Qué equipo lleva cada servicio (2026-10-26): los renglones de equipo o
+ * material de su cotización guardada ("Retroexcavadora c/ cucharón"). Lo usan
+ * el Mapa de servicios y las tarjetas de Servicios en curso, para que digan lo
+ * mismo. Devuelve una función: con los `requirements` de un servicio, su equipo.
+ */
+export async function equiposDeServicios(requirements: unknown[]): Promise<(r: unknown) => string | null> {
+  const cotizacionDe = (r: unknown) => {
+    const id = Number((r as Record<string, unknown> | null)?.quoterId);
+    return Number.isInteger(id) && id > 0 ? id : null;
+  };
+  const ids = [...new Set(requirements.map(cotizacionDe).filter((x): x is number => x != null))];
+  const cots = ids.length ? await prisma.quoter_quotes.findMany({ where: { id: { in: ids } }, select: { id: true, snapshot: true } }) : [];
+  const nombres = new Map(cots.map((c) => {
+    const renglones = ((c.snapshot as { calc?: { renglones?: Array<{ clase?: string; nombre?: string }> } } | null)?.calc?.renglones ?? []);
+    const n = [...new Set(renglones.filter((x) => x.clase === 'equipo' || x.clase === 'material').map((x) => x.nombre).filter(Boolean))];
+    return [c.id, n.join(', ') || null] as const;
+  }));
+  return (r) => {
+    const id = cotizacionDe(r);
+    return id != null ? nombres.get(id) ?? null : null;
+  };
+}

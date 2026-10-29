@@ -6,8 +6,10 @@ import { registrarAccion } from './audit';
 import { revisarCampos } from '../common/campos';
 import { QuoterService } from '../quoter/quoter.service';
 import { QuoterServicio } from '../quoter/quoter-servicio';
+import { Recotizar } from '../quoter/recotizar';
 import { prisma } from '@maqserv/db';
 import { calcularSchema, cotizacionPanelSchema, partidasDe, primerError, tipoDe } from '../quoter/quoter.dto';
+import { resolverClienteYObra } from '../quotes/client-resolver';
 
 /**
  * COTIZADORES INTERNOS · lado panel.
@@ -25,7 +27,8 @@ const fichaSchema = z.object({
   renglones: z.array(z.object({
     id: z.string().max(40).optional(),
     nombre: z.string().trim().min(2, 'Pon el nombre con el que sale en el cotizador').max(120),
-    tarifas: z.object({ dia: dinero, semana: dinero, mes: dinero }).optional(),
+    /** Equipo: precio por hora (2026-10-29; antes, tarifa por día en tres tramos). */
+    precio_hora: dinero.optional(),
     flete_tipo: z.string().trim().max(60).optional(),
     precio: dinero.optional(),
     cond: z.string().max(40).optional(),
@@ -41,6 +44,7 @@ export class AdminQuoterController {
   constructor(
     private readonly quoter: QuoterService,
     private readonly servicio: QuoterServicio,
+    private readonly recotizar: Recotizar,
   ) {}
 
   // ---- Tabulador ----
@@ -155,6 +159,30 @@ export class AdminQuoterController {
 
   // ---- Cotizar ----
 
+  /**
+   * CLIENTES Y OBRAS PARA EL COTIZADOR DEL PANEL (2026-10-23): se elige un
+   * cliente registrado y una de sus obras, o se escriben nuevos y se dan de
+   * alta al guardar la cotización.
+   */
+  @Get('clientes')
+  clientes() {
+    return prisma.clients.findMany({
+      where: { status: 1 },
+      orderBy: { name: 'asc' },
+      take: 3000,
+      select: { id: true, name: true, email: true, phone: true },
+    });
+  }
+
+  @Get('clientes/:id/obras')
+  obrasDeCliente(@Param('id', ParseIntPipe) id: number) {
+    return prisma.client_sites.findMany({
+      where: { client_id: id, status: 1 },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, address: true, municipality: true, contact_name: true, contact_phone: true },
+    });
+  }
+
   @Post('calculate/:kind')
   async calcular(@Param('kind') kind: string, @Body() body: unknown) {
     const tipo = tipoDe(kind);
@@ -179,6 +207,49 @@ export class AdminQuoterController {
     // no dejar un folio suelto si la solicitud ya no admite precio nuevo.
     const solicitudId = Number((body as { solicitudId?: unknown } | null)?.solicitudId) || null;
     const solicitud = solicitudId ? await this.quoter.solicitudLigable(solicitudId) : null;
+    const partidas = partidasDe(tipo, d.partidas);
+
+    /**
+     * Su documento todavía no se le manda al cliente (2026-10-23): se rehace
+     * ese MISMO documento, con su folio, en vez de emitir otro. Si ya se había
+     * mandado, sale uno nuevo que lo reemplaza (abajo).
+     */
+    const enSuLugar = solicitud ? await this.recotizar.documentoEditable(solicitud, tipo) : null;
+    if (solicitud && enSuLugar) {
+      const doc = await this.recotizar.recalcular(enSuLugar.id, {
+        partidas,
+        opciones: d.opciones,
+        contexto: { cliente: d.cliente, obra: d.obra, atencion: d.atencion, municipio: d.municipio, correo: d.correo, telefono: d.telefono, notas: d.notas },
+        adminNombre: req.adminNombre ?? null,
+      });
+      await registrarAccion(req, 'cotizaciones', 'solicitud.cotizar', solicitud.quote_number, `documento ${doc.folio} actualizado · $${Number(doc.total)}`);
+      return { id: doc.id, folio: doc.folio, total: Number(doc.total), solicitud: { id: Number(solicitud.id), quoteNumber: solicitud.quote_number } };
+    }
+
+    /**
+     * A qué cliente y obra va (2026-10-23): los registrados que eligió, o los
+     * nuevos que escribió, que se dan de alta aquí mismo. Al volver a cotizar
+     * una solicitud no: esa ya tiene los suyos.
+     */
+    // La fecha del servicio no puede ser pasada (hoy en Monterrey), igual que en el sitio.
+    if (d.fecha && d.fecha < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date())) {
+      throw new BadRequestException('La fecha ya pasó. Elige hoy o una fecha posterior.');
+    }
+    const destino = solicitud
+      ? null
+      : await resolverClienteYObra({
+          companyName: d.cliente,
+          contactName: d.atencion || d.cliente,
+          email: d.correo || null,
+          phone: d.telefono || null,
+          address: d.obraId ? null : d.direccion ? [d.direccion, d.municipio].filter(Boolean).join(', ') : null,
+          region: d.municipio || null,
+          siteName: d.obraId ? null : d.obra || null,
+          clientId: d.clienteId ?? null,
+          siteId: d.obraId ?? null,
+          confiarEnIds: true,
+        });
+
     const cot = await this.quoter.crear(
       {
         tipo,
@@ -190,16 +261,18 @@ export class AdminQuoterController {
         telefono: d.telefono,
         notas: d.notas,
         opciones: d.opciones,
-        partidas: partidasDe(tipo, d.partidas),
+        partidas,
       },
       {
         origen: 'panel', estado: 'borrador', adminId: req.adminId, adminNombre: req.adminNombre,
         // De la cuenta del cliente: así el documento es suyo también en el sitio.
         userId: solicitud?.user_id != null ? Number(solicitud.user_id) : null,
+        destino: destino?.clientId ? { clientId: destino.clientId, siteId: destino.siteId } : null,
+        fecha: d.fecha || null,
       },
     );
     if (solicitud) {
-      await this.quoter.ligarASolicitud(solicitud, cot);
+      await this.recotizar.ligar(solicitud, cot);
       await registrarAccion(req, 'cotizaciones', 'solicitud.cotizar', solicitud.quote_number, `documento ${cot.folio} · $${Number(cot.total)}`);
     }
     return {
@@ -239,16 +312,17 @@ export class AdminQuoterController {
     const r = await this.quoter.cambiarEstado(Number(id), String(body?.estado ?? ''));
     await registrarAccion(req, 'cotizador', 'cotizacion.estado', `#${id}`, r.estado);
     /**
-     * Aceptada = el cliente dijo que sí (2026-10-15): se abre su servicio y se
-     * ofrece a los aliados. Solo para las que armó el panel; las del sitio y
-     * las ligadas a una solicitud ya tienen su servicio.
+     * Aceptada = el cliente dijo que sí (2026-10-15): se abre su servicio, que
+     * queda por asignar para que MAQSER24 elija a quién dárselo (2026-10-23).
+     * Solo para las que armó el panel; las del sitio y las ligadas a una
+     * solicitud ya tienen su servicio.
      */
     if (r.estado === 'aceptada') {
       const doc = await prisma.quoter_quotes.findUnique({ where: { id: Number(id) }, select: { kind: true } });
       if (doc && esCotizadorTipo(doc.kind)) {
         const abierto = await this.servicio.abrirDesdePanel(Number(id), await this.quoter.catalogo(doc.kind), req.adminNombre ?? null);
         if (abierto) {
-          await registrarAccion(req, 'cotizador', 'cotizacion.servicio', abierto.quoteNumber, abierto.proveedores.length ? `ofrecida a ${abierto.proveedores.join(', ')}` : 'ningún aliado llega a la obra');
+          await registrarAccion(req, 'cotizador', 'cotizacion.servicio', abierto.quoteNumber, 'servicio abierto, por asignar');
           return { ...r, servicio: { quoteNumber: abierto.quoteNumber, ofrecidos: abierto.proveedores } };
         }
       }
@@ -269,9 +343,9 @@ export class AdminQuoterController {
    */
   @Post('quotes/:id/enviar')
   async enviarAlCliente(@Param('id') id: string, @Req() req: AdminRequest) {
-    const r = await this.quoter.enviarAlCliente(Number(id));
+    const r = await this.quoter.enviarAlCliente(Number(id), req.adminNombre ?? null);
     const cot = await this.quoter.obtener(Number(id));
-    await registrarAccion(req, 'cotizador', 'cotizacion.enviar', cot.folio, `por correo a ${r.correo}`);
+    await registrarAccion(req, 'cotizador', 'cotizacion.enviar', cot.folio, `por correo a ${r.correo}${r.respondidas.length ? ` · responde ${r.respondidas.join(', ')}` : ''}`);
     return r;
   }
 

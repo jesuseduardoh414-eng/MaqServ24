@@ -145,7 +145,7 @@ function Dialogo({ p, onCerrar }: { p: Pendiente; onCerrar: (v: boolean | string
         style={{
           width: 'min(460px, 100%)', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto',
           background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)', borderRadius: 14,
-          boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)', padding: '22px 22px 18px', animation: 'fadeIn .16s ease',
+          boxShadow: '0 40px 90px -30px var(--adm-sombra)', padding: '22px 22px 18px', animation: 'fadeIn .16s ease',
           fontFamily: 'var(--font-sans, inherit)', color: 'var(--adm-text)',
         }}
       >
@@ -179,7 +179,7 @@ function Dialogo({ p, onCerrar }: { p: Pendiente; onCerrar: (v: boolean | string
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '10px 12px', borderRadius: 8,
                         cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: 'var(--adm-text)',
-                        background: on ? 'color-mix(in srgb, var(--adm-accent) 12%, transparent)' : 'rgba(255,255,255,0.02)',
+                        background: on ? 'color-mix(in srgb, var(--adm-accent) 12%, transparent)' : 'rgba(var(--adm-ink),0.02)',
                         border: `1px solid ${on ? 'color-mix(in srgb, var(--adm-accent) 55%, transparent)' : 'var(--adm-border-strong)'}`,
                       }}
                     >

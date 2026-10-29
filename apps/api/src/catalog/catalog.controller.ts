@@ -31,16 +31,15 @@ export class CatalogController {
     @Query('category') category?: string,
     @Query('subcategory') subcategory?: string,
     @Query('featured') featured?: string,
-    @Query('minPrice') minPrice?: string,
-    @Query('maxPrice') maxPrice?: string,
-    @Query('minRating') minRating?: string,
     @Query('availability') availability?: string,
     @Query('sort') sort?: string,
     @Query('kind') kind?: string,
   ) {
     // Valores fuera de catálogo se ignoran (no se filtra por basura de la URL).
     const avail = availability === 'now' || availability === 'rent' || availability === 'offer' ? availability : undefined;
-    const order = sort === 'low' || sort === 'high' || sort === 'new' ? sort : undefined;
+    // Sin orden ni filtro por precio (auditoría 2026-10-28): con `?minPrice=1` o
+    // `?sort=low` se podía averiguar por tanteo el precio que el sitio no enseña.
+    const order = sort === 'new' ? sort : undefined;
     // Números y textos de la URL validados (auditoría 2026-10-23): `?page=abc`
     // daba NaN y un 500, y `?search=a&search=b` llegaba como arreglo.
     return this.products.list({
@@ -51,9 +50,6 @@ export class CatalogController {
       // 1 = solo destacados · 0 = sin destacados (la parrilla del catálogo, que
       // los enseña aparte en su carrusel) · sin él = todos.
       featured: featured === '1' || featured === 'true' ? true : featured === '0' || featured === 'false' ? false : undefined,
-      minPrice: CatalogController.num(minPrice),
-      maxPrice: CatalogController.num(maxPrice),
-      minRating: CatalogController.num(minRating),
       availability: avail,
       sort: order,
       kind: kind === 'servicio' || kind === 'producto' ? kind : undefined,

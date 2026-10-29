@@ -1,15 +1,37 @@
 import {
   BadRequestException, Body, Controller, Delete, ForbiddenException, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, Query, Req, UseGuards,
+  ParseIntPipe, Patch, Post, Query, Req, ServiceUnavailableException, UseGuards,
 } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { zTelefono } from '../common/campos';
 import { prisma, type Prisma } from '@maqserv/db';
 import { problemaContrasena, rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
-import { AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
-import { hashPassword } from '../common/app-auth';
+import { ADMIN_INVITADO, AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
+import { firmarRestablecimientoAdmin, hashPassword } from '../common/app-auth';
 import { registrarAccion } from './audit';
 import { guardarAjuste, leerAjuste } from '../common/platform-settings';
+import { MailerService } from '../notifications/mailer.service';
+import { correoInvitacionPanel, correoRestablecerContrasena } from '../notifications/email-templates';
+
+/**
+ * ALTA POR INVITACIÓN (2026-10-28, decisión del dueño: "no veo por qué nosotros
+ * agregamos su contraseña; mejor que mande un correo con la invitación y que
+ * ahí genere su contraseña"). La cuenta nace con el rol y un hash al azar que
+ * nadie conoce (así el enlace firmado tiene huella y el login no puede entrar
+ * con nada), en estado INVITADO; el correo trae el enlace de "crear
+ * contraseña", que vale una semana y una sola vez. Al crearla pasa a activa.
+ */
+const INVITACION_DIAS = 7;
+const INVITACION_MINUTOS = INVITACION_DIAS * 24 * 60;
+/** El enlace para cambiar contraseña que manda Dirección desde aquí: un día. */
+const ENLACE_CONTRASENA_MINUTOS = 24 * 60;
+
+/** Sin ADMIN_URL no hay a dónde apuntar el enlace del correo (ver admin-auth.ts, "olvidé"). */
+function baseDelPanel(): string {
+  const base = (process.env.ADMIN_URL ?? '').trim().replace(/\/$/, '');
+  if (!base) throw new ServiceUnavailableException('Falta ADMIN_URL en las variables de la API: sin ella no se puede armar el enlace del correo.');
+  return base;
+}
 
 /**
  * Quién puede entrar al panel.
@@ -43,8 +65,18 @@ const PRINCIPAL_INICIAL = ['ventas@maqser24.com', 'ventas@maqserv24.com'];
 async function principalId(): Promise<number | null> {
   const v = Number(await leerAjuste<unknown>(AJUSTE_PRINCIPAL, null));
   if (Number.isInteger(v) && v > 0 && (await prisma.admins.findUnique({ where: { id: v }, select: { id: true } }))) return v;
-  const a = await prisma.admins.findFirst({ where: { email: { in: PRINCIPAL_INICIAL } }, orderBy: { id: 'asc' }, select: { id: true } });
-  return a?.id ?? null;
+  /**
+   * Sin principal guardada (auditoría 2026-10-28): antes, si no existía el
+   * correo de arriba, `null` APAGABA todos los candados y cualquier Dirección
+   * podía darse lo que quisiera. Ahora se elige y SE GUARDA: el correo del
+   * dueño si existe; si no, la cuenta de Dirección activa más antigua.
+   */
+  const a =
+    (await prisma.admins.findFirst({ where: { email: { in: PRINCIPAL_INICIAL } }, orderBy: { id: 'asc' }, select: { id: true } })) ??
+    (await prisma.admins.findFirst({ where: { role: 'direccion', status: 1, password: { not: '' } }, orderBy: { id: 'asc' }, select: { id: true } }));
+  if (!a) return null;
+  await guardarAjuste(AJUSTE_PRINCIPAL, a.id, 'sistema').catch(() => undefined);
+  return a.id;
 }
 
 const SOLO_PRINCIPAL = 'Solo la cuenta principal puede dar o quitar Dirección General y modificar otras cuentas de Dirección';
@@ -67,6 +99,7 @@ const ACCIONES: Record<string, string> = {
   'cotizacion.enviar': 'envío de cotización',
   'cotizacion.eliminar': 'eliminar cotización',
   'contrasena.restablecer': 'restablecer contraseña (por correo)',
+  'contrasena.crear': 'creó su contraseña (aceptó la invitación)',
   'tabulador.ficha': 'precio de una ficha en el cotizador',
   'margen.cambiar': 'cambio del margen sobre el costo del aliado',
   'aliado.acceso': 'enlace de acceso de un aliado',
@@ -80,6 +113,22 @@ const plano = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerC
 @Controller('admin/admins')
 @UseGuards(AdminGuard)
 export class AdminAdminsController {
+  constructor(private readonly mailer: MailerService) {}
+
+  /** El correo de invitación, con su enlace de crear contraseña. */
+  private async mandarInvitacion(req: AdminRequest, a: { id: number; name: string; email: string; role: string; password: string }): Promise<void> {
+    const base = baseDelPanel();
+    const token = await firmarRestablecimientoAdmin(a.id, a.password, INVITACION_MINUTOS);
+    const correo = correoInvitacionPanel({
+      nombre: a.name,
+      invitadoPor: req.adminNombre || req.adminEmail,
+      rolNombre: ROLES_ADMIN[rolDeAdmin(a.role)].nombre,
+      url: `${base}/restablecer?token=${token}&nuevo=1`,
+      dias: INVITACION_DIAS,
+    });
+    await this.mailer.enviar({ kind: 'admin_invitacion', to: a.email, toName: a.name, ...correo });
+  }
+
   @Get()
   async list(@Req() req: AdminRequest) {
     const [rows, pid] = await Promise.all([prisma.admins.findMany({ orderBy: { id: 'asc' } }), principalId()]);
@@ -93,6 +142,8 @@ export class AdminAdminsController {
       status: a.status,
       /** Sin hash de contraseña no hay forma de entrar por más activo que se vea. */
       canLogin: !!a.password,
+      /** Le llegó la invitación y todavía no crea su contraseña. */
+      invitado: a.status === ADMIN_INVITADO,
       isMe: a.id === req.adminId,
       principal: a.id === pid,
       createdAt: a.created_at ? a.created_at.toISOString() : null,
@@ -158,47 +209,84 @@ export class AdminAdminsController {
     };
   }
 
+  /** Invitar a alguien al panel: nombre, correo y rol. La contraseña la crea la persona desde el correo. */
   @Post()
   async create(@Req() req: AdminRequest, @Body() body: unknown) {
     const schema = z.object({
-      name: z.string().min(2).max(100),
-      email: z.string().email().max(190),
-      password: z.string().min(8).max(100),
-      phone: zTelefono().optional(),
+      name: z.string().trim().min(2, 'Escribe su nombre.').max(100),
+      email: z.string().trim().email('Escribe un correo válido.').max(190),
       // Sin rol explícito cae en el de MENOS alcance, no en el de más: una
       // cuenta con permisos de sobra no se nota hasta que alguien borra algo.
       rol: z.enum(ROLES_VALIDOS).default(ROL_POR_DEFECTO),
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.issues[0]?.message ?? 'Datos inválidos');
-    const debil = problemaContrasena(parsed.data.password, { nombre: parsed.data.name, correo: parsed.data.email });
-    if (debil) throw new BadRequestException(debil);
-    const email = parsed.data.email.trim().toLowerCase();
+    const email = parsed.data.email.toLowerCase();
     if (parsed.data.rol === 'direccion') {
       const pid = await principalId();
       if (pid !== null && req.adminId !== pid) throw new ForbiddenException(SOLO_PRINCIPAL);
     }
+    // Antes de crear nada: sin ADMIN_URL no habría correo que mandar.
+    baseDelPanel();
 
     if (await prisma.admins.findUnique({ where: { email } })) {
-      throw new BadRequestException('Ya existe un administrador con ese correo');
+      throw new BadRequestException('Ya hay una cuenta del panel con ese correo.');
     }
 
     const a = await prisma.admins.create({
       data: {
         name: parsed.data.name,
         email,
-        phone: parsed.data.phone ?? '',
-        // Este hash ES la contraseña: el login lo verifica con bcrypt (common/app-auth.ts).
-        password: await hashPassword(parsed.data.password),
+        phone: '',
+        // Un hash al azar que nadie conoce: no se puede entrar con él, pero le da huella al enlace.
+        password: await hashPassword(randomBytes(24).toString('base64')),
         role: parsed.data.rol,
-        status: 1,
+        status: ADMIN_INVITADO,
         created_at: new Date(),
         updated_at: new Date(),
       },
     });
+    await this.mandarInvitacion(req, a);
 
-    await registrarAccion(req, 'admins', 'alta de administrador', email, ROLES_ADMIN[parsed.data.rol].nombre);
+    await registrarAccion(req, 'admins', 'invitar al panel', email, ROLES_ADMIN[parsed.data.rol].nombre);
     return { id: a.id };
+  }
+
+  /** Volver a mandar la invitación (el enlace anterior sigue valiendo hasta que caduque o se use). */
+  @Post(':id/invitacion')
+  async reinvitar(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
+    const a = await prisma.admins.findUnique({ where: { id } });
+    if (!a) throw new NotFoundException('Cuenta no encontrada');
+    if (a.status !== ADMIN_INVITADO) throw new BadRequestException('Esa cuenta ya creó su contraseña.');
+    const pid = await principalId();
+    if (pid !== null && req.adminId !== pid && rolDeAdmin(a.role) === 'direccion') throw new ForbiddenException(SOLO_PRINCIPAL);
+    await this.mandarInvitacion(req, a);
+    await registrarAccion(req, 'admins', 'volver a invitar', a.email);
+    return { ok: true };
+  }
+
+  /**
+   * Mandarle a alguien el enlace para cambiar su contraseña (2026-10-28).
+   * Sustituye a escribirle la contraseña desde aquí: nadie más que la persona
+   * la conoce. Vale un día y una sola vez.
+   */
+  @Post(':id/enlace-contrasena')
+  async enlaceContrasena(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number) {
+    const a = await prisma.admins.findUnique({ where: { id } });
+    if (!a) throw new NotFoundException('Cuenta no encontrada');
+    if (a.status === ADMIN_INVITADO) throw new BadRequestException('Todavía no crea su contraseña: vuelve a mandarle la invitación.');
+    if (a.status !== 1 || !a.password) throw new BadRequestException('Esa cuenta no está activa.');
+    if (id === req.adminId) throw new BadRequestException('Tu contraseña la cambias tú desde tu cuenta.');
+    const pid = await principalId();
+    if (pid !== null && req.adminId !== pid && (id === pid || rolDeAdmin(a.role) === 'direccion')) throw new ForbiddenException(SOLO_PRINCIPAL);
+    const base = baseDelPanel();
+    const token = await firmarRestablecimientoAdmin(a.id, a.password, ENLACE_CONTRASENA_MINUTOS);
+    const correo = correoRestablecerContrasena({
+      nombre: a.name, url: `${base}/restablecer?token=${token}`, minutos: ENLACE_CONTRASENA_MINUTOS, desdeElPanel: req.adminNombre || req.adminEmail,
+    });
+    await this.mailer.enviar({ kind: 'admin_password_reset', to: a.email, toName: a.name, ...correo });
+    await registrarAccion(req, 'admins', 'enlace de contraseña', a.email);
+    return { ok: true };
   }
 
   /**
@@ -233,12 +321,13 @@ export class AdminAdminsController {
 
   @Patch(':id')
   async update(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+    // Sin `password` (auditoría 2026-10-28): nadie escribe la contraseña de otro.
+    // A otra cuenta se le manda un enlace (enlace-contrasena); la propia, en Mi cuenta.
     const schema = z.object({
       name: z.string().min(2).max(100).optional(),
-      password: z.string().min(8).max(100).optional(),
       status: z.coerce.number().int().min(0).max(1).optional(),
       rol: z.enum(ROLES_VALIDOS).optional(),
-    });
+    }).strict();
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
 
@@ -249,9 +338,9 @@ export class AdminAdminsController {
       if (id === pid) throw new ForbiddenException('La cuenta principal solo la modifica su titular');
       if (rolDeAdmin(a.role) === 'direccion' || parsed.data.rol === 'direccion') throw new ForbiddenException(SOLO_PRINCIPAL);
     }
-    if (parsed.data.password !== undefined) {
-      const debil = problemaContrasena(parsed.data.password, { nombre: a.name, correo: a.email });
-      if (debil) throw new BadRequestException(debil);
+    // Una invitada no se "activa" a mano: sin contraseña no podría entrar y se vería activa.
+    if (parsed.data.status === 1 && a.status === ADMIN_INVITADO) {
+      throw new BadRequestException('Todavía no crea su contraseña: vuelve a mandarle la invitación.');
     }
     // Nadie se desactiva a sí mismo (evita quedarse sin acceso).
     if (parsed.data.status === 0 && id === req.adminId) {
@@ -271,9 +360,6 @@ export class AdminAdminsController {
       where: { id },
       data: {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
-        // Cambiar el hash cambia la contraseña real Y tumba los refresh tokens
-        // emitidos antes (llevan una huella del hash; ver common/app-auth.ts).
-        ...(parsed.data.password !== undefined ? { password: await hashPassword(parsed.data.password) } : {}),
         ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
         ...(parsed.data.rol !== undefined ? { role: parsed.data.rol } : {}),
         updated_at: new Date(),
@@ -289,9 +375,6 @@ export class AdminAdminsController {
     }
     if (parsed.data.status !== undefined) {
       await registrarAccion(req, 'admins', parsed.data.status === 1 ? 'activar cuenta' : 'desactivar cuenta', a.email);
-    }
-    if (parsed.data.password !== undefined) {
-      await registrarAccion(req, 'admins', 'cambio de contraseña', a.email);
     }
     return { ok: true };
   }

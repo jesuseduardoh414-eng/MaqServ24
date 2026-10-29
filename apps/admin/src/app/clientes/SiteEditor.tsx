@@ -176,8 +176,8 @@ export function SiteEditor({
               {obra.history.slice(0, 6).map((h) => (
                 <div key={h.id} style={{ display: 'flex', gap: 12, fontSize: 13, flexWrap: 'wrap', alignItems: 'center' }}>
                   <span className="adm-mono" style={{ color: 'var(--adm-faint)', minWidth: 112 }}>{h.quoteNumber}</span>
-                  <span style={{ color: 'var(--adm-muted)', minWidth: 130 }}>{h.category ?? 'sin línea'}</span>
-                  <span className="adm-num" style={{ color: 'var(--adm-text)' }}>{money(h.total)}</span>
+                  <span style={{ color: 'var(--adm-muted)', minWidth: 130 }}>{h.category ?? 'Formulario'}</span>
+                  <span className="adm-num" style={{ color: h.total > 0 ? 'var(--adm-text)' : 'var(--adm-faint)' }}>{h.total > 0 ? money(h.total) : 'sin precio'}</span>
                   {h.serviceLabel ? <StatusText tone="accent">{h.serviceLabel}</StatusText> : null}
                   <span style={{ color: 'var(--adm-faint)', marginLeft: 'auto', fontSize: 12.5 }}>{fecha(h.createdAt)}</span>
                 </div>

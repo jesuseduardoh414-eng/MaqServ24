@@ -208,7 +208,10 @@ export function ShDatePicker({
                   aria-disabled={bloqueado || undefined}
                   aria-label={`${DIAS_LARGOS[d.getDay()]} ${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}${esHoy ? ', hoy' : ''}`}
                   onClick={() => elegir(d)}
-                  onFocus={() => { if (!mismoDia(d, foco)) setFoco(d); }}
+                  // Solo los días del mes que se ve (2026-10-23): con el ratón, el día de
+                  // otro mes recibía el foco ANTES del clic, el calendario cambiaba de
+                  // mes y el clic caía en otra celda: la fecha no se elegía.
+                  onFocus={() => { if (delMes && !mismoDia(d, foco)) setFoco(d); }}
                   className={cn(
                     'grid size-9 place-items-center rounded-md text-sm tabular-nums transition-colors',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ui-accent)]',

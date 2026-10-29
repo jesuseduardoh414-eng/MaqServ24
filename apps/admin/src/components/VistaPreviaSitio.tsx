@@ -133,7 +133,7 @@ export function VistaPreviaSitio({
       <div
         style={
           grande
-            ? { position: 'fixed', inset: '24px clamp(12px, 3vw, 40px)', zIndex: 200, background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)' }
+            ? { position: 'fixed', inset: '24px clamp(12px, 3vw, 40px)', zIndex: 200, background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', boxShadow: '0 40px 90px -30px var(--adm-sombra)' }
             : { display: 'flex', flexDirection: 'column' }
         }
       >
@@ -179,7 +179,7 @@ export function VistaPreviaSitio({
           </div>
 
           {cargando || vacio || sinRespuesta ? (
-            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 20, textAlign: 'center', fontSize: 13, color: modo === 'dark' ? 'var(--adm-muted)' : '#4A545F' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 20, textAlign: 'center', fontSize: 13, color: modo === 'dark' ? '#9AA3AD' : '#4A545F' }}>
               {sinRespuesta && !lista ? (
                 <span>
                   <i className="ph ph-plug" style={{ fontSize: 20, display: 'block', marginBottom: 6 }} />

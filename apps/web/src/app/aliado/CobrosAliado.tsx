@@ -7,6 +7,8 @@ export interface CobroAliado {
   folio: string;
   servicio: string | null;
   monto: number;
+  /** Antes de IVA: lo que dice "Te pagamos … + IVA" en sus solicitudes. */
+  base?: number;
   conIva: boolean;
   estado: 'falta-factura' | 'esperando-cliente' | 'programado' | 'pagado';
   pagarEl: string | null;
@@ -63,7 +65,10 @@ function Fila({ c }: { c: CobroAliado }) {
           <div className="cob-folio">{c.folio}</div>
           {c.servicio ? <div className="cob-sub">{c.servicio}</div> : null}
         </div>
-        <div className="cob-monto">{dinero(c.monto)}<span className="cob-sub">{c.conIva ? 'con IVA' : 'sin IVA'}</span></div>
+        {/* Una sola forma (2026-10-28): antes aquí salía el total con IVA y en Solicitudes la cifra + IVA, y parecían dos pagos distintos. */}
+        <div className="cob-monto">
+          {c.conIva && c.base !== undefined ? <>{dinero(c.base)} + IVA<span className="cob-sub">total con IVA {dinero(c.monto)}</span></> : <>{dinero(c.monto)}<span className="cob-sub">sin IVA</span></>}
+        </div>
       </div>
       <div style={{ fontSize: 13.5 }}>{estado}</div>
       {c.estado === 'falta-factura' ? (

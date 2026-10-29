@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ServiceService } from '../quotes/service.service';
+import { CobroPorHora } from './cobro-por-hora';
 import { QuoterController } from './quoter.controller';
 import { QuoterService } from './quoter.service';
 import { QuoterServicio } from './quoter-servicio';
+import { Recotizar } from './recotizar';
 
 /**
  * Cotizadores internos (maquinaria y triturados).
@@ -22,8 +24,10 @@ import { QuoterServicio } from './quoter-servicio';
   // se pidió, al equipo y al cliente (ver `avisarSolicitud` y `QuoterServicio`).
   imports: [NotificationsModule],
   controllers: [QuoterController],
-  providers: [QuoterService, ServiceService, QuoterServicio],
+  // CobroPorHora: pasa la maquinaria a cobro por hora una sola vez, al arrancar (2026-10-29).
+  providers: [QuoterService, ServiceService, QuoterServicio, Recotizar, CobroPorHora],
   // QuoterServicio también: al marcar "Aceptada" en el panel se abre el servicio.
-  exports: [QuoterService, QuoterServicio],
+  // Recotizar: el desglose y el lápiz de Solicitudes, y "Volver a cotizar" (2026-10-23).
+  exports: [QuoterService, QuoterServicio, Recotizar],
 })
 export class QuoterModule {}

@@ -4,12 +4,14 @@ import { z } from 'zod';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { permisosVigentes } from './permisos';
 import { avisosDelPanel, marcarAvisosPanel } from '../notifications/panel';
+import { ultimoCambio } from '../common/cambios';
 
 /**
  * La campana del panel (ver `notifications/panel.ts`). Todos los roles la
  * tienen (`inicio`); cada quien recibe solo los avisos de sus módulos. La
  * campana pregunta seguido con `?despues=<último id>`: si no hay nada nuevo la
- * respuesta es mínima.
+ * respuesta es mínima. Lleva además `cambio`, la hora del último guardado en
+ * el sistema, con la que la pantalla abierta se pone al día (common/cambios.ts).
  */
 @Modulo('inicio')
 @Controller('admin/avisos')
@@ -19,7 +21,8 @@ export class AdminAvisosController {
   @Get()
   async lista(@Req() req: AdminRequest, @Query('despues') despues?: string) {
     const n = Number(despues);
-    return avisosDelPanel(req.adminId, req.adminRol, await permisosVigentes(), Number.isInteger(n) && n > 0 ? n : undefined);
+    const avisos = await avisosDelPanel(req.adminId, req.adminRol, await permisosVigentes(), Number.isInteger(n) && n > 0 ? n : undefined);
+    return { ...avisos, cambio: ultimoCambio() };
   }
 
   @Post('leido')

@@ -12,7 +12,7 @@ type Equipo = { id: number; slug: string; name: string; brand?: string | null; i
 const plano = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const ATAJOS: Resultado[] = [
-  { href: '/cotizador/maquinaria', titulo: 'Cotizar maquinaria', detalle: 'Precio al momento por día, semana o mes', icono: 'calculator' },
+  { href: '/cotizador/maquinaria', titulo: 'Cotizar maquinaria', detalle: 'Por hora de trabajo, con operador y diésel', icono: 'calculator' },
   { href: '/cotizador/triturados', titulo: 'Cotizar triturados', detalle: 'Arena, grava, base y CNC por tonelada o viaje', icono: 'calculator' },
   { href: '/cotizar', titulo: 'Pedir algo a la medida', detalle: 'Cuéntanos qué necesitas y te respondemos', icono: 'chat' },
 ];

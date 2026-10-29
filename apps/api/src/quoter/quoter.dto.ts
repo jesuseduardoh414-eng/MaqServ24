@@ -42,6 +42,13 @@ export const cotizacionPanelSchema = contactoSchema.extend({
   telefono: zTelefono().optional().default(''),
   opciones: opcionesCotizadorSchema.partial().optional().default({}),
   partidas: z.array(z.unknown()).min(1, 'Agrega al menos una partida').max(60),
+  /** Cliente y obra registrados que eligió (2026-10-23); sin ellos se dan de alta con lo escrito. */
+  clienteId: z.coerce.number().int().positive().nullable().optional(),
+  obraId: z.coerce.number().int().positive().nullable().optional(),
+  /** Dirección de la obra nueva. */
+  direccion: z.string().trim().max(300).optional().default(''),
+  /** Fecha de inicio del servicio o de entrega (2026-10-23), AAAA-MM-DD. */
+  fecha: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Fecha inválida').optional().default(''),
 });
 
 /**
@@ -55,7 +62,19 @@ export const solicitudSitioSchema = contactoSchema.extend({
   telefono: zTelefonoRequerido('Escribe un teléfono de contacto'),
   opciones: opcionesCotizadorSchema.partial().optional().default({}),
   partidas: z.array(z.unknown()).min(1, 'Agrega al menos una partida').max(60),
-});
+  /** Empresa y obra elegidas de las de su cuenta (2026-10-23). */
+  clienteId: z.coerce.number().int().positive().nullable().optional(),
+  obraId: z.coerce.number().int().positive().nullable().optional(),
+  /** Dirección de la obra nueva: calle, número y colonia. */
+  direccion: z.string().trim().max(300).optional().default(''),
+  /** Fecha de inicio del servicio o de entrega (2026-10-23), AAAA-MM-DD. */
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Elige la fecha del servicio.'),
+})
+  // Toda solicitud es para una obra: una de las suyas, o una nueva con nombre y dirección.
+  .refine((d) => !!d.obraId || (d.obra.trim().length >= 2 && d.direccion.trim().length >= 5), {
+    message: 'Elige tu obra, o escribe el nombre y la dirección de la obra nueva.',
+    path: ['obra'],
+  });
 
 /** Valida las partidas contra el esquema del tipo. Lanza 400 con el motivo. */
 export function partidasDe(tipo: CotizadorTipo, crudas: unknown[]): PartidaCotizador[] {
@@ -81,8 +100,10 @@ export function partidasDe(tipo: CotizadorTipo, crudas: unknown[]): PartidaCotiz
  *  - equipo: sin `precio_hora`; las horas no pasan de la jornada.
  *  - servicio: `precio` 0 = el del tabulador.
  *  - material: solo ids del catálogo (nada de "custom"), sin `precio` ni
- *    `nombre`; el flete por tonelada, solo uno de la lista `fletes_ton`.
+ *    `nombre`; el flete por tonelada lo pone el SERVIDOR con la zona elegida
+ *    (2026-10-23, ver `fleteDelSitio`).
  *  - banco: `precio_m3` 0 = el del tabulador.
+ *  - zona: sin `precio` negociado; vale la tabla de zonas.
  */
 export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: CatalogoCotizador): PartidaCotizador[] {
   const partidas = partidasDe(tipo, crudas);
@@ -98,7 +119,7 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
     if (oculto) throw new BadRequestException(`Partida ${n}: eso ya no está en el cotizador. Pídelo a la medida en /cotizar.`);
     if (cat.tipo === 'maquinaria') {
       if (p.tipo === 'equipo') {
-        return { ...p, precio_hora: null, horas: Math.min(p.horas ?? 0, Math.max(0, cat.jornada_horas - 1)) };
+        return { ...p, precio_hora: null, flete: null, horas: Math.min(p.horas ?? 0, Math.max(0, cat.jornada_horas - 1)) };
       }
       if (p.tipo === 'servicio') return { ...p, precio: 0 };
     } else {
@@ -106,16 +127,40 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
         if (!cat.productos.some((x) => x.id === p.id)) {
           throw new BadRequestException(`Partida ${n}: ese material no está en el tabulador. Pídelo a la medida en /cotizar.`);
         }
-        if (p.flete_ton !== undefined && Number(p.flete_ton) > 0 && !cat.fletes_ton.includes(Number(p.flete_ton))) {
-          throw new BadRequestException(`Partida ${n}: ese flete no está en el tabulador.`);
-        }
         const { precio: _p, nombre: _n, ...resto } = p;
-        return resto as PartidaCotizador;
+        return { ...resto, flete_ton: fleteDelSitio(cat, p.flete_zona, p.flete_ton) } as PartidaCotizador;
       }
       if (p.tipo === 'banco') return { ...p, precio_m3: 0 };
+      if (p.tipo === 'zona') {
+        const { precio: _z, ...resto } = p;
+        return resto as PartidaCotizador;
+      }
     }
     return p;
   });
+}
+
+/** Lo que el cotizador del sitio escribe cuando el material no se lleva a obra. */
+const RECOGE_EN_PLANTA = 'recoge en planta';
+
+/**
+ * EL FLETE POR TONELADA DEL SITIO, PUESTO POR EL SERVIDOR (2026-10-23).
+ *
+ * El sitio ya no enseña precios: el navegador recibe el tabulador en ceros y
+ * con él calcula un flete de $0 aunque el cliente haya elegido su zona. Si se
+ * tomara lo que manda, la solicitud llegaría al panel sin flete. Aquí manda la
+ * ZONA que eligió (su nombre viaja en `flete_zona`): flete del viaje entre las
+ * toneladas por viaje, igual que `fleteTonDeZona` del cotizador. "Recoge en
+ * planta" no lleva flete. Una zona que no existe deja el flete en 0 si no es
+ * uno de la lista: el panel lo ve en el desglose y lo corrige antes de mandarlo.
+ */
+function fleteDelSitio(cat: Extract<CatalogoCotizador, { tipo: 'triturados' }>, zona: string | undefined, enviado: number | undefined): number {
+  const nombre = (zona ?? '').trim().toLowerCase();
+  if (nombre === RECOGE_EN_PLANTA) return 0;
+  const z = nombre ? cat.zonas.find((x) => x.nombre.trim().toLowerCase() === nombre) : undefined;
+  if (z) return cat.ton_por_viaje > 0 ? Math.round(Number(z.flete) / cat.ton_por_viaje) : 0;
+  const n = Number(enviado ?? 0);
+  return n > 0 && cat.fletes_ton.includes(n) ? n : 0;
 }
 
 /** Primer mensaje de error de zod, ya listo para un 400. */

@@ -5,6 +5,7 @@ import { OPERADOR_COOKIE } from '@/lib/cookies';
 import { getTheme } from '@/lib/theme';
 import { Icon } from '@/components/Icon';
 import { EncabezadoPortal } from '../aliado/EncabezadoPortal';
+import { ActualizarEnVivo } from '@/components/ActualizarEnVivo';
 import { PortalOperador, type ServicioOperador } from './PortalOperador';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
@@ -63,6 +64,7 @@ export default async function OperadorPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
+      <ActualizarEnVivo />
       <EncabezadoPortal theme={theme} />
       <main className="ms-page" style={{ minHeight: '100vh' }}>
         <PortalOperador servicio={servicio} telefonoMaqser={telefono} />

@@ -68,6 +68,18 @@ async function conPedidoWeb(ids: number[]): Promise<Set<number>> {
 const origenDe = (userId: number | null, web: Set<number>, id: number): Origen =>
   userId !== null || web.has(id) ? 'web' : 'panel';
 
+/**
+ * El nombre de la línea de cada solicitud (2026-10-23): el historial enseñaba
+ * el slug ("transporte-y-servicios-de-obra"). Sin línea es una del formulario
+ * a la medida.
+ */
+async function nombresDeLinea(slugs: Array<string | null>): Promise<Map<string, string>> {
+  const unicos = [...new Set(slugs.filter((s): s is string => !!s))];
+  if (unicos.length === 0) return new Map();
+  const cats = await prisma.categories.findMany({ where: { cat_slug: { in: unicos } }, select: { cat_slug: true, cat_name: true } });
+  return new Map(cats.map((c) => [c.cat_slug, c.cat_name]));
+}
+
 @Modulo('clientes')
 @Controller('admin/clients')
 @UseGuards(AdminGuard)
@@ -97,7 +109,10 @@ export class AdminClientsController {
     // Obras y solicitudes de todos, en dos consultas. Una por cliente serían
     // trescientos viajes para pintar una lista.
     const ids = clientes.map((c) => c.id);
-    const [obras, solicitudes, web] = await Promise.all([
+    // Una cuenta del sitio puede tener varias empresas (2026-10-23): la lista
+    // dice de quién es cada una para que se lea cuenta → empresas → obras.
+    const idsCuentas = [...new Set(clientes.map((c) => c.user_id).filter((u): u is number => u !== null))];
+    const [obras, solicitudes, web, cuentas] = await Promise.all([
       prisma.client_sites.groupBy({
         by: ['client_id'],
         where: { client_id: { in: ids }, status: 1 },
@@ -111,9 +126,15 @@ export class AdminClientsController {
         _max: { created_at: true },
       }),
       conPedidoWeb(ids),
+      idsCuentas.length
+        ? prisma.users.findMany({ where: { id: { in: idsCuentas } }, select: { id: true, name: true, email: true } })
+        : Promise.resolve([]),
     ]);
     const porObras = new Map(obras.map((o) => [o.client_id, o._count._all]));
     const porSolic = new Map(solicitudes.map((s) => [s.client_id, s]));
+    const porCuenta = new Map(cuentas.map((u) => [u.id, u]));
+    const empresasDe = new Map<number, number>();
+    for (const c of clientes) if (c.user_id !== null) empresasDe.set(c.user_id, (empresasDe.get(c.user_id) ?? 0) + 1);
 
     return clientes.map((c) => {
       const s = porSolic.get(c.id);
@@ -126,6 +147,9 @@ export class AdminClientsController {
         industry: c.industry,
         status: c.status,
         hasAccount: c.user_id !== null,
+        account: c.user_id !== null && porCuenta.has(c.user_id)
+          ? { id: c.user_id, name: porCuenta.get(c.user_id)!.name, email: porCuenta.get(c.user_id)!.email, empresas: empresasDe.get(c.user_id) ?? 1 }
+          : null,
         origin: origenDe(c.user_id, web, c.id),
         sites: porObras.get(c.id) ?? 0,
         quotes: s?._count._all ?? 0,
@@ -145,11 +169,19 @@ export class AdminClientsController {
     if (!cliente) throw new NotFoundException('Cliente no encontrado');
 
     // La cuenta del sitio ligada, para saber quién entra por ese cliente.
-    const [cuenta, web] = await Promise.all([
+    const [cuenta, web, otras] = await Promise.all([
       cliente.user_id
-        ? prisma.users.findUnique({ where: { id: cliente.user_id }, select: { name: true, email: true, created_at: true } })
+        ? prisma.users.findUnique({ where: { id: cliente.user_id }, select: { id: true, name: true, email: true, created_at: true } })
         : null,
       conPedidoWeb([id]),
+      // Las demás empresas de la misma cuenta (2026-10-23): una cuenta puede pedir para varias.
+      cliente.user_id
+        ? prisma.clients.findMany({
+            where: { user_id: cliente.user_id, id: { not: id } },
+            orderBy: { name: 'asc' },
+            select: { id: true, name: true, status: true, _count: { select: { client_sites: { where: { status: 1 } } } } },
+          })
+        : Promise.resolve([]),
     ]);
 
     const solicitudes = await prisma.quotes.findMany({
@@ -163,6 +195,7 @@ export class AdminClientsController {
       },
     });
 
+    const lineas = await nombresDeLinea(solicitudes.map((q) => q.service_category));
     const porObra = new Map<number, typeof solicitudes>();
     for (const q of solicitudes) {
       if (q.site_id === null) continue;
@@ -172,7 +205,8 @@ export class AdminClientsController {
     const aFila = (q: (typeof solicitudes)[number]) => ({
       id: Number(q.id),
       quoteNumber: q.quote_number,
-      category: q.service_category,
+      // El nombre de la línea, no el slug; sin línea es del formulario (2026-10-23).
+      category: q.service_category ? lineas.get(q.service_category) ?? q.service_category : 'Formulario',
       total: Number(q.total),
       status: q.status,
       serviceState: q.service_state,
@@ -193,7 +227,8 @@ export class AdminClientsController {
       notes: cliente.notes,
       status: cliente.status,
       hasAccount: cliente.user_id !== null,
-      account: cuenta ? { name: cuenta.name, email: cuenta.email, createdAt: cuenta.created_at } : null,
+      account: cuenta ? { id: cuenta.id, name: cuenta.name, email: cuenta.email, createdAt: cuenta.created_at } : null,
+      otherClients: otras.map((o) => ({ id: o.id, name: o.name, status: o.status, sites: o._count.client_sites })),
       origin: origenDe(cliente.user_id, web, id),
       sites: cliente.client_sites.map((s) => ({
         id: s.id,
@@ -210,8 +245,8 @@ export class AdminClientsController {
         status: s.status,
         history: (porObra.get(s.id) ?? []).map(aFila),
       })),
-      // Las que no tienen obra: son las de antes de que existieran las obras, o
-      // solicitudes sin dirección. Se muestran para que no desaparezcan.
+      // Las que no tienen obra: desde el 2026-10-23 toda solicitud nueva exige
+      // obra, así que aquí solo quedan viejas. Se muestran para moverlas.
       unassigned: solicitudes.filter((q) => q.site_id === null).map(aFila),
     };
   }

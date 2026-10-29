@@ -5,7 +5,9 @@ import { ALIADO_COOKIE } from '@/lib/cookies';
 import { getTheme } from '@/lib/theme';
 import { SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
+import { ActualizarEnVivo } from '@/components/ActualizarEnVivo';
 import { PortalAliado, type DatosPortal } from './PortalAliado';
+import { rutaDe } from './tipos';
 // El mismo encabezado que el enlace del operador (2026-10-15).
 import { EncabezadoPortal } from './EncabezadoPortal';
 
@@ -32,14 +34,18 @@ export const metadata: Metadata = {
 export default async function AliadoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; v?: string; f?: string; s?: string }>;
 }) {
   /**
    * El token llega por cookie: el middleware canjea el `?t=` del correo y
    * redirige a la URL limpia. El `searchParams` se conserva como respaldo por
    * si el middleware no alcanzó a correr en esa petición.
+   *
+   * `v`, `f` y `s` dicen en qué pantalla está parado (ver `rutaDe` en
+   * tipos.ts): así recargar no lo manda al inicio y un correo puede abrir
+   * directamente sus solicitudes.
    */
-  const { t } = await searchParams;
+  const { t, v, f, s } = await searchParams;
   const token = (await cookies()).get(ALIADO_COOKIE)?.value ?? t;
   const theme = await getTheme();
 
@@ -69,9 +75,10 @@ export default async function AliadoPage({
 
   return (
     <>
+      <ActualizarEnVivo />
       <EncabezadoPortal theme={theme} />
       <main className="ms-page" style={{ minHeight: '100vh' }}>
-        <PortalAliado datos={datos} contacto={contacto} />
+        <PortalAliado datos={datos} contacto={contacto} rutaInicial={rutaDe({ v, f, s })} />
       </main>
       <SiteFooter theme={theme} />
     </>

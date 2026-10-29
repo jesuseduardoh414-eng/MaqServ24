@@ -81,7 +81,7 @@ export function VentanaFormulario({
         style={{
           background: 'var(--adm-card)', border: '1px solid var(--adm-border-strong)', borderRadius: 14,
           width: `min(${ancho}px, 100%)`, maxHeight: 'calc(100vh - 40px)', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 40px 90px -30px rgba(0,0,0,.9)', color: 'var(--adm-text)',
+          boxShadow: '0 40px 90px -30px var(--adm-sombra)', color: 'var(--adm-text)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, padding: '18px 22px 14px', borderBottom: '1px solid var(--adm-border)' }}>

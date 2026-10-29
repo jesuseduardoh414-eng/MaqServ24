@@ -1,7 +1,8 @@
 import {
   BadRequestException, Body, CanActivate, Controller, ExecutionContext, ForbiddenException, Get,
-  Injectable, Post, Req, ServiceUnavailableException, SetMetadata, UnauthorizedException, UseGuards,
+  HttpException, HttpStatus, Injectable, Post, Req, ServiceUnavailableException, SetMetadata, UnauthorizedException, UseGuards,
 } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { Reflector } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
@@ -9,8 +10,9 @@ import { prisma } from '@maqserv/db';
 import { problemaContrasena, rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
 import {
   firmarRestablecimientoAdmin, hashPassword, huellaDeHash, leerRestablecimientoAdmin,
-  passwordGrant, perdonarIntentos, RESTABLECER_ADMIN_MINUTOS, verifyAccessToken,
+  passwordGrant, perdonarIntentos, RESTABLECER_ADMIN_MINUTOS, tokensPara, verifyAccessToken, verifyPassword, versionDeSesion,
 } from '../common/app-auth';
+import { MINUTOS_DE_BLOQUEO, anotarFallo, estaBloqueada, limpiarFallos } from '../common/intentos';
 import { MailerService } from '../notifications/mailer.service';
 import { correoRestablecerContrasena } from '../notifications/email-templates';
 import { registrarAccion } from './audit';
@@ -62,6 +64,8 @@ interface CachedAdmin {
   name: string;
   email: string;
   role: string | null;
+  /** Huella de la sesión vigente (contraseña + versión): un token con otra ya no vale. */
+  pv: string;
 }
 const activeCache = new Map<number, { until: number; admin: CachedAdmin }>();
 
@@ -82,14 +86,16 @@ async function activeAdmin(id: number): Promise<CachedAdmin | null> {
   const hit = activeCache.get(id);
   if (hit && hit.until > Date.now()) return hit.admin;
 
-  const a = await prisma.admins.findFirst({
+  const fila = await prisma.admins.findFirst({
     where: { id, status: 1 },
-    select: { id: true, name: true, email: true, role: true },
+    select: { id: true, name: true, email: true, role: true, password: true, remember_token: true },
   });
-  if (!a) {
+  if (!fila) {
     activeCache.delete(id);
     return null;
   }
+  // El hash no se guarda en la caché: solo su huella.
+  const a: CachedAdmin = { id: fila.id, name: fila.name, email: fila.email, role: fila.role, pv: versionDeSesion(fila.password, fila.remember_token) };
   activeCache.set(id, { until: Date.now() + ADMIN_TTL_MS, admin: a });
   return a;
 }
@@ -104,8 +110,10 @@ export class AdminGuard implements CanActivate {
     const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) throw new UnauthorizedException('Falta el token');
     let id: number;
+    let pvToken: string | undefined;
     try {
       const claims = await verifyAccessToken(token);
+      pvToken = typeof claims.pv === 'string' ? claims.pv : undefined;
       if (claims.app_metadata?.role !== 'admin') throw new Error('no admin');
       const claimed = claims.app_metadata?.app_admin_id;
       if (typeof claimed !== 'number') throw new Error('sin app_admin_id');
@@ -123,6 +131,11 @@ export class AdminGuard implements CanActivate {
     const admin = await activeAdmin(id);
     if (!admin) {
       throw new UnauthorizedException('Tu cuenta de administrador está desactivada');
+    }
+    // La sesión es de una contraseña anterior o se cerró (auditoría 2026-10-28).
+    // Los tokens de antes de este cambio no traen huella y vencen solos en una hora.
+    if (pvToken !== undefined && pvToken !== admin.pv) {
+      throw new UnauthorizedException('Tu sesión se cerró. Vuelve a entrar.');
     }
 
     /**
@@ -153,6 +166,14 @@ export class AdminGuard implements CanActivate {
     return true;
   }
 }
+
+/**
+ * `admins.status`: 1 activo, 0 desactivado y, desde el 2026-10-28, 2 = INVITADO:
+ * la cuenta existe con el rol puesto y le llegó el correo, pero la persona
+ * todavía no crea su contraseña. No entra (el guard y el login piden 1) hasta
+ * que la cree por el enlace del correo; en ese momento pasa a 1.
+ */
+export const ADMIN_INVITADO = 2;
 
 const loginSchema = z.object({ email: z.string().email(), password: z.string().min(1) });
 
@@ -195,8 +216,61 @@ export class AdminAuthController {
     const a = await activeAdmin(req.adminId);
     if (!a) throw new UnauthorizedException();
     const rol = rolDeAdmin(a.role);
+    const { pv: _huella, ...datos } = a;
     // El panel dibuja su menú con esto: una sola fuente para API y pantalla.
-    return { ...a, rol, modulos: modulosEfectivos(rol, await permisosVigentes()), rolNombre: ROLES_ADMIN[rol].nombre };
+    return { ...datos, rol, modulos: modulosEfectivos(rol, await permisosVigentes()), rolNombre: ROLES_ADMIN[rol].nombre };
+  }
+
+  /**
+   * CERRAR SESIÓN DE VERDAD (auditoría 2026-10-28). Antes solo se borraban las
+   * cookies del navegador: un token copiado seguía sirviendo. Ahora cambia la
+   * versión de sesión de la cuenta y caen TODAS sus sesiones (en cualquier
+   * equipo), igual que al cambiar la contraseña.
+   */
+  @Modulo('inicio')
+  @Post('logout')
+  @UseGuards(AdminGuard)
+  async logout(@Req() req: AdminRequest) {
+    await prisma.admins.update({ where: { id: req.adminId }, data: { remember_token: randomBytes(24).toString('hex') } });
+    forgetAdmin(req.adminId);
+    return { ok: true };
+  }
+
+  /**
+   * MI CONTRASEÑA (2026-10-28, decisión del dueño: cambiarla "solo lo puede
+   * ver el usuario, no en el panel"). La propia, con la actual en la mano: si
+   * alguien deja la sesión abierta, no puede cambiarla quien pase por ahí.
+   * Cambiar el hash tumba las demás sesiones (ver common/app-auth.ts).
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 5 } })
+  @Modulo('inicio')
+  @Post('mi-contrasena')
+  @UseGuards(AdminGuard)
+  async miContrasena(@Req() req: AdminRequest, @Body() body: unknown) {
+    const parsed = z.object({ actual: z.string().min(1), nueva: z.string().min(8).max(200) }).safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Escribe tu contraseña actual y la nueva.');
+    // Freno POR CUENTA (auditoría 2026-10-28): el de 5 por minuto es por IP, y
+    // quien robara una sesión podía adivinar la actual cambiando de IP.
+    const llave = `admin-actual:${req.adminId}`;
+    if (estaBloqueada(llave)) {
+      throw new HttpException(`Demasiados intentos con la contraseña actual. Espera ${MINUTOS_DE_BLOQUEO} minutos.`, HttpStatus.TOO_MANY_REQUESTS);
+    }
+    const a = await prisma.admins.findFirst({ where: { id: req.adminId, status: 1 }, select: { id: true, name: true, email: true, password: true, remember_token: true } });
+    if (!a || !(await verifyPassword(parsed.data.actual, a.password))) {
+      anotarFallo(llave);
+      throw new UnauthorizedException('La contraseña actual no es correcta.');
+    }
+    limpiarFallos(llave);
+    if (parsed.data.actual === parsed.data.nueva) throw new BadRequestException('La nueva es igual a la actual.');
+    const debil = problemaContrasena(parsed.data.nueva, { nombre: a.name, correo: a.email });
+    if (debil) throw new BadRequestException(debil);
+    const hash = await hashPassword(parsed.data.nueva);
+    await prisma.admins.update({ where: { id: a.id }, data: { password: hash, updated_at: new Date() } });
+    forgetAdmin(a.id);
+    await registrarAccion(req, 'admins', 'cambio de contraseña', a.email, 'La suya, desde Mi cuenta');
+    // Las demás sesiones caen; esta sigue con tokens nuevos (el panel los guarda en sus cookies).
+    const nuevos = await tokensPara({ rol: 'admin', id: a.id, hash, sesion: a.remember_token });
+    return { ok: true, token: nuevos.access_token, refresh_token: nuevos.refresh_token };
   }
 
   /**
@@ -254,28 +328,30 @@ export class AdminAuthController {
     const debil = problemaContrasena(parsed.data.password);
     if (debil) throw new BadRequestException(debil);
 
-    const pideOtro = 'Pide uno nuevo desde "¿Olvidaste tu contraseña?".';
+    const pideOtro = 'Pide uno nuevo desde "¿Olvidaste tu contraseña?" o, si es una invitación, pide que te la vuelvan a mandar.';
     const leido = await leerRestablecimientoAdmin(parsed.data.token);
     if (!leido.ok) {
       throw new UnauthorizedException(
         leido.motivo === 'caducado'
-          ? `El enlace caducó: dura ${RESTABLECER_ADMIN_MINUTOS} minutos desde que se pide. ${pideOtro}`
+          ? `El enlace caducó. ${pideOtro}`
           : `Este enlace no es de este panel o llegó incompleto. ${pideOtro}`,
       );
     }
 
+    // Activa o invitada: la invitación se acepta creando la contraseña por este mismo camino.
     const a = await prisma.admins.findFirst({
-      where: { id: leido.adminId, status: 1 },
-      select: { id: true, name: true, email: true, role: true, password: true },
+      where: { id: leido.adminId, status: { in: [1, ADMIN_INVITADO] } },
+      select: { id: true, name: true, email: true, role: true, password: true, status: true },
     });
     // Huella distinta = la contraseña ya cambió después de pedir el enlace: se usó.
     if (!a || !a.password || huellaDeHash(a.password) !== leido.pv) {
       throw new UnauthorizedException(`Este enlace ya se usó, o la contraseña cambió después de pedirlo. ${pideOtro}`);
     }
 
+    const invitada = a.status === ADMIN_INVITADO;
     await prisma.admins.update({
       where: { id: a.id },
-      data: { password: await hashPassword(parsed.data.password), updated_at: new Date() },
+      data: { password: await hashPassword(parsed.data.password), status: 1, updated_at: new Date() },
     });
     // La caché del guard guarda `role`, no el hash, pero se limpia igual: es
     // barato y evita cualquier sorpresa con una sesión a medio renovar.
@@ -286,7 +362,10 @@ export class AdminAuthController {
     // pregunta que sí se hace.
     await registrarAccion(
       { adminId: a.id, adminRol: rolDeAdmin(a.role), adminEmail: a.email, adminNombre: a.name, headers: {} },
-      'admins', 'contrasena.restablecer', a.email, 'Por enlace de "¿Olvidaste tu contraseña?"',
+      'admins',
+      invitada ? 'contrasena.crear' : 'contrasena.restablecer',
+      a.email,
+      invitada ? 'Aceptó la invitación al panel' : 'Por enlace de "¿Olvidaste tu contraseña?"',
     );
     return { ok: true };
   }

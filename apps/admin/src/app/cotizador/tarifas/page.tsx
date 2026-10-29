@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import {
   CATALOGO_MAQUINARIA_DEFAULT,
@@ -35,8 +36,9 @@ export default async function TarifasCotizador() {
         title="Tarifas y condiciones"
         subtitle={
           <>
-            El tabulador con el que cotizan el panel y el sitio. Lo que cambies aquí aplica a las
-            cotizaciones <b style={{ color: 'var(--adm-text-2)', fontWeight: 600 }}>nuevas</b>: las ya emitidas conservan los precios con los que se emitieron.
+            El tabulador con el que cotizan el panel y el sitio. Lo que cambies aquí aplica a las cotizaciones{' '}
+            <b style={{ color: 'var(--adm-text-2)', fontWeight: 600 }}>nuevas</b>; las ya emitidas conservan sus precios.
+            El precio de cada equipo o material se pone en su ficha de <a className="adm-link" href="/catalogo/servicios">Inventario</a>; los municipios, en <a className="adm-link" href="/zonas">Zonas</a>.
           </>
         }
       />
@@ -48,7 +50,10 @@ export default async function TarifasCotizador() {
         </Note>
       ) : null}
 
-      <TarifasEditor inicial={inicial} />
+      {/* La pestaña va en la dirección (?p=); leerla pide Suspense. */}
+      <Suspense fallback={null}>
+        <TarifasEditor inicial={inicial} />
+      </Suspense>
     </AdminShell>
   );
 }

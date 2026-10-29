@@ -238,9 +238,8 @@ export class RecomendadorService {
         horariosDescartados.add(textoHorario(horario));
         continue;
       }
-      const disp = disponibilidadDe({ stock: p.stock, location: p.location, confirmedAt: p.availability_confirmed_at, blocks: [] }, hoy);
-      const confirmada = disp.state === 'disponible' || disp.state === 'limitada';
-      porque.push(confirmada ? 'Libre en esas fechas' : 'Disponibilidad por confirmar');
+      // Ya pasó el filtro de reservas y horario: está libre (sin confirmación periódica desde 2026-10-26).
+      porque.push('Libre en esas fechas');
       if (horario) porque.push(`Atiende ${textoHorario(horario)}`);
 
       // 4. Cuesta
@@ -264,7 +263,8 @@ export class RecomendadorService {
         ubicacion: p.location?.trim() || aliado.city || null,
         km,
         horario: horario ? textoHorario(horario) : null,
-        confirmada,
+        // Siempre: sin confirmación periódica (2026-10-26), lo que pasó los filtros está libre.
+        confirmada: true,
         preferida: p.id === e.productoId,
         renta: p.is_rental,
         precioUnitario: imp?.precioUnitario ?? null,

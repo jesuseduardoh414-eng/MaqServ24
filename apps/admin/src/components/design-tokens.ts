@@ -18,10 +18,10 @@
  */
 export const D = {
   /* Mismos valores que --adm-card / --adm-border / --adm-border-strong (globals.css). */
-  card: '#111113',
-  cardBorder: 'rgba(255,255,255,0.07)',
-  inputBg: 'rgba(255,255,255,0.025)',
-  inputBorder: 'rgba(255,255,255,0.12)',
+  card: 'var(--adm-card)',
+  cardBorder: 'var(--adm-border)',
+  inputBg: 'rgba(var(--adm-ink),0.025)',
+  inputBorder: 'var(--adm-border-strong)',
   /** Acento del panel. El nombre se queda por compatibilidad: lo usan 41 archivos. */
   amber: 'var(--color-primary)',
   /** Texto sobre el acento. */
@@ -41,12 +41,12 @@ export const D = {
   warn: 'var(--color-warning)',
   ok: 'var(--color-success)',
   bad: 'var(--color-error)',
-  text: '#f4f4f5',
+  text: 'var(--adm-text)',
   /* #6b6b72 / #71717a quedaban por debajo de AA en textos de 12px. */
-  muted: '#8a8a93',
-  muted2: '#8a8a93',
-  previewBg: '#0e0e12',
-  tabsBg: '#101012',
+  muted: 'var(--adm-muted)',
+  muted2: 'var(--adm-muted)',
+  previewBg: 'var(--adm-page)',
+  tabsBg: 'var(--adm-raised)',
 };
 
 export const FONT = "'Inter', system-ui, sans-serif";

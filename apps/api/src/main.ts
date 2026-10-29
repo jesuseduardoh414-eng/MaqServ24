@@ -26,6 +26,7 @@ import { mediaDir } from './common/media';
 import { TrimPipe } from './common/trim.pipe';
 import { ErroresSinDetalle } from './common/errores';
 import { LimpiarEntradas } from './common/limpiar-entradas';
+import { AvisarCambios } from './common/cambios';
 import { AppModule } from './app.module';
 
 /**
@@ -118,7 +119,8 @@ async function bootstrap() {
   // una contraseña pegada con un espacio al final no puede parecer incorrecta.
   app.useGlobalPipes(new TrimPipe());
   // Lo que escribe el público se guarda como texto, no como HTML (ver limpiar-entradas.ts).
-  app.useGlobalInterceptors(new LimpiarEntradas());
+  // Lo que se guarda pone al día las pantallas abiertas (ver cambios.ts).
+  app.useGlobalInterceptors(new LimpiarEntradas(), new AvisarCambios());
   // Ningún error cuenta cómo está hecho el sistema (ver errores.ts).
   app.useGlobalFilters(new ErroresSinDetalle());
 

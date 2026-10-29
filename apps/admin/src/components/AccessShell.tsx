@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { useBranding } from '@/components/branding';
+import { useModoClaro } from '@/components/modo';
 
 /** Respaldo local del logo: los del tema apuntan a un bucket externo. */
 const LOGO_LOCAL = '/brand/maqser24-logo.png';
@@ -17,7 +18,10 @@ const LOGO_LOCAL = '/brand/maqser24-logo.png';
  */
 export function AccessShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   const branding = useBranding();
-  const logo = branding.logoDark || branding.logoLight || LOGO_LOCAL;
+  const claro = useModoClaro();
+  const varianteClara = claro && branding.logoLight && branding.logoLight !== branding.logoDark ? branding.logoLight : null;
+  const logo = varianteClara || branding.logoDark || branding.logoLight || LOGO_LOCAL;
+  const filtro = claro && !varianteClara ? ' logo-sobre-claro' : '';
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1fr_minmax(0,46%)]">
@@ -27,7 +31,7 @@ export function AccessShell({ title, subtitle, children }: { title: string; subt
           <img
             src={logo}
             alt="MAQSER24"
-            className="h-9 w-auto object-contain"
+            className={`h-9 w-auto object-contain${filtro}`}
             onError={(e) => { e.currentTarget.src = LOGO_LOCAL; }}
           />
           <h1 className="mt-7 font-head text-[26px] leading-tight font-semibold tracking-[-0.02em] text-[var(--ui-text)]">
@@ -46,7 +50,7 @@ export function AccessShell({ title, subtitle, children }: { title: string; subt
           className="absolute inset-0"
           style={{
             backgroundImage:
-              'linear-gradient(to right, rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.045) 1px, transparent 1px)',
+              'linear-gradient(to right, rgba(var(--adm-ink),.045) 1px, transparent 1px), linear-gradient(to bottom, rgba(var(--adm-ink),.045) 1px, transparent 1px)',
             backgroundSize: '48px 48px',
           }}
         />
@@ -66,7 +70,7 @@ export function AccessShell({ title, subtitle, children }: { title: string; subt
           <img
             src={logo}
             alt=""
-            className="h-11 w-auto self-start object-contain opacity-95"
+            className={`h-11 w-auto self-start object-contain opacity-95${filtro}`}
             onError={(e) => { e.currentTarget.src = LOGO_LOCAL; }}
           />
           <p className="max-w-[26ch] font-head text-[34px] leading-[1.15] font-semibold tracking-[-0.02em] text-[var(--ui-text)]">

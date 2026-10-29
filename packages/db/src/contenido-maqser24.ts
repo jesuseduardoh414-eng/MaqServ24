@@ -44,7 +44,7 @@ const RAZONES: Record<string, [string, string]> = {
     'Especificaciones, ubicación, condiciones de renta y costo de traslado desglosados antes de confirmar.',
   ],
   'Precios Justos': [
-    'Precio comparable',
+    'Opciones comparables',
     'Cuando hay más de una opción para tu requerimiento, las ves juntas y con las mismas variables.',
   ],
   'Seguridad Garantizada': [
