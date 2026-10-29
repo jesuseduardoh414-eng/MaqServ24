@@ -13,13 +13,21 @@ interface EventoInstalar extends Event {
 
 /**
  * El marco del acceso directo (2026-10-29): sin menú lateral, con el cambio
- * entre cotizadores, la vuelta al panel y "Instalar en este celular".
+ * entre cotizadores, el historial y "Instalar en este celular". No lleva al
+ * resto del panel: el enlace es solo para cotizar.
  *
  * En Android el botón abre la instalación del navegador; en iPhone eso no
  * existe y se explica el camino de Safari (Compartir → Agregar a inicio). Ya
  * instalada (se abre sola, sin barra del navegador), el aviso no sale.
  */
-export function AppCotizador({ tipo, nombre, children }: { tipo: CotizadorTipo; nombre: string; children: ReactNode }) {
+export function AppCotizador({ tipo, llave, nombre, children }: {
+  tipo: CotizadorTipo;
+  /** La llave del enlace: el cambio entre cotizadores la conserva. */
+  llave: string;
+  /** Quién cotiza, si entró con su cuenta; null con la cuenta del acceso directo. */
+  nombre: string | null;
+  children: ReactNode;
+}) {
   const branding = useBranding();
   const [instalar, setInstalar] = useState<EventoInstalar | null>(null);
   const [esIphone, setEsIphone] = useState(false);
@@ -53,14 +61,13 @@ export function AppCotizador({ tipo, nombre, children }: { tipo: CotizadorTipo; 
         </div>
         <nav className="cza-tabs" aria-label="Cotizadores">
           {COTIZADORES_ACTIVOS.map((t) => (
-            <Link key={t} href={`/cotizar/${t}`} data-on={t === tipo || undefined} aria-current={t === tipo ? 'page' : undefined}>
+            <Link key={t} href={`/cotizar/${llave}/${t}`} data-on={t === tipo || undefined} aria-current={t === tipo ? 'page' : undefined}>
               {COTIZADORES_META[t].titulo}
             </Link>
           ))}
         </nav>
         <div className="cza-acc">
           <Link href={`/cotizador/historial?kind=${tipo}`}>Historial</Link>
-          <Link href="/">Panel</Link>
         </div>
       </header>
 
@@ -88,7 +95,7 @@ export function AppCotizador({ tipo, nombre, children }: { tipo: CotizadorTipo; 
       ) : null}
 
       <main className="cza-main">
-        <p className="cza-quien">Cotizando como {nombre}</p>
+        {nombre ? <p className="cza-quien">Cotizando como {nombre}</p> : null}
         {children}
       </main>
     </div>

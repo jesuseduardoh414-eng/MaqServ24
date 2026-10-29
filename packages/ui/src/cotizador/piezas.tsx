@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, type ReactNode } from 'react';
-import { Minus, Plus, X } from 'lucide-react';
+import { Check, Minus, Plus, X } from 'lucide-react';
 import { IconoCotizador } from './iconos';
 import { ShInput, ShLabel } from '../shadcn/input';
 
@@ -182,8 +182,10 @@ export function Tarjeta({
    * tarjetas que no representan UNA cosa sino un tipo de renglón —"entrega por
    * zona" puede ir a tres zonas distintas—, donde quitarlo todo de un clic
    * borraría trabajo ajeno a lo que se tocó. Esas se quitan con su ✕.
+   * `opcion`: una entre varias (planta u obra, la zona del flete, 2026-10-29):
+   * la elegida lleva una palomita y se cambia tocando otra.
    */
-  modo?: 'alternar' | 'agregar';
+  modo?: 'alternar' | 'agregar' | 'opcion';
   onClick: () => void;
   /** Si se pasa, la tarjeta elegida ofrece añadir otra partida igual. */
   onAgregarOtra?: () => void;
@@ -195,7 +197,7 @@ export function Tarjeta({
         type="button"
         className="cz-pick"
         data-on={activa ? '1' : '0'}
-        aria-pressed={modo === 'alternar' ? activa : undefined}
+        aria-pressed={modo === 'alternar' || modo === 'opcion' ? activa : undefined}
         disabled={deshabilitada}
         onClick={onClick}
       >
@@ -224,7 +226,11 @@ export function Tarjeta({
               <Plus className="size-3.5" />
             </button>
           ) : null}
-          <span className="cz-pick-n" aria-label={`${n} partidas de ${titulo}`}>{n}</span>
+          {modo === 'opcion' ? (
+            <span className="cz-pick-n" aria-label={`${titulo}: elegida`}><Check className="size-3" aria-hidden /></span>
+          ) : (
+            <span className="cz-pick-n" aria-label={`${n} partidas de ${titulo}`}>{n}</span>
+          )}
         </span>
       ) : null}
     </div>

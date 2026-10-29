@@ -154,6 +154,15 @@ export const COTIZADOR_CSS = `
   transition:border-color .16s, transform .16s, background .16s; }
 .cz-pick:hover{ border-color:color-mix(in srgb, var(--cz-accent) 55%, var(--cz-border)); transform:translateY(-2px);
   box-shadow:0 14px 28px -20px color-mix(in srgb, var(--cz-accent) 70%, transparent); }
+/* El flete del material con tarjetas (2026-10-29): planta u obra; con obra, zonas y ubicación. */
+.cz-cards-2{ grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
+.cz-entrega{ display:grid; gap:12px; }
+.cz-entrega-zonas{ display:grid; gap:10px; padding-top:4px; }
+.cz-entrega-zonas .cz-lbl i{ color:var(--cz-accent); font-style:normal; }
+.cz-entrega-zonas .cz-pick .pu{ font-size:12px; line-height:1.4; }
+.cz-ubicacion{ display:grid; gap:6px; margin-top:4px; padding-top:14px; border-top:1px dashed var(--cz-border); }
+.cz-ubicacion > b{ font-size:14px; }
+.cz-ubicacion > .cz-help{ margin:0 0 4px; }
 /* "¿Quieres mejorar el precio?" (sitio con precios de lista, 2026-10-29). */
 .cz-mejorar{ display:grid; gap:3px; padding:12px 14px; border-radius:12px; font-size:13px; line-height:1.5;
   border:1px solid color-mix(in srgb, var(--cz-accent) 40%, var(--cz-border)); background:var(--cz-accent-soft); }

@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { MapPin, Plus, X } from 'lucide-react';
 import { RECOGE_EN_PLANTA, esUbicacionDeMapas, precioZona, zonaDe, type CatalogoTriturados } from '@maqserv/config';
 import { money, money2 } from './formato';
@@ -155,8 +155,13 @@ export function PasoPedido({
   const zonas = lineas.filter((l): l is LineaZona => l.tipo === 'zona');
   const bancos = lineas.filter((l): l is LineaBanco => l.tipo === 'banco');
   const b = cat.material_banco;
-  // Lleva flete: material con zona (no "recoge en planta") o un viaje puesto en obra.
-  const conFlete = zonas.length > 0 || materiales.some((l) => l.fleteTon > 0 || (!!l.fleteZona.trim() && l.fleteZona.trim() !== RECOGE_EN_PLANTA));
+  // "Flete a mi obra" elegido y todavía sin zona: solo vive en la pantalla.
+  const [quiereFlete, setQuiereFlete] = useState(false);
+  // Lleva flete el material con zona (no "recoge en planta"), o un viaje puesto en obra.
+  const materialAObra = materiales.length > 0 && (quiereFlete || materiales.some((l) => l.fleteTon > 0 || (!!l.fleteZona.trim() && l.fleteZona.trim() !== RECOGE_EN_PLANTA)));
+  const ubicacionCampo = ponerUbicacion
+    ? <UbicacionMapas valor={ubicacion} poner={ponerUbicacion} obligatoria={ubicacionObligatoria} tocado={!!tocado} />
+    : null;
 
   return (
     <>
@@ -184,7 +189,12 @@ export function PasoPedido({
         ) : undefined}
         pie={
           materiales.length > 0 ? (
-            <FleteTonelada cat={cat} materiales={materiales} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios} preciosAlFinal={preciosAlFinal} tocado={tocado} municipio={municipio} />
+            <FleteTonelada
+              cat={cat} materiales={materiales} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
+              preciosAlFinal={preciosAlFinal} tocado={tocado} municipio={municipio}
+              quiereFlete={quiereFlete} ponerQuiereFlete={setQuiereFlete}
+              ubicacion={materialAObra ? ubicacionCampo : null}
+            />
           ) : null
         }
       >
@@ -206,9 +216,8 @@ export function PasoPedido({
         ))}
       </Bloque>
 
-      {conFlete && ponerUbicacion ? (
-        <UbicacionMapas valor={ubicacion} poner={ponerUbicacion} obligatoria={ubicacionObligatoria} tocado={!!tocado} />
-      ) : null}
+      {/* Solo viajes puestos en obra: la ubicación va sola, abajo. Con material a obra ya salió dentro de su flete. */}
+      {zonas.length > 0 && !materialAObra ? ubicacionCampo : null}
 
       {/*
         Material de banco por m³: QUITADO del cotizador de triturados
@@ -246,11 +255,10 @@ function UbicacionMapas({ valor, poner, obligatoria, tocado }: { valor: string; 
     ? 'No es un enlace de Google Maps. En Maps toca «Compartir» → «Copiar enlace» y pégalo aquí.'
     : tocado && obligatoria && !v ? 'Pega la ubicación de tu obra para cotizar el flete.' : undefined;
   return (
-    <div className="cz-card">
-      <h2 className="cz-card-h">Ubicación de la obra para el flete</h2>
-      <p className="cz-card-s">
-        Para cotizar el flete necesitamos la ubicación de la obra en Google Maps: con ella medimos la distancia desde la planta y
-        confirmamos la zona. Si lo recogen en planta, no hace falta.
+    <div className="cz-ubicacion">
+      <b>Ubicación de la obra en Google Maps</b>
+      <p className="cz-help">
+        Con ella medimos la distancia desde la planta y confirmamos la zona del flete.
       </p>
       <Campo label="Enlace de Google Maps" req={obligatoria} help="En Google Maps toca la obra, luego «Compartir» → «Copiar enlace». También sirven las coordenadas." error={error}>
         {(id) => (
@@ -492,63 +500,100 @@ export function zonaDelMunicipio(cat: CatalogoTriturados, municipio: string | nu
   );
 }
 
-const PLANTA = 'planta';
-const OTRA = 'otra';
 
 /**
  * La zona de entrega del material por tonelada. Elegir una pone su flete por
  * tonelada en todos los renglones; "recoge en planta" lo deja en cero. Una
  * cotización vieja con un área escrita a mano y su tarifa se respeta ("otra").
  */
-function ZonaEntrega({ cat, materiales, aTodos, tocado, municipio }: {
+/**
+ * La entrega del material por tonelada, CON TARJETAS (2026-10-29): "si hay
+ * flete, ponerlo como opción como los demás, una tarjeta, y de ahí se
+ * despliegan las opciones: escogen la zona y mandan su ubicación con Google
+ * Maps". Primero planta u obra; con obra, las zonas en tarjetas y debajo la
+ * ubicación. Elegir una zona pone su flete por tonelada en todos los
+ * renglones; "recoger en planta" lo deja en cero. Un área escrita a mano en
+ * una cotización vieja se respeta como una tarjeta más.
+ */
+function ZonaEntrega({ cat, materiales, aTodos, tocado, municipio, mostrarPrecios, quiereFlete, ponerQuiereFlete }: {
   cat: CatalogoTriturados;
   materiales: LineaMaterial[];
   aTodos: (patch: Partial<LineaMaterial>) => void;
   tocado?: boolean;
   /** El municipio de entrega del primer paso: si una zona lo menciona, se sugiere. */
   municipio?: string;
+  mostrarPrecios: boolean;
+  /** Eligió "Flete a mi obra" y todavía no la zona (solo vive en la pantalla). */
+  quiereFlete: boolean;
+  ponerQuiereFlete: (v: boolean) => void;
 }) {
   const primero = materiales[0];
-  const zona = cat.zonas.find((z) => z.nombre === primero.fleteZona.trim());
-  const valor = primero.fleteZona.trim() === RECOGE_EN_PLANTA && primero.fleteTon === 0
-    ? PLANTA
-    : zona ? zona.id : primero.fleteTon > 0 ? OTRA : '';
-  const decidida = entregaDecidida(primero);
-  const falta = tocado && !decidida;
-  const sugerida = decidida ? null : zonaDelMunicipio(cat, municipio);
+  const nombreZona = primero.fleteZona.trim();
+  const zona = cat.zonas.find((z) => z.nombre === nombreZona);
+  const enPlanta = nombreZona === RECOGE_EN_PLANTA && primero.fleteTon === 0;
+  const otra = !enPlanta && !zona && primero.fleteTon > 0;
+  const aObra = !enPlanta && (quiereFlete || !!zona || otra);
+  const falta = tocado && !entregaDecidida(primero);
+  const sugerida = aObra && !zona ? zonaDelMunicipio(cat, municipio) : null;
   const usar = (z: CatalogoTriturados['zonas'][number]) => aTodos({ fleteTon: fleteTonDeZona(cat, z), fleteZona: z.nombre });
   return (
-    <Campo label="¿A dónde?" req help={falta ? 'Elige la zona de la obra, o que lo recogen en planta.' : undefined}>
-      {(id) => (
-        <>
-        <ShSelect
-          value={valor}
-          onValueChange={(v) => {
-            if (v === PLANTA) aTodos({ fleteTon: 0, fleteZona: RECOGE_EN_PLANTA });
-            const z = cat.zonas.find((x) => x.id === v);
-            if (z) usar(z);
+    <div className="cz-entrega">
+      <div className="cz-cards cz-cards-2">
+        <Tarjeta
+          icono="banco"
+          titulo="Lo recojo en planta"
+          nota="Sin flete · cargado en planta"
+          modo="opcion"
+          n={enPlanta ? 1 : 0}
+          onClick={() => { ponerQuiereFlete(false); aTodos({ fleteTon: 0, fleteZona: RECOGE_EN_PLANTA }); }}
+        />
+        <Tarjeta
+          icono="zona"
+          titulo="Flete a mi obra"
+          nota="Se suma por tonelada según la zona"
+          modo="opcion"
+          n={aObra ? 1 : 0}
+          onClick={() => {
+            if (aObra) return;
+            ponerQuiereFlete(true);
+            // Si la obra cae en una zona, queda elegida; si no, se escoge abajo.
+            const z = zonaDelMunicipio(cat, municipio);
+            aTodos(z ? { fleteTon: fleteTonDeZona(cat, z), fleteZona: z.nombre } : { fleteTon: 0, fleteZona: '' });
           }}
-        >
-          <ShSelectTrigger id={id} aria-label="Zona de entrega" aria-invalid={falta || undefined} className="max-w-md">
-            <ShSelectValue placeholder="Elige la zona de la obra" />
-          </ShSelectTrigger>
-          <ShSelectContent>
-            {cat.zonas.map((z) => (
-              <ShSelectItem key={z.id} value={z.id}>{z.nombre}</ShSelectItem>
-            ))}
-            <ShSelectItem value={PLANTA}>No, lo recogen en planta</ShSelectItem>
-            {valor === OTRA ? <ShSelectItem value={OTRA}>{primero.fleteZona.trim() || 'Otra área'}</ShSelectItem> : null}
-          </ShSelectContent>
-        </ShSelect>
-        {sugerida ? (
-          <button type="button" className="cz-sugerencia" onClick={() => usar(sugerida)}>
-            <MapPin className="size-4" aria-hidden />
-            <span>La obra es en {municipio}: usar <b>{sugerida.nombre}</b></span>
-          </button>
-        ) : null}
-        </>
-      )}
-    </Campo>
+        />
+      </div>
+      {falta && !aObra ? <p className="cz-err">Elige si lo recogen en planta o si lo llevamos a la obra.</p> : null}
+      {aObra ? (
+        <div className="cz-entrega-zonas">
+          <span className="cz-lbl">¿A qué zona? <i aria-hidden>*</i></span>
+          <div className="cz-cards">
+            {cat.zonas.map((z) => {
+              const [km, ...donde] = z.nombre.split(' · ');
+              const porTon = fleteTonDeZona(cat, z);
+              return (
+                <Tarjeta
+                  key={z.id}
+                  icono="zona"
+                  titulo={km}
+                  nota={[donde.join(' · '), mostrarPrecios && porTon > 0 ? `${money(porTon)} / ton` : ''].filter(Boolean).join(' · ')}
+                  modo="opcion"
+                  n={zona?.id === z.id ? 1 : 0}
+                  onClick={() => usar(z)}
+                />
+              );
+            })}
+            {otra ? <Tarjeta icono="zona" titulo={nombreZona || 'Otra área'} nota="Área escrita a mano" modo="opcion" n={1} onClick={() => undefined} /> : null}
+          </div>
+          {sugerida ? (
+            <button type="button" className="cz-sugerencia" onClick={() => usar(sugerida)}>
+              <MapPin className="size-4" aria-hidden />
+              <span>La obra es en {municipio}: usar <b>{sugerida.nombre}</b></span>
+            </button>
+          ) : null}
+          {falta ? <p className="cz-err">Elige la zona de la obra.</p> : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -563,13 +608,17 @@ function ZonaEntrega({ cat, materiales, aTodos, tocado, municipio }: {
  * panel el asesor aún puede ajustarla.
  */
 function FleteTonelada({
-  cat, materiales, actualizar, mostrarPrecios, editarPrecios, tocado, municipio,
+  cat, materiales, actualizar, mostrarPrecios, editarPrecios, tocado, municipio, quiereFlete, ponerQuiereFlete, ubicacion,
 }: {
   cat: CatalogoTriturados;
   materiales: LineaMaterial[];
   actualizar: (uid: number, patch: Partial<LineaMaterial>) => void;
   mostrarPrecios: boolean;
   editarPrecios: boolean;
+  quiereFlete: boolean;
+  ponerQuiereFlete: (v: boolean) => void;
+  /** La ubicación en Google Maps, dentro de "Flete a mi obra" (2026-10-29). */
+  ubicacion?: ReactNode;
   preciosAlFinal?: boolean;
   tocado?: boolean;
   municipio?: string;
@@ -586,11 +635,11 @@ function FleteTonelada({
         <b>¿Lo llevamos a obra?</b>
         <span>
           {editarPrecios
-            ? 'Elige la zona: el flete por tonelada sale del tabulador de zonas. Puedes ajustarlo abajo.'
-            : 'Es opcional. Elige la zona de tu obra y el flete se suma por tonelada, o que lo recogen en planta.'}
+            ? 'Es opcional. Con flete, la zona pone la tarifa por tonelada; puedes ajustarla abajo.'
+            : 'Es opcional. Si lo llevamos, el flete se suma por tonelada según la zona de tu obra.'}
         </span>
       </div>
-      <ZonaEntrega cat={cat} materiales={materiales} aTodos={aTodos} tocado={tocado} municipio={municipio} />
+      <ZonaEntrega cat={cat} materiales={materiales} aTodos={aTodos} tocado={tocado} municipio={municipio} mostrarPrecios={mostrarPrecios} quiereFlete={quiereFlete} ponerQuiereFlete={ponerQuiereFlete} />
       {mostrarPrecios && primero.fleteTon > 0 ? (
         <>
           {editarPrecios ? <TarifaFlete cat={cat} valor={distintos ? null : primero.fleteTon} elegir={(fleteTon) => aTodos({ fleteTon })} extra={sugerida} /> : null}
@@ -600,6 +649,7 @@ function FleteTonelada({
           ) : null}
         </>
       ) : null}
+      {ubicacion}
     </div>
   );
 }
@@ -672,6 +722,12 @@ export function Facturacion({
  * factura no pueden elegirse antes: serían precios a ciegas. Se piden aquí,
  * pegadas al documento, donde cada toque se ve reflejado en el total.
  */
+/** La entrega con su propio "Flete a mi obra" (para cuando no hay un paso que lo guarde). */
+function ZonaEntregaSuelta(props: { cat: CatalogoTriturados; materiales: LineaMaterial[]; aTodos: (patch: Partial<LineaMaterial>) => void }) {
+  const [quiereFlete, setQuiereFlete] = useState(false);
+  return <ZonaEntrega {...props} mostrarPrecios quiereFlete={quiereFlete} ponerQuiereFlete={setQuiereFlete} />;
+}
+
 export function AjustesDelTotal({
   cat,
   lineas,
@@ -702,7 +758,7 @@ export function AjustesDelTotal({
             Flete del material · {ton.toLocaleString('es-MX')} ton
             {primero.fleteTon > 0 ? ` × ${money(primero.fleteTon)} por tonelada = ${money(primero.fleteTon * ton)}` : primero.fleteZona.trim() === RECOGE_EN_PLANTA ? ' · lo recogen en planta, sin flete' : ''}
           </span>
-          <ZonaEntrega cat={cat} materiales={materiales} aTodos={aTodos} />
+          <ZonaEntregaSuelta cat={cat} materiales={materiales} aTodos={aTodos} />
         </div>
       ) : null}
       <div className="cz-qty wide">

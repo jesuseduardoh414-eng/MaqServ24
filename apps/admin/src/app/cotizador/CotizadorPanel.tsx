@@ -54,7 +54,7 @@ export function CotizadorPanel({
   solicitudFallida?: boolean;
   /** El tipo con el que abre ("Cotizar" en Disponibilidad, 2026-10-26). */
   fichaId?: number | null;
-  /** Dentro del acceso directo (/cotizar/<tipo>, 2026-10-29): su marco ya trae el encabezado. */
+  /** Dentro del acceso directo (/cotizar/<llave>/<tipo>, 2026-10-29): su marco ya trae el encabezado. */
   app?: boolean;
 }) {
   const branding = useBranding();
@@ -129,15 +129,9 @@ export function CotizadorPanel({
           title={titulo}
           subtitle={resumen}
           actions={
-            <>
-              {/* Este mismo cotizador sin el menú, para instalarlo en el celular (2026-10-29). */}
-              <Btn href={`/cotizar/${catalogo.tipo}`} icon="ph-device-mobile" title="Ábrelo en tu celular e instálalo en el inicio">
-                Acceso directo
-              </Btn>
-              <Btn href={`/cotizador/historial?kind=${catalogo.tipo}`} icon="ph-clock-counter-clockwise">
-                Historial
-              </Btn>
-            </>
+            <Btn href={`/cotizador/historial?kind=${catalogo.tipo}`} icon="ph-clock-counter-clockwise">
+              Historial
+            </Btn>
           }
         />
       )}

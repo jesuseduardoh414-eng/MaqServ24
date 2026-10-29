@@ -2,12 +2,15 @@ import {
   BadRequestException, Body, CanActivate, Controller, ExecutionContext, ForbiddenException, Get,
   HttpException, HttpStatus, Injectable, Post, Req, ServiceUnavailableException, SetMetadata, UnauthorizedException, UseGuards,
 } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Reflector } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
-import { problemaContrasena, rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin } from '@maqserv/config';
+import {
+  problemaContrasena, rolDeAdmin, puedeVerCon, modulosEfectivos, ROLES_ADMIN, type ModuloAdmin, type RolAdmin,
+  CUENTA_ACCESO_DIRECTO, HUELLA_ACCESO_DIRECTO, MODULOS_ACCESO_DIRECTO, NOMBRE_ACCESO_DIRECTO, esAccesoDirecto,
+} from '@maqserv/config';
 import {
   firmarRestablecimientoAdmin, hashPassword, huellaDeHash, leerRestablecimientoAdmin,
   passwordGrant, perdonarIntentos, RESTABLECER_ADMIN_MINUTOS, tokensPara, verifyAccessToken, verifyPassword, versionDeSesion,
@@ -42,6 +45,10 @@ export interface AdminRequest {
  */
 export const MODULO_KEY = 'modulo_admin';
 export const Modulo = (m: ModuloAdmin) => SetMetadata(MODULO_KEY, m);
+
+/** Rutas que la cuenta del acceso directo también puede usar (¿quién soy?, cerrar sesión). */
+const ACCESO_DIRECTO_KEY = 'acceso_directo_ok';
+const TambienAccesoDirecto = () => SetMetadata(ACCESO_DIRECTO_KEY, true);
 
 /**
  * Caché corta de "esta cuenta sigue activa".
@@ -152,6 +159,22 @@ export class AdminGuard implements CanActivate {
       ctx.getHandler(),
       ctx.getClass(),
     ]);
+    /**
+     * EL ACCESO DIRECTO SOLO ABRE LOS COTIZADORES (2026-10-29). Su cuenta entra
+     * con el enlace, sin contraseña: no importa su rol ni lo que diga Permisos,
+     * aquí solo pasa a las rutas del módulo Cotizador (y a "¿quién soy?").
+     */
+    if (esAccesoDirecto(admin.email)) {
+      const tambien = this.reflector.getAllAndOverride<boolean | undefined>(ACCESO_DIRECTO_KEY, [ctx.getHandler(), ctx.getClass()]);
+      if (!tambien && !(modulo && (MODULOS_ACCESO_DIRECTO as readonly string[]).includes(modulo))) {
+        throw new ForbiddenException('El acceso directo solo abre los cotizadores.');
+      }
+      req.adminId = id;
+      req.adminRol = rol;
+      req.adminEmail = admin.email;
+      req.adminNombre = admin.name;
+      return true;
+    }
     // Los permisos salen de la tabla por defecto MÁS lo que Dirección haya
     // cambiado en el panel (permisos.ts trae su propia caché).
     const permisos = await permisosVigentes();
@@ -180,6 +203,45 @@ const loginSchema = z.object({ email: z.string().email(), password: z.string().m
 @Controller('admin/auth')
 export class AdminAuthController {
   constructor(private readonly mailer: MailerService) {}
+
+  /**
+   * ENTRAR CON EL ENLACE DEL ACCESO DIRECTO (2026-10-29). La llave del enlace
+   * se compara por su huella; si vale, abre sesión con la cuenta interna (la
+   * crea la primera vez). Esa cuenta solo puede usar los cotizadores (ver el
+   * guard). Si la huella cambia en el código, su versión de sesión cambia y
+   * caen las sesiones abiertas con la llave vieja.
+   */
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @Post('enlace')
+  async enlace(@Body() body: unknown) {
+    const llave = z.object({ llave: z.string().min(20).max(200) }).safeParse(body);
+    const huella = llave.success ? createHash('sha256').update(llave.data.llave).digest() : Buffer.alloc(32);
+    if (!llave.success || !timingSafeEqual(huella, Buffer.from(HUELLA_ACCESO_DIRECTO, 'hex'))) {
+      throw new UnauthorizedException('Ese enlace no es válido.');
+    }
+    // Su versión de sesión empieza con la huella: cambiar la llave cierra todo lo abierto.
+    const prefijo = HUELLA_ACCESO_DIRECTO.slice(0, 16);
+    let a = await prisma.admins.findUnique({ where: { email: CUENTA_ACCESO_DIRECTO } });
+    if (!a) {
+      const ahora = new Date();
+      a = await prisma.admins.create({
+        data: {
+          name: NOMBRE_ACCESO_DIRECTO, email: CUENTA_ACCESO_DIRECTO, phone: '', role: 'operaciones',
+          // Una contraseña que nadie conoce: esta cuenta solo entra por el enlace.
+          password: await hashPassword(randomBytes(32).toString('hex')),
+          status: 1, remember_token: `${prefijo}${randomBytes(16).toString('hex')}`, created_at: ahora, updated_at: ahora,
+        },
+      });
+    } else if (a.status !== 1 || !(a.remember_token ?? '').startsWith(prefijo)) {
+      a = await prisma.admins.update({
+        where: { id: a.id },
+        data: { status: 1, remember_token: `${prefijo}${randomBytes(16).toString('hex')}`, updated_at: new Date() },
+      });
+      forgetAdmin(a.id);
+    }
+    const t = await tokensPara({ rol: 'admin', id: a.id, hash: a.password, sesion: a.remember_token });
+    return { token: t.access_token, refresh_token: t.refresh_token };
+  }
 
   // La puerta del panel: pocos usuarios, ninguna razón para intentar 10 veces por
   // minuto, y el premio de entrar es todo el negocio.
@@ -210,6 +272,7 @@ export class AdminAuthController {
   // es el primer acto de cualquier pantalla. Sin módulo, el fail-closed del
   // guard dejaría el panel entero para Dirección.
   @Modulo('inicio')
+  @TambienAccesoDirecto()
   @Get('me')
   @UseGuards(AdminGuard)
   async me(@Req() req: AdminRequest) {
@@ -217,6 +280,8 @@ export class AdminAuthController {
     if (!a) throw new UnauthorizedException();
     const rol = rolDeAdmin(a.role);
     const { pv: _huella, ...datos } = a;
+    // El acceso directo solo ve el cotizador: el menú del panel sale de aquí.
+    if (esAccesoDirecto(a.email)) return { ...datos, rol, modulos: [...MODULOS_ACCESO_DIRECTO], rolNombre: NOMBRE_ACCESO_DIRECTO };
     // El panel dibuja su menú con esto: una sola fuente para API y pantalla.
     return { ...datos, rol, modulos: modulosEfectivos(rol, await permisosVigentes()), rolNombre: ROLES_ADMIN[rol].nombre };
   }
@@ -228,6 +293,7 @@ export class AdminAuthController {
    * equipo), igual que al cambiar la contraseña.
    */
   @Modulo('inicio')
+  @TambienAccesoDirecto()
   @Post('logout')
   @UseGuards(AdminGuard)
   async logout(@Req() req: AdminRequest) {

@@ -243,3 +243,10 @@ export {
   type DefinicionTipoAliado,
 } from './tipos-aliado';
 export { MODULO_DE_CORREO, moduloDeCorreo, MODULOS_CON_CORREO, tiposDeCorreoDe } from './correo';
+export {
+  HUELLA_ACCESO_DIRECTO,
+  CUENTA_ACCESO_DIRECTO,
+  NOMBRE_ACCESO_DIRECTO,
+  MODULOS_ACCESO_DIRECTO,
+  esAccesoDirecto,
+} from './acceso-directo';

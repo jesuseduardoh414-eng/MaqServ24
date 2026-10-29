@@ -5,7 +5,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { prisma, type Prisma } from '@maqserv/db';
-import { problemaContrasena, rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
+import { CUENTA_ACCESO_DIRECTO, problemaContrasena, rolDeAdmin, ROLES_ADMIN, ROL_POR_DEFECTO, type RolAdmin } from '@maqserv/config';
 import { ADMIN_INVITADO, AdminGuard, forgetAdmin, type AdminRequest, Modulo } from './admin-auth';
 import { firmarRestablecimientoAdmin, hashPassword } from '../common/app-auth';
 import { registrarAccion } from './audit';
@@ -131,7 +131,8 @@ export class AdminAdminsController {
 
   @Get()
   async list(@Req() req: AdminRequest) {
-    const [rows, pid] = await Promise.all([prisma.admins.findMany({ orderBy: { id: 'asc' } }), principalId()]);
+    // Sin la cuenta interna del acceso directo a los cotizadores (2026-10-29): no es una persona del equipo.
+    const [rows, pid] = await Promise.all([prisma.admins.findMany({ where: { email: { not: CUENTA_ACCESO_DIRECTO } }, orderBy: { id: 'asc' } }), principalId()]);
     return rows.map((a) => ({
       id: a.id,
       name: a.name,
