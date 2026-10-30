@@ -210,6 +210,8 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
     { id: 'cnc', nombre: 'CNC', precio_ton: 150 },
     { id: 'sello38', nombre: 'Sello 3/8"', precio_ton: 310 },
     { id: 'piedra', nombre: 'Piedra 3" a 12"', precio_ton: 320 },
+    // 2026-10-30: mismo precio que la Arena #4.
+    { id: 'mixtos', nombre: 'Mixtos', precio_ton: 300 },
   ],
   fletes_ton: [50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300],
   material_banco: {

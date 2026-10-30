@@ -273,8 +273,11 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     const uid = nuevoUid();
     setLineas((prev) => {
       const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material');
+      // Los materiales del tabulador se eligen en sus tarjetas; este botón es el de
+      // "Otro material (nombre y precio a mano)": nace escrito a mano, sin lista
+      // para elegir (2026-10-30, pedido del dueño).
       const linea: LineaMaterial = {
-        uid, tipo: 'material', id: '', nombre: '', precio: '', toneladas: '',
+        uid, tipo: 'material', id: 'custom', nombre: '', precio: '', toneladas: '',
         fleteTon: otro?.fleteTon ?? 0, fleteZona: otro?.fleteZona ?? '',
       };
       return [...prev, linea];
@@ -327,8 +330,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   /** El desglose lateral, solo cuando el costo ya está a la vista. */
   const importesALaVista = verPrecios && (preciosEnPasos || clave === 'resumen');
   const faltante = useMemo(
-    () => validar(clave, { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel, zona: faltaZona(catalogo, partidas, ctx.municipio) }),
-    [clave, ctx, lineas, esPanel, calcVista, clientesPanel, catalogo, partidas],
+    () => validar(clave, { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel, soloPrecios, zona: faltaZona(catalogo, partidas, ctx.municipio) }),
+    [clave, ctx, lineas, esPanel, calcVista, clientesPanel, soloPrecios, catalogo, partidas],
   );
   const puedeAvanzar = faltante === null;
 
@@ -554,7 +557,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
       <div className="cz-grid">
         <div>
           {clave === 'obra' ? (
-            <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} />
+            <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} minimo={soloPrecios} />
           ) : null}
 
           {tipo === 'maquinaria' && clave === 'equipos' ? (
@@ -817,6 +820,7 @@ function PasoObra({
   tocado,
   empresas,
   clientesPanel,
+  minimo,
 }: {
   ctx: ContextoCotizador;
   setCtx: (c: ContextoCotizador) => void;
@@ -827,10 +831,12 @@ function PasoObra({
   empresas?: EmpresaCliente[];
   /** Solo el panel: los clientes registrados. */
   clientesPanel?: CotizadorProps['clientesPanel'];
+  /** El acceso directo: solo cliente, obra y teléfono (2026-10-30). */
+  minimo?: boolean;
 }) {
   const set = (patch: Partial<ContextoCotizador>) => setCtx({ ...ctx, ...patch });
   if (empresas) return <PasoObraSitio ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} empresas={empresas} />;
-  if (clientesPanel) return <PasoObraPanel ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} clientes={clientesPanel} />;
+  if (clientesPanel) return <PasoObraPanel ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} clientes={clientesPanel} minimo={minimo} />;
   // Mismas reglas que la API (@maqserv/config). En el sitio son obligatorios;
   // en el panel, opcionales, pero si se escriben tienen que estar bien.
   const errCorreo = tocado ? errorContacto('correo', ctx.correo, pideContacto) : null;
@@ -913,12 +919,21 @@ function PasoObraPanel({
   catalogo,
   tocado,
   clientes,
+  minimo = false,
 }: {
   ctx: ContextoCotizador;
   set: (patch: Partial<ContextoCotizador>) => void;
   catalogo: CatalogoCotizador;
   tocado: boolean;
   clientes: NonNullable<CotizadorProps['clientesPanel']>;
+  /**
+   * El acceso directo (2026-10-30, pedido del dueño: "solo deja lo necesario:
+   * nombre, obra, teléfono"). Sin dirección, fecha, atención, municipio ni
+   * correo; la zona del agua y del flete se elige en su paso (o sale de la
+   * obra registrada que se elija). Ahí no se guarda nada, así que tampoco se
+   * da de alta al cliente nuevo.
+   */
+  minimo?: boolean;
 }) {
   const [obras, setObras] = useState<EmpresaCliente['sites']>([]);
   const [nueva, setNueva] = useState(false);
@@ -960,9 +975,13 @@ function PasoObraPanel({
   return (
     <div className="cz-card">
       <h2 className="cz-card-h">Cliente y obra</h2>
-      <p className="cz-card-s">Elige un cliente registrado o escribe uno nuevo: se da de alta al guardar, con su obra. Sale impreso en el encabezado.</p>
+      <p className="cz-card-s">
+        {minimo
+          ? 'Elige un cliente registrado o escribe su nombre. Sale impreso en el encabezado.'
+          : 'Elige un cliente registrado o escribe uno nuevo: se da de alta al guardar, con su obra. Sale impreso en el encabezado.'}
+      </p>
       <div className="cz-row">
-        <Campo label="Cliente o empresa" req ancho="full" help={ctx.cliente.trim() && !ctx.clienteId ? 'Cliente nuevo: se da de alta al guardar.' : undefined}
+        <Campo label="Cliente o empresa" req ancho="full" help={!minimo && ctx.cliente.trim() && !ctx.clienteId ? 'Cliente nuevo: se da de alta al guardar.' : undefined}
           error={falta(ctx.cliente.trim().length < 2, 'Elige o escribe a nombre de quién va la cotización.')}>
           {(id) => <ShCombobox id={id} value={ctx.cliente} onChange={elegirCliente} options={nombres} placeholder="Busca o escribe el cliente…" buscar="Busca el cliente…" />}
         </Campo>
@@ -989,11 +1008,19 @@ function PasoObraPanel({
             <Campo label="Nombre de la obra" req error={falta(ctx.obra.trim().length < 2, 'Ponle un nombre a la obra.')}>
               {(id) => <ShInput id={id} value={ctx.obra} maxLength={190} placeholder="Ej. Fraccionamiento Los Encinos" onChange={(e) => set({ obra: e.target.value })} />}
             </Campo>
-            <Campo label="Dirección de la obra">
-              {(id) => <ShInput id={id} value={ctx.direccion} maxLength={300} placeholder="Calle, número y colonia" onChange={(e) => set({ direccion: e.target.value })} />}
-            </Campo>
+            {minimo ? null : (
+              <Campo label="Dirección de la obra">
+                {(id) => <ShInput id={id} value={ctx.direccion} maxLength={300} placeholder="Calle, número y colonia" onChange={(e) => set({ direccion: e.target.value })} />}
+              </Campo>
+            )}
           </>
         ) : null}
+        {minimo ? (
+          <Campo label="Teléfono del cliente" error={errTelefono}>
+            {(id) => <ShInput id={id} type="tel" inputMode="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />}
+          </Campo>
+        ) : (
+        <>
         <Campo
           label={catalogo.tipo === 'maquinaria' ? 'Fecha de inicio del servicio' : 'Fecha de entrega'}
           req
@@ -1016,6 +1043,8 @@ function PasoObraPanel({
         <Campo label="Teléfono del cliente (opcional)" error={errTelefono}>
           {(id) => <ShInput id={id} type="tel" inputMode="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />}
         </Campo>
+        </>
+        )}
       </div>
     </div>
   );
@@ -1404,6 +1433,8 @@ function validar(
     calc: ReturnType<typeof calcularCotizacion>;
     /** Panel con clientes registrados: la obra también se pide. */
     conClientes?: boolean;
+    /** El acceso directo: solo cliente, obra y teléfono; sin fecha (2026-10-30). */
+    soloPrecios?: boolean;
     /** Lo que falta para cobrar el agua por zona (`faltaZona`), o null. */
     zona?: string | null;
   },
@@ -1422,7 +1453,7 @@ function validar(
     }
     if (!esPanel && !ctx.fecha) return 'Elige la fecha del servicio.';
     if (esPanel && d.conClientes && !ctx.obraId && ctx.obra.trim().length < 2) return 'Elige la obra del cliente o escribe el nombre de la obra nueva.';
-    if (esPanel && d.conClientes && !ctx.fecha) return 'Elige la fecha del servicio.';
+    if (esPanel && d.conClientes && !d.soloPrecios && !ctx.fecha) return 'Elige la fecha del servicio.';
     return errorContacto('correo', ctx.correo, !esPanel) ?? errorContacto('telefono', ctx.telefono, !esPanel);
   }
 

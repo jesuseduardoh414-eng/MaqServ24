@@ -314,7 +314,7 @@ function FilaMaterial({
         <Campo label="Material">
           {(id) => <ShInput id={id} value={prod.nombre} readOnly tabIndex={-1} />}
         </Campo>
-      ) : (
+      ) : conTarjetas && esOtro ? null : (
       <Campo label="Material" req error={tocado && !l.id ? 'Elige el material' : null}>
         {(id) => (
           <ShSelect value={l.id} onValueChange={elegir} defaultOpen={abrir && !l.id}>
@@ -336,7 +336,7 @@ function FilaMaterial({
       {esOtro ? (
         <Campo label="Nombre del material" req error={tocado && !l.nombre.trim() ? 'Escribe el nombre' : null}>
           {(id) => (
-            <ShInput id={id} placeholder="Ej. Grava 3/4" maxLength={120} value={l.nombre} onChange={(e) => actualizar(l.uid, { nombre: e.target.value })} />
+            <ShInput id={id} placeholder="Ej. Grava 8" maxLength={120} autoFocus={abrir} value={l.nombre} onChange={(e) => actualizar(l.uid, { nombre: e.target.value })} />
           )}
         </Campo>
       ) : null}

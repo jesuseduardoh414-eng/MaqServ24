@@ -7,6 +7,7 @@ import { Triturados20261029 } from './triturados-2026-10-29';
 import { PreciosEnElSitio } from './precios-en-el-sitio';
 import { CondicionesTriturados20261030 } from './condiciones-triturados-2026-10-30';
 import { DatosDePago20261030 } from './datos-de-pago-2026-10-30';
+import { Mixtos20261030 } from './mixtos-2026-10-30';
 import { QuoterController } from './quoter.controller';
 import { QuoterService } from './quoter.service';
 import { QuoterServicio } from './quoter-servicio';
@@ -29,9 +30,9 @@ import { Recotizar } from './recotizar';
   // se pidió, al equipo y al cliente (ver `avisarSolicitud` y `QuoterServicio`).
   imports: [NotificationsModule],
   controllers: [QuoterController],
-  // CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030 y DatosDePago20261030:
+  // CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030 y Mixtos20261030:
   // ponen al día los tabuladores una sola vez, al arrancar (2026-10-29 y 30).
-  providers: [QuoterService, ServiceService, QuoterServicio, Recotizar, CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030],
+  providers: [QuoterService, ServiceService, QuoterServicio, Recotizar, CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030, Mixtos20261030],
   // QuoterServicio también: al marcar "Aceptada" en el panel se abre el servicio.
   // Recotizar: el desglose y el lápiz de Solicitudes, y "Volver a cotizar" (2026-10-23).
   exports: [QuoterService, QuoterServicio, Recotizar],
