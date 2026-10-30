@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import type { CalculoCotizacion, CotizadorTipo, EmpresaCotizador, FirmaCotizador } from '@maqserv/config';
+import type { CalculoCotizacion, CotizadorTipo, EmpresaCotizador, FirmaCotizador, PagoCotizador } from '@maqserv/config';
 import { COTIZADORES_META } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
@@ -39,6 +39,8 @@ interface CotizacionDetalle {
   /** Salió de una solicitud: la acepta el cliente (2026-10-26). */
   ligada?: boolean;
   vencida?: boolean;
+  /** Datos para el pago vigentes (2026-10-30). */
+  pago?: PagoCotizador | null;
 }
 
 export default async function DetalleCotizacion({ params }: { params: Promise<{ id: string }> }) {
@@ -92,6 +94,7 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
             firma: cot.documento.firma,
             saludo: cot.documento.saludo,
             calc: cot.documento.calc,
+            pago: cot.pago ?? null,
             ...(cot.documento.fecha || cot.documento.ubicacion
               ? {
                   detalle: [

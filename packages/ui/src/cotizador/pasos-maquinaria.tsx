@@ -7,14 +7,55 @@ import {
   porZona,
   precioDeServicio,
   precioHoraDe,
+  SERVICIO_A_MANO,
   zonaDeMunicipio,
   zonaPrecioDe,
   zonasDelServicio,
   type CatalogoMaquinaria,
 } from '@maqserv/config';
+import { useEffect, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { money, money2 } from './formato';
 import { Campo, Chip, Contador, Linea, NumeroTexto, Renglon, Tarjeta } from './piezas';
+import { ShInput } from '../shadcn/input';
 import { num, type LineaEquipo, type LineaMaquinaria, type LineaServicio } from './estado';
+
+/**
+ * Las horas en total (2026-10-30, pedido del dueño: "ventana para cantidad de
+ * horas"). Se cobra por hora: se escribe cuántas y los días y las horas extra
+ * se acomodan solos (20 h con jornada de 8 = 2 días y 4 h). Los botones de
+ * días y horas extra siguen ahí.
+ *
+ * Mientras se escribe, el campo guarda su propio texto: si mostrara el total
+ * calculado, borrar para teclear otro número lo regresaría a "0" a media
+ * captura.
+ */
+function HorasEnTotal({ total, jornada, poner }: { total: number; jornada: number; poner: (dias: number, horas: number) => void }) {
+  const [texto, setTexto] = useState(String(total));
+  const [escribiendo, setEscribiendo] = useState(false);
+  useEffect(() => {
+    if (!escribiendo) setTexto(String(total));
+  }, [total, escribiendo]);
+  return (
+    <Campo label="Horas en total" help={`Jornada de ${jornada} h: se reparte en días y horas extra`}>
+      {(id) => (
+        <ShInput
+          id={id}
+          inputMode="numeric"
+          value={texto}
+          onFocus={() => setEscribiendo(true)}
+          onBlur={() => setEscribiendo(false)}
+          onChange={(e) => {
+            const v = e.target.value.replace(/\D/g, '').slice(0, 5);
+            setTexto(v);
+            const h = Number(v) || 0;
+            poner(Math.floor(h / jornada), h % jornada);
+          }}
+        />
+      )}
+    </Campo>
+  );
+}
 
 /** PASO 2 · qué equipo. Solo elegir; el tiempo se pide en el siguiente. */
 export function PasoEquipos({
@@ -135,6 +176,11 @@ export function PasoDuracion({
               )
             }
           >
+            <HorasEnTotal
+              total={l.dias * cat.jornada_horas + l.horas}
+              jornada={cat.jornada_horas}
+              poner={(dias, horas) => actualizar(l.uid, { dias, horas })}
+            />
             <div className="cz-qty">
               <span className="cz-lbl">Días</span>
               <Contador valor={l.dias} min={0} ariaLabel="días" onChange={(v) => actualizar(l.uid, { dias: v })} />
@@ -203,6 +249,7 @@ export function PasoServicios({
   editarPrecios = false,
   municipio,
   elegirZona,
+  agregarOtro,
 }: {
   cat: CatalogoMaquinaria;
   lineas: LineaMaquinaria[];
@@ -216,13 +263,11 @@ export function PasoServicios({
   municipio: string;
   /** Panel: la zona se puede cambiar a mano. En el sitio sale sola del municipio. */
   elegirZona: boolean;
+  /** Panel: «Otro servicio (nombre y precio a mano)», para lo que no está en el tabulador (2026-10-30). */
+  agregarOtro?: () => void;
 }) {
   const servicios = lineas.filter((l): l is LineaServicio => l.tipo === 'servicio');
-  const cuenta = (id: string) => servicios.filter((l) => l.id === id).length;
   const zonaObra = zonaDeMunicipio(cat, municipio);
-  /** El servicio no se ofrece en ese municipio: en el sitio no se puede elegir. */
-  const fueraDeZona = (s: CatalogoMaquinaria['servicios'][number]) =>
-    porZona(s) && !!municipio.trim() && !zonasDelServicio(cat, s).some((z) => z.id === zonaObra?.id);
 
   return (
     <div className="cz-card">
@@ -232,34 +277,13 @@ export function PasoServicios({
         {zonaObra ? ` (${municipio}: ${zonaObra.nombre})` : ''}.
         {lineas.some((l) => l.tipo === 'equipo') ? ' Este paso es opcional: si no hace falta ninguno, continúa.' : ''}
       </p>
-      <div className="cz-cards">
-        {cat.servicios.map((s) => {
-          const fuera = fueraDeZona(s);
-          const precio = porZona(s) ? precioDeServicio(cat, s, zonaObra?.id) : s.precio;
-          const nota = fuera
-            ? `No se ofrece en ${municipio}`
-            : mostrarPrecios && precio
-              ? `${money(precio)} / ${s.unidad}${porZona(s) && zonaObra ? ` · ${zonaObra.nombre}` : ''}`
-              : porZona(s) && zonaObra ? `por ${s.unidad} · ${zonaObra.nombre}` : `por ${s.unidad}`;
-          return (
-            <Tarjeta
-              key={s.id}
-              icono={s.icono}
-              titulo={s.nombre}
-              nota={nota}
-              n={cuenta(s.id)}
-              deshabilitada={fuera && !elegirZona && cuenta(s.id) === 0}
-              onClick={() => alternar(s.id)}
-            />
-          );
-        })}
-      </div>
+      <TarjetasServicios cat={cat} lineas={lineas} alternar={alternar} mostrarPrecios={mostrarPrecios} municipio={municipio} elegirZona={elegirZona} />
 
       {servicios.length > 0 ? (
         <div style={{ marginTop: 16 }}>
           {servicios.map((l) => {
             const sv = cat.servicios.find((s) => s.id === l.id);
-            if (!sv) return null;
+            if (!sv) return l.id === SERVICIO_A_MANO ? <ServicioAMano key={l.uid} l={l} actualizar={actualizar} quitar={quitar} mostrarPrecios={mostrarPrecios} /> : null;
             // Por zona (el agua): la elegida a mano o la del municipio de la obra.
             const zonas = porZona(sv) ? zonasDelServicio(cat, sv) : [];
             const zona = porZona(sv) ? zonaPrecioDe(cat, l.zona) ?? zonaObra : null;
@@ -335,6 +359,123 @@ export function PasoServicios({
           })}
         </div>
       ) : null}
+
+      {agregarOtro ? (
+        <button type="button" className="cz-agregar" onClick={agregarOtro} style={{ marginTop: 14 }}>
+          <Plus className="size-4" aria-hidden />
+          Otro servicio (nombre y precio a mano)
+        </button>
+      ) : null}
     </div>
+  );
+}
+
+/** Las tarjetas de los servicios (agua, retiro…): las usan el paso de Servicios y la primera pantalla. */
+function TarjetasServicios({ cat, lineas, alternar, mostrarPrecios, municipio, elegirZona }: {
+  cat: CatalogoMaquinaria;
+  lineas: LineaMaquinaria[];
+  alternar: (id: string) => void;
+  mostrarPrecios: boolean;
+  municipio: string;
+  elegirZona: boolean;
+}) {
+  const cuenta = (id: string) => lineas.filter((l) => l.tipo === 'servicio' && l.id === id).length;
+  const zonaObra = zonaDeMunicipio(cat, municipio);
+  /** El servicio no se ofrece en ese municipio: en el sitio no se puede elegir. */
+  const fueraDeZona = (s: CatalogoMaquinaria['servicios'][number]) =>
+    porZona(s) && !!municipio.trim() && !zonasDelServicio(cat, s).some((z) => z.id === zonaObra?.id);
+  return (
+    <div className="cz-cards">
+      {cat.servicios.map((s) => {
+        const fuera = fueraDeZona(s);
+        const precio = porZona(s) ? precioDeServicio(cat, s, zonaObra?.id) : s.precio;
+        const nota = fuera
+          ? `No se ofrece en ${municipio}`
+          : mostrarPrecios && precio
+            ? `${money(precio)} / ${s.unidad}${porZona(s) && zonaObra ? ` · ${zonaObra.nombre}` : ''}`
+            : porZona(s) && zonaObra ? `por ${s.unidad} · ${zonaObra.nombre}` : `por ${s.unidad}`;
+        return (
+          <Tarjeta
+            key={s.id}
+            icono={s.icono}
+            titulo={s.nombre}
+            nota={nota}
+            n={cuenta(s.id)}
+            deshabilitada={fuera && !elegirZona && cuenta(s.id) === 0}
+            onClick={() => alternar(s.id)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * LOS SERVICIOS TAMBIÉN EN LA PRIMERA PANTALLA (2026-10-30, pedido del dueño:
+ * "ponlos como principal, para no tener que avanzar para seleccionarlos si
+ * solo quieren ese servicio"). Debajo de los equipos: quien solo quiere agua o
+ * retiro lo elige aquí. Los viajes y la zona se ajustan en el paso de Servicios.
+ */
+export function ServiciosDelInicio(props: {
+  cat: CatalogoMaquinaria;
+  lineas: LineaMaquinaria[];
+  alternar: (id: string) => void;
+  mostrarPrecios: boolean;
+  municipio: string;
+  elegirZona: boolean;
+}) {
+  if (!props.cat.servicios.length) return null;
+  return (
+    <div className="cz-card">
+      <h2 className="cz-card-h">Servicios</h2>
+      <p className="cz-card-s">
+        Agua en pipas y retiro de material. Si solo necesitas uno de estos, elígelo aquí; los viajes se
+        ajustan en el paso de Servicios.
+      </p>
+      <TarjetasServicios {...props} />
+    </div>
+  );
+}
+
+const UNIDADES_A_MANO = ['servicio', 'viaje', 'hora', 'día', 'pieza'];
+
+/** El servicio escrito a mano: nombre, unidad, cantidad y precio (solo el panel). */
+function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
+  l: LineaServicio;
+  actualizar: (uid: number, patch: Partial<LineaServicio>) => void;
+  quitar: (uid: number) => void;
+  mostrarPrecios: boolean;
+}) {
+  const unitario = num(l.precio);
+  const unidad = l.unidad || 'servicio';
+  return (
+    <Linea
+      icono="personalizado"
+      titulo={l.nombre.trim() || 'Servicio escrito a mano'}
+      nota="No está en el tabulador: nombre y precio a mano"
+      onQuitar={() => quitar(l.uid)}
+      dinero={mostrarPrecios ? <Renglon texto={`${l.cantidad} × ${money(unitario)}`} valor={money(unitario * l.cantidad)} fuerte /> : null}
+    >
+      <Campo label="Nombre del servicio" req>
+        {(id) => (
+          <ShInput id={id} placeholder="Ej. Arena 8" maxLength={120} value={l.nombre} onChange={(e) => actualizar(l.uid, { nombre: e.target.value })} />
+        )}
+      </Campo>
+      <div className="cz-qty wide">
+        <span className="cz-lbl">Se cobra por</span>
+        <div className="cz-chips">
+          {UNIDADES_A_MANO.map((u) => (
+            <Chip key={u} on={unidad === u} onClick={() => actualizar(l.uid, { unidad: u })}>{u}</Chip>
+          ))}
+        </div>
+      </div>
+      <div className="cz-qty">
+        <span className="cz-lbl">Cantidad</span>
+        <Contador valor={l.cantidad} min={1} ariaLabel="cantidad" onChange={(v) => actualizar(l.uid, { cantidad: v })} />
+      </div>
+      <Campo label={`Precio por ${unidad}`} req>
+        <NumeroTexto decimal ariaLabel="precio unitario" placeholder="Ej. 3500" valor={l.precio} onChange={(v) => actualizar(l.uid, { precio: v })} />
+      </Campo>
+    </Linea>
   );
 }

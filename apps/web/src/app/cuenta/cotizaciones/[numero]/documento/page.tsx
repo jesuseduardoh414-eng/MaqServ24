@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from '@/components/Enlace';
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import type { CalculoCotizacion, EmpresaCotizador, FirmaCotizador } from '@maqserv/config';
+import type { CalculoCotizacion, EmpresaCotizador, FirmaCotizador, PagoCotizador } from '@maqserv/config';
 import { NOINDEX } from '@/lib/seo';
 import { getTheme } from '@/lib/theme';
 import { SESSION_COOKIE } from '@/lib/session';
@@ -35,6 +35,8 @@ interface Documento {
     version: string;
     emitida: string;
   };
+  /** Datos para el pago vigentes (2026-10-30); solo salen con precio. */
+  pago?: PagoCotizador | null;
 }
 
 /**
@@ -96,6 +98,7 @@ export default async function DocumentoCotizacion({ params }: { params: Promise<
               saludo: d.documento.saludo,
               calc: d.documento.calc,
               mostrarPrecios: !d.sinPrecios,
+              pago: d.pago ?? null,
               logo,
             }}
           />

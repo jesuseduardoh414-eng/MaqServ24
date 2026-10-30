@@ -32,6 +32,7 @@ import { firmarAceptacion, rutaAceptar } from './aceptar-link';
 import { leerZonas, municipiosDe } from '../common/zonas';
 import type { RefTarifa } from './tarifa-ref';
 import { documentosVencidos, tieneSolicitud } from './documento-estado';
+import { datosDePago } from './datos-de-pago';
 import {
   correoAcuseSolicitud,
   correoCotizacionDelPanel,
@@ -769,6 +770,8 @@ export class QuoterService {
       fecha: q.created_at,
       /** Salió de una solicitud: esa la acepta el cliente desde su cuenta (2026-10-26). */
       ligada: await tieneSolicitud(q.folio),
+      /** A dónde se paga: las cuentas de HOY, no las del día que se emitió (2026-10-30). */
+      pago: await datosDePago(q.kind),
       vencida: (await documentosVencidos([q])).has(q.id),
     };
   }

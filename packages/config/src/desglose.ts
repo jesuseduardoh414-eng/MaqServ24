@@ -7,6 +7,7 @@ import {
   precioZona,
   productoDe,
   servicioDe,
+  SERVICIO_A_MANO,
   zonaDe,
   zonaPrecioDe,
   LEYENDA_NEGOCIAR,
@@ -179,6 +180,9 @@ export function explicarRenglon(cat: CatalogoCotizador, r: RenglonCotizacion, p:
   }
   if (cat.tipo === 'maquinaria' && p.tipo === 'servicio') {
     const sv = servicioDe(cat, p.id);
+    if (!sv && p.id === SERVICIO_A_MANO) {
+      return { fuente: 'Servicio escrito a mano', negociado: false, edicion: { unidad: `por ${p.unidad || 'servicio'}`, valor: r.pu, tarifa: null }, ref: null };
+    }
     if (!sv) return sinTarifa('El servicio ya no está en el tabulador');
     // Por zona (el agua): la tarifa es la de su zona, y corregirla cambia solo esa zona.
     const zona = porZona(sv) ? zonaPrecioDe(cat, p.zona) : null;

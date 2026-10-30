@@ -11,6 +11,7 @@ import {
   type CatalogoMaquinaria,
   type CatalogoTriturados,
   type CotizadorTipo,
+  type PagoCotizador,
 } from '@maqserv/config';
 import { mostrarResultado } from '@maqserv/ui';
 import { Btn, Chip, FormField, IconBtn, Panel, Segmented, Stat, Stats, Switch } from '@/components/ui';
@@ -171,6 +172,7 @@ export function TarifasEditor({ inicial }: { inicial: Record<CotizadorTipo, Cata
         .tf-nombre { font-size: 13.5px; font-weight: 500; color: var(--adm-text); min-width: 0; }
         .tf-sub { font-size: 12.5px; color: var(--adm-muted); }
         .tf-dos { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: stretch; }
+        .tf-cuenta { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1.3fr) auto; gap: 10px; align-items: end; padding: 12px 0; border-top: 1px solid var(--adm-border); }
         /* Sin el margen que un panel pone al seguir a otro: aquí van lado a lado. */
         .tf-dos > .adm-panel { display: flex; flex-direction: column; margin-top: 0; }
         .tf-dos > .adm-panel > .adm-panel-head { min-height: 68px; }
@@ -200,6 +202,9 @@ export function TarifasEditor({ inicial }: { inicial: Record<CotizadorTipo, Cata
           /* En el teléfono la barra es una sola línea: el aviso va en chico y el botón de restaurar sin texto largo. */
           .tf-barra { gap: 8px; bottom: -40px; margin-bottom: -40px; padding: 10px 0 48px; }
           .tf-barra .adm-btn { height: 34px; padding: 0 12px; font-size: 13px; }
+          /* Una cuenta de pago: banco a lo ancho, cuenta y CLABE abajo. */
+          .tf-cuenta { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+          .tf-cuenta > :first-child { grid-column: 1 / -1; }
           .tf-barra .tf-aviso { flex: 1 1 100%; margin: 0; font-size: 12px; line-height: 1.35; }
           /* Sin cambios ni error, el aviso sobra; y "Restaurar" en corto (2026-10-28). */
           .tf-barra .tf-aviso[data-on="false"][data-error="false"] { display: none; }
@@ -662,7 +667,64 @@ function EditorDocumento({ cat, set }: { cat: CatalogoCotizador; set: (p: Partia
       <Panel icon="ph-chat-text" title="Párrafo de saludo" desc="Arriba de las partidas." style={{ marginTop: 20 }}>
         <textarea className="adm-textarea" rows={3} value={cat.saludo} onChange={(e) => set({ saludo: e.target.value } as Partial<CatalogoCotizador>)} aria-label="Párrafo de saludo" />
       </Panel>
+
+      <EditorPago pago={cat.pago} poner={(pago) => set({ pago } as Partial<CatalogoCotizador>)} />
     </>
+  );
+}
+
+const PAGO_VACIO: PagoCotizador = { titular: '', rfc: '', cuentas: [], nota: '', telefono: '', correo: '' };
+
+/**
+ * DATOS PARA EL PAGO (2026-10-30, pedido del dueño). Salen en toda cotización
+ * con precio, abajo de los totales: titular, cuentas (banco, cuenta, CLABE),
+ * una nota (link de pagos, meses sin intereses) y el contacto de pagos. Sin
+ * cuentas, el documento no lleva la sección.
+ */
+function EditorPago({ pago: actual, poner }: { pago: PagoCotizador | undefined; poner: (p: PagoCotizador) => void }) {
+  const pago = actual ?? PAGO_VACIO;
+  const pag = (patch: Partial<PagoCotizador>) => poner({ ...pago, ...patch });
+  const cuenta = (i: number, patch: Partial<PagoCotizador['cuentas'][number]>) =>
+    pag({ cuentas: pago.cuentas.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
+  return (
+    <Panel icon="ph-bank" title="Datos para el pago" desc="Salen en toda cotización con precio, abajo de los totales. Sin cuentas, el documento no lleva esta sección." style={{ marginTop: 20 }}>
+      <div className="adm-form-grid">
+        <FormField label="Titular de las cuentas" style={{ gridColumn: '1 / -1' }}>
+          <input className="adm-input" maxLength={160} value={pago.titular} placeholder="Ej. PUCSA Maquinaria S.A. de C.V." onChange={(e) => pag({ titular: e.target.value })} />
+        </FormField>
+        <FormField label="RFC">
+          <input className="adm-input adm-mono" maxLength={20} value={pago.rfc} placeholder="Sin capturar" onChange={(e) => pag({ rfc: e.target.value })} />
+        </FormField>
+        <FormField label="Teléfono de pagos">
+          <input className="adm-input" type="tel" inputMode="tel" maxLength={40} value={pago.telefono} onChange={(e) => pag({ telefono: e.target.value })} />
+        </FormField>
+        <FormField label="Correo de pagos" style={{ gridColumn: '1 / -1' }}>
+          <input className="adm-input" type="email" maxLength={160} value={pago.correo} onChange={(e) => pag({ correo: e.target.value })} />
+        </FormField>
+      </div>
+      {pago.cuentas.map((c, i) => (
+        <div key={i} className="tf-cuenta">
+          <FormField label="Banco">
+            <input className="adm-input" maxLength={80} value={c.banco} placeholder="Ej. Banco del Bajío" onChange={(e) => cuenta(i, { banco: e.target.value })} />
+          </FormField>
+          <FormField label="Cuenta">
+            <input className="adm-input adm-mono" maxLength={40} value={c.cuenta} placeholder="Opcional" onChange={(e) => cuenta(i, { cuenta: e.target.value })} />
+          </FormField>
+          <FormField label="CLABE">
+            <input className="adm-input adm-mono" inputMode="numeric" maxLength={40} value={c.clabe} placeholder="18 dígitos" onChange={(e) => cuenta(i, { clabe: e.target.value })} />
+          </FormField>
+          <IconBtn icon="ph-trash" label={`Quitar ${c.banco || 'cuenta'}`} danger onClick={() => pag({ cuentas: pago.cuentas.filter((_, j) => j !== i) })} />
+        </div>
+      ))}
+      {pago.cuentas.length < 6 ? (
+        <div style={{ padding: '12px 0', borderTop: '1px solid var(--adm-border)' }}>
+          <Btn size="sm" icon="ph-plus" onClick={() => pag({ cuentas: [...pago.cuentas, { banco: '', cuenta: '', clabe: '' }] })}>Agregar cuenta</Btn>
+        </div>
+      ) : null}
+      <FormField label="Nota" help="Link de pagos, meses sin intereses, restricciones…">
+        <textarea className="adm-textarea" rows={2} maxLength={400} value={pago.nota} onChange={(e) => pag({ nota: e.target.value })} />
+      </FormField>
+    </Panel>
   );
 }
 

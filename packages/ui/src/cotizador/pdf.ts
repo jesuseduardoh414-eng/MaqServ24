@@ -61,7 +61,7 @@ export async function documentoPdf(d: DatosDocumento): Promise<Blob> {
 
     // Dónde se puede cortar la hoja: al terminar un renglón, una viñeta o un bloque; nunca a media línea.
     const arriba = doc.getBoundingClientRect().top;
-    const cortes = [...doc.querySelectorAll('tr, li, p, h4, .czdoc-hd, .czdoc-meta, .czdoc-tot, .czdoc-det, .czdoc-note, .czdoc-sign')]
+    const cortes = [...doc.querySelectorAll('tr, li, p, h4, .czdoc-hd, .czdoc-meta, .czdoc-tot, .czdoc-det, .czdoc-note, .czdoc-sign, .czdoc-pago')]
       .map((e) => (e.getBoundingClientRect().bottom - arriba) * escala)
       .sort((a, b) => a - b);
 

@@ -12,6 +12,8 @@ import {
   problemaEmail,
   problemaTelefono,
   soloVisibles,
+  SERVICIO_A_MANO,
+  type CalculoCotizacion,
   type CatalogoCotizador,
   type CatalogoMaquinaria,
   type CatalogoTriturados,
@@ -37,6 +39,7 @@ import {
   lineaDeEquipo,
   lineaDeMaterial,
   lineaDeServicio,
+  lineaDeServicioAMano,
   lineaDeZona,
   nuevoUid,
   num,
@@ -50,7 +53,7 @@ import {
   type LineaServicio,
   type LineaTriturados,
 } from './estado';
-import { PasoDuracion, PasoEquipos, PasoServicios } from './pasos-maquinaria';
+import { PasoDuracion, PasoEquipos, PasoServicios, ServiciosDelInicio } from './pasos-maquinaria';
 import { AjustesDelTotal, Facturacion, PasoPedido, entregaDecidida } from './pasos-triturados';
 
 /**
@@ -112,16 +115,14 @@ export interface CotizadorProps {
    */
   sinUbicacion?: boolean;
   /**
-   * Sin el paso «Datos de la obra» (2026-10-29, pedido del dueño): en el
-   * acceso directo solo se quiere sacar el documento, no levantar el pedido
-   * de un cliente. Empieza en el equipo o el material; la zona del agua y la
-   * del flete se eligen a mano en su paso.
+   * Solo precios (el acceso directo, 2026-10-29: "no debe aparecer el botón de
+   * guardar, solo es para saber precios"): no se guarda nada; al final el
+   * documento, sin folio, se manda por WhatsApp o se descarga en PDF.
    *
-   * Y no se guarda nada (2026-10-29: "no debe aparecer el botón de guardar,
-   * solo es para saber precios"): al final el documento, sin folio, se manda
-   * por WhatsApp o se descarga en PDF.
+   * El paso «Datos de la obra» SÍ va (2026-10-30, pedido del dueño: "el
+   * cliente siempre debe ir en el documento"); un día se quitó y se regresó.
    */
-  sinCliente?: boolean;
+  soloPrecios?: boolean;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
 }
 
@@ -142,9 +143,9 @@ export interface CotizadorProps {
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, sinCliente = false, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
-  const pasos = useMemo(() => (sinCliente ? pasosDe(tipo).filter((p) => p.clave !== 'obra') : pasosDe(tipo)), [tipo, sinCliente]);
+  const pasos = pasosDe(tipo);
   const esPanel = variante === 'panel';
 
   /**
@@ -370,7 +371,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const [archivo, setArchivo] = useState<File | null>(null);
   const [avisoPdf, setAvisoPdf] = useState<string | null>(null);
   const enElUltimo = paso === pasos.length - 1;
-  const huellaDoc = sinCliente && enElUltimo ? JSON.stringify([calcVista.renglones, calcVista.total, calcVista.con_iva, ctx.notas]) : '';
+  const huellaDoc = soloPrecios && enElUltimo ? JSON.stringify([calcVista.renglones, calcVista.total, calcVista.con_iva, ctx]) : '';
   useEffect(() => {
     setArchivo(null);
     setAvisoPdf(null);
@@ -382,7 +383,10 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
           if (!vigente) return;
           const hoy = new Date();
           const fecha = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
-          setArchivo(new File([blob], `Cotizacion-${catalogo.empresa.nombre.replace(/[^A-Za-z0-9]+/g, '')}-${tipo}-${fecha}.pdf`, { type: 'application/pdf' }));
+          // Con el cliente en el nombre: en el chat o en Descargas se distingue cuál es cuál.
+          const cliente = ctx.cliente.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+          const empresa = catalogo.empresa.nombre.replace(/[^A-Za-z0-9]+/g, '');
+          setArchivo(new File([blob], `Cotizacion-${empresa}-${tipo}${cliente ? `-${cliente}` : ''}-${fecha}.pdf`, { type: 'application/pdf' }));
         })
         .catch(() => { if (vigente) setAvisoPdf('No se pudo preparar el PDF. Regresa un paso y vuelve a entrar para intentarlo otra vez.'); });
     }, 500);
@@ -417,7 +421,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     empresa: catalogo.empresa,
     firma: catalogo.firma,
     saludo: catalogo.saludo,
-    calc: calcVista,
+    // En el acceso directo no se pide la ubicación: su documento no la menciona (2026-10-30).
+    calc: sinUbicacion ? sinFraseDeMapas(calcVista) : calcVista,
     // Cuándo y dónde (2026-10-23): lo que el cliente pidió para su obra.
     ...(ctx.fecha || ctx.direccion || ubicacionValida
       ? {
@@ -431,6 +436,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     mostrarPrecios: verPrecios,
     ...(verPrecios ? {} : { notaSinPrecios: 'Esta solicitud no incluye importes. MAQSER24 la revisa y le envía la cotización con precio y vigencia por correo.' }),
     logo: logo ?? null,
+    // A dónde se paga (2026-10-30); el documento solo lo enseña si lleva precio.
+    pago: catalogo.pago ?? null,
     acento: leerAcento(),
   });
 
@@ -474,9 +481,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
           <div className="mark"><Check className="size-8" /></div>
           <h2>{esPanel ? 'Cotización guardada' : 'Solicitud enviada'}</h2>
           <p>
-            {sinCliente
-              ? 'Ya está en el historial del cotizador. Imprímela o guárdala en PDF para mandarla.'
-              : esPanel
+            {esPanel
               ? 'Ya está en el historial del cotizador. Mándasela al cliente por correo (con el botón para aceptarla) o imprímela.'
               : sitioConPrecios
                 ? 'Recibimos tu solicitud. Confirmamos disponibilidad y te mandamos la cotización por correo; la aceptas desde tu cuenta y entonces asignamos al proveedor que te atiende. Guarda tu folio.'
@@ -561,6 +566,17 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               agregarOtra={(id) => agregar(lineaDeEquipo(id))}
             />
           ) : null}
+          {/* Los servicios también aquí (2026-10-30): quien solo quiere agua o retiro no tiene que avanzar. */}
+          {tipo === 'maquinaria' && clave === 'equipos' ? (
+            <ServiciosDelInicio
+              cat={paraElegir as CatalogoMaquinaria}
+              lineas={lineas as LineaMaquinaria[]}
+              mostrarPrecios={preciosEnPasos}
+              municipio={ctx.municipio}
+              elegirZona={esPanel}
+              alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
+            />
+          ) : null}
 
           {tipo === 'maquinaria' && clave === 'duracion' ? (
             <PasoDuracion
@@ -584,6 +600,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
               actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
               quitar={quitar}
+              agregarOtro={esPanel ? () => agregar(lineaDeServicioAMano()) : undefined}
             />
           ) : null}
 
@@ -699,7 +716,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                 </Campo>
               </div>
 
-              {sinCliente ? (
+              {soloPrecios ? (
                 <div className="cz-compartir">
                   <ShButton onClick={mandarPorWhatsapp} disabled={!archivo}>
                     <MessageCircle className="size-4" /> {archivo ? 'Mandar por WhatsApp' : 'Preparando PDF…'}
@@ -714,7 +731,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               <div className="cz-preview" style={{ marginTop: 16 }}>
                 {/* El MISMO generador que la impresión: lo que se ve aquí es,
                     literalmente, lo que sale por la impresora. */}
-                <div dangerouslySetInnerHTML={{ __html: `<style>${DOCUMENTO_CSS}</style>${documentoCuerpo(datosDoc(sinCliente ? '' : 'BORRADOR'))}` }} />
+                <div dangerouslySetInnerHTML={{ __html: `<style>${DOCUMENTO_CSS}</style>${documentoCuerpo(datosDoc(soloPrecios ? '' : 'BORRADOR'))}` }} />
               </div>
 
               {!esPanel ? (
@@ -746,7 +763,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
             <ShButton variant="outline" onClick={retroceder} disabled={paso === 0 || enviando}>
               <ArrowLeft className="size-4" /> Atrás
             </ShButton>
-            {esUltimo && sinCliente ? (
+            {esUltimo && soloPrecios ? (
               // Solo precios: no se guarda nada; se empieza otra.
               <ShButton variant="outline" onClick={reiniciar}>
                 <RotateCcw className="size-4" /> Nueva cotización
@@ -1359,6 +1376,25 @@ function sinImportes(calc: ReturnType<typeof calcularCotizacion>): ReturnType<ty
  * El mensaje se guarda hasta que la persona intenta avanzar (`tocado`): marcar
  * en rojo un formulario que aún no se ha tocado es regañar por adelantado.
  */
+/**
+ * Las condiciones del documento SIN la ubicación de Google Maps (2026-10-30):
+ * en el acceso directo no se pide, así que su documento no la menciona. Se
+ * quita la frase (o el punto entero, si solo hablaba de eso); el texto del
+ * tabulador no se toca.
+ */
+function sinFraseDeMapas(calc: CalculoCotizacion): CalculoCotizacion {
+  if (!calc.condiciones?.length) return calc;
+  return {
+    ...calc,
+    condiciones: calc.condiciones.map((b) => ({
+      ...b,
+      puntos: b.puntos
+        .map((p) => p.replace(/;?\s*para cotizarlo se necesita la ubicaci[oó]n de la obra en Google Maps/i, ''))
+        .filter((p) => p.trim() && !/google maps/i.test(p)),
+    })),
+  };
+}
+
 function validar(
   clave: string,
   d: {
@@ -1395,6 +1431,10 @@ function validar(
 
   if (clave === 'servicios') {
     if (!lineas.length) return 'Elige al menos un equipo o un servicio para continuar.';
+    // El servicio escrito a mano (2026-10-30): sin nombre o sin precio saldría un renglón mudo o en cero.
+    const aMano = lineas.filter((l) => l.tipo === 'servicio' && l.id === SERVICIO_A_MANO) as LineaServicio[];
+    if (aMano.some((l) => !l.nombre.trim())) return 'Ponle nombre al servicio que escribiste a mano.';
+    if (aMano.some((l) => num(l.precio) <= 0)) return 'Captura el precio del servicio que escribiste a mano.';
     return zona;
   }
 

@@ -173,6 +173,27 @@ const zonaPrecioSchema = z.object({
   municipios: z.array(z.string().max(80)).max(200),
 });
 
+/**
+ * DATOS PARA EL PAGO (2026-10-30, pedido del dueño): a nombre de quién va el
+ * depósito y a qué cuentas. Salen en todo documento que lleva precio (nunca en
+ * los que van sin importes, como el del aliado). Se editan en Tarifas ›
+ * Documento. Sin el campo o sin cuentas, el documento no lleva la sección.
+ */
+const cuentaPagoSchema = z.object({
+  banco: z.string().max(80),
+  cuenta: z.string().max(40).default(''),
+  clabe: z.string().max(40).default(''),
+});
+export const pagoSchema = z.object({
+  titular: z.string().max(160).default(''),
+  rfc: z.string().max(20).default(''),
+  cuentas: z.array(cuentaPagoSchema).max(6).default([]),
+  /** Lo que acompaña: link de pagos, meses sin intereses… */
+  nota: z.string().max(400).default(''),
+  telefono: z.string().max(40).default(''),
+  correo: z.string().max(160).default(''),
+});
+
 export const catalogoMaquinariaSchema = z.object({
   tipo: z.literal('maquinaria'),
   version: z.string().max(40),
@@ -193,6 +214,8 @@ export const catalogoMaquinariaSchema = z.object({
   empresa: empresaSchema,
   firma: firmaSchema,
   publico: publicoSchema,
+  /** Datos para el pago (2026-10-30). */
+  pago: pagoSchema.optional(),
   saludo: z.string().max(800),
   tiers: z.array(tierSchema).optional(),
   municipios: z.array(z.string().max(80)).max(400),
@@ -227,6 +250,8 @@ export const catalogoTrituradosSchema = z.object({
   empresa: empresaSchema,
   firma: firmaSchema,
   publico: publicoSchema,
+  /** Datos para el pago (2026-10-30). */
+  pago: pagoSchema.optional(),
   saludo: z.string().max(800),
   municipios: z.array(z.string().max(80)).max(400),
   vehiculos: z.array(z.string().max(80)).max(20),
@@ -256,6 +281,7 @@ export type CatalogoMaquinaria = z.infer<typeof catalogoMaquinariaSchema>;
 export type CatalogoTriturados = z.infer<typeof catalogoTrituradosSchema>;
 export type CatalogoCotizador = z.infer<typeof catalogoCotizadorSchema>;
 export type EmpresaCotizador = z.infer<typeof empresaSchema>;
+export type PagoCotizador = z.infer<typeof pagoSchema>;
 export type FirmaCotizador = z.infer<typeof firmaSchema>;
 export type BloqueCondiciones = z.infer<typeof bloqueSchema>;
 export type EquipoCotizador = z.infer<typeof equipoSchema>;
@@ -285,7 +311,10 @@ export const partidaMaquinariaSchema = z.discriminatedUnion('tipo', [
   }),
   z.object({
     tipo: z.literal('servicio'),
+    /** `custom` = escrito a mano (2026-10-30): no está en el tabulador; trae nombre, unidad y precio. */
     id: z.string().min(1).max(40),
+    nombre: z.string().max(120).optional(),
+    unidad: z.string().max(20).optional(),
     precio: z.number().min(0).max(10_000_000),
     cantidad: z.number().int().min(1).max(999).default(1),
     /** A qué zona se lleva (servicios con precio por zona, 2026-10-29). Sale del municipio de la obra. */
@@ -543,6 +572,9 @@ function condicionesMaquinaria(cat: CatalogoMaquinaria, partidas: PartidaMaquina
     .map((k) => (k === 'renta' ? { ...cat.condiciones[k], puntos: [renta.primero, ...cat.condiciones[k].puntos, renta.ultimo] } : cat.condiciones[k]));
 }
 
+/** Clave del servicio escrito a mano (panel): no está en el tabulador. */
+export const SERVICIO_A_MANO = 'custom';
+
 export function calcularMaquinaria(
   cat: CatalogoMaquinaria,
   partidas: PartidaMaquinaria[],
@@ -592,7 +624,26 @@ export function calcularMaquinaria(
       });
     } else {
       const sv = servicioDe(cat, p.id);
-      if (!sv) continue;
+      if (!sv) {
+        // Escrito a mano en el panel (2026-10-30, "agregaron grava 8 y no está"):
+        // nombre y precio obligatorios; sin ellos saldría un renglón mudo o en cero.
+        const nombre = (p.nombre ?? '').trim();
+        const precio = decimal(p.precio);
+        const cantidad = entero(p.cantidad, 1);
+        if (p.id !== SERVICIO_A_MANO || !nombre || precio <= 0) continue;
+        servicios += precio * cantidad;
+        renglones.push({
+          clase: 'servicio',
+          id: SERVICIO_A_MANO,
+          nombre,
+          concepto: nombre.toUpperCase(),
+          unidad: (p.unidad || 'servicio').toUpperCase(),
+          cantidad,
+          pu: r2(precio),
+          importe: r2(precio * cantidad),
+        });
+        continue;
+      }
       const cantidad = entero(p.cantidad, 1);
       // Un precio en 0 significa "el del catálogo", no "gratis". Importa más de
       // lo que parece: con los precios ocultos en el sitio público, el
@@ -712,9 +763,9 @@ function condicionesTriturados(
         conIva
           ? `Costos más IVA (${Math.round(cat.iva * 100)}%).`
           : 'Costos remisionados sin cargo de IVA; más IVA en caso de requerir factura.',
+        // Sin la leyenda para negociar el costo (2026-10-30, pedido del dueño): en
+        // triturados ya no va. En la renta de maquinaria sigue (puntosDeRenta).
         ...general.puntos,
-        // Como en la renta de maquinaria (2026-10-29): sin descuentos, se negocia por teléfono.
-        `${LEYENDA_NEGOCIAR}, comuníquese a la línea de ${cat.empresa.nombre || 'MAQSER24'}${cat.empresa.telefono.trim() ? `: ${cat.empresa.telefono.trim()}` : ''}.`,
       ],
     });
   }
@@ -858,7 +909,7 @@ export interface PasoCotizador {
  */
 export const PASOS_MAQUINARIA: PasoCotizador[] = [
   { clave: 'obra', titulo: 'Datos de la obra', ayuda: 'Para quién es y dónde se entrega el equipo.' },
-  { clave: 'equipos', titulo: 'Equipos', ayuda: 'Elige la maquinaria. Todas incluyen operador y diésel. Si solo necesitas agua o retiro de material, continúa.' },
+  { clave: 'equipos', titulo: 'Equipos y servicios', ayuda: 'Elige la maquinaria, el agua en pipas o el retiro de material. La maquinaria incluye operador y diésel.' },
   { clave: 'duracion', titulo: 'Duración', ayuda: 'Se cobra por hora de trabajo: cada día es una jornada, con un mínimo por equipo.' },
   { clave: 'servicios', titulo: 'Servicios', ayuda: 'Pipas de agua y retiro de material. Este paso es opcional.' },
   { clave: 'resumen', titulo: 'Resumen', ayuda: 'Revisa el documento antes de guardarlo o enviarlo.' },
@@ -1255,7 +1306,13 @@ export function analizarPartidas(cat: CatalogoCotizador, partidas: PartidaCotiza
       out.push({ partida: p, linea: LINEA_MAQUINARIA, concepto: `${eq.nombre}${unidades}${tiempo ? ` · ${tiempo}` : ''}`, productos: eq.productos ?? [], proveedorId: eq.proveedor_id ?? null });
     } else if (p.tipo === 'servicio' && cat.tipo === 'maquinaria') {
       const sv = cat.servicios.find((x) => x.id === p.id);
-      if (!sv) continue;
+      if (!sv) {
+        // Escrito a mano: sin ficha ni proveedor; se reparte como maquinaria.
+        if (p.id === SERVICIO_A_MANO && p.nombre?.trim()) {
+          out.push({ partida: p, linea: LINEA_MAQUINARIA, concepto: `${p.nombre.trim()} · ${p.cantidad ?? 1} ${p.unidad || 'servicio'}(s)`, productos: [], proveedorId: null });
+        }
+        continue;
+      }
       const zona = porZona(sv) ? zonaPrecioDe(cat, p.zona) : null;
       out.push({ partida: p, linea: lineaDeServicio(sv), concepto: `${sv.nombre} · ${p.cantidad ?? 1} ${sv.unidad}(s)${zona ? ` · ${zona.nombre}` : ''}`, productos: sv.productos ?? [], proveedorId: sv.proveedor_id ?? null });
     } else if (p.tipo === 'material' && cat.tipo === 'triturados') {

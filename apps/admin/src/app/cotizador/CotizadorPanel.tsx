@@ -184,7 +184,7 @@ export function CotizadorPanel({
         variante="panel"
         logo={logo}
         sinUbicacion={app}
-        sinCliente={app}
+        soloPrecios={app}
         inicial={solicitud?.inicial}
         lineasIniciales={
           solicitud?.documento && solicitud.documento.tipo === catalogo.tipo

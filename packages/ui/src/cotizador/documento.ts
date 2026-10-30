@@ -1,4 +1,4 @@
-import type { CalculoCotizacion, EmpresaCotizador, FirmaCotizador } from '@maqserv/config';
+import type { CalculoCotizacion, EmpresaCotizador, FirmaCotizador, PagoCotizador } from '@maqserv/config';
 import { cantidad, esc, fechaLarga, money2 } from './formato';
 
 /**
@@ -40,6 +40,8 @@ export interface DatosDocumento {
   notaSinPrecios?: string;
   /** Logo para fondo claro. Sin él se imprime el nombre de la empresa. */
   logo?: string | null;
+  /** Datos para el pago (2026-10-30): solo salen si el documento lleva precio y hay cuentas. */
+  pago?: PagoCotizador | null;
   acento?: string;
 }
 
@@ -95,6 +97,19 @@ export const DOCUMENTO_CSS = `
 .czdoc .czdoc-sign b{ display:block; font-size:12px; }
 .czdoc .czdoc-sign span{ font-size:10.5px; color:#5a626b; }
 .czdoc .czdoc-foot{ margin-top:14px; text-align:center; font-size:9.5px; color:#8b939c; }
+/* Datos para el pago (2026-10-30). */
+.czdoc .czdoc-pago{ margin-top:16px; padding:12px 14px; border:1px solid #e3e7eb; border-left:3px solid var(--czdoc-accent);
+  border-radius:6px; background:#f7f9fb; break-inside:avoid; }
+.czdoc .czdoc-pago h4{ font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--czdoc-accent); }
+.czdoc .czdoc-pago-tit{ margin:0 0 8px; font-size:11.5px; font-weight:600; }
+.czdoc .czdoc-pago-tit span{ color:#5a626b; font-weight:500; }
+.czdoc .czdoc-pago-cuentas{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px; }
+.czdoc .czdoc-pago-c{ background:#fff; border:1px solid #e3e7eb; border-radius:6px; padding:8px 11px; display:grid; gap:2px; font-size:11px; color:#5a626b; }
+.czdoc .czdoc-pago-c b{ font-size:12px; color:#15181c; margin-bottom:2px; }
+/* Sin espaciado extra: en el PDF (foto del documento) separaba los dígitos y una CLABE se leía partida. */
+.czdoc .czdoc-pago-c i{ font-style:normal; font-weight:700; color:#15181c; }
+.czdoc .czdoc-pago-nota{ margin:9px 0 0; font-size:11px; color:#3d444c; }
+.czdoc .czdoc-pago-cont{ margin:3px 0 0; font-size:10.5px; color:#5a626b; }
 @media print{
   @page{ size:letter; margin:12mm; }
   .czdoc{ padding:0; }
@@ -138,6 +153,9 @@ export const DOCUMENTO_CSS = `
   .czdoc .czdoc-det dt, .czdoc .czdoc-det dd{ font-size:12px; }
   .czdoc .czdoc-note{ font-size:12px; }
   .czdoc .czdoc-cond li{ font-size:12px; line-height:1.5; margin-bottom:5px; }
+  .czdoc .czdoc-pago-tit, .czdoc .czdoc-pago-nota{ font-size:12px; }
+  .czdoc .czdoc-pago-c{ font-size:12px; }
+  .czdoc .czdoc-pago-c i{ font-size:13px; }
 }
 `;
 
@@ -220,6 +238,23 @@ export function documentoCuerpo(d: DatosDocumento): string {
         .join('')}</dl></div>`
     : '';
 
+  // A dónde se paga (2026-10-30): solo con precio, y solo las cuentas con banco y algún número.
+  const cuentas = (d.pago?.cuentas ?? []).filter((c) => c.banco.trim() && (c.cuenta.trim() || c.clabe.trim()));
+  const pago = conPrecio && d.pago && cuentas.length
+    ? `<div class="czdoc-pago"><h4>Datos para el pago</h4>
+        ${d.pago.titular.trim() || d.pago.rfc.trim()
+          ? `<p class="czdoc-pago-tit">${esc(d.pago.titular)}${d.pago.rfc.trim() ? ` <span>· RFC ${esc(d.pago.rfc)}</span>` : ''}</p>`
+          : ''}
+        <div class="czdoc-pago-cuentas">${cuentas
+          .map((c) => `<div class="czdoc-pago-c"><b>${esc(c.banco)}</b>${c.cuenta.trim() ? `<span>Cuenta <i>${esc(c.cuenta)}</i></span>` : ''}${c.clabe.trim() ? `<span>CLABE <i>${esc(c.clabe)}</i></span>` : ''}</div>`)
+          .join('')}</div>
+        ${d.pago.nota.trim() ? `<p class="czdoc-pago-nota">${esc(d.pago.nota)}</p>` : ''}
+        ${d.pago.telefono.trim() || d.pago.correo.trim()
+          ? `<p class="czdoc-pago-cont">Dudas sobre pagos: ${[esc(d.pago.telefono), esc(d.pago.correo)].filter(Boolean).join(' · ')}</p>`
+          : ''}
+      </div>`
+    : '';
+
   const firmaHtml = firma.nombre?.trim()
     ? `<div class="czdoc-sign"><b>${esc(firma.nombre)}</b>
         <span>${[esc(firma.puesto), esc(firma.telefono)].filter(Boolean).join(' · ')}</span></div>`
@@ -235,6 +270,7 @@ export function documentoCuerpo(d: DatosDocumento): string {
     <table><thead><tr>${encabezados}</tr></thead><tbody>${filas}</tbody></table>
     ${detalle}
     ${totales}
+    ${pago}
     ${notas}
     ${condiciones}
     ${firmaHtml}

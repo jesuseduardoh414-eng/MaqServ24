@@ -149,6 +149,7 @@ export {
   type CatalogoMaquinaria,
   type CatalogoTriturados,
   type EmpresaCotizador,
+  type PagoCotizador,
   type FirmaCotizador,
   type BloqueCondiciones,
   type EquipoCotizador,
@@ -163,6 +164,8 @@ export {
   type RenglonCotizacion,
   type CalculoCotizacion,
   type PasoCotizador,
+  SERVICIO_A_MANO,
+  pagoSchema,
 } from './quoter';
 export {
   CATALOGOS_DEFAULT,
@@ -172,6 +175,7 @@ export {
   ESTADOS_OPERACION,
   ESTADOS_COBERTURA,
   MUNICIPIOS_NORTE,
+  PAGO_DE_FABRICA,
 } from './quoter-defaults';
 export { coordenadasDe } from './coordenadas';
 export {

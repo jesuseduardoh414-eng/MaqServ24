@@ -17,7 +17,7 @@
  * convierte en compromiso: se llenan desde Cotizador → Tarifas, y mientras
  * estén vacíos el documento simplemente no imprime esa línea.
  */
-import type { CatalogoMaquinaria, CatalogoTriturados, EmpresaCotizador, FirmaCotizador, ZonaPrecio } from './quoter';
+import type { CatalogoMaquinaria, CatalogoTriturados, EmpresaCotizador, FirmaCotizador, PagoCotizador, ZonaPrecio } from './quoter';
 
 /** Contacto publicado del sitio. Se puede sobrescribir desde el panel. */
 const EMPRESA: EmpresaCotizador = {
@@ -27,6 +27,22 @@ const EMPRESA: EmpresaCotizador = {
   telefono: '+52 1 81 4021 3277',
   correo: 'info@maqser24.com',
   web: 'maqser24.com',
+};
+
+/**
+ * Datos para el pago (2026-10-30, pedido del dueño, tal cual su tarjeta de
+ * datos bancarios): salen en todo documento con precio. Se editan en Tarifas.
+ */
+export const PAGO_DE_FABRICA: PagoCotizador = {
+  titular: 'PUCSA Maquinaria S.A. de C.V.',
+  rfc: 'PMA-240110-QQ0',
+  cuentas: [
+    { banco: 'Banco del Bajío', cuenta: '48-756-4310-201', clabe: '030580900045649333' },
+    { banco: 'Mercado Pago', cuenta: '', clabe: '722969016340010529' },
+  ],
+  nota: 'Link de pagos disponible. Pregunta por promociones a meses sin intereses (aplican restricciones).',
+  telefono: '811 280 0244',
+  correo: 'pagos@pucsa-maquinaria.com',
 };
 
 /** Quién firma. Sin nombre, el documento omite el bloque en vez de inventarlo. */
@@ -100,6 +116,7 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
   zonas_precio: ZONAS_PRECIO,
   empresa: EMPRESA,
   firma: FIRMA,
+  pago: PAGO_DE_FABRICA,
   // El sitio enseña los precios de lista (2026-10-29); se apaga en Tarifas.
   publico: { habilitado: true, mostrarPrecios: true },
   saludo:
@@ -175,6 +192,7 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
   iva_por_defecto: true,
   empresa: EMPRESA,
   firma: FIRMA,
+  pago: PAGO_DE_FABRICA,
   // El sitio enseña los precios de lista (2026-10-29); se apaga en Tarifas.
   publico: { habilitado: true, mostrarPrecios: true },
   saludo:
@@ -216,9 +234,10 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
   condiciones: {
     general: {
       titulo: 'Condiciones comerciales',
+      // 2026-10-30: con tarjetas de crédito y sin "se paga al entregar en su obra".
       puntos: [
         'Pago en efectivo de contado.',
-        'Se paga al entregar el material en su obra.',
+        'Aceptamos tarjetas de crédito.',
       ],
     },
     material: {

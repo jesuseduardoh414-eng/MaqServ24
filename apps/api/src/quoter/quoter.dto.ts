@@ -142,7 +142,9 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
       }
       if (p.tipo === 'servicio') {
         const sv = servicioDe(cat, p.id);
-        const { zona: _elegida, ...resto } = p;
+        // El servicio escrito a mano es solo del panel (2026-10-30).
+        if (!sv) throw new BadRequestException(`Partida ${n}: ese servicio no está en el tabulador. Pídelo a la medida en /cotizar.`);
+        const { zona: _elegida, nombre: _nombre, unidad: _unidad, ...resto } = p;
         return sv && porZona(sv) && zonaObra ? { ...resto, precio: 0, zona: zonaObra } : { ...resto, precio: 0 };
       }
     } else {

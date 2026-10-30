@@ -19,6 +19,7 @@ import { ServiceService } from './service.service';
 import { operadorDe } from '../providers/operador';
 import { pedidoDe } from '../providers/pedido';
 import { cantidadDelFormulario, estimarDelTabulador } from './estimado-formulario';
+import { datosDePago } from '../quoter/datos-de-pago';
 
 /**
  * EL PRECIO EN PREPARACIÓN NO SE ENSEÑA (2026-10-15). Mientras MAQSER24 no
@@ -824,6 +825,8 @@ export class QuotesService {
       municipio: d.municipality,
       notas: d.notes,
       documento: d.snapshot,
+      // A dónde se paga: las cuentas vigentes (2026-10-30).
+      pago: await datosDePago(d.kind),
     };
   }
 
