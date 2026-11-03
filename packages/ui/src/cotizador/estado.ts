@@ -43,6 +43,8 @@ export interface LineaServicio {
   /** Escrito a mano (id `custom`, 2026-10-30): su nombre y su unidad. Vacíos en los del tabulador. */
   nombre: string;
   unidad: string;
+  /** Escrito a mano desde una categoría sin precio de lista (carpeta, block, venta; 2026-11-03): su clave del sitio. */
+  categoria?: string;
 }
 
 export interface LineaMaterial {
@@ -126,9 +128,13 @@ export const lineaDeServicio = (cat: CatalogoMaquinaria, id: string): LineaServi
   };
 };
 
-/** Un servicio que no está en el tabulador: nombre, unidad y precio a mano (solo el panel, 2026-10-30). */
-export const lineaDeServicioAMano = (): LineaServicio => ({
-  uid: nuevoUid(), tipo: 'servicio', id: SERVICIO_A_MANO, precio: '', cantidad: 1, zona: '', nombre: '', unidad: 'servicio',
+/**
+ * Un servicio que no está en el tabulador: nombre, unidad y precio a mano
+ * (solo el panel, 2026-10-30). Desde una categoría sin precio (2026-11-03)
+ * nace con el nombre y la unidad del producto que se tocó.
+ */
+export const lineaDeServicioAMano = (base: Partial<Pick<LineaServicio, 'nombre' | 'unidad' | 'categoria'>> = {}): LineaServicio => ({
+  uid: nuevoUid(), tipo: 'servicio', id: SERVICIO_A_MANO, precio: '', cantidad: 1, zona: '', nombre: '', unidad: 'servicio', ...base,
 });
 
 export const lineaDeMaterial = (cat: CatalogoTriturados, id: string): LineaMaterial => {
@@ -202,7 +208,7 @@ export function aPartidas(lineas: LineaCotizador[]): PartidaCotizador[] {
         return {
           tipo: 'servicio', id: l.id, precio: num(l.precio), cantidad: l.cantidad,
           ...(l.zona ? { zona: l.zona } : {}),
-          ...(l.id === SERVICIO_A_MANO ? { nombre: l.nombre.trim(), unidad: l.unidad || 'servicio' } : {}),
+          ...(l.id === SERVICIO_A_MANO ? { nombre: l.nombre.trim(), unidad: l.unidad || 'servicio', ...(l.categoria ? { categoria: l.categoria } : {}) } : {}),
         };
       case 'material':
         return {
@@ -236,7 +242,7 @@ export function aLineas(partidas: PartidaCotizador[]): LineaCotizador[] {
           flete: p.flete ?? null,
         };
       case 'servicio':
-        return { uid: nuevoUid(), tipo: 'servicio', id: p.id, precio: p.precio ? String(p.precio) : '', cantidad: p.cantidad ?? 1, zona: p.zona ?? '', nombre: p.nombre ?? '', unidad: p.unidad ?? '' };
+        return { uid: nuevoUid(), tipo: 'servicio', id: p.id, precio: p.precio ? String(p.precio) : '', cantidad: p.cantidad ?? 1, zona: p.zona ?? '', nombre: p.nombre ?? '', unidad: p.unidad ?? '', ...(p.categoria ? { categoria: p.categoria } : {}) };
       case 'material':
         return {
           uid: nuevoUid(), tipo: 'material', id: p.id, nombre: p.nombre ?? '',

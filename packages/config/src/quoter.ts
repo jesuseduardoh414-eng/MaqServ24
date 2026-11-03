@@ -335,6 +335,12 @@ export const partidaMaquinariaSchema = z.discriminatedUnion('tipo', [
     id: z.string().min(1).max(40),
     nombre: z.string().max(120).optional(),
     unidad: z.string().max(20).optional(),
+    /**
+     * Escrito a mano desde una categoría sin precio de lista (panel y enlace,
+     * 2026-11-03: carpeta, block, venta): su clave del sitio. Con ella el
+     * saludo del documento y la solicitud saben de qué es.
+     */
+    categoria: z.string().max(40).optional(),
     precio: z.number().min(0).max(10_000_000),
     /** Hasta 100 000 (2026-11-02): el block va por pieza y la carpeta por m². */
     cantidad: z.number().int().min(1).max(100_000).default(1),
@@ -1441,7 +1447,7 @@ export function analizarPartidas(cat: CatalogoCotizador, partidas: PartidaCotiza
       if (!sv) {
         // Escrito a mano: sin ficha ni proveedor; se reparte como maquinaria.
         if (p.id === SERVICIO_A_MANO && p.nombre?.trim()) {
-          out.push({ partida: p, linea: LINEA_MAQUINARIA, concepto: `${p.nombre.trim()} · ${p.cantidad ?? 1} ${p.unidad || 'servicio'}(s)`, productos: [], proveedorId: null });
+          out.push({ partida: p, linea: (p.categoria && cotizadorDelSitio(p.categoria)?.linea) || LINEA_MAQUINARIA, concepto: `${p.nombre.trim()} · ${p.cantidad ?? 1} ${p.unidad || 'servicio'}(s)`, productos: [], proveedorId: null });
         }
         continue;
       }
@@ -1634,6 +1640,48 @@ export function hayQueElegir(cat: CatalogoCotizador): boolean {
   return cat.tipo === 'maquinaria' ? cat.equipos.some(ve) || cat.servicios.some(ve) : cat.productos.some(ve);
 }
 
+/** Los dos tabuladores: una cotización puede llevar cualquier categoría (2026-11-03). */
+export interface Tabuladores {
+  maquinaria: CatalogoMaquinaria | null;
+  triturados: CatalogoTriturados | null;
+}
+
+/**
+ * EL TABULADOR DE UNA COTIZACIÓN CON VARIAS CATEGORÍAS (2026-11-03): las de
+ * maquinaria con solo lo suyo y, si va triturados, su tabulador viajando junto
+ * (`combinar`). Lo usan el sitio, el panel y el enlace.
+ */
+export function catalogoDeCategorias(tab: Tabuladores, activas: readonly string[]): CatalogoCotizador | null {
+  const deMaquinaria = activas.filter((k) => cotizadorDelSitio(k)?.tipo === 'maquinaria');
+  const conTriturados = activas.includes('triturados') ? tab.triturados : null;
+  if (deMaquinaria.length && tab.maquinaria) {
+    const base = catalogoDeVarios(tab.maquinaria, deMaquinaria) as CatalogoMaquinaria;
+    return conTriturados ? combinar(base, conTriturados) : base;
+  }
+  return tab.triturados ?? tab.maquinaria;
+}
+
+/** ¿La categoría tiene algo con precio de lista? Entonces se cotiza con su cotizador; si no, a la medida. */
+export function categoriaConPrecio(tab: Tabuladores, clave: string): boolean {
+  const c = cotizadorDelSitio(clave);
+  const cat = c ? tab[c.tipo] : null;
+  return !!c && !!cat && hayQueElegir(catalogoDelSitio(cat, c));
+}
+
+/** De qué categoría del sitio es una partida; lo escrito a mano no tiene (null). */
+function categoriaDePartida(cat: CatalogoCotizador, p: PartidaCotizador): string | null {
+  if (cat.tipo === 'triturados' || esDeTriturados(p)) return 'triturados';
+  if (p.tipo === 'equipo') return 'maquinaria';
+  if (p.tipo === 'servicio' && p.id === SERVICIO_A_MANO) return p.categoria && cotizadorDelSitio(p.categoria) ? p.categoria : null;
+  const sv = p.tipo === 'servicio' ? servicioDe(cat, p.id) : undefined;
+  return sv ? cotizadorDeRenglon('maquinaria', { clase: 'servicio', linea: lineaDeServicio(sv), cond: sv.cond })?.clave ?? null : null;
+}
+
+/** Las categorías que traen unas partidas: con ellas abre una cotización guardada (panel, 2026-11-03). */
+export function categoriasDePartidas(cat: CatalogoCotizador, partidas: PartidaCotizador[]): string[] {
+  return [...new Set(partidas.map((p) => categoriaDePartida(cat, p)).filter((k): k is string => !!k))];
+}
+
 /**
  * EL SALUDO DEL DOCUMENTO SEGÚN LO QUE SE COTIZA (2026-11-02).
  *
@@ -1645,13 +1693,7 @@ export function hayQueElegir(cat: CatalogoCotizador): boolean {
  */
 export function saludoDe(cat: CatalogoCotizador, partidas: PartidaCotizador[]): string {
   if (cat.tipo !== 'maquinaria' || !partidas.length) return cat.saludo;
-  const claves = new Set<string | null>();
-  for (const p of partidas) {
-    if (p.tipo === 'equipo') { claves.add('maquinaria'); continue; }
-    if (esDeTriturados(p)) { claves.add('triturados'); continue; }
-    const sv = p.tipo === 'servicio' ? servicioDe(cat, p.id) : undefined;
-    claves.add(sv ? cotizadorDeRenglon('maquinaria', { clase: 'servicio', linea: lineaDeServicio(sv), cond: sv.cond })?.clave ?? null : null);
-  }
+  const claves = new Set(partidas.map((p) => categoriaDePartida(cat, p)));
   // Con algo escrito a mano no se sabe de qué categoría es: el saludo de siempre.
   if (claves.has(null)) return cat.saludo;
   const lista = [...claves] as string[];

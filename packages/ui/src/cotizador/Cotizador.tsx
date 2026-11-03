@@ -23,7 +23,7 @@ import {
   type OpcionesCotizador,
   type PartidaCotizador,
 } from '@maqserv/config';
-import { ArrowLeft, ArrowRight, Check, Download, MessageCircle, Printer, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Download, MessageCircle, Plus, Printer, RotateCcw } from 'lucide-react';
 import { COTIZADOR_CSS } from './estilos';
 import { DOCUMENTO_CSS, documentoCuerpo, imprimirDocumento, type DatosDocumento } from './documento';
 import { compartirArchivo, descargarArchivo, documentoPdf } from './pdf';
@@ -59,6 +59,7 @@ import {
   type LineaZona,
 } from './estado';
 import { PasoDuracion, PasoEquipos, PasoServicios } from './pasos-maquinaria';
+import { CategoriaAMano, unidadDeProducto, type ProductoALaMedida } from './categorias';
 import { AjustesDelTotal, Facturacion, PasoPedido, entregaDecidida, zonaDelMunicipio } from './pasos-triturados';
 
 /**
@@ -150,6 +151,12 @@ export interface CotizadorProps {
    */
   extras?: ReactNode;
   notasExtra?: string;
+  /**
+   * Panel y enlace (2026-11-03): las categorías SIN precio de lista que se
+   * agregaron (carpeta, block, venta), con los productos de su catálogo. Cada
+   * una sale en su tarjeta y lo que se toca se cotiza con precio a mano.
+   */
+  aMano?: { categorias: Array<{ clave: string; titulo: string; icono: string; productos: ProductoALaMedida[] }>; quitar: (clave: string) => void };
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
 }
 
@@ -172,7 +179,7 @@ const PASOS = [{ clave: 'armar' }, { clave: 'resumen' }] as const;
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, masServicios, despues, extras, notasExtra = '', onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, masServicios, despues, extras, notasExtra = '', aMano, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
   /**
    * EN UNA SOLA PANTALLA (2026-11-03, con la captura del cotizador de PUCSA:
@@ -360,6 +367,23 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
       return [...prev, { ...lineaDeZona(catTrit as CatalogoTriturados), productoId, zonaId: otro?.zonaId || zonaObraTrit()?.id || '' }];
     });
   };
+
+  /** Escritos a mano sin categoría (el «Otro servicio» del panel). */
+  const aManoSueltos = lineas.some((l) => l.tipo === 'servicio' && l.id === SERVICIO_A_MANO && !l.categoria);
+  /** La tarjeta de servicios: con servicios en el tabulador de esta cotización o con alguno escrito a mano. */
+  const serviciosVisibles = tipo === 'maquinaria' && ((catalogo as CatalogoMaquinaria).servicios.length > 0 || aManoSueltos);
+  /** Los renglones de una categoría sin precio, y quitarla con ellos. */
+  const deCategoria = (clave: string) => lineas.filter((l): l is LineaServicio => l.tipo === 'servicio' && l.categoria === clave);
+  const quitarCategoria = (clave: string) => {
+    setLineas((prev) => prev.filter((l) => !(l.tipo === 'servicio' && l.categoria === clave)));
+    aMano?.quitar(clave);
+  };
+  const alternarProducto = (clave: string, p: ProductoALaMedida) =>
+    setLineas((prev) =>
+      prev.some((l) => l.tipo === 'servicio' && l.categoria === clave && l.nombre === p.nombre)
+        ? prev.filter((l) => !(l.tipo === 'servicio' && l.categoria === clave && l.nombre === p.nombre))
+        : [...prev, lineaDeServicioAMano({ nombre: p.nombre, unidad: unidadDeProducto(p.unidad), categoria: clave })],
+    );
 
   // ---- validación por paso ----
   const clave = pasos[paso]?.clave ?? '';
@@ -591,7 +615,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   quitar={quitar}
                 />
               ) : null}
-              {(catalogo as CatalogoMaquinaria).servicios.length ? (
+              {serviciosVisibles ? (
                 <PasoServicios
                   cat={paraElegir as CatalogoMaquinaria}
                   lineas={lineas as LineaMaquinaria[]}
@@ -633,6 +657,24 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               municipio={ctx.municipio}
             />
           ) : null}
+
+          {clave === 'armar' && tipo === 'maquinaria'
+            ? aMano?.categorias.map((c) => (
+                <CategoriaAMano
+                  key={c.clave}
+                  titulo={c.titulo}
+                  icono={c.icono}
+                  productos={c.productos}
+                  lineas={deCategoria(c.clave)}
+                  alternar={(p) => alternarProducto(c.clave, p)}
+                  agregarOtro={() => agregar(lineaDeServicioAMano({ categoria: c.clave }))}
+                  actualizar={(uid, patch) => actualizar(uid, patch)}
+                  quitarLinea={quitar}
+                  quitar={() => quitarCategoria(c.clave)}
+                  mostrarPrecios={preciosEnPasos}
+                />
+              ))
+            : null}
 
           {clave === 'resumen' ? (
             <div className="cz-card">
@@ -764,15 +806,28 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
 
           {clave === 'armar' ? extras : null}
 
-          {clave === 'armar' && masServicios?.opciones.length ? (
+          {clave === 'armar' && (masServicios?.opciones.length || (esPanel && tipo === 'maquinaria' && !serviciosVisibles)) ? (
             <div className="cz-card">
               <h2 className="cz-card-h">¿Necesitas otro servicio?</h2>
-              <p className="cz-card-s">Toca uno y se agrega a esta misma solicitud: los que tienen precio aquí salen arriba con sus opciones; los demás, como servicio extra que describes y cuyo precio te confirmamos.</p>
-              <div className="cz-cards">
-                {masServicios.opciones.map((o) => (
-                  <Tarjeta key={o.clave} icono={o.icono} titulo={o.titulo} nota={o.resumen} modo="agregar" onClick={() => masServicios.agregar(o.clave)} />
-                ))}
-              </div>
+              <p className="cz-card-s">
+                {esPanel
+                  ? 'Toca uno y se agrega a esta misma cotización con sus opciones. Lo que todavía no tiene precio de lista sale con sus productos y su precio se captura a mano.'
+                  : 'Toca uno y se agrega a esta misma solicitud: los que tienen precio aquí salen arriba con sus opciones; los demás, como servicio extra que describes y cuyo precio te confirmamos.'}
+              </p>
+              {masServicios?.opciones.length ? (
+                <div className="cz-cards">
+                  {masServicios.opciones.map((o) => (
+                    <Tarjeta key={o.clave} icono={o.icono} titulo={o.titulo} nota={o.resumen} modo="agregar" onClick={() => masServicios.agregar(o.clave)} />
+                  ))}
+                </div>
+              ) : null}
+              {/* Sin la tarjeta de servicios a la vista (la renta sola), el «Otro servicio» del panel vive aquí. */}
+              {esPanel && tipo === 'maquinaria' && !serviciosVisibles ? (
+                <button type="button" className="cz-agregar" onClick={() => agregar(lineaDeServicioAMano())} style={{ marginTop: 14 }}>
+                  <Plus className="size-4" aria-hidden />
+                  Otro servicio (nombre y precio a mano)
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -1312,7 +1367,8 @@ function validar(
     // El servicio escrito a mano (2026-10-30): sin nombre o sin precio saldría un renglón mudo o en cero.
     const aMano = lineas.filter((l) => l.tipo === 'servicio' && l.id === SERVICIO_A_MANO) as LineaServicio[];
     if (aMano.some((l) => !l.nombre.trim())) return 'Ponle nombre al servicio que escribiste a mano.';
-    if (aMano.some((l) => num(l.precio) <= 0)) return 'Captura el precio del servicio que escribiste a mano.';
+    const sinPrecio = aMano.find((l) => num(l.precio) <= 0);
+    if (sinPrecio) return sinPrecio.categoria ? `Captura el precio de ${sinPrecio.nombre.trim()}.` : 'Captura el precio del servicio que escribiste a mano.';
     return zona;
   }
 

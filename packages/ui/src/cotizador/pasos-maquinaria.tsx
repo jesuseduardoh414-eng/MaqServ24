@@ -290,7 +290,7 @@ export function PasoServicios({
         <div style={{ marginTop: 16 }}>
           {servicios.map((l) => {
             const sv = cat.servicios.find((s) => s.id === l.id);
-            if (!sv) return l.id === SERVICIO_A_MANO ? <ServicioAMano key={l.uid} l={l} actualizar={actualizar} quitar={quitar} mostrarPrecios={mostrarPrecios} /> : null;
+            if (!sv) return l.id === SERVICIO_A_MANO && !l.categoria ? <ServicioAMano key={l.uid} l={l} actualizar={actualizar} quitar={quitar} mostrarPrecios={mostrarPrecios} /> : null;
             // Por zona (el agua): la elegida a mano o la del municipio de la obra.
             const zonas = porZona(sv) ? zonasDelServicio(cat, sv) : [];
             const zona = porZona(sv) ? zonaPrecioDe(cat, l.zona) ?? zonaObra : null;
@@ -420,8 +420,12 @@ function TarjetasServicios({ cat, lineas, alternar, mostrarPrecios, municipio, e
 
 const UNIDADES_A_MANO = ['servicio', 'viaje', 'hora', 'día', 'pieza'];
 
-/** El servicio escrito a mano: nombre, unidad, cantidad y precio (solo el panel). */
-function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
+/**
+ * El servicio escrito a mano: nombre, unidad, cantidad y precio (solo el panel).
+ * También lo que se cotiza de una categoría sin precio de lista (2026-11-03):
+ * nace con el nombre y la unidad del producto, y el precio se captura aquí.
+ */
+export function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
   l: LineaServicio;
   actualizar: (uid: number, patch: Partial<LineaServicio>) => void;
   quitar: (uid: number) => void;
@@ -429,11 +433,13 @@ function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
 }) {
   const unitario = num(l.precio);
   const unidad = l.unidad || 'servicio';
+  // La del producto (m², ton…) también se puede elegir.
+  const unidades = UNIDADES_A_MANO.includes(unidad) ? UNIDADES_A_MANO : [unidad, ...UNIDADES_A_MANO];
   return (
     <Linea
       icono="personalizado"
       titulo={l.nombre.trim() || 'Servicio escrito a mano'}
-      nota="No está en el tabulador: nombre y precio a mano"
+      nota={l.categoria ? 'Sin precio de lista: captura el precio' : 'No está en el tabulador: nombre y precio a mano'}
       onQuitar={() => quitar(l.uid)}
       dinero={mostrarPrecios ? <Renglon texto={`${l.cantidad} × ${money(unitario)}`} valor={money(unitario * l.cantidad)} fuerte /> : null}
     >
@@ -445,14 +451,14 @@ function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
       <div className="cz-qty wide">
         <span className="cz-lbl">Se cobra por</span>
         <div className="cz-chips">
-          {UNIDADES_A_MANO.map((u) => (
+          {unidades.map((u) => (
             <Chip key={u} on={unidad === u} onClick={() => actualizar(l.uid, { unidad: u })}>{u}</Chip>
           ))}
         </div>
       </div>
       <div className="cz-qty">
         <span className="cz-lbl">Cantidad</span>
-        <Contador valor={l.cantidad} min={1} ariaLabel="cantidad" onChange={(v) => actualizar(l.uid, { cantidad: v })} />
+        <Contador valor={l.cantidad} min={1} max={100_000} ariaLabel="cantidad" onChange={(v) => actualizar(l.uid, { cantidad: v })} />
       </div>
       <Campo label={`Precio por ${unidad}`} req>
         <NumeroTexto decimal ariaLabel="precio unitario" placeholder="Ej. 3500" valor={l.precio} onChange={(v) => actualizar(l.uid, { precio: v })} />

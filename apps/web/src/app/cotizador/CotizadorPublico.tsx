@@ -1,29 +1,30 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Cotizador, lineasDeFicha, NumeroTexto, Tarjeta, type DatosEnvio, type EmpresaCliente, type ResultadoEnvio } from '@maqserv/ui';
+import { useEffect, useState } from 'react';
 import {
-  catalogoDelSitio,
-  catalogoDeVarios,
+  Cotizador,
+  lineasDeFicha,
+  NumeroTexto,
+  Tarjeta,
+  unidadDeProducto,
+  useCategorias,
+  type DatosEnvio,
+  type EmpresaCliente,
+  type ProductoALaMedida,
+  type ResultadoEnvio,
+} from '@maqserv/ui';
+import {
+  categoriaConPrecio,
   categoriasEnTexto,
-  combinar,
   COTIZADORES_SITIO,
   cotizadorDelSitio,
-  hayQueElegir,
   type CatalogoCotizador,
-  type CatalogoMaquinaria,
-  type CatalogoTriturados,
+  type Tabuladores,
 } from '@maqserv/config';
 import Link from '@/components/Enlace';
 import { evento } from '@/lib/analitica';
 
-/** Un producto del catálogo de una categoría que todavía no tiene precio en línea. */
-export interface ProductoALaMedida {
-  id: number;
-  nombre: string;
-  /** La unidad de su ficha ("m2", "tonelada"…); sin ella, por pieza. */
-  unidad: string | null;
-}
+export type { ProductoALaMedida };
 
 /** Lo que se pidió de una categoría sin precio: sus productos con cantidad, o un texto si no tiene productos. */
 interface PedidoALaMedida {
@@ -58,7 +59,7 @@ export function CotizadorPublico({
   fichaId,
 }: {
   /** Los dos tabuladores: aquí se enseña solo lo de las categorías elegidas. */
-  tabuladores: { maquinaria: CatalogoMaquinaria | null; triturados: CatalogoTriturados | null };
+  tabuladores: Tabuladores;
   /** La clave del cotizador del sitio con el que se entró (agua, acarreos…). */
   cotizador: string;
   /** Las categorías sin nada con precio, con los productos de su catálogo. */
@@ -69,25 +70,14 @@ export function CotizadorPublico({
   fichaId?: number | null;
 }) {
   // Las categorías con precio que se están cotizando: la de entrada y las que agregue.
-  const [activas, setActivas] = useState<string[]>([cotizador]);
+  const categorias = useCategorias(tabuladores, [cotizador]);
+  const { activas } = categorias;
+  // La página no pinta el cotizador sin el tabulador de la categoría de entrada.
+  const catalogo = categorias.catalogo as CatalogoCotizador;
   const [medida, setMedida] = useState<PedidoALaMedida[]>([]);
 
-  const catalogo = useMemo<CatalogoCotizador>(() => {
-    const deMaquinaria = activas.filter((k) => cotizadorDelSitio(k)?.tipo === 'maquinaria');
-    const conTriturados = activas.includes('triturados') && tabuladores.triturados;
-    if (deMaquinaria.length && tabuladores.maquinaria) {
-      const base = catalogoDeVarios(tabuladores.maquinaria, deMaquinaria) as CatalogoMaquinaria;
-      return conTriturados ? combinar(base, tabuladores.triturados) : base;
-    }
-    return tabuladores.triturados as CatalogoTriturados;
-  }, [tabuladores, activas]);
-
   /** ¿Tiene algo con precio en su tabulador? Entonces se suma con su cotizador. */
-  const conPrecio = (clave: string): boolean => {
-    const c = cotizadorDelSitio(clave);
-    const tab = c ? tabuladores[c.tipo] : null;
-    return !!c && !!tab && hayQueElegir(catalogoDelSitio(tab, c));
-  };
+  const conPrecio = (clave: string): boolean => categoriaConPrecio(tabuladores, clave);
   const opciones = COTIZADORES_SITIO.filter((c) => !activas.includes(c.clave) && !medida.some((m) => m.clave === c.clave)).map((c) => ({
     clave: c.clave,
     titulo: c.titulo,
@@ -95,7 +85,7 @@ export function CotizadorPublico({
     resumen: conPrecio(c.clave) ? c.resumen : 'Precio por confirmar',
   }));
   const agregar = (clave: string) => {
-    if (conPrecio(clave)) setActivas((a) => (a.includes(clave) ? a : [...a, clave]));
+    if (conPrecio(clave)) categorias.activar(clave);
     else setMedida((m) => (m.some((x) => x.clave === clave) ? m : [...m, { clave, elegidos: [], texto: '' }]));
   };
   const cambiarMedida = (clave: string, cambio: (m: PedidoALaMedida) => PedidoALaMedida) =>
@@ -105,7 +95,7 @@ export function CotizadorPublico({
   const notasExtra = medida.length
     ? `Por cotizar a la medida (precio por confirmar):\n${medida
         .map((m) => {
-          const detalle = [...m.elegidos.map((e) => `${e.nombre} · ${e.cantidad.trim() || '¿cuánto?'} ${unidadTexto(e.unidad)}`), m.texto.trim()].filter(Boolean).join('; ');
+          const detalle = [...m.elegidos.map((e) => `${e.nombre} · ${e.cantidad.trim() || '¿cuánto?'} ${unidadDeProducto(e.unidad)}`), m.texto.trim()].filter(Boolean).join('; ');
           return `- ${cotizadorDelSitio(m.clave)?.titulo ?? m.clave}: ${detalle || 'sin detalle'}`;
         })
         .join('\n')}`
@@ -197,13 +187,6 @@ export function CotizadorPublico({
   );
 }
 
-/** "m2" → "m²", "tonelada" → "ton"…; lo que no se conoce, tal cual (o "pieza" si no hay). */
-function unidadTexto(u: string | null): string {
-  const mapa: Record<string, string> = { m2: 'm²', m3: 'm³', tonelada: 'ton', toneladas: 'ton', pieza: 'pieza', piezas: 'pieza', viaje: 'viaje', hora: 'hora', dia: 'día', día: 'día' };
-  const k = (u ?? '').trim().toLowerCase();
-  return mapa[k] ?? (k || 'pieza');
-}
-
 /** Qué escribir cuando la categoría no tiene productos en el catálogo (venta de maquinaria, hoy). */
 const EJEMPLO_MEDIDA: Record<string, string> = {
   'venta-de-maquinaria': 'Qué equipo buscas, para qué uso y tu presupuesto aproximado',
@@ -242,7 +225,7 @@ function CotizadorALaMedida({ pedido, productos, cambiar, quitar }: {
               key={p.id}
               icono={c?.icono ?? 'material'}
               titulo={p.nombre}
-              nota={`por ${unidadTexto(p.unidad)} · precio por confirmar`}
+              nota={`por ${unidadDeProducto(p.unidad)} · precio por confirmar`}
               n={pedido.elegidos.some((e) => e.id === p.id) ? 1 : 0}
               onClick={() => alternar(p)}
             />
@@ -271,7 +254,7 @@ function CotizadorALaMedida({ pedido, productos, cambiar, quitar }: {
                   valor={e.cantidad}
                   onChange={(v) => cambiar((m) => ({ ...m, elegidos: m.elegidos.map((x) => (x.id === e.id ? { ...x, cantidad: v } : x)) }))}
                 />
-                <span className="cz-help" style={{ whiteSpace: 'nowrap' }}>{unidadTexto(e.unidad)}</span>
+                <span className="cz-help" style={{ whiteSpace: 'nowrap' }}>{unidadDeProducto(e.unidad)}</span>
               </div>
             </div>
           ))}

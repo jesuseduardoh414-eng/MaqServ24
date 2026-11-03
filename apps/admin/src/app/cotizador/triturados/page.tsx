@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
-import { CATALOGO_TRITURADOS_DEFAULT, COTIZADORES_META, type CatalogoCotizador } from '@maqserv/config';
+import { COTIZADORES_META } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
+import { cargarCotizador } from '@/lib/cotizador';
 import { AdminShell } from '@/components/AdminShell';
 import { CotizadorPanel, type SolicitudACotizar } from '../CotizadorPanel';
 
@@ -11,7 +12,8 @@ export default async function CotizadorTriturados({ searchParams }: { searchPara
   if (!admin) redirect('/login');
   exigirModulo(admin, 'cotizador');
 
-  const catalogo = (await adminFetch<CatalogoCotizador>('/admin/quoter/catalog/triturados')) ?? CATALOGO_TRITURADOS_DEFAULT;
+  // Los dos tabuladores: una cotización lleva cualquier categoría (2026-11-03).
+  const { tabuladores, productos } = await cargarCotizador();
 
   // ?solicitud=ID: cotizar una solicitud del sitio con el tabulador (2026-10-15).
   const sp = await searchParams;
@@ -22,7 +24,7 @@ export default async function CotizadorTriturados({ searchParams }: { searchPara
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <CotizadorPanel catalogo={catalogo} titulo="Cotizador de triturados" resumen={COTIZADORES_META.triturados.resumen}
+      <CotizadorPanel tabuladores={tabuladores} entrada="triturados" productos={productos} titulo="Cotizador de triturados" resumen={COTIZADORES_META.triturados.resumen}
         solicitud={solicitud}
         fichaId={fichaId}
         solicitudFallida={!!solicitudId && !solicitud}

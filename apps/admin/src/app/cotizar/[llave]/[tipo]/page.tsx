@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { CATALOGOS_DEFAULT, COTIZADORES_META, esAccesoDirecto, type CatalogoCotizador } from '@maqserv/config';
-import { adminFetch, getAdmin, tieneModulo } from '@/lib/admin';
+import { COTIZADORES_META, esAccesoDirecto } from '@maqserv/config';
+import { getAdmin, tieneModulo } from '@/lib/admin';
+import { cargarCotizador } from '@/lib/cotizador';
 import { llaveValida, tipoDirecto } from '@/lib/acceso-directo';
 import { CotizadorPanel } from '@/app/cotizador/CotizadorPanel';
 import { AppCotizador } from './AppCotizador';
@@ -50,12 +51,13 @@ export default async function CotizadorDirecto({ params }: Params) {
   const admin = await getAdmin();
   if (!admin || !tieneModulo(admin, 'cotizador')) redirect(`/api/acceso-directo?llave=${encodeURIComponent(llave)}&tipo=${tipo}`);
 
-  // Como en /cotizador/<tipo>: sin API se cotiza con el de fábrica y el servidor recalcula al guardar.
-  const catalogo = (await adminFetch<CatalogoCotizador>(`/admin/quoter/catalog/${tipo}`)) ?? CATALOGOS_DEFAULT[tipo];
+  // Como en /cotizador/<tipo>: los dos tabuladores (una cotización lleva cualquier
+  // categoría, 2026-11-03); sin API, los de fábrica, y el servidor recalcula al guardar.
+  const { tabuladores, productos } = await cargarCotizador();
 
   return (
     <AppCotizador tipo={tipo} llave={llave} nombre={esAccesoDirecto(admin.email) ? null : admin.name}>
-      <CotizadorPanel catalogo={catalogo} titulo={`Cotizador de ${COTIZADORES_META[tipo].titulo.toLowerCase()}`} resumen={COTIZADORES_META[tipo].resumen} app />
+      <CotizadorPanel tabuladores={tabuladores} entrada={tipo} productos={productos} titulo={`Cotizador de ${COTIZADORES_META[tipo].titulo.toLowerCase()}`} resumen={COTIZADORES_META[tipo].resumen} app />
     </AppCotizador>
   );
 }
