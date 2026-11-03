@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { COTIZADORES_SITIO } from '@maqserv/config';
 import { getBlogs, getSectors } from '@/lib/api';
 import { getTheme, t } from '@/lib/theme';
 import { SITE_URL } from '@/lib/seo';
@@ -34,8 +35,8 @@ export async function GET() {
     `- [Catálogo de servicios](${SITE_URL}/servicios): ${t(theme, 'seo.services.description')}`,
     `- [Categorías](${SITE_URL}/categorias): ${t(theme, 'seo.categories.description')}`,
     `- [Cotizador en línea](${SITE_URL}/cotizador): ${t(theme, 'seo.quoter.description')}`,
-    `- [Cotizador de maquinaria](${SITE_URL}/cotizador/maquinaria): ${t(theme, 'seo.quoter.machinery.description')}`,
-    `- [Cotizador de triturados](${SITE_URL}/cotizador/triturados): ${t(theme, 'seo.quoter.aggregates.description')}`,
+    // Un cotizador por categoría (2026-11-02).
+    ...COTIZADORES_SITIO.map((c) => `- [Cotizador de ${c.titulo.toLowerCase()}](${SITE_URL}/cotizador/${c.clave}): ${c.resumen}.`),
     `- [Quiénes somos](${SITE_URL}/quienes-somos): ${t(theme, 'seo.about.description')}`,
     `- [Contacto](${SITE_URL}/contacto): ${t(theme, 'seo.contact.description')}`,
     `- [Blog](${SITE_URL}/blog): ${t(theme, 'seo.blog.description')}`,

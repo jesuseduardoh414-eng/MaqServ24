@@ -5,6 +5,7 @@ import type { WhyChooseUsItem } from '@maqserv/types';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { CountUp } from '@/components/CountUp';
 import { Icon, type IconName } from '@/components/Icon';
+import { hrefDeCotizar } from '@/lib/enlace-cotizar';
 
 export interface InfSitio {
   frase: string | null; titulo: string | null; descripcion: string | null;
@@ -79,7 +80,7 @@ export function VistaQuienesSomos({ theme, info, allReasons, marco = true }: { t
                 <div className="qs-lead qs2-lead" dangerouslySetInnerHTML={{ __html: info.descripcion }} />
               ) : null}
               <div className="ms-hero-acts">
-                <Link href={qs.heroCtaLink} className="ms-btn ms-btn-lg">{qs.heroCta}</Link>
+                <Link href={hrefDeCotizar(qs.heroCtaLink)} className="ms-btn ms-btn-lg">{qs.heroCta}</Link>
                 <Link href={qs.heroCta2Link} className="ms-btn ms-btn-lg ms-btn-sec">{qs.heroCta2}</Link>
               </div>
             </div>

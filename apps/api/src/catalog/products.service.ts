@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
 import { sanitizeUserHtml } from '../common/sanitize';
-import { productSlug, LINEAS_SERVICIO, COTIZADORES_ACTIVOS, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario, type CotizadorTipo } from '@maqserv/config';
+import { productSlug, LINEAS_SERVICIO, COTIZADORES_ACTIVOS, tipoDeCatalogo, tarifasDe, horarioDe, textoHorario, cotizadorDeRenglon, lineaDeServicio, LINEA_MAQUINARIA, LINEA_TRITURADOS, type RenglonDelSitio } from '@maqserv/config';
 import { QuoterService } from '../quoter/quoter.service';
 import type { Paginated, ProductCard, ProductDetail, ProviderBadge } from '@maqserv/types';
 import { imageUrl } from './images';
@@ -66,18 +66,28 @@ export class ProductsService {
    * 4): "Cotizar" en el catálogo abre ESE cotizador con el tipo ya elegido, en
    * vez del formulario a la medida sin precio. Sale de los renglones visibles
    * de los cotizadores encendidos en el sitio; el tabulador ya viene en caché.
+   *
+   * Desde 2026-11-02 es la clave del cotizador DEL SITIO (uno por categoría):
+   * la pipa abre el de agua, no el de renta de maquinaria.
    */
-  private async cotizadorDeFichas(): Promise<Map<number, CotizadorTipo>> {
-    const mapa = new Map<number, CotizadorTipo>();
+  private async cotizadorDeFichas(): Promise<Map<number, string>> {
+    const mapa = new Map<number, string>();
     for (const tipo of COTIZADORES_ACTIVOS) {
       try {
         const cat = await this.quoter.catalogo(tipo);
         if (!cat.publico.habilitado) continue;
-        const renglones: Array<{ productos?: number[]; oculto?: boolean }> =
-          cat.tipo === 'maquinaria' ? [...cat.equipos, ...cat.servicios] : cat.productos;
+        const renglones: Array<{ productos?: number[]; oculto?: boolean; sitio: RenglonDelSitio }> =
+          cat.tipo === 'maquinaria'
+            ? [
+                ...cat.equipos.map((e) => ({ ...e, sitio: { clase: 'equipo' as const, linea: LINEA_MAQUINARIA } })),
+                ...cat.servicios.map((s) => ({ ...s, sitio: { clase: 'servicio' as const, linea: lineaDeServicio(s), cond: s.cond } })),
+              ]
+            : cat.productos.map((p) => ({ ...p, sitio: { clase: 'material' as const, linea: LINEA_TRITURADOS } }));
         for (const r of renglones) {
           if (r.oculto) continue;
-          for (const id of r.productos ?? []) if (!mapa.has(id)) mapa.set(id, tipo);
+          const clave = cotizadorDeRenglon(tipo, r.sitio)?.clave;
+          if (!clave) continue;
+          for (const id of r.productos ?? []) if (!mapa.has(id)) mapa.set(id, clave);
         }
       } catch { /* sin tabulador: se cotiza a la medida */ }
     }
@@ -89,7 +99,7 @@ export class ProductsService {
     catSlugs: Map<number, string>,
     provs: Map<number, ProviderBadge> = new Map(),
     bloqueos: Map<number, Array<{ state: string; starts_on: Date; ends_on: Date | null; note?: string | null }>> = new Map(),
-    cotizadores: Map<number, CotizadorTipo> = new Map(),
+    cotizadores: Map<number, string> = new Map(),
   ): ProductCard {
     return {
       quoter: cotizadores.get(p.id) ?? null,

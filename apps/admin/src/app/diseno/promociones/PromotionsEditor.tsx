@@ -13,7 +13,7 @@ type Formato = Promotions['format'];
 const DEFAULTS: Promotions = { show: true, format: 'vertical', items: [], eyebrowColor: null, titleColor: null, accentColor: null };
 const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
 const nuevoId = () => `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const nuevaPromo = (): PromoItem => ({ id: nuevoId(), enabled: true, video: null, image: null, badge: '', title: '', text: '', cta: 'Cotizar', ctaLink: '/cotizar', until: null });
+const nuevaPromo = (): PromoItem => ({ id: nuevoId(), enabled: true, video: null, image: null, badge: '', title: '', text: '', cta: 'Cotizar', ctaLink: '/cotizador', until: null });
 /** Hoy en Monterrey, igual que el sitio: así "vencida" significa lo mismo aquí y allá. */
 const hoyEnMonterrey = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date());
 
@@ -295,7 +295,7 @@ export function PromotionsEditor({ themeId, copys, tokens, promotions }: {
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                       <Field label="Texto del botón (vacío = sin botón)"><input value={it.cta} onChange={(e) => setItem(it.id, { cta: e.target.value })} placeholder="Cotizar" style={inputStyle} /></Field>
-                      <Field label="Enlace del botón"><input value={it.ctaLink} onChange={(e) => setItem(it.id, { ctaLink: e.target.value })} placeholder="/cotizar" style={inputStyle} /></Field>
+                      <Field label="Enlace del botón"><input value={it.ctaLink} onChange={(e) => setItem(it.id, { ctaLink: e.target.value })} placeholder="/cotizador" style={inputStyle} /></Field>
                     </div>
                   </div>
                 </div>

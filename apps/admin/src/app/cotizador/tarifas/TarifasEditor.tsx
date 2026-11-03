@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   COTIZADORES_META,
+  camionesDe,
   cobraFlete,
+  minimoCamionDe,
   minimoHorasDe,
   precioHoraDe,
   type CatalogoCotizador,
@@ -483,6 +485,8 @@ function EditorTriturados({ cat, set, fichas }: {
         </div>
       </Panel>
 
+      <PedidoGrande cat={cat} set={set} />
+
       <div className="tf-dos" style={{ marginTop: 20 }}>
         <Panel icon="ph-mountains" title="Material de banco" desc="Se cotiza por m³ y se entrega en camión; no se pesa.">
           <div className="adm-form-grid">
@@ -512,6 +516,66 @@ function EditorTriturados({ cat, set, fichas }: {
         </Panel>
       </div>
     </>
+  );
+}
+
+/**
+ * EL PEDIDO GRANDE EN TOLVA O FULL (2026-11-03): el flete por tonelada de
+ * cada camión en cada zona de entrega, y desde cuántas toneladas se ofrece.
+ * Vacío = sin precio todavía: la cotización dice que el flete se confirma
+ * aparte (el dueño manda los costos después).
+ */
+function PedidoGrande({ cat, set }: { cat: CatalogoTriturados; set: (p: Partial<CatalogoCotizador>) => void }) {
+  const camiones = camionesDe(cat);
+  const columnas = `minmax(0, 1fr) repeat(${camiones.length}, 140px)`;
+  const ponerPrecio = (camionId: string, zonaId: string, valor: string) => {
+    const n = Number(valor);
+    set({
+      camiones: camiones.map((c) => {
+        if (c.id !== camionId) return c;
+        const { [zonaId]: _antes, ...resto } = c.precios_ton;
+        return { ...c, precios_ton: valor.trim() && n > 0 ? { ...resto, [zonaId]: n } : resto };
+      }),
+    } as Partial<CatalogoCotizador>);
+  };
+  return (
+    <Panel
+      flush
+      clip
+      icon="ph-truck"
+      title="Pedido grande · tolva o full"
+      desc="Flete por tonelada de cada camión según la zona de entrega. Vacío: todavía sin precio y la cotización dice que el flete se confirma aparte."
+      style={{ marginTop: 20 }}
+    >
+      <div className="tf-tabla">
+        <div className="tf-suelto">
+          <span className="tf-nombre">Desde cuántas toneladas</span>
+          <input className="adm-input adm-num" type="number" min="1" value={minimoCamionDe(cat)} onChange={(e) => set({ minimo_camion_ton: Number(e.target.value) } as Partial<CatalogoCotizador>)} aria-label="Toneladas mínimas del pedido grande" />
+        </div>
+        <div className="adm-thead" style={{ gridTemplateColumns: columnas }}>
+          <div>Zona</div>
+          {camiones.map((c) => <div key={c.id}>{c.nombre} · $/ton</div>)}
+        </div>
+        {cat.zonas.map((z) => (
+          <div key={z.id} className="adm-trow" style={{ gridTemplateColumns: columnas }}>
+            <span className="tf-nombre">{z.nombre}</span>
+            {camiones.map((c) => (
+              <div key={c.id} className="tf-pesos">
+                <input
+                  className="adm-input adm-num"
+                  type="number"
+                  min="0"
+                  placeholder="Sin precio"
+                  value={c.precios_ton[z.id] ?? ''}
+                  onChange={(e) => ponerPrecio(c.id, z.id, e.target.value)}
+                  aria-label={`Flete en ${c.nombre} a ${z.nombre}, por tonelada`}
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
 

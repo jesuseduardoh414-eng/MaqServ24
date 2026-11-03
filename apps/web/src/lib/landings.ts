@@ -181,10 +181,11 @@ export const LANDINGS: Landing[] = [
         respuesta: `En ${ZONA}.`,
       },
     ],
-    // Pipas y retiros tienen precio en el cotizador de maquinaria (2026-10-08):
-    // el botón lleva ahí y no al formulario sin precio. El material de banco
-    // salió del cotizador el 2026-10-21 (pedido del cliente).
-    cotizar: { href: '/cotizador/maquinaria', texto: 'Cotizar en línea' },
+    // Pipas y retiros tienen precio en el tabulador de maquinaria (2026-10-08):
+    // el botón lleva al cotizador y no al formulario sin precio. Desde
+    // 2026-11-02 hay uno por categoría; el agua es la que más se pide (los
+    // acarreos están junto, en el menú y en /cotizador).
+    cotizar: { href: '/cotizador/agua', texto: 'Cotizar agua en línea' },
   },
   {
     ruta: '/triturados',
@@ -246,7 +247,8 @@ export const LANDINGS: Landing[] = [
         respuesta: `En ${ZONA}.`,
       },
     ],
-    cotizar: { href: '/cotizar?servicio=materiales-para-construccion', texto: 'Solicitar cotización' },
+    // Su cotizador (2026-11-02): mientras el block no tenga precio, de ahí se pide a la medida.
+    cotizar: { href: '/cotizador/materiales', texto: 'Cotizar block' },
   },
   {
     ruta: '/carpeta-asfaltica',
@@ -275,7 +277,8 @@ export const LANDINGS: Landing[] = [
         respuesta: `En ${ZONA}.`,
       },
     ],
-    cotizar: { href: '/cotizar?servicio=soluciones-asfalticas', texto: 'Solicitar cotización' },
+    // Su cotizador (2026-11-02): mientras no tenga precio, de ahí se pide a la medida.
+    cotizar: { href: '/cotizador/carpeta-asfaltica', texto: 'Cotizar carpeta asfáltica' },
   },
 ];
 

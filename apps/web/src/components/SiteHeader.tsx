@@ -1,5 +1,5 @@
 import Link from '@/components/Enlace';
-import { defaultTheme, type Theme } from '@maqserv/config';
+import { COTIZADORES_SITIO, defaultTheme, type Theme } from '@maqserv/config';
 import { t } from '@/lib/theme';
 import { getSiteSettings } from '@/lib/api';
 import { HeaderActions } from '@/components/HeaderActions';
@@ -52,16 +52,13 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
         { href: '/categorias', label: t(theme, 'nav.solutions.all'), description: t(theme, 'nav.solutions.all.hint') },
       ],
     },
-    // Cotizador: el único con submenú. Son DOS herramientas con tabuladores
-    // distintos —maquinaria y triturados— con el PRECIO ÚNICO de MAQSER24
-    // (se regresó a esto el 2026-09-28: "el cotizador es un solo precio").
+    // Cotizador: un cotizador por categoría (2026-11-02, pedido del dueño), en
+    // el orden de COTIZADORES_SITIO. Por dentro siguen siendo los dos
+    // tabuladores con el PRECIO ÚNICO de MAQSER24; cada uno enseña su parte.
     {
       href: '/cotizador',
       label: t(theme, 'nav.quoter'),
-      children: [
-        { href: '/cotizador/maquinaria', label: t(theme, 'nav.quoter.machinery'), description: t(theme, 'nav.quoter.machinery.hint') },
-        { href: '/cotizador/triturados', label: t(theme, 'nav.quoter.aggregates'), description: t(theme, 'nav.quoter.aggregates.hint') },
-      ],
+      children: COTIZADORES_SITIO.map((c) => ({ href: `/cotizador/${c.clave}`, label: c.titulo, description: c.resumen })),
     },
     { href: '/quienes-somos', label: t(theme, 'nav.about') },
     { href: '/blog', label: t(theme, 'nav.blog') },

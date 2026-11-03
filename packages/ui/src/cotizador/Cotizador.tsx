@@ -6,12 +6,15 @@ import {
   condicionesSinPrecios,
   conZonaDeLaObra,
   esUbicacionDeMapas,
+  faltaMinimoCamion,
   faltaZona,
   llevaFlete,
-  pasosDe,
+  RECOGE_EN_PLANTA,
+  saludoDe,
   problemaEmail,
   problemaTelefono,
   soloVisibles,
+  trituradosDe,
   SERVICIO_A_MANO,
   type CalculoCotizacion,
   type CatalogoCotizador,
@@ -25,8 +28,7 @@ import { COTIZADOR_CSS } from './estilos';
 import { DOCUMENTO_CSS, documentoCuerpo, imprimirDocumento, type DatosDocumento } from './documento';
 import { compartirArchivo, descargarArchivo, documentoPdf } from './pdf';
 import { money } from './formato';
-import { IconoCotizador } from './iconos';
-import { Aviso, Campo } from './piezas';
+import { Aviso, Campo, Tarjeta } from './piezas';
 import { ShButton } from '../shadcn/button';
 import { ShCombobox } from '../shadcn/combobox';
 import { ShInput, ShTextarea } from '../shadcn/input';
@@ -35,6 +37,7 @@ import { ShDatePicker } from '../shadcn/date-picker';
 import {
   CONTEXTO_VACIO,
   aPartidas,
+  formaDe,
   lineaDeBanco,
   lineaDeEquipo,
   lineaDeMaterial,
@@ -46,15 +49,17 @@ import {
   type ClientePanel,
   type ContextoCotizador,
   type EmpresaCliente,
+  type FormaTriturados,
   type LineaCotizador,
   type LineaEquipo,
   type LineaMaquinaria,
   type LineaMaterial,
   type LineaServicio,
   type LineaTriturados,
+  type LineaZona,
 } from './estado';
-import { PasoDuracion, PasoEquipos, PasoServicios, ServiciosDelInicio } from './pasos-maquinaria';
-import { AjustesDelTotal, Facturacion, PasoPedido, entregaDecidida } from './pasos-triturados';
+import { PasoDuracion, PasoEquipos, PasoServicios } from './pasos-maquinaria';
+import { AjustesDelTotal, Facturacion, PasoPedido, entregaDecidida, zonaDelMunicipio } from './pasos-triturados';
 
 /**
  * Correo y teléfono del contacto, con las reglas de la API (@maqserv/config).
@@ -119,34 +124,67 @@ export interface CotizadorProps {
    * guardar, solo es para saber precios"): no se guarda nada; al final el
    * documento, sin folio, se manda por WhatsApp o se descarga en PDF.
    *
-   * El paso «Datos de la obra» SÍ va (2026-10-30, pedido del dueño: "el
-   * cliente siempre debe ir en el documento"); un día se quitó y se regresó.
+   * El cliente SÍ va (2026-10-30, pedido del dueño: "el cliente siempre debe
+   * ir en el documento"); desde 2026-11-03 en una tarjeta compacta en la misma
+   * pantalla que lo que se cotiza (`DatosCliente`), no en un paso aparte.
    */
   soloPrecios?: boolean;
+  /**
+   * El título del documento (2026-11-02): el sitio tiene un cotizador por
+   * categoría y el de agua no es una "Cotización de maquinaria". Sin él, el
+   * del tabulador.
+   */
+  titulo?: string;
+  /**
+   * «¿Necesitas otro servicio?» (sitio, 2026-11-03, pedido del dueño): las
+   * demás categorías del mismo tabulador; tocar una agrega sus opciones a esta
+   * misma cotización.
+   */
+  masServicios?: { opciones: Array<{ clave: string; titulo: string; resumen: string; icono: string }>; agregar: (clave: string) => void };
+  /** Debajo del acuse: volver a preguntar si necesita cotizar otro servicio (sitio). */
+  despues?: ReactNode;
+  /**
+   * Servicios extra de otras categorías en esta MISMA solicitud (sitio,
+   * 2026-11-03): se pintan arriba de «¿Necesitas otro servicio?» y su texto
+   * (`notasExtra`) va en las notas del documento y de la solicitud.
+   */
+  extras?: ReactNode;
+  notasExtra?: string;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
 }
 
+/** Las dos pantallas: armar (cliente y lo que se cotiza) y el documento. */
+const PASOS = [{ clave: 'armar' }, { clave: 'resumen' }] as const;
+
 /**
- * EL COTIZADOR, PASO A PASO.
+ * EL COTIZADOR.
  *
  * Un solo componente para las dos apps y los dos cotizadores. Lo que cambia
- * entre ellos —qué se pregunta en cada paso— vive en `pasos-maquinaria` y
- * `pasos-triturados`; lo que comparten —el avance, el resumen en vivo, el
- * documento y el envío— vive aquí.
+ * entre ellos —qué se elige y cómo— vive en `pasos-maquinaria` y
+ * `pasos-triturados`; lo que comparten —el cliente, el total, el documento y
+ * el envío— vive aquí.
  *
- * POR QUÉ POR PASOS y no todo en una pantalla, que es como venía: separando
- * "qué equipo" de "cuánto tiempo", lo que cambia el precio (las horas y su
- * mínimo; antes, el tramo día/semana/mes) se anuncia cuando se decide.
+ * Fue por pasos (obra, equipos, duración, servicios, resumen) hasta el
+ * 2026-11-03; ahora es una sola pantalla para armar y otra con el documento.
  *
  * El cálculo corre EN EL NAVEGADOR mientras se edita (mismo motor que la API,
  * importado de `@maqserv/config`) y el servidor lo repite al guardar. No es
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, masServicios, despues, extras, notasExtra = '', onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
-  const pasos = pasosDe(tipo);
+  /**
+   * EN UNA SOLA PANTALLA (2026-11-03, con la captura del cotizador de PUCSA:
+   * primero el enlace y el mismo día el sitio y el panel). Arriba los datos
+   * del cliente, debajo lo que se cotiza y abajo una barra con el total y
+   * «Cotización →», que lleva al documento. Son dos pantallas: armar y el
+   * documento; ya no hay barra de pasos.
+   */
+  const pasos = PASOS;
   const esPanel = variante === 'panel';
+  /** Triturados: el tabulador de esta cotización, o el que viaja con una de maquinaria (una sola cotización con todo, 2026-11-03). */
+  const catTrit = trituradosDe(catalogo);
 
   /**
    * DOS PREGUNTAS DISTINTAS, que antes eran una sola.
@@ -192,32 +230,11 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const [tocado, setTocado] = useState(false);
   const [hecho, setHecho] = useState<ResultadoEnvio | null>(null);
 
-  /**
-   * La barra de pasos se centra sola en el paso actual.
-   *
-   * Al ir en UNA fila que se desplaza, en un teléfono solo se ven dos o tres
-   * de los cinco: sin esto, al avanzar al paso 4 la barra seguía enseñando el
-   * 1 y el 2 y parecía que no había pasado nada.
-   *
-   * Se mueve el CONTENEDOR y no se usa `scrollIntoView`, que además desplaza
-   * la página en vertical y daría un salto en cada paso.
-   */
-  const barraPasos = useRef<HTMLOListElement>(null);
-  useEffect(() => {
-    const cont = barraPasos.current;
-    const activo = cont?.querySelector<HTMLElement>('[data-estado="activo"]');
-    if (!cont || !activo) return;
-    cont.scrollTo({
-      left: activo.offsetLeft - (cont.clientWidth - activo.offsetWidth) / 2,
-      behavior: 'smooth',
-    });
-  }, [paso]);
-
   const opciones: Partial<OpcionesCotizador> = tipo === 'maquinaria' ? { modo_unidad: modoUnidad } : { con_iva: conIva };
   // El agua sin zona elegida a mano toma la del municipio de la obra (2026-10-29).
   const partidas = useMemo(() => conZonaDeLaObra(catalogo, aPartidas(lineas), ctx.municipio), [catalogo, lineas, ctx.municipio]);
   // Triturados con flete: la ubicación en Google Maps va en el documento (2026-10-29).
-  const ubicacionValida = tipo === 'triturados' && llevaFlete(partidas) && esUbicacionDeMapas(ctx.ubicacion);
+  const ubicacionValida = !!catTrit && llevaFlete(partidas) && esUbicacionDeMapas(ctx.ubicacion);
   const calc = useMemo(() => calcularCotizacion(catalogo, partidas, opciones), [catalogo, partidas, modoUnidad, conIva]);
   /**
    * LO QUE SE ENSEÑA EN EL SITIO (2026-10-23). El tabulador llega en ceros y el
@@ -236,10 +253,9 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
    * (2026-10-19). El cálculo sigue con el tabulador completo, y lo que ya trae
    * la cotización se queda en la lista aunque esté oculto.
    */
-  const paraElegir = useMemo(
-    () => soloVisibles(catalogo, lineas.map((l) => (l.tipo === 'zona' ? l.productoId : 'id' in l ? l.id : ''))),
-    [catalogo, lineas],
-  );
+  const enUso = lineas.map((l) => (l.tipo === 'zona' ? l.productoId : 'id' in l ? l.id : ''));
+  const paraElegir = useMemo(() => soloVisibles(catalogo, enUso), [catalogo, lineas]);
+  const paraElegirTrit = useMemo(() => (catTrit ? (soloVisibles(catTrit, enUso) as CatalogoTriturados) : null), [catTrit, lineas]);
 
   // ---- edición de líneas ----
   const agregar = (l: LineaCotizador) => setLineas((prev) => [...prev, l]);
@@ -266,6 +282,41 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const esServicio = (id: string) => (l: LineaCotizador) => l.tipo === 'servicio' && l.id === id;
 
   /**
+   * TRITURADOS: CÓMO LO QUIERE (2026-11-03). En planta, por viaje o pedido
+   * grande en tolva o full; una cotización va de una sola forma. Se deduce de
+   * lo que ya trae (al volver a una cotización) y se elige con tarjetas.
+   */
+  const [forma, setForma] = useState<FormaTriturados | null>(() => formaDe(lineasIniciales ?? []));
+  const zonaObraTrit = () => (catTrit ? zonaDelMunicipio(catTrit, ctx.municipio) : null);
+  /** Con qué entrega nace un material en cada forma: en planta, sin flete; en el grande, tolva y la zona de la obra. */
+  const entregaDe = (f: FormaTriturados | null, otro?: LineaMaterial): Pick<LineaMaterial, 'fleteTon' | 'fleteZona' | 'camion'> =>
+    otro
+      ? { fleteTon: otro.fleteTon, fleteZona: otro.fleteZona, camion: otro.camion }
+      : f === 'grande'
+        ? { fleteTon: 0, fleteZona: zonaObraTrit()?.nombre ?? '', camion: 'tolva' }
+        : { fleteTon: 0, fleteZona: RECOGE_EN_PLANTA, camion: '' };
+  const cambiarForma = (f: FormaTriturados) => {
+    if (f === forma || !catTrit) return;
+    setForma(f);
+    const cat = catTrit;
+    const zona = zonaObraTrit();
+    setLineas((prev) => {
+      const materiales = prev.filter((l): l is LineaMaterial => l.tipo === 'material');
+      const viajes = prev.filter((l): l is LineaZona => l.tipo === 'zona');
+      const resto = prev.filter((l) => l.tipo !== 'material' && l.tipo !== 'zona');
+      // Lo ya elegido se pasa a la forma nueva: mismo material, otra entrega.
+      if (f === 'viaje') {
+        const ids = [...new Set([...viajes.map((l) => l.productoId), ...materiales.filter((l) => l.id !== 'custom').map((l) => l.id)])];
+        const zonaId = viajes[0]?.zonaId || zona?.id || '';
+        return [...resto, ...ids.map((id): LineaZona => viajes.find((l) => l.productoId === id) ?? { ...lineaDeZona(cat), productoId: id, zonaId })];
+      }
+      const ids = materiales.length ? null : [...new Set(viajes.map((l) => l.productoId))];
+      const base = materiales.length ? materiales : (ids ?? []).map((id) => lineaDeMaterial(cat, id));
+      return [...resto, ...base.map((l) => ({ ...l, ...entregaDe(f) }))];
+    });
+  };
+
+  /**
    * Triturados: un material por tonelada nace sin elegir (su selector se abre
    * solo) y hereda el flete que ya tenga la sección, que es uno por obra.
    */
@@ -278,7 +329,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
       // para elegir (2026-10-30, pedido del dueño).
       const linea: LineaMaterial = {
         uid, tipo: 'material', id: 'custom', nombre: '', precio: '', toneladas: '',
-        fleteTon: otro?.fleteTon ?? 0, fleteZona: otro?.fleteZona ?? '',
+        ...entregaDe(forma, otro),
       };
       return [...prev, linea];
     });
@@ -295,79 +346,54 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     setLineas((prev) => {
       if (prev.some((l) => l.tipo === 'material' && l.id === id)) return prev.filter((l) => !(l.tipo === 'material' && l.id === id));
       const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material');
-      const base = lineaDeMaterial(catalogo as CatalogoTriturados, id);
-      return [...prev, { ...base, uid, fleteTon: otro?.fleteTon ?? 0, fleteZona: otro?.fleteZona ?? '' }];
+      const base = lineaDeMaterial(catTrit as CatalogoTriturados, id);
+      return [...prev, { ...base, uid, ...entregaDe(forma, otro) }];
     });
     setNuevo(uid);
+  };
+
+  /** Por viaje (2026-11-03): tocar un material agrega su viaje (a la zona de los demás o de la obra); otra vez, lo quita. */
+  const alternarViaje = (productoId: string) => {
+    setLineas((prev) => {
+      if (prev.some((l) => l.tipo === 'zona' && l.productoId === productoId)) return prev.filter((l) => !(l.tipo === 'zona' && l.productoId === productoId));
+      const otro = prev.find((l): l is LineaZona => l.tipo === 'zona');
+      return [...prev, { ...lineaDeZona(catTrit as CatalogoTriturados), productoId, zonaId: otro?.zonaId || zonaObraTrit()?.id || '' }];
+    });
   };
 
   // ---- validación por paso ----
   const clave = pasos[paso]?.clave ?? '';
 
-  /**
-   * La ayuda del paso, corregida cuando el costo va al final: el paso de
-   * entrega ya no elige flete ni factura —son un precio y se mudaron al
-   * resumen— y anunciarlos aquí mandaría a buscar algo que no está.
-   */
-  const ayuda =
-    preciosAlFinal && clave === 'pedido'
-      ? 'Qué material y cuánto. El costo, la tarifa del flete y la factura se ven en el último paso.'
-      : preciosAlFinal && clave === 'resumen'
-        ? 'Aquí aparece el costo. Revísalo antes de solicitar el servicio.'
-        // En el sitio no se habla de tarifas ni de costo (2026-10-23).
-        : !esPanel && clave === 'duracion'
-          ? 'Cuántos días u horas necesitas cada equipo.'
-          : !esPanel && clave === 'resumen'
-            ? sitioConPrecios
-              ? tipo === 'triturados'
-                ? 'Dinos si necesitas factura y revisa tu cotización antes de enviarla.'
-                : 'Revisa tu cotización antes de enviarla.'
-              : tipo === 'triturados'
-                ? 'Dinos si necesitas factura y revisa tu solicitud. El precio te lo mandamos por correo.'
-                : 'Revisa tu solicitud antes de enviarla. El precio te lo mandamos por correo.'
-            : (pasos[paso]?.ayuda ?? '');
-
-  /** El desglose lateral, solo cuando el costo ya está a la vista. */
-  const importesALaVista = verPrecios && (preciosEnPasos || clave === 'resumen');
-  const faltante = useMemo(
-    () => validar(clave, { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel, soloPrecios, zona: faltaZona(catalogo, partidas, ctx.municipio) }),
-    [clave, ctx, lineas, esPanel, calcVista, clientesPanel, soloPrecios, catalogo, partidas],
-  );
+  const faltante = useMemo(() => {
+    const d = { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel, soloPrecios, forma, minimoCamion: faltaMinimoCamion(catalogo, partidas), zona: faltaZona(catalogo, partidas, ctx.municipio) };
+    if (clave !== 'armar') return validar(clave, d);
+    // La pantalla única junta lo que antes eran pasos: se revisa en ese orden.
+    const conTriturados = lineas.some((l) => l.tipo === 'material' || l.tipo === 'zona');
+    const claves = tipo === 'maquinaria' ? ['obra', 'duracion', 'servicios', ...(conTriturados ? ['pedido'] : [])] : ['obra', 'pedido'];
+    for (const k of claves) {
+      const f = validar(k, d);
+      if (f) return f;
+    }
+    return null;
+  }, [clave, tipo, ctx, lineas, esPanel, calcVista, clientesPanel, soloPrecios, forma, catalogo, partidas]);
   const puedeAvanzar = faltante === null;
 
-  /**
-   * Al cambiar de paso, la pantalla sube a la barra de pasos (2026-10-28): en el
-   * teléfono se quedaba en el botón "Continuar" y el paso nuevo empezaba más arriba.
-   */
+  /** Al pasar al documento (o volver a editar), la pantalla empieza arriba. */
   const primerPaso = useRef(true);
   useEffect(() => {
     if (primerPaso.current) { primerPaso.current = false; return; }
-    const el = barraPasos.current;
-    if (!el) return;
-    const arriba = el.getBoundingClientRect().top;
-    if (arriba < 0 || arriba > window.innerHeight * 0.35) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [paso]);
 
-  /**
-   * Sin maquinaria no hay duración que pedir (2026-10-29): quien solo quiere
-   * agua o retiro de material pasa de «Equipos» directo a «Servicios».
-   */
-  const saltar = (i: number) => pasos[i]?.clave === 'duracion' && !lineas.some((l) => l.tipo === 'equipo');
   const avanzar = () => {
     setTocado(true);
     if (!puedeAvanzar) return;
     setTocado(false);
-    setPaso((p) => {
-      const n = Math.min(pasos.length - 1, p + 1);
-      return saltar(n) ? Math.min(pasos.length - 1, n + 1) : n;
-    });
+    setPaso((p) => Math.min(pasos.length - 1, p + 1));
   };
   const retroceder = () => {
     setTocado(false);
-    setPaso((p) => {
-      const n = Math.max(0, p - 1);
-      return saltar(n) ? Math.max(0, n - 1) : n;
-    });
+    setPaso((p) => Math.max(0, p - 1));
   };
 
   // ---- solo precios (acceso directo): el documento en PDF, para WhatsApp o descargarlo ----
@@ -414,16 +440,17 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
 
   // ---- documento ----
   const datosDoc = (folio: string): DatosDocumento => ({
-    titulo: tipo === 'maquinaria' ? 'Cotización de maquinaria' : 'Cotización de triturados',
+    titulo: titulo ?? (tipo === 'maquinaria' ? 'Cotización de maquinaria' : 'Cotización de triturados'),
     folio,
     cliente: ctx.cliente,
     obra: ctx.obra,
     atencion: ctx.atencion,
     municipio: ctx.municipio,
-    notas: ctx.notas,
+    notas: [ctx.notas.trim(), notasExtra].filter(Boolean).join('\n\n'),
     empresa: catalogo.empresa,
     firma: catalogo.firma,
-    saludo: catalogo.saludo,
+    // Solo agua o solo block no es "renta de maquinaria" (2026-11-02).
+    saludo: saludoDe(catalogo, partidas),
     // En el acceso directo no se pide la ubicación: su documento no la menciona (2026-10-30).
     calc: sinUbicacion ? sinFraseDeMapas(calcVista) : calcVista,
     // Cuándo y dónde (2026-10-23): lo que el cliente pidió para su obra.
@@ -457,7 +484,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     setEnviando(true);
     setError(null);
     try {
-      const r = await onEnviar({ contexto: ctx, opciones, partidas });
+      const notas = [ctx.notas.trim(), notasExtra].filter(Boolean).join('\n\n');
+      const r = await onEnviar({ contexto: { ...ctx, notas }, opciones, partidas });
       setHecho(r);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo enviar la cotización.');
@@ -470,6 +498,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     setHecho(null);
     setLineas([]);
     setNuevo(null);
+    setForma(null);
     setCtx({ ...CONTEXTO_VACIO, ...inicial });
     setPaso(0);
     setError(null);
@@ -509,6 +538,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               <Aviso tono="bad">{error}</Aviso>
             </div>
           ) : null}
+          {despues ? <div className="cz-despues">{despues}</div> : null}
         </div>
       </div>
     );
@@ -520,108 +550,82 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     <div className="cz" data-variante={variante}>
       <style>{COTIZADOR_CSS}</style>
 
-      <ol className="cz-steps" ref={barraPasos}>
-        {pasos.map((p, i) => {
-          const estado = i === paso ? 'activo' : i < paso ? 'hecho' : 'pendiente';
-          return (
-            <li key={p.clave} className="cz-step" data-estado={estado}>
-              {/* Se puede volver a un paso ya hecho, nunca saltar hacia adelante:
-                  lo de adelante depende de lo que se conteste antes. */}
-              <button
-                type="button"
-                disabled={i >= paso}
-                onClick={() => i < paso && setPaso(i)}
-                aria-current={i === paso ? 'step' : undefined}
-                // El número por sí solo no dice en cuál vas ni cuántos faltan:
-                // el color no es información para quien no lo distingue.
-                aria-label={`Paso ${i + 1} de ${pasos.length}: ${p.titulo}${estado === 'hecho' ? ' (completado)' : ''}`}
-              >
-                <span className="cz-step-n" aria-hidden>
-                  {estado === 'hecho' ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}
-                </span>
-                <span className="cz-step-t">{p.titulo}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-
-      {/* La ayuda del paso va FUERA de la rejilla, a todo el ancho. Dentro de
-          la columna izquierda empujaba esa columna hacia abajo y las dos
-          tarjetas —la del paso y el resumen— arrancaban a alturas distintas. */}
-      <div className="cz-ayuda">
-        <span className="cz-ayuda-n">Paso {paso + 1} de {pasos.length}</span>
-        <span className="cz-ayuda-t">{ayuda}</span>
-      </div>
-
       <div className="cz-grid">
         <div>
-          {clave === 'obra' ? (
-            <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} minimo={soloPrecios} />
+          {/* El cliente arriba y, debajo, lo que se cotiza (2026-11-03). */}
+          {clave === 'armar' ? (
+            <div className="cz-cliente">
+              {soloPrecios ? (
+                <DatosCliente
+                  ctx={ctx}
+                  setCtx={setCtx}
+                  catalogo={catalogo}
+                  clientes={clientesPanel?.lista}
+                  tocado={tocado}
+                  modoUnidad={tipo === 'maquinaria' ? { valor: modoUnidad, poner: setModoUnidad } : undefined}
+                />
+              ) : (
+                <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} />
+              )}
+            </div>
+          ) : null}
+          {tipo === 'maquinaria' && clave === 'armar' ? (
+            <>
+              {/* Sin equipos en este cotizador (agua, acarreos…), sin su tarjeta. */}
+              {(catalogo as CatalogoMaquinaria).equipos.length ? (
+                <PasoEquipos
+                  cat={paraElegir as CatalogoMaquinaria}
+                  lineas={lineas as LineaMaquinaria[]}
+                  mostrarPrecios={preciosEnPasos}
+                  alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
+                  agregarOtra={(id) => agregar(lineaDeEquipo(id))}
+                />
+              ) : null}
+              {lineas.some((l) => l.tipo === 'equipo') ? (
+                <PasoDuracion
+                  cat={catalogo as CatalogoMaquinaria}
+                  lineas={lineas as LineaMaquinaria[]}
+                  mostrarPrecios={preciosEnPasos}
+                  editarPrecios={editarPrecios}
+                  actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaEquipo>)}
+                  quitar={quitar}
+                />
+              ) : null}
+              {(catalogo as CatalogoMaquinaria).servicios.length ? (
+                <PasoServicios
+                  cat={paraElegir as CatalogoMaquinaria}
+                  lineas={lineas as LineaMaquinaria[]}
+                  mostrarPrecios={preciosEnPasos}
+                  editarPrecios={editarPrecios}
+                  municipio={ctx.municipio}
+                  elegirZona={esPanel}
+                  alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
+                  actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
+                  quitar={quitar}
+                  agregarOtro={esPanel ? () => agregar(lineaDeServicioAMano()) : undefined}
+                />
+              ) : null}
+            </>
           ) : null}
 
-          {tipo === 'maquinaria' && clave === 'equipos' ? (
-            <PasoEquipos
-              cat={paraElegir as CatalogoMaquinaria}
-              lineas={lineas as LineaMaquinaria[]}
-              mostrarPrecios={preciosEnPasos}
-              alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
-              agregarOtra={(id) => agregar(lineaDeEquipo(id))}
-            />
-          ) : null}
-          {/* Los servicios también aquí (2026-10-30): quien solo quiere agua o retiro no tiene que avanzar. */}
-          {tipo === 'maquinaria' && clave === 'equipos' ? (
-            <ServiciosDelInicio
-              cat={paraElegir as CatalogoMaquinaria}
-              lineas={lineas as LineaMaquinaria[]}
-              mostrarPrecios={preciosEnPasos}
-              municipio={ctx.municipio}
-              elegirZona={esPanel}
-              alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
-            />
-          ) : null}
-
-          {tipo === 'maquinaria' && clave === 'duracion' ? (
-            <PasoDuracion
-              cat={catalogo as CatalogoMaquinaria}
-              lineas={lineas as LineaMaquinaria[]}
-              mostrarPrecios={preciosEnPasos}
-              editarPrecios={editarPrecios}
-              actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaEquipo>)}
-              quitar={quitar}
-            />
-          ) : null}
-
-          {tipo === 'maquinaria' && clave === 'servicios' ? (
-            <PasoServicios
-              cat={paraElegir as CatalogoMaquinaria}
-              lineas={lineas as LineaMaquinaria[]}
-              mostrarPrecios={preciosEnPasos}
-              editarPrecios={editarPrecios}
-              municipio={ctx.municipio}
-              elegirZona={esPanel}
-              alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
-              actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
-              quitar={quitar}
-              agregarOtro={esPanel ? () => agregar(lineaDeServicioAMano()) : undefined}
-            />
-          ) : null}
-
-          {tipo === 'triturados' && clave === 'pedido' ? (
+          {paraElegirTrit && clave === 'armar' ? (
             <PasoPedido
-              cat={paraElegir as CatalogoTriturados}
+              encabezado={tipo === 'maquinaria' ? 'Triturados: ¿cómo los quieres?' : undefined}
+              cat={paraElegirTrit}
               lineas={lineas as LineaTriturados[]}
               mostrarPrecios={preciosEnPasos}
               editarPrecios={editarPrecios}
               alternarMaterial={alternarMaterial}
+              alternarViaje={alternarViaje}
+              forma={forma}
+              cambiarForma={cambiarForma}
               ubicacion={ctx.ubicacion}
               ponerUbicacion={sinUbicacion ? undefined : (ubicacion) => setCtx((c) => ({ ...c, ubicacion }))}
               ubicacionObligatoria={!esPanel}
               preciosAlFinal={preciosAlFinal}
               permitirOtro={esPanel}
               agregarMaterial={agregarMaterial}
-              agregarZona={() => agregar(lineaDeZona(paraElegir as CatalogoTriturados))}
-              agregarBanco={() => agregar(lineaDeBanco(catalogo as CatalogoTriturados))}
+              agregarBanco={() => agregar(lineaDeBanco(catTrit as CatalogoTriturados))}
               actualizar={actualizar}
               quitar={quitar}
               nuevo={nuevo}
@@ -634,15 +638,17 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
             <div className="cz-card">
               <h2 className="cz-card-h">Así queda el documento</h2>
               <p className="cz-card-s">
-                {esPanel
+                {soloPrecios
+                  ? 'Revísalo y mándalo por WhatsApp o descárgalo en PDF. Aquí no se guarda nada.'
+                  : esPanel
                   ? 'Revísalo antes de guardarlo. Al guardar se congela: aunque mañana suba una tarifa, esta cotización seguirá diciendo lo mismo.'
                   : preciosAlFinal || sitioConPrecios
                     ? 'Este es el costo de lo que armaste, con nuestros precios de lista. Revísalo y, si todo está bien, envía tu solicitud.'
                     : 'Revisa que todo esté correcto antes de enviar tu solicitud. Va sin precios: te mandamos la cotización con precio por correo.'}
               </p>
 
-              {/* Solo con maquinaria: el agua y el retiro van por viaje (2026-10-29). */}
-              {tipo === 'maquinaria' && verPrecios && lineas.some((l) => l.tipo === 'equipo') ? (
+              {/* Solo con maquinaria: el agua y el retiro van por viaje (2026-10-29). En el enlace va en la tarjeta del cliente. */}
+              {tipo === 'maquinaria' && verPrecios && !soloPrecios && lineas.some((l) => l.tipo === 'equipo') ? (
                 <Campo label="Presentar cantidades en" help="Cómo se ven las cantidades en el documento; el total no cambia.">
                   {(id) => (
                     <ShSelect value={modoUnidad} onValueChange={(v) => setModoUnidad(v as 'horas' | 'dias')}>
@@ -756,44 +762,64 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
             </div>
           ) : null}
 
-          {tocado && faltante ? (
-            <div style={{ marginTop: 14 }}>
-              <Aviso tono="bad">{faltante}</Aviso>
+          {clave === 'armar' ? extras : null}
+
+          {clave === 'armar' && masServicios?.opciones.length ? (
+            <div className="cz-card">
+              <h2 className="cz-card-h">¿Necesitas otro servicio?</h2>
+              <p className="cz-card-s">Toca uno y se agrega a esta misma solicitud: los que tienen precio aquí salen arriba con sus opciones; los demás, como servicio extra que describes y cuyo precio te confirmamos.</p>
+              <div className="cz-cards">
+                {masServicios.opciones.map((o) => (
+                  <Tarjeta key={o.clave} icono={o.icono} titulo={o.titulo} nota={o.resumen} modo="agregar" onClick={() => masServicios.agregar(o.clave)} />
+                ))}
+              </div>
             </div>
           ) : null}
 
-          <div className="cz-nav">
-            <ShButton variant="outline" onClick={retroceder} disabled={paso === 0 || enviando}>
-              <ArrowLeft className="size-4" /> Atrás
-            </ShButton>
-            {esUltimo && soloPrecios ? (
-              // Solo precios: no se guarda nada; se empieza otra.
-              <ShButton variant="outline" onClick={reiniciar}>
-                <RotateCcw className="size-4" /> Nueva cotización
-              </ShButton>
-            ) : esUltimo ? (
-              <ShButton onClick={enviar} disabled={enviando}>
-                {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Pedir cotización'}
-              </ShButton>
-            ) : (
-              <ShButton onClick={avanzar}>
-                Continuar <ArrowRight className="size-4" />
-              </ShButton>
-            )}
+          {/* La barra: el total siempre a la vista y el siguiente paso al pulgar. */}
+          <div className="cz-barra" role="region" aria-label="Total y siguiente paso">
+            <div className="cz-barra-in">
+              {tocado && faltante ? <Aviso tono="bad">{faltante}</Aviso> : null}
+              <div className="cz-barra-fila">
+                {esUltimo ? (
+                  <>
+                    <ShButton variant="outline" onClick={retroceder} disabled={enviando}>
+                      <ArrowLeft className="size-4" /> Editar
+                    </ShButton>
+                    {soloPrecios ? (
+                      // Solo precios: no se guarda nada; se empieza otra.
+                      <ShButton variant="outline" onClick={reiniciar}>
+                        <RotateCcw className="size-4" /> Nueva cotización
+                      </ShButton>
+                    ) : (
+                      <ShButton onClick={enviar} disabled={enviando}>
+                        {enviando ? 'Enviando…' : esPanel ? 'Guardar cotización' : 'Pedir cotización'}
+                      </ShButton>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {verPrecios ? (
+                      <div className="cz-barra-total">
+                        <span>Total {calc.con_iva ? 'con IVA' : 'sin IVA'}</span>
+                        <b>{money(calc.total)}</b>
+                      </div>
+                    ) : (
+                      // Sin precios en el sitio: lo que lleva, y que el precio llega por correo.
+                      <div className="cz-barra-total">
+                        <span>{partidas.length === 1 ? '1 partida' : `${partidas.length} partidas`}</span>
+                        <em>Te mandamos el precio por correo</em>
+                      </div>
+                    )}
+                    <ShButton onClick={avanzar}>
+                      Cotización <ArrowRight className="size-4" />
+                    </ShButton>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-
-        <ResumenLateral
-          calc={calcVista}
-          tipo={tipo}
-          importes={importesALaVista}
-          pie={verPrecios ? 'El costo aparece en el último paso' : 'Te mandamos el precio por correo'}
-          extra={sitioConPrecios ? <MejorarPrecio telefono={catalogo.empresa.telefono} empresa={catalogo.empresa.nombre} corto /> : null}
-          // Con precios, solo las partidas que ya cuentan (con material y
-          // cantidad): un renglón recién agregado y vacío no es una partida.
-          partidas={verPrecios ? calc.renglones.filter((r) => r.clase !== 'flete').length : partidas.length}
-          para={{ cliente: ctx.cliente, obra: ctx.obra, fecha: ctx.fecha ? fechaCorta(ctx.fecha) : '' }}
-        />
       </div>
     </div>
   );
@@ -805,8 +831,6 @@ const OTRA_EMPRESA = '__otra__';
 
 /** Hoy en Monterrey, AAAA-MM-DD: ninguna fecha del servicio puede ser pasada. */
 const hoyLocal = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date());
-const fechaCorta = (iso: string) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 const fechaLarga = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 const OBRA_NUEVA = '__nueva__';
@@ -820,7 +844,6 @@ function PasoObra({
   tocado,
   empresas,
   clientesPanel,
-  minimo,
 }: {
   ctx: ContextoCotizador;
   setCtx: (c: ContextoCotizador) => void;
@@ -831,12 +854,10 @@ function PasoObra({
   empresas?: EmpresaCliente[];
   /** Solo el panel: los clientes registrados. */
   clientesPanel?: CotizadorProps['clientesPanel'];
-  /** El acceso directo: solo cliente, obra y teléfono (2026-10-30). */
-  minimo?: boolean;
 }) {
   const set = (patch: Partial<ContextoCotizador>) => setCtx({ ...ctx, ...patch });
   if (empresas) return <PasoObraSitio ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} empresas={empresas} />;
-  if (clientesPanel) return <PasoObraPanel ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} clientes={clientesPanel} minimo={minimo} />;
+  if (clientesPanel) return <PasoObraPanel ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} clientes={clientesPanel} />;
   // Mismas reglas que la API (@maqserv/config). En el sitio son obligatorios;
   // en el panel, opcionales, pero si se escriben tienen que estar bien.
   const errCorreo = tocado ? errorContacto('correo', ctx.correo, pideContacto) : null;
@@ -919,21 +940,12 @@ function PasoObraPanel({
   catalogo,
   tocado,
   clientes,
-  minimo = false,
 }: {
   ctx: ContextoCotizador;
   set: (patch: Partial<ContextoCotizador>) => void;
   catalogo: CatalogoCotizador;
   tocado: boolean;
   clientes: NonNullable<CotizadorProps['clientesPanel']>;
-  /**
-   * El acceso directo (2026-10-30, pedido del dueño: "solo deja lo necesario:
-   * nombre, obra, teléfono"). Sin dirección, fecha, atención, municipio ni
-   * correo; la zona del agua y del flete se elige en su paso (o sale de la
-   * obra registrada que se elija). Ahí no se guarda nada, así que tampoco se
-   * da de alta al cliente nuevo.
-   */
-  minimo?: boolean;
 }) {
   const [obras, setObras] = useState<EmpresaCliente['sites']>([]);
   const [nueva, setNueva] = useState(false);
@@ -975,13 +987,9 @@ function PasoObraPanel({
   return (
     <div className="cz-card">
       <h2 className="cz-card-h">Cliente y obra</h2>
-      <p className="cz-card-s">
-        {minimo
-          ? 'Elige un cliente registrado o escribe su nombre. Sale impreso en el encabezado.'
-          : 'Elige un cliente registrado o escribe uno nuevo: se da de alta al guardar, con su obra. Sale impreso en el encabezado.'}
-      </p>
+      <p className="cz-card-s">Elige un cliente registrado o escribe uno nuevo: se da de alta al guardar, con su obra. Sale impreso en el encabezado.</p>
       <div className="cz-row">
-        <Campo label="Cliente o empresa" req ancho="full" help={!minimo && ctx.cliente.trim() && !ctx.clienteId ? 'Cliente nuevo: se da de alta al guardar.' : undefined}
+        <Campo label="Cliente o empresa" req ancho="full" help={ctx.cliente.trim() && !ctx.clienteId ? 'Cliente nuevo: se da de alta al guardar.' : undefined}
           error={falta(ctx.cliente.trim().length < 2, 'Elige o escribe a nombre de quién va la cotización.')}>
           {(id) => <ShCombobox id={id} value={ctx.cliente} onChange={elegirCliente} options={nombres} placeholder="Busca o escribe el cliente…" buscar="Busca el cliente…" />}
         </Campo>
@@ -1008,19 +1016,11 @@ function PasoObraPanel({
             <Campo label="Nombre de la obra" req error={falta(ctx.obra.trim().length < 2, 'Ponle un nombre a la obra.')}>
               {(id) => <ShInput id={id} value={ctx.obra} maxLength={190} placeholder="Ej. Fraccionamiento Los Encinos" onChange={(e) => set({ obra: e.target.value })} />}
             </Campo>
-            {minimo ? null : (
-              <Campo label="Dirección de la obra">
-                {(id) => <ShInput id={id} value={ctx.direccion} maxLength={300} placeholder="Calle, número y colonia" onChange={(e) => set({ direccion: e.target.value })} />}
-              </Campo>
-            )}
+            <Campo label="Dirección de la obra">
+              {(id) => <ShInput id={id} value={ctx.direccion} maxLength={300} placeholder="Calle, número y colonia" onChange={(e) => set({ direccion: e.target.value })} />}
+            </Campo>
           </>
         ) : null}
-        {minimo ? (
-          <Campo label="Teléfono del cliente" error={errTelefono}>
-            {(id) => <ShInput id={id} type="tel" inputMode="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />}
-          </Campo>
-        ) : (
-        <>
         <Campo
           label={catalogo.tipo === 'maquinaria' ? 'Fecha de inicio del servicio' : 'Fecha de entrega'}
           req
@@ -1043,22 +1043,83 @@ function PasoObraPanel({
         <Campo label="Teléfono del cliente (opcional)" error={errTelefono}>
           {(id) => <ShInput id={id} type="tel" inputMode="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />}
         </Campo>
-        </>
-        )}
       </div>
     </div>
   );
 }
 
 /**
- * PASO 1 EN EL SITIO (2026-10-23): EMPRESA Y OBRA, siempre.
+ * EL CLIENTE EN EL ENLACE (2026-11-03, con la captura del cotizador de PUCSA).
  *
- * "Cada vez que cotice, si ya tiene obras, que le salgan con un seleccionador,
- * y si es nueva que la anote." Una cuenta puede tener varias empresas y cada
- * empresa varias obras: primero la empresa (o "Otra empresa…"), luego sus obras
- * (u "Obra nueva…", que pide nombre, dirección y municipio). Sin obra no se
- * avanza: es a donde va la máquina y con lo que se ordena Clientes y obras.
- * La obra NO se preselecciona: una obra equivocada manda la máquina a otro lado.
+ * Una tarjeta compacta arriba de lo que se cotiza, en la misma pantalla:
+ * cliente o empresa (registrado o escrito), municipio y atención. El
+ * municipio elige solo la zona del agua y del flete. En los equipos, cómo se
+ * presentan las cantidades. Ahí no se guarda nada, así que un cliente escrito
+ * no se da de alta.
+ */
+function DatosCliente({
+  ctx,
+  setCtx,
+  catalogo,
+  clientes,
+  tocado,
+  modoUnidad,
+}: {
+  ctx: ContextoCotizador;
+  setCtx: (c: ContextoCotizador) => void;
+  catalogo: CatalogoCotizador;
+  clientes?: ClientePanel[];
+  tocado: boolean;
+  /** Solo maquinaria: horas o jornadas en el documento. */
+  modoUnidad?: { valor: 'horas' | 'dias'; poner: (v: 'horas' | 'dias') => void };
+}) {
+  const set = (patch: Partial<ContextoCotizador>) => setCtx({ ...ctx, ...patch });
+  const nombres = useMemo(() => [...new Set((clientes ?? []).map((c) => c.name))], [clientes]);
+  const elegirCliente = (v: string) => {
+    const c = (clientes ?? []).find((x) => x.name.toLowerCase() === v.trim().toLowerCase()) ?? null;
+    set({ cliente: c ? c.name : v, clienteId: c?.id ?? null });
+  };
+  return (
+    <div className="cz-card cz-datos">
+      <div className="cz-row">
+        <Campo label="Cliente o empresa" req ancho="full" error={tocado && ctx.cliente.trim().length < 2 ? 'Elige o escribe a nombre de quién va la cotización.' : null}>
+          {(id) => <ShCombobox id={id} value={ctx.cliente} onChange={elegirCliente} options={nombres} placeholder="Busca o escribe el cliente…" buscar="Busca el cliente…" />}
+        </Campo>
+      </div>
+      <div className="cz-dos">
+        <Campo label="Municipio">
+          {(id) => (
+            <ShCombobox id={id} value={ctx.municipio} onChange={(v) => set({ municipio: v })} options={catalogo.municipios} placeholder="Ej. Apodaca" buscar="Busca o escribe el municipio…" />
+          )}
+        </Campo>
+        <Campo label="Atención a">
+          {(id) => <ShInput id={id} value={ctx.atencion} maxLength={190} placeholder="Ing. / Lic." onChange={(e) => set({ atencion: e.target.value })} />}
+        </Campo>
+      </div>
+      {modoUnidad ? (
+        <div className="cz-row">
+          <Campo label="Presentar cantidades en" ancho="full">
+            {(id) => (
+              <ShSelect value={modoUnidad.valor} onValueChange={(v) => modoUnidad.poner(v as 'horas' | 'dias')}>
+                <ShSelectTrigger id={id}><ShSelectValue /></ShSelectTrigger>
+                <ShSelectContent>
+                  <ShSelectItem value="horas">Horas (HRS)</ShSelectItem>
+                  <ShSelectItem value="dias">Jornadas (JOR)</ShSelectItem>
+                </ShSelectContent>
+              </ShSelect>
+            )}
+          </Campo>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * EL CLIENTE EN EL SITIO (2026-11-03, pedido del dueño: "quita obra, fecha,
+ * correo, teléfono"). Empresa o persona —una de las de su cuenta u otra—, el
+ * municipio de la obra (pone la zona del agua y del flete) y atención. El
+ * correo y el teléfono son los de su cuenta: ahí le llega la cotización.
  */
 function PasoObraSitio({
   ctx,
@@ -1073,39 +1134,18 @@ function PasoObraSitio({
   tocado: boolean;
   empresas: EmpresaCliente[];
 }) {
-  const [nueva, setNueva] = useState(false);
-  const empresa = empresas.find((e) => e.id === ctx.clienteId) ?? null;
-  const obras = empresa?.sites ?? [];
-  const obraElegida = obras.find((o) => o.id === ctx.obraId) ?? null;
-  // Sin obras registradas en esa empresa, la única opción es una nueva.
-  const pideNueva = !obraElegida && (nueva || obras.length === 0);
-  const errCorreo = tocado ? errorContacto('correo', ctx.correo, true) : null;
-  const errTelefono = tocado ? errorContacto('telefono', ctx.telefono, true) : null;
   const falta = (cond: boolean, texto: string) => (tocado && cond ? texto : null);
-
   const elegirEmpresa = (v: string) => {
-    setNueva(false);
     const e = empresas.find((x) => String(x.id) === v);
-    set(e
-      ? { clienteId: e.id, cliente: e.name, obraId: null, obra: '', direccion: '' }
-      : { clienteId: null, cliente: '', obraId: null, obra: '', direccion: '' });
-  };
-  const elegirObra = (v: string) => {
-    if (v === OBRA_NUEVA) {
-      setNueva(true);
-      set({ obraId: null, obra: '', direccion: '' });
-      return;
-    }
-    const o = obras.find((x) => String(x.id) === v);
-    if (!o) return;
-    setNueva(false);
-    set({ obraId: o.id, obra: o.name, direccion: o.address ?? '', municipio: o.municipality || ctx.municipio });
+    // Sin municipio todavía, el de su primera obra con municipio.
+    const municipio = ctx.municipio.trim() ? {} : { municipio: e?.sites.find((o) => o.municipality)?.municipality ?? '' };
+    set(e ? { clienteId: e.id, cliente: e.name, ...municipio } : { clienteId: null, cliente: '' });
   };
 
   return (
     <div className="cz-card">
-      <h2 className="cz-card-h">Empresa y obra</h2>
-      <p className="cz-card-s">A nombre de quién va la cotización y a qué obra llega el equipo. Sale impreso en el encabezado.</p>
+      <h2 className="cz-card-h">Cliente</h2>
+      <p className="cz-card-s">A nombre de quién va la cotización. Sale impreso en el encabezado.</p>
       <div className="cz-row">
         {empresas.length ? (
           <Campo label="Empresa o persona" req>
@@ -1125,216 +1165,25 @@ function PasoObraSitio({
             {(id) => <ShInput id={id} value={ctx.cliente} maxLength={190} placeholder="Ej. Constructora del Norte" onChange={(e) => set({ cliente: e.target.value })} />}
           </Campo>
         ) : null}
-
-        {obras.length ? (
-          <Campo label="Obra" req ancho="full" error={falta(!obraElegida && !nueva, 'Elige la obra o «Obra nueva…».')}>
-            {(id) => (
-              <ShSelect value={obraElegida ? String(obraElegida.id) : nueva ? OBRA_NUEVA : ''} onValueChange={elegirObra}>
-                <ShSelectTrigger id={id} aria-label="Obra"><ShSelectValue placeholder="Elige la obra…" /></ShSelectTrigger>
-                <ShSelectContent>
-                  {obras.map((o) => (
-                    <ShSelectItem key={o.id} value={String(o.id)}>{o.name}{o.municipality ? ` · ${o.municipality}` : ''}</ShSelectItem>
-                  ))}
-                  <ShSelectItem value={OBRA_NUEVA}>Obra nueva…</ShSelectItem>
-                </ShSelectContent>
-              </ShSelect>
-            )}
-          </Campo>
-        ) : null}
-        {obraElegida ? (
-          <p className="cz-help" style={{ gridColumn: '1 / -1', margin: 0 }}>
-            {[obraElegida.address, obraElegida.municipality].filter(Boolean).join(' · ') || 'Sin dirección registrada.'}
-          </p>
-        ) : null}
-
-        {pideNueva ? (
-          <>
-            <Campo label="Nombre de la obra" req error={falta(ctx.obra.trim().length < 2, 'Ponle un nombre a la obra.')}>
-              {(id) => <ShInput id={id} value={ctx.obra} maxLength={190} placeholder="Ej. Bodega Escobedo" onChange={(e) => set({ obra: e.target.value })} />}
-            </Campo>
-            <Campo label="Dirección de la obra" req error={falta(ctx.direccion.trim().length < 5, 'Calle, número y colonia.')}>
-              {(id) => <ShInput id={id} value={ctx.direccion} maxLength={300} placeholder="Calle, número y colonia" onChange={(e) => set({ direccion: e.target.value })} />}
-            </Campo>
-          </>
-        ) : null}
-        {pideNueva || (obraElegida && !obraElegida.municipality) ? (
-          <Campo label="Municipio de la obra" req help="Define la zona de flete" error={falta(!ctx.municipio.trim(), 'Elige el municipio.')}>
-            {(id) => (
-              <ShCombobox
-                id={id}
-                value={ctx.municipio}
-                onChange={(v) => set({ municipio: v })}
-                options={catalogo.municipios}
-                placeholder="Ej. Apodaca"
-                buscar="Busca o escribe el municipio…"
-              />
-            )}
-          </Campo>
-        ) : null}
-
-        <Campo
-          label={catalogo.tipo === 'maquinaria' ? 'Fecha de inicio del servicio' : 'Fecha de entrega'}
-          req
-          help="Cuándo se necesita en la obra"
-          error={falta(!ctx.fecha, 'Elige la fecha.')}
-        >
-          {(id) => <ShDatePicker id={id} value={ctx.fecha} min={hoyLocal()} onChange={(v) => set({ fecha: v })} placeholder="Elegir fecha" />}
+      </div>
+      <div className="cz-dos" style={{ marginTop: 13 }}>
+        <Campo label="Municipio" req help="Define la zona del agua y del flete" error={falta(!ctx.municipio.trim(), 'Elige el municipio.')}>
+          {(id) => (
+            <ShCombobox
+              id={id}
+              value={ctx.municipio}
+              onChange={(v) => set({ municipio: v })}
+              options={catalogo.municipios}
+              placeholder="Ej. Apodaca"
+              buscar="Busca o escribe el municipio…"
+            />
+          )}
         </Campo>
         <Campo label="Atención a">
           {(id) => <ShInput id={id} value={ctx.atencion} maxLength={190} placeholder="Ing. / Lic." onChange={(e) => set({ atencion: e.target.value })} />}
         </Campo>
-        <Campo label="Correo" req error={errCorreo}>
-          {(id) => (
-            <ShInput id={id} type="email" value={ctx.correo} maxLength={190} placeholder="tu@empresa.com" aria-invalid={!!errCorreo} onChange={(e) => set({ correo: e.target.value })} />
-          )}
-        </Campo>
-        <Campo label="Teléfono" req error={errTelefono}>
-          {(id) => (
-            <ShInput id={id} type="tel" inputMode="tel" autoComplete="tel" value={ctx.telefono} maxLength={20} placeholder="81 1234 5678" aria-invalid={!!errTelefono} onChange={(e) => set({ telefono: e.target.value })} />
-          )}
-        </Campo>
       </div>
     </div>
-  );
-}
-
-/**
- * Resumen en vivo. Acompaña todos los pasos.
- *
- * Enseña IMPORTES solo cuando el costo ya está a la vista; el resto del tiempo
- * lista lo pedido en cantidades, que es lo que hay que revisar mientras se
- * arma, y dice DÓNDE va a aparecer el total: un resumen que se calla el precio
- * sin explicar por qué se lee como una pantalla rota.
- */
-function ResumenLateral({
-  calc,
-  tipo,
-  importes,
-  pie,
-  partidas,
-  para,
-  extra,
-}: {
-  calc: ReturnType<typeof calcularCotizacion>;
-  tipo: 'maquinaria' | 'triturados';
-  /** Debajo del total (el sitio con precios: la nota para mejorar el precio). */
-  extra?: ReactNode;
-  /** Si toca enseñar el desglose de dinero o solo las cantidades. */
-  importes: boolean;
-  /** Qué decir en lugar del total mientras no hay importes. */
-  pie: string;
-  partidas: number;
-  /** Para quién es (2026-10-26): el resumen lo dice desde el primer paso. */
-  para?: { cliente: string; obra: string; fecha: string };
-}) {
-  const vacio = calc.renglones.length === 0;
-  return (
-    <aside className="cz-side">
-      <div className="cz-side-h">
-        <h3>{importes ? 'Resumen' : 'Tu solicitud'}</h3>
-        <span>{partidas === 1 ? '1 partida' : `${partidas} partidas`}</span>
-      </div>
-      {para && (para.cliente.trim() || para.obra.trim()) ? (
-        <div className="cz-side-para">
-          <span>Para</span>
-          <b>{para.cliente.trim() || 'Cliente por definir'}</b>
-          <em>{[para.obra.trim(), para.fecha].filter(Boolean).join(' · ')}</em>
-        </div>
-      ) : null}
-      {vacio ? (
-        <div className="cz-side-empty">
-          <span className="ico">
-            <IconoCotizador nombre="documento" size={38} />
-          </span>
-          {importes
-            ? 'Todavía no hay partidas. Conforme agregues, el total aparece aquí.'
-            : 'Todavía no hay partidas. Conforme agregues, aparecen aquí.'}
-        </div>
-      ) : (
-        <div className="cz-side-b">
-          {importes ? (
-            <>
-              {tipo === 'maquinaria' ? (
-                <>
-                  {calc.desglose.renta > 0 ? (
-                    <div className="cz-fr">
-                      <span>Renta de equipos</span>
-                      <b>{money(calc.desglose.renta)}</b>
-                    </div>
-                  ) : null}
-                  {calc.desglose.servicios > 0 ? (
-                    <div className="cz-fr">
-                      <span>Servicios</span>
-                      <b>{money(calc.desglose.servicios)}</b>
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                // Triturados: por forma de venta, en el orden del paso "Material".
-                // Antes todo salía como "Materiales" (un viaje por zona también).
-                (
-                  [
-                    ['material', 'En planta, por tonelada'],
-                    ['zona', 'Puesto en obra, por viaje'],
-                    ['banco', 'Material de banco'],
-                  ] as const
-                ).map(([clase, texto]) => {
-                  const suma = calc.renglones.filter((r) => r.clase === clase).reduce((s, r) => s + r.importe, 0);
-                  return suma > 0 ? (
-                    <div className="cz-fr" key={clase}>
-                      <span>{texto}</span>
-                      <b>{money(suma)}</b>
-                    </div>
-                  ) : null;
-                })
-              )}
-              {calc.desglose.fletes > 0 ? (
-                <div className="cz-fr">
-                  <span>Fletes</span>
-                  <b>{money(calc.desglose.fletes)}</b>
-                </div>
-              ) : null}
-              <div className="cz-fr">
-                <span>Subtotal</span>
-                <b>{money(calc.subtotal)}</b>
-              </div>
-              {calc.con_iva ? (
-                <div className="cz-fr">
-                  <span>IVA {Math.round(calc.iva_tasa * 100)}%</span>
-                  <b>{money(calc.iva)}</b>
-                </div>
-              ) : (
-                <div className="cz-fr">
-                  <span>Sin IVA</span>
-                  <b>remisionado</b>
-                </div>
-              )}
-              <div className="cz-fr total">
-                <span>Total</span>
-                <b>{money(calc.total)}</b>
-              </div>
-            </>
-          ) : (
-            <>
-              {calc.renglones
-                .filter((r) => r.clase !== 'flete')
-                .map((r, i) => (
-                  <div className="cz-fr" key={i}>
-                    <span>{r.nombre ?? r.concepto}</span>
-                    <b>
-                      {r.cantidad} {r.unidad}
-                    </b>
-                  </div>
-                ))}
-              <div className="cz-fr total" style={{ fontSize: 13 }}>
-                <span>{pie}</span>
-              </div>
-            </>
-          )}
-        </div>
-      )}
-      {extra ? <div className="cz-side-extra">{extra}</div> : null}
-    </aside>
   );
 }
 
@@ -1343,7 +1192,7 @@ function ResumenLateral({
  * de lista; quien quiera negociar llama a la línea de MAQSER24. El teléfono es
  * el del documento (Tarifas › Documento), así no hay dos números distintos.
  */
-function MejorarPrecio({ telefono, empresa, corto = false }: { telefono: string; empresa: string; corto?: boolean }) {
+function MejorarPrecio({ telefono, empresa }: { telefono: string; empresa: string }) {
   const tel = telefono.trim();
   if (!tel) return null;
   const marcar = `tel:${tel.replace(/[^\d+]/g, '')}`;
@@ -1351,7 +1200,7 @@ function MejorarPrecio({ telefono, empresa, corto = false }: { telefono: string;
     <div className="cz-mejorar">
       <b>¿Quieres mejorar el precio?</b>
       <span>
-        {corto ? 'Llama a la línea de ' : 'Estos son nuestros precios de lista. Si quieres negociar el costo, llama a la línea de '}
+        Estos son nuestros precios de lista. Si quieres negociar el costo, llama a la línea de{' '}
         {empresa || 'MAQSER24'}: <a href={marcar}>{tel}</a>
       </span>
     </div>
@@ -1376,6 +1225,8 @@ function conPrecioSimbolico(cat: CatalogoCotizador): CatalogoCotizador {
         ...s, precio: 1,
         ...(s.precios_zona ? { precios_zona: Object.fromEntries(Object.entries(s.precios_zona).map(([z, v]) => [z, v > 0 ? 1 : 0])) } : {}),
       })),
+      // Una combinada (2026-11-03): sus triturados, igual.
+      ...(trituradosDe(cat) && cat.tipo === 'maquinaria' ? { triturados: conPrecioSimbolico(trituradosDe(cat) as CatalogoTriturados) as CatalogoTriturados } : {}),
     };
   }
   return {
@@ -1433,8 +1284,11 @@ function validar(
     calc: ReturnType<typeof calcularCotizacion>;
     /** Panel con clientes registrados: la obra también se pide. */
     conClientes?: boolean;
-    /** El acceso directo: solo cliente, obra y teléfono; sin fecha (2026-10-30). */
+    /** El acceso directo: solo cliente, municipio y atención; sin obra ni fecha (2026-11-03). */
     soloPrecios?: boolean;
+    /** Triturados (2026-11-03): la forma elegida y lo que le falta al pedido grande para el mínimo. */
+    forma?: FormaTriturados | null;
+    minimoCamion?: string | null;
     /** Lo que falta para cobrar el agua por zona (`faltaZona`), o null. */
     zona?: string | null;
   },
@@ -1445,23 +1299,16 @@ function validar(
 
   if (clave === 'obra') {
     if (ctx.cliente.trim().length < 2) return 'Escribe a nombre de quién va la cotización.';
-    // En el sitio toda solicitud es para una obra (2026-10-23): una de las suyas o una nueva completa.
-    if (!esPanel && !ctx.obraId) {
-      if (ctx.obra.trim().length < 2) return 'Elige tu obra o escribe el nombre de la obra nueva.';
-      if (ctx.direccion.trim().length < 5) return 'Escribe la dirección de la obra: calle, número y colonia.';
-      if (!ctx.municipio.trim()) return 'Elige el municipio de la obra.';
-    }
-    if (!esPanel && !ctx.fecha) return 'Elige la fecha del servicio.';
-    if (esPanel && d.conClientes && !ctx.obraId && ctx.obra.trim().length < 2) return 'Elige la obra del cliente o escribe el nombre de la obra nueva.';
+    // En el sitio (2026-11-03): cliente y municipio; el correo y el teléfono son los de su cuenta.
+    if (!esPanel) return ctx.municipio.trim() ? null : 'Elige el municipio de la obra.';
+    // El enlace solo pide cliente, municipio y atención (2026-11-03): sin obra ni fecha.
+    if (esPanel && d.conClientes && !d.soloPrecios && !ctx.obraId && ctx.obra.trim().length < 2) return 'Elige la obra del cliente o escribe el nombre de la obra nueva.';
     if (esPanel && d.conClientes && !d.soloPrecios && !ctx.fecha) return 'Elige la fecha del servicio.';
-    return errorContacto('correo', ctx.correo, !esPanel) ?? errorContacto('telefono', ctx.telefono, !esPanel);
+    return errorContacto('correo', ctx.correo, false) ?? errorContacto('telefono', ctx.telefono, false);
   }
 
-  // Sin equipo se puede seguir (2026-10-29): quien solo quiere agua o retiro lo elige en «Servicios».
-  if (clave === 'equipos') return null;
-
   if (clave === 'servicios') {
-    if (!lineas.length) return 'Elige al menos un equipo o un servicio para continuar.';
+    if (!lineas.length) return 'Elige al menos una opción para continuar.';
     // El servicio escrito a mano (2026-10-30): sin nombre o sin precio saldría un renglón mudo o en cero.
     const aMano = lineas.filter((l) => l.tipo === 'servicio' && l.id === SERVICIO_A_MANO) as LineaServicio[];
     if (aMano.some((l) => !l.nombre.trim())) return 'Ponle nombre al servicio que escribiste a mano.';
@@ -1475,12 +1322,20 @@ function validar(
   }
 
   if (clave === 'pedido') {
-    if (lineas.length === 0) return 'Agrega al menos un material: en planta por tonelada o puesto en obra por viaje.';
+    if (lineas.length === 0) {
+      return d.forma
+        ? 'Elige al menos un material.'
+        : 'Elige cómo lo quieres: lo recoges en planta, por viaje a tu obra o pedido grande en tolva o full.';
+    }
     // Cada renglón incompleto se marca en rojo ahí mismo; esto dice cuál falta.
     if (lineas.some((l) => l.tipo === 'material' && !l.id)) return 'Elige qué material es cada partida por tonelada.';
     if (lineas.some((l) => l.tipo === 'material' && l.id === 'custom' && !l.nombre.trim())) return 'Ponle nombre al material que escribiste a mano.';
     if (esPanel && lineas.some((l) => l.tipo === 'material' && l.id === 'custom' && num(l.precio) <= 0)) return 'Captura el precio por tonelada del material que escribiste a mano.';
     if (lineas.some((l) => l.tipo === 'material' && num(l.toneladas) <= 0)) return 'Captura las toneladas de cada material.';
+    // Pedido grande (2026-11-03): zona y camión, y desde 100 toneladas.
+    const grande = lineas.filter((l): l is LineaMaterial => l.tipo === 'material' && !!l.camion);
+    if (grande.some((l) => !l.fleteZona.trim() || l.fleteZona.trim() === RECOGE_EN_PLANTA)) return 'Elige la zona de la obra para el pedido en tolva o full.';
+    if (d.minimoCamion) return d.minimoCamion;
     // Sin esto el flete se quedaba en cero sin que nadie lo decidiera (2026-10-21).
     const material = lineas.find((l) => l.tipo === 'material');
     if (material && material.tipo === 'material' && !entregaDecidida(material)) return 'Dinos si llevamos el material a obra (elige la zona) o si lo recogen en planta.';

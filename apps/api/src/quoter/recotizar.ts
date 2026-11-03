@@ -10,6 +10,7 @@ import {
   filasDelDocumento,
   ponerPrecio,
   quitarPrecio,
+  saludoDe,
   tieneImporte,
   type CalculoCotizacion,
   type CatalogoCotizador,
@@ -205,9 +206,9 @@ export class Recotizar {
     }
     const tipo = doc.kind as CotizadorTipo;
     // El agua sin zona elegida toma la del municipio de la obra (2026-10-29).
-    const partidas = conZonaDeLaObra(await this.quoter.catalogo(tipo), partidasDe(tipo, crudas ?? ((doc.items ?? []) as unknown[])), doc.municipality);
+    const partidas = conZonaDeLaObra(await this.quoter.catalogoCalculo(tipo), partidasDe(tipo, crudas ?? ((doc.items ?? []) as unknown[])), doc.municipality);
     if (!partidas.length) throw new BadRequestException('La cotización se quedó sin partidas.');
-    const sinZona = faltaZona(await this.quoter.catalogo(tipo), partidas, doc.municipality);
+    const sinZona = faltaZona(await this.quoter.catalogoCalculo(tipo), partidas, doc.municipality);
     if (sinZona) throw new BadRequestException(sinZona);
     const pendiente = q.status === 'pending' && !q.accepted_at;
     if (pendiente && EDITABLES.includes(doc.state)) {
@@ -340,7 +341,7 @@ export class Recotizar {
     if (!EDITABLES.includes(doc.state)) throw new BadRequestException('Ese documento ya se mandó: vuelve a cotizarla para cambiar el precio.');
 
     const tipo = doc.kind as CotizadorTipo;
-    const cat = await this.quoter.catalogo(tipo);
+    const cat = await this.quoter.catalogoCalculo(tipo);
     const calc = (doc.snapshot as { calc?: CalculoCotizacion } | null)?.calc;
     const partidas = structuredClone((doc.items ?? []) as unknown as PartidaCotizador[]);
     const filas = calc ? filasDelDocumento(cat, partidas, calc, await this.quoter.fichasDeRenglones(tipo)) : [];
@@ -358,7 +359,7 @@ export class Recotizar {
     // Esta fila deja su precio especial (si tenía) y toma la tarifa nueva; lo
     // demás de este documento que traía la tarifa vieja, también.
     quitarPrecio(partidas, f.partida, filaClase(calc!.renglones[fila]), valor);
-    const nuevoCat = await this.quoter.catalogo(tipo);
+    const nuevoCat = await this.quoter.catalogoCalculo(tipo);
     await this.recalcular(doc.id, { partidas: alinearATarifa(nuevoCat, partidas, f.ref, t.antes, valor) });
     const recalculadas = await this.recalcularPendientes(tipo, f.ref, t.antes, valor, doc.id);
     return { concepto: f.concepto, antes: f.edicion.valor, tarifa: t, recalculadas };
@@ -377,7 +378,7 @@ export class Recotizar {
       .filter((id): id is number => typeof id === 'number' && id !== menos))];
     if (!ids.length) return 0;
     const docs = await prisma.quoter_quotes.findMany({ where: { id: { in: ids }, kind: tipo, state: { in: EDITABLES } } });
-    const cat = await this.quoter.catalogo(tipo);
+    const cat = await this.quoter.catalogoCalculo(tipo);
     let n = 0;
     for (const d of docs) {
       try {
@@ -407,7 +408,7 @@ export class Recotizar {
     const doc = await prisma.quoter_quotes.findUnique({ where: { id: docId } });
     if (!doc) throw new NotFoundException('Documento no encontrado');
     const tipo = doc.kind as CotizadorTipo;
-    const cat = await this.quoter.catalogo(tipo);
+    const cat = await this.quoter.catalogoCalculo(tipo);
     const partidas = cambios.partidas ?? ((doc.items ?? []) as unknown as PartidaCotizador[]);
     const opciones = cambios.opciones ?? ((doc.options ?? {}) as Partial<OpcionesCotizador>);
     const calc = calcularCotizacion(cat, partidas, opciones);
@@ -418,7 +419,7 @@ export class Recotizar {
       version: cat.version,
       empresa: cat.empresa,
       firma: cat.firma,
-      saludo: cat.saludo,
+      saludo: saludoDe(cat, partidas),
     };
     const c = cambios.contexto;
     const nuevo = await prisma.quoter_quotes.update({
@@ -484,7 +485,7 @@ export class Recotizar {
     const tipo = cot.kind as CotizadorTipo;
     const calc = (cot.snapshot as { calc?: CalculoCotizacion } | null)?.calc;
     if (!calc) throw new BadRequestException('El documento nuevo no trae cálculo.');
-    await this.reconciliar(cot, await this.quoter.catalogo(tipo), cot.items as unknown as PartidaCotizador[], (cot.options ?? {}) as Partial<OpcionesCotizador>, calc);
+    await this.reconciliar(cot, await this.quoter.catalogoCalculo(tipo), cot.items as unknown as PartidaCotizador[], (cot.options ?? {}) as Partial<OpcionesCotizador>, calc);
   }
 
   /** El documento editable ligado a la solicitud, si lo hay (para recotizar con el mismo folio). */
@@ -645,7 +646,7 @@ export class Recotizar {
     // Del tabulador: se corrige el renglón del cotizador, como desde un documento.
     if (entrada.fuente === 'tabulador' && entrada.renglon) {
       const rg = entrada.renglon;
-      const cat = await this.quoter.catalogo(rg.tipo);
+      const cat = await this.quoter.catalogoCalculo(rg.tipo);
       // La maquinaria se cobra por hora desde 2026-10-29; lo pedido antes trae su precio por día (`tramo`).
       const ref: RefTarifa = rg.clase === 'equipo' && cat.tipo === 'maquinaria'
         ? { clase: 'equipo', id: rg.id, ...(entrada.porHora ? {} : { tramo: 'dia' }) }

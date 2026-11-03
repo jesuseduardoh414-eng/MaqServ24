@@ -1,6 +1,8 @@
 export { Cotizador, type CotizadorProps, type DatosEnvio, type ResultadoEnvio } from './Cotizador';
 export { VistaDocumento } from './VistaDocumento';
 export { IconoCotizador } from './iconos';
+// Las piezas del cotizador, para lo que el sitio arma junto a él (lo que se cotiza a la medida, 2026-11-03).
+export { Tarjeta, NumeroTexto } from './piezas';
 export { COTIZADOR_CSS } from './estilos';
 export {
   DOCUMENTO_CSS,

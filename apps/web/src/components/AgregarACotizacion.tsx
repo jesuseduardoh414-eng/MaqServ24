@@ -3,6 +3,7 @@
 import Link from '@/components/Enlace';
 import { useCart } from '@/components/CartProvider';
 import { Icon } from '@/components/Icon';
+import { LISTA_PARA_COTIZAR } from '@/lib/enlace-cotizar';
 
 /**
  * "AGREGAR A COTIZACIÓN" (2026-10-08).
@@ -31,7 +32,7 @@ export function AgregarACotizacion({
   // Ya está: en vez de sumar otra unidad sin querer, lleva a la lista.
   if (enLista) {
     return (
-      <Link href="/cotizar" className={`ms-btn ${tam} ms-btn-sec ${className}`} data-evento="lista_cotizar_ver">
+      <Link href={LISTA_PARA_COTIZAR} className={`ms-btn ${tam} ms-btn-sec ${className}`} data-evento="lista_cotizar_ver">
         <Icon name="check" size={size === 'lg' ? 16 : 13} />
         En tu lista
       </Link>

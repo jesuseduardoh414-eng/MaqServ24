@@ -134,7 +134,8 @@ export const defaultTheme: Theme = {
       // Sin video: la imagen de portada sobre el círculo (se sube en Diseño → Hero).
       video: null,
       // Cotizar es ahora el camino principal; el catálogo queda de secundario.
-      primaryLink: '/cotizar',
+      // Al cotizador por categorías (2026-11-03), no al formulario a la medida.
+      primaryLink: '/cotizador',
       secondaryLink: '/productos',
       // OJO: el hero pinta SIEMPRE sobre fotografía oscura, así que estos
       // colores son literales y no siguen la paleta claro/oscuro. Eran los
@@ -213,7 +214,7 @@ export const defaultTheme: Theme = {
         subtitle:
           'Renta o compra equipo con especificaciones, ubicación y disponibilidad a la vista. Lo que no está en catálogo se cotiza.',
         cta: 'Cotizar',
-        ctaLink: '/cotizar',
+        ctaLink: '/cotizador',
         image: null,
         bg: null,
         textColor: null,
@@ -288,7 +289,7 @@ export const defaultTheme: Theme = {
       ctaSubtitle:
         'Dinos qué necesitas, dónde y para cuándo. Te devolvemos opciones con disponibilidad, condiciones y costo de traslado.',
       ctaPrimary: 'Cotizar',
-      ctaPrimaryLink: '/cotizar',
+      ctaPrimaryLink: '/cotizador',
       ctaSecondary: 'Contactar',
       ctaSecondaryLink: '/contacto',
     },
@@ -796,12 +797,9 @@ export const defaultTheme: Theme = {
       'nav.solutions': 'Soluciones',
       'nav.solutions.all': 'Ver todas las soluciones',
       'nav.solutions.all.hint': 'Las seis categorías en una sola página',
-      // Cotizador: entrada con submenú en el header (ver SiteHeader).
+      // Cotizador: entrada con submenú en el header (ver SiteHeader). Sus
+      // opciones son los cotizadores por categoría (COTIZADORES_SITIO, 2026-11-02).
       'nav.quoter': 'Cotizador',
-      'nav.quoter.machinery': 'Maquinaria',
-      'nav.quoter.machinery.hint': 'Renta por hora, con operador y diésel',
-      'nav.quoter.aggregates': 'Triturados',
-      'nav.quoter.aggregates.hint': 'Grava, arena y base por tonelada o por viaje',
       'nav.blog': 'Blog',
       'nav.contact': 'Contacto',
       'nav.wishlist': 'Favoritos',

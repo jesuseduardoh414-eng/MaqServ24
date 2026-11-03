@@ -1,15 +1,19 @@
 import { BadRequestException } from '@nestjs/common';
 import { z } from 'zod';
-import { zCorreo, zTelefono, zTelefonoRequerido } from '../common/campos';
+import { zCorreo, zTelefono } from '../common/campos';
 import {
+  camionDe,
   esCotizadorTipo,
   esUbicacionDeMapas,
+  faltaMinimoCamion,
   faltaZona,
+  trituradosDe,
+  fleteCamion,
   opcionesCotizadorSchema,
   porZona,
   servicioDe,
   zonaDeMunicipio,
-  partidaMaquinariaSchema,
+  partidaCombinadaSchema,
   partidaTrituradosSchema,
   type CatalogoCotizador,
   type CotizadorTipo,
@@ -34,7 +38,8 @@ const contactoSchema = z.object({
   obra: z.string().trim().max(190).optional().default(''),
   atencion: z.string().trim().max(190).optional().default(''),
   municipio: z.string().trim().max(90).optional().default(''),
-  notas: z.string().trim().max(2000).optional().default(''),
+  // Hasta 4,000 (2026-11-03): las del cliente y los servicios extra de otras categorías.
+  notas: z.string().trim().max(4000).optional().default(''),
 });
 
 export const calcularSchema = z.object({
@@ -65,36 +70,35 @@ export const cotizacionPanelSchema = contactoSchema.extend({
 });
 
 /**
- * La solicitud del SITIO pide más que la del panel: el visitante no está en
- * ninguna base, así que sin correo o teléfono la cotización nace muerta —
- * nadie puede contestarla. En el panel esos campos son opcionales porque quien
- * captura ya tiene al cliente enfrente.
+ * La solicitud del SITIO. Siempre llega con cuenta (JwtGuard), así que el
+ * correo y el teléfono son los de la cuenta si no vienen (2026-11-03, pedido
+ * del dueño: "quita obra, fecha, correo, teléfono"). Pide el cliente y el
+ * municipio de la obra, que pone la zona del agua y del flete.
  */
 export const solicitudSitioSchema = contactoSchema.extend({
-  correo: z.string().trim().email('Escribe un correo válido').max(190),
-  telefono: zTelefonoRequerido('Escribe un teléfono de contacto'),
+  municipio: z.string().trim().min(2, 'Elige el municipio de la obra.').max(90),
+  correo: zCorreo().optional().default(''),
+  telefono: zTelefono().optional().default(''),
   opciones: opcionesCotizadorSchema.partial().optional().default({}),
   partidas: z.array(z.unknown()).min(1, 'Agrega al menos una partida').max(60),
-  /** Empresa y obra elegidas de las de su cuenta (2026-10-23). */
+  /** Empresa elegida de las de su cuenta (2026-10-23); la obra ya no se pide (2026-11-03). */
   clienteId: z.coerce.number().int().positive().nullable().optional(),
   obraId: z.coerce.number().int().positive().nullable().optional(),
-  /** Dirección de la obra nueva: calle, número y colonia. */
   direccion: z.string().trim().max(300).optional().default(''),
-  /** Fecha de inicio del servicio o de entrega (2026-10-23), AAAA-MM-DD. */
-  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Elige la fecha del servicio.'),
+  /** Fecha de inicio o de entrega, AAAA-MM-DD; opcional desde 2026-11-03. */
+  fecha: z.string().regex(/^(\d{4}-\d{2}-\d{2})?$/, 'Fecha inválida').optional().default(''),
   /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. */
   ubicacion: z.string().trim().max(500).optional().default('')
     .refine((v) => !v || esUbicacionDeMapas(v), 'Esa ubicación no es de Google Maps: en Maps toca «Compartir» y pega el enlace.'),
-})
-  // Toda solicitud es para una obra: una de las suyas, o una nueva con nombre y dirección.
-  .refine((d) => !!d.obraId || (d.obra.trim().length >= 2 && d.direccion.trim().length >= 5), {
-    message: 'Elige tu obra, o escribe el nombre y la dirección de la obra nueva.',
-    path: ['obra'],
-  });
+});
 
-/** Valida las partidas contra el esquema del tipo. Lanza 400 con el motivo. */
+/**
+ * Valida las partidas contra el esquema del tipo. Lanza 400 con el motivo.
+ * Una de maquinaria también acepta las de triturados (2026-11-03): una sola
+ * cotización con todo; las calcula el tabulador de triturados que viaja junto.
+ */
 export function partidasDe(tipo: CotizadorTipo, crudas: unknown[]): PartidaCotizador[] {
-  const esquema = tipo === 'maquinaria' ? partidaMaquinariaSchema : partidaTrituradosSchema;
+  const esquema = tipo === 'maquinaria' ? partidaCombinadaSchema : partidaTrituradosSchema;
   const out: PartidaCotizador[] = [];
   for (const [i, cruda] of crudas.entries()) {
     const parsed = esquema.safeParse(cruda);
@@ -126,17 +130,21 @@ export function partidasDe(tipo: CotizadorTipo, crudas: unknown[]): PartidaCotiz
 export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: CatalogoCotizador, municipio = ''): PartidaCotizador[] {
   const partidas = partidasDe(tipo, crudas);
   const zonaObra = cat.tipo === 'maquinaria' ? zonaDeMunicipio(cat, municipio)?.id : undefined;
+  // Los triturados, con su tabulador: el de la cotización o el que viaja con la de maquinaria (2026-11-03).
+  const tri = trituradosDe(cat);
   const limpias = partidas.map((p, i) => {
     const n = i + 1;
     // "Sale en el cotizador" apagado en su ficha, o la ficha de baja (2026-10-19).
     const oculto =
-      cat.tipo === 'maquinaria'
-        ? (p.tipo === 'equipo' && cat.equipos.find((e) => e.id === p.id)?.oculto) ||
-          (p.tipo === 'servicio' && cat.servicios.find((s) => s.id === p.id)?.oculto)
-        : (p.tipo === 'material' && cat.productos.find((x) => x.id === p.id)?.oculto) ||
-          (p.tipo === 'zona' && cat.productos.find((x) => x.id === p.producto_id)?.oculto);
+      (cat.tipo === 'maquinaria' && p.tipo === 'equipo' && cat.equipos.find((e) => e.id === p.id)?.oculto) ||
+      (cat.tipo === 'maquinaria' && p.tipo === 'servicio' && cat.servicios.find((s) => s.id === p.id)?.oculto) ||
+      (p.tipo === 'material' && tri?.productos.find((x) => x.id === p.id)?.oculto) ||
+      (p.tipo === 'zona' && tri?.productos.find((x) => x.id === p.producto_id)?.oculto);
     if (oculto) throw new BadRequestException(`Partida ${n}: eso ya no está en el cotizador. Pídelo a la medida en /cotizar.`);
-    if (cat.tipo === 'maquinaria') {
+    if ((p.tipo === 'material' || p.tipo === 'zona' || p.tipo === 'banco') && !tri) {
+      throw new BadRequestException(`Partida ${n}: los triturados van en su cotizador.`);
+    }
+    if (cat.tipo === 'maquinaria' && (p.tipo === 'equipo' || p.tipo === 'servicio')) {
       if (p.tipo === 'equipo') {
         return { ...p, precio_hora: null, flete: null, horas: Math.min(p.horas ?? 0, Math.max(0, cat.jornada_horas - 1)) };
       }
@@ -147,13 +155,18 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
         const { zona: _elegida, nombre: _nombre, unidad: _unidad, ...resto } = p;
         return sv && porZona(sv) && zonaObra ? { ...resto, precio: 0, zona: zonaObra } : { ...resto, precio: 0 };
       }
-    } else {
+    } else if (tri) {
       if (p.tipo === 'material') {
-        if (!cat.productos.some((x) => x.id === p.id)) {
+        if (!tri.productos.some((x) => x.id === p.id)) {
           throw new BadRequestException(`Partida ${n}: ese material no está en el tabulador. Pídelo a la medida en /cotizar.`);
         }
         const { precio: _p, nombre: _n, ...resto } = p;
-        return { ...resto, flete_ton: fleteDelSitio(cat, p.flete_zona, p.flete_ton) } as PartidaCotizador;
+        // Pedido grande (2026-11-03): el flete es el del camión en esa zona (0 = se confirma aparte).
+        if (p.camion) {
+          if (!camionDe(tri, p.camion)) throw new BadRequestException(`Partida ${n}: ese camión no está en el cotizador.`);
+          return { ...resto, flete_ton: fleteCamion(tri, p.camion, p.flete_zona) } as PartidaCotizador;
+        }
+        return { ...resto, flete_ton: fleteDelSitio(tri, p.flete_zona, p.flete_ton) } as PartidaCotizador;
       }
       if (p.tipo === 'banco') return { ...p, precio_m3: 0 };
       if (p.tipo === 'zona') {
@@ -163,7 +176,7 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
     }
     return p;
   });
-  const falta = faltaZona(cat, limpias, municipio);
+  const falta = faltaZona(cat, limpias, municipio) ?? faltaMinimoCamion(cat, limpias);
   if (falta) throw new BadRequestException(falta);
   return limpias;
 }

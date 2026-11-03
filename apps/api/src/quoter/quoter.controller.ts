@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Logger, NotFoundException, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { condicionesSinPrecios, esCotizadorTipo, llevaFlete, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
+import { camionesDe, condicionesSinPrecios, esCotizadorTipo, llevaFlete, type CalculoCotizacion, type CatalogoCotizador, type CotizadorTipo } from '@maqserv/config';
 import { avisarPanel } from '../notifications/panel';
 import { leerAceptacion } from './aceptar-link';
 import { leerZonas, municipiosDe } from '../common/zonas';
@@ -89,14 +89,15 @@ export class QuoterController {
   @UseGuards(JwtGuard)
   async solicitar(@Req() req: AuthedRequest, @Param('kind') kind: string, @Body() body: unknown) {
     const tipo = tipoDe(kind);
-    const cat = await this.quoter.catalogo(tipo);
+    // Con el de triturados junto: una sola cotización puede llevar los dos (2026-11-03).
+    const cat = await this.quoter.catalogoCalculo(tipo);
     if (!cat.publico.habilitado) throw new NotFoundException('Este cotizador no está disponible en el sitio.');
 
     const parsed = solicitudSitioSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(primerError(parsed.error));
     const datos = parsed.data;
-    // La fecha del servicio no puede ser pasada (hoy en Monterrey, no en UTC), igual que en /cotizar.
-    if (datos.fecha < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date())) {
+    // La fecha, si viene (opcional desde 2026-11-03), no puede ser pasada (hoy en Monterrey, no en UTC).
+    if (datos.fecha && datos.fecha < new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Monterrey' }).format(new Date())) {
       throw new BadRequestException('La fecha ya pasó. Elige hoy o una fecha posterior.');
     }
 
@@ -168,8 +169,8 @@ export class QuoterController {
         cuenta,
         cliente,
         userId,
-        // Empresa y obra que eligió, o la obra nueva con su dirección (2026-10-23).
-        destino: { clientId: datos.clienteId ?? null, siteId: datos.obraId ?? null, direccion: datos.direccion || null, fecha: datos.fecha, ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? datos.ubicacion || null : null },
+        // La empresa que eligió (2026-10-23); obra y fecha ya no se piden (2026-11-03) y van solo si llegan.
+        destino: { clientId: datos.clienteId ?? null, siteId: datos.obraId ?? null, direccion: datos.direccion || null, fecha: datos.fecha || null, ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? datos.ubicacion || null : null },
       });
     } catch (e) {
       this.log.error(`No se pudo abrir el servicio de ${cot.folio}: ${(e as Error).message}`);
@@ -246,7 +247,7 @@ export class QuoterController {
       if (d.state === 'aceptada' || ligada) return { ok: true, yaEstaba: true, folio: d.folio };
 
       await this.quoter.cambiarEstado(d.id, 'aceptada');
-      const abierto = await this.servicio.abrirDesdePanel(d.id, await this.quoter.catalogo(d.kind as CotizadorTipo), null);
+      const abierto = await this.servicio.abrirDesdePanel(d.id, await this.quoter.catalogoCalculo(d.kind as CotizadorTipo), null);
       void avisarPanel({
         modulo: 'servicios',
         evento: 'solicitud',
@@ -319,5 +320,7 @@ function sinPrecios(catalogo: CatalogoCotizador): CatalogoCotizador {
     fletes_ton: [],
     material_banco: { ...cat.material_banco, precio_m3_default: 0 },
     zonas: cat.zonas.map((z) => ({ ...z, flete: 0, precios: undefined })),
+    // Tolva y full (2026-11-03): se queda en qué zonas ya tienen precio, no cuánto.
+    camiones: camionesDe(cat).map((c) => ({ ...c, precios_ton: Object.fromEntries(Object.entries(c.precios_ton).map(([z, v]) => [z, v > 0 ? 1 : 0])) })),
   };
 }

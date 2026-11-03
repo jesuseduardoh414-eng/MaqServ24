@@ -10,6 +10,8 @@ import { Icon, type IconName } from '@/components/Icon';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
 import { telHref } from '@/lib/telefono';
 import { fotoLigera } from '@/lib/foto';
+import { useCart } from '@/components/CartProvider';
+import { COTIZADOR, LISTA_PARA_COTIZAR } from '@/lib/enlace-cotizar';
 
 /**
  * Icono de cada entrada del menú y de cada acceso de cuenta. Van por RUTA y no
@@ -112,6 +114,7 @@ export function MobileNav({
   brand: { name: string; logoLight: string | null; logoDark: string | null };
 }) {
   const pathname = usePathname() || '/';
+  const cart = useCart();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<{ name: string; email: string } | null>(null);
@@ -348,8 +351,8 @@ export function MobileNav({
                 )}
                 {/* Antes «Rastrear pedido» (/rastreo). Sin compras en línea
                     (2026-10-08) no hay pedidos que rastrear; el atajo lleva a la
-                    lista de equipos para cotizar. */}
-                <Link href="/cotizar" className={ACCESO}><Icon name="specs" size={15} />{labels.quoteList}</Link>
+                    lista de equipos para cotizar o, vacía, al cotizador (2026-11-03). */}
+                <Link href={cart.count > 0 ? LISTA_PARA_COTIZAR : COTIZADOR} className={ACCESO}><Icon name="specs" size={15} />{labels.quoteList}</Link>
               </nav>
             </div>
 

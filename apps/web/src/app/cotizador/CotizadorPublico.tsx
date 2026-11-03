@@ -1,43 +1,124 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Cotizador, lineasDeFicha, type DatosEnvio, type EmpresaCliente, type ResultadoEnvio } from '@maqserv/ui';
-import type { CatalogoCotizador } from '@maqserv/config';
+import { useEffect, useMemo, useState } from 'react';
+import { Cotizador, lineasDeFicha, NumeroTexto, Tarjeta, type DatosEnvio, type EmpresaCliente, type ResultadoEnvio } from '@maqserv/ui';
+import {
+  catalogoDelSitio,
+  catalogoDeVarios,
+  categoriasEnTexto,
+  combinar,
+  COTIZADORES_SITIO,
+  cotizadorDelSitio,
+  hayQueElegir,
+  type CatalogoCotizador,
+  type CatalogoMaquinaria,
+  type CatalogoTriturados,
+} from '@maqserv/config';
+import Link from '@/components/Enlace';
 import { evento } from '@/lib/analitica';
+
+/** Un producto del catálogo de una categoría que todavía no tiene precio en línea. */
+export interface ProductoALaMedida {
+  id: number;
+  nombre: string;
+  /** La unidad de su ficha ("m2", "tonelada"…); sin ella, por pieza. */
+  unidad: string | null;
+}
+
+/** Lo que se pidió de una categoría sin precio: sus productos con cantidad, o un texto si no tiene productos. */
+interface PedidoALaMedida {
+  clave: string;
+  elegidos: Array<{ id: number; nombre: string; unidad: string | null; cantidad: string }>;
+  texto: string;
+}
 
 /**
  * El cotizador en el sitio público.
  *
- * Es el MISMO componente que usa el panel; lo que cambia es la variante (que
- * pide correo y teléfono, porque a un visitante no se le puede contestar de
- * otra forma) y a dónde va lo capturado.
+ * Es el MISMO componente que usa el panel; lo que cambia es la variante y a
+ * dónde va lo capturado. Solo se llega aquí con cuenta (la página pinta el
+ * candado si no la hay), y por eso la respuesta trae el enlace a Mi cuenta
+ * para seguirla.
  *
- * Lo que sale de aquí es una SOLICITUD DE COTIZACIÓN sin precios (2026-10-23:
- * el sitio nunca los enseña). Llega al panel con su precio estimado; MAQSER24
- * lo revisa y se lo manda al cliente, que la acepta desde su cuenta. Solo se
- * llega aquí con cuenta (la página pinta el candado si no la hay), y por eso
- * la respuesta trae el enlace a Mi cuenta para seguirla.
+ * UNA SOLA COTIZACIÓN CON TODO (2026-11-03, pedido del dueño: "que salga como
+ * si fuera el cotizador, pero se agrega en una sola cotización"). Desde
+ * «¿Necesitas otro servicio?» se suma cualquier categoría:
+ *  - con precio, con su cotizador completo: las de maquinaria en el mismo
+ *    tabulador y triturados con el suyo, que viaja junto (\`combinar\`);
+ *  - sin precio todavía (carpeta, materiales, venta), con sus productos del
+ *    catálogo en tarjetas y su cantidad: van en la misma solicitud con «precio
+ *    por confirmar» y MAQSER24 los cotiza al responder.
  */
 export function CotizadorPublico({
-  catalogo,
+  tabuladores,
+  cotizador,
+  aLaMedida,
   logo,
   inicial,
   fichaId,
 }: {
-  catalogo: CatalogoCotizador;
+  /** Los dos tabuladores: aquí se enseña solo lo de las categorías elegidas. */
+  tabuladores: { maquinaria: CatalogoMaquinaria | null; triturados: CatalogoTriturados | null };
+  /** La clave del cotizador del sitio con el que se entró (agua, acarreos…). */
+  cotizador: string;
+  /** Las categorías sin nada con precio, con los productos de su catálogo. */
+  aLaMedida: Record<string, ProductoALaMedida[]>;
   logo: string | null;
   inicial?: { cliente?: string; correo?: string; telefono?: string; municipio?: string };
   /** Se llegó desde "Cotizar" en una ficha del catálogo (2026-10-22): abre con ese tipo elegido. */
   fichaId?: number | null;
 }) {
+  // Las categorías con precio que se están cotizando: la de entrada y las que agregue.
+  const [activas, setActivas] = useState<string[]>([cotizador]);
+  const [medida, setMedida] = useState<PedidoALaMedida[]>([]);
+
+  const catalogo = useMemo<CatalogoCotizador>(() => {
+    const deMaquinaria = activas.filter((k) => cotizadorDelSitio(k)?.tipo === 'maquinaria');
+    const conTriturados = activas.includes('triturados') && tabuladores.triturados;
+    if (deMaquinaria.length && tabuladores.maquinaria) {
+      const base = catalogoDeVarios(tabuladores.maquinaria, deMaquinaria) as CatalogoMaquinaria;
+      return conTriturados ? combinar(base, tabuladores.triturados) : base;
+    }
+    return tabuladores.triturados as CatalogoTriturados;
+  }, [tabuladores, activas]);
+
+  /** ¿Tiene algo con precio en su tabulador? Entonces se suma con su cotizador. */
+  const conPrecio = (clave: string): boolean => {
+    const c = cotizadorDelSitio(clave);
+    const tab = c ? tabuladores[c.tipo] : null;
+    return !!c && !!tab && hayQueElegir(catalogoDelSitio(tab, c));
+  };
+  const opciones = COTIZADORES_SITIO.filter((c) => !activas.includes(c.clave) && !medida.some((m) => m.clave === c.clave)).map((c) => ({
+    clave: c.clave,
+    titulo: c.titulo,
+    icono: c.icono,
+    resumen: conPrecio(c.clave) ? c.resumen : 'Precio por confirmar',
+  }));
+  const agregar = (clave: string) => {
+    if (conPrecio(clave)) setActivas((a) => (a.includes(clave) ? a : [...a, clave]));
+    else setMedida((m) => (m.some((x) => x.clave === clave) ? m : [...m, { clave, elegidos: [], texto: '' }]));
+  };
+  const cambiarMedida = (clave: string, cambio: (m: PedidoALaMedida) => PedidoALaMedida) =>
+    setMedida((ms) => ms.map((m) => (m.clave === clave ? cambio(m) : m)));
+
+  // Lo que va a la medida, en las notas del documento y de la solicitud.
+  const notasExtra = medida.length
+    ? `Por cotizar a la medida (precio por confirmar):\n${medida
+        .map((m) => {
+          const detalle = [...m.elegidos.map((e) => `${e.nombre} · ${e.cantidad.trim() || '¿cuánto?'} ${unidadTexto(e.unidad)}`), m.texto.trim()].filter(Boolean).join('; ');
+          return `- ${cotizadorDelSitio(m.clave)?.titulo ?? m.clave}: ${detalle || 'sin detalle'}`;
+        })
+        .join('\n')}`
+    : '';
+  const todas = [...activas, ...medida.map((m) => m.clave)];
+
   // Una sola vez al montar: si el cliente quita la partida, no vuelve sola.
   const [lineasIniciales] = useState(() => (fichaId ? lineasDeFicha(catalogo, fichaId) : []));
 
   /**
-   * Sus empresas con sus obras (2026-10-23): el paso 1 las ofrece en un
-   * seleccionador. Se espera a tenerlas antes de pintar el cotizador para que
-   * abra ya con su empresa elegida; si la consulta falla, abre sin ellas y
-   * pide escribir empresa y obra nueva.
+   * Sus empresas con sus obras (2026-10-23): la tarjeta del cliente las ofrece
+   * en un seleccionador. Se espera a tenerlas antes de pintar el cotizador para
+   * que abra ya con su empresa elegida; si la consulta falla, abre sin ellas.
    */
   const [empresas, setEmpresas] = useState<EmpresaCliente[] | null>(null);
   useEffect(() => {
@@ -75,7 +156,7 @@ export function CotizadorPublico({
       throw new Error('Tu sesión terminó. Entra de nuevo y vuelve a enviar tu solicitud.');
     }
     if (!res.ok) throw new Error(body?.message ?? 'No se pudo enviar la solicitud. Inténtalo de nuevo.');
-    evento('cotizador_solicitado', { tipo: catalogo.tipo, partidas: datos.partidas.length });
+    evento('cotizador_solicitado', { tipo: catalogo.tipo, cotizador: todas.join('+'), partidas: datos.partidas.length });
     return {
       folio: body.folio as string,
       enlace: typeof body.url === 'string' ? { href: body.url, label: 'Seguir mi solicitud en mi cuenta' } : undefined,
@@ -83,17 +164,138 @@ export function CotizadorPublico({
   }
 
   if (empresas === null) return <p className="ms-desc" style={{ padding: '24px 0' }}>Cargando tus empresas y obras…</p>;
-  // Abre con su primera empresa elegida; la obra la elige él.
+  // Abre con su primera empresa elegida y, si su cuenta no dice municipio, el de su primera obra que lo tenga.
   const primera = empresas[0];
+  const municipio = inicial?.municipio || primera?.sites.find((o) => o.municipality)?.municipality || '';
   return (
     <Cotizador
       catalogo={catalogo}
       variante="sitio"
+      titulo={`Cotización de ${categoriasEnTexto(todas)}`}
+      masServicios={{ opciones, agregar }}
+      extras={medida.length ? (
+        <>
+          {medida.map((m) => (
+            <CotizadorALaMedida
+              key={m.clave}
+              pedido={m}
+              productos={aLaMedida[m.clave] ?? []}
+              cambiar={(cambio) => cambiarMedida(m.clave, cambio)}
+              quitar={() => setMedida((ms) => ms.filter((x) => x.clave !== m.clave))}
+            />
+          ))}
+        </>
+      ) : null}
+      notasExtra={notasExtra}
+      despues={<OtroServicio activas={todas} />}
       logo={logo}
-      inicial={{ ...inicial, ...(primera ? { clienteId: primera.id, cliente: primera.name } : {}) }}
+      inicial={{ ...inicial, municipio, ...(primera ? { clienteId: primera.id, cliente: primera.name } : {}) }}
       lineasIniciales={lineasIniciales}
       empresas={empresas}
       onEnviar={enviar}
     />
+  );
+}
+
+/** "m2" → "m²", "tonelada" → "ton"…; lo que no se conoce, tal cual (o "pieza" si no hay). */
+function unidadTexto(u: string | null): string {
+  const mapa: Record<string, string> = { m2: 'm²', m3: 'm³', tonelada: 'ton', toneladas: 'ton', pieza: 'pieza', piezas: 'pieza', viaje: 'viaje', hora: 'hora', dia: 'día', día: 'día' };
+  const k = (u ?? '').trim().toLowerCase();
+  return mapa[k] ?? (k || 'pieza');
+}
+
+/** Qué escribir cuando la categoría no tiene productos en el catálogo (venta de maquinaria, hoy). */
+const EJEMPLO_MEDIDA: Record<string, string> = {
+  'venta-de-maquinaria': 'Qué equipo buscas, para qué uso y tu presupuesto aproximado',
+};
+
+/**
+ * UNA CATEGORÍA SIN PRECIO TODAVÍA, COMO COTIZADOR (2026-11-03): sus productos
+ * del catálogo en tarjetas; tocar uno lo elige y pide su cantidad. Sin
+ * productos, un espacio para describir lo que necesita. Su precio lo confirma
+ * MAQSER24 al responder; en cuanto su ficha tenga precio, la categoría pasa
+ * sola al cotizador con precio.
+ */
+function CotizadorALaMedida({ pedido, productos, cambiar, quitar }: {
+  pedido: PedidoALaMedida;
+  productos: ProductoALaMedida[];
+  cambiar: (cambio: (m: PedidoALaMedida) => PedidoALaMedida) => void;
+  quitar: () => void;
+}) {
+  const c = cotizadorDelSitio(pedido.clave);
+  const titulo = c?.titulo ?? pedido.clave;
+  const alternar = (p: ProductoALaMedida) =>
+    cambiar((m) => (m.elegidos.some((e) => e.id === p.id)
+      ? { ...m, elegidos: m.elegidos.filter((e) => e.id !== p.id) }
+      : { ...m, elegidos: [...m.elegidos, { id: p.id, nombre: p.nombre, unidad: p.unidad, cantidad: '' }] }));
+  return (
+    <div className="cz-card">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <h2 className="cz-card-h">{titulo}</h2>
+        <button type="button" className="cz-rm" aria-label={`Quitar ${titulo}`} title="Quitar" onClick={quitar}>✕</button>
+      </div>
+      <p className="cz-card-s">Todavía no tiene precio de lista en línea: elige qué necesitas y cuánto; el precio te lo confirmamos con la cotización.</p>
+      {productos.length ? (
+        <div className="cz-cards">
+          {productos.map((p) => (
+            <Tarjeta
+              key={p.id}
+              icono={c?.icono ?? 'material'}
+              titulo={p.nombre}
+              nota={`por ${unidadTexto(p.unidad)} · precio por confirmar`}
+              n={pedido.elegidos.some((e) => e.id === p.id) ? 1 : 0}
+              onClick={() => alternar(p)}
+            />
+          ))}
+        </div>
+      ) : (
+        <textarea
+          className="cz-textarea"
+          maxLength={250}
+          aria-label={`Qué necesitas de ${titulo.toLowerCase()}`}
+          placeholder={EJEMPLO_MEDIDA[pedido.clave] ?? 'Qué necesitas y cuánto'}
+          value={pedido.texto}
+          onChange={(e) => cambiar((m) => ({ ...m, texto: e.target.value }))}
+        />
+      )}
+      {pedido.elegidos.length ? (
+        <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
+          {pedido.elegidos.map((e) => (
+            <div key={e.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: 12, alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{e.nombre}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <NumeroTexto
+                  decimal
+                  ariaLabel={`Cuánto de ${e.nombre}`}
+                  placeholder="Cantidad"
+                  valor={e.cantidad}
+                  onChange={(v) => cambiar((m) => ({ ...m, elegidos: m.elegidos.map((x) => (x.id === e.id ? { ...x, cantidad: v } : x)) }))}
+                />
+                <span className="cz-help" style={{ whiteSpace: 'nowrap' }}>{unidadTexto(e.unidad)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * DESPUÉS DE ENVIAR, OTRA VEZ LA PREGUNTA (2026-11-03): «¿Necesitas cotizar
+ * otro servicio?» con los cotizadores que no entraron en esta solicitud.
+ */
+function OtroServicio({ activas }: { activas: string[] }) {
+  const resto = COTIZADORES_SITIO.filter((c) => !activas.includes(c.clave));
+  if (!resto.length) return null;
+  return (
+    <div style={{ display: 'grid', gap: 12 }}>
+      <b style={{ fontSize: 15 }}>¿Necesitas cotizar otro servicio?</b>
+      <div className="cz-done-acts">
+        {resto.map((c) => (
+          <Link key={c.clave} href={`/cotizador/${c.clave}`} className="ms-btn ms-btn-sec">{c.titulo}</Link>
+        ))}
+      </div>
+    </div>
   );
 }

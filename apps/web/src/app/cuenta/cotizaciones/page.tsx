@@ -10,6 +10,7 @@ import { Icon } from '@/components/Icon';
 import { toneColors } from '@/lib/order-status';
 import { formatPrice } from '@/lib/format';
 import { AccountShell, EstadoVacio } from '../AccountShell';
+import { A_LA_MEDIDA } from '@/lib/enlace-cotizar';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
@@ -79,7 +80,7 @@ export default async function MyQuotesPage() {
           titulo="Aún no has pedido nada"
           texto="Arma tu solicitud en el cotizador: eliges el equipo o el material, MAQSER24 te manda la cotización con precio y, si la aceptas, asigna quién lo atiende."
           accion={{ href: '/cotizador', label: 'Abrir el cotizador' }}
-          secundaria={{ href: '/cotizar', label: 'Pedir algo a la medida' }}
+          secundaria={{ href: A_LA_MEDIDA, label: 'Pedir algo a la medida' }}
         />
       ) : (
         <div className="ac-rows">

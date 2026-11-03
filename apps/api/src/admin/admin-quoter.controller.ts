@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
-import { catalogoCotizadorSchema, conZonaDeLaObra, esAccesoDirecto, esCotizadorTipo, faltaZona, llevaFlete, normalizarNombre } from '@maqserv/config';
+import { catalogoCotizadorSchema, conZonaDeLaObra, esAccesoDirecto, esCotizadorTipo, faltaMinimoCamion, faltaZona, llevaFlete, normalizarNombre, UNIDADES_DE_SERVICIO } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
 import { revisarCampos } from '../common/campos';
@@ -31,6 +31,8 @@ const fichaSchema = z.object({
     precio_hora: dinero.optional(),
     flete_tipo: z.string().trim().max(60).optional(),
     precio: dinero.optional(),
+    /** Servicio: en qué se cobra (2026-11-02: m² la carpeta, pieza el block…). */
+    unidad: z.enum(UNIDADES_DE_SERVICIO).optional(),
     cond: z.string().max(40).optional(),
     /** Servicio: precio por viaje en cada zona (el agua, 2026-10-29). Null: ya no cobra por zona. */
     precios_zona: z.record(z.string().max(40), dinero).nullable().optional(),
@@ -229,9 +231,10 @@ export class AdminQuoterController {
     const solicitudId = Number((body as { solicitudId?: unknown } | null)?.solicitudId) || null;
     const solicitud = solicitudId ? await this.quoter.solicitudLigable(solicitudId) : null;
     // El agua sin zona elegida toma la del municipio de la obra; sin zona no se cotiza (2026-10-29).
-    const cat = await this.quoter.catalogo(tipo);
+    const cat = await this.quoter.catalogoCalculo(tipo);
     const partidas = conZonaDeLaObra(cat, partidasDe(tipo, d.partidas), d.municipio);
-    const sinZona = faltaZona(cat, partidas, d.municipio);
+    // Tolva o full: desde 100 toneladas también en el panel (2026-11-03, "mínimo obligatorio").
+    const sinZona = faltaZona(cat, partidas, d.municipio) ?? faltaMinimoCamion(cat, partidas);
     if (sinZona) throw new BadRequestException(sinZona);
 
     /**
@@ -348,7 +351,7 @@ export class AdminQuoterController {
     if (r.estado === 'aceptada') {
       const doc = await prisma.quoter_quotes.findUnique({ where: { id: Number(id) }, select: { kind: true } });
       if (doc && esCotizadorTipo(doc.kind)) {
-        const abierto = await this.servicio.abrirDesdePanel(Number(id), await this.quoter.catalogo(doc.kind), req.adminNombre ?? null);
+        const abierto = await this.servicio.abrirDesdePanel(Number(id), await this.quoter.catalogoCalculo(doc.kind), req.adminNombre ?? null);
         if (abierto) {
           await registrarAccion(req, 'cotizador', 'cotizacion.servicio', abierto.quoteNumber, 'servicio abierto, por asignar');
           return { ...r, servicio: { quoteNumber: abierto.quoteNumber, ofrecidos: abierto.proveedores } };

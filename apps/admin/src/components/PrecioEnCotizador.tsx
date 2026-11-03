@@ -1,7 +1,20 @@
 'use client';
 
 import { useEffect, useMemo, useState, type MutableRefObject } from 'react';
-import { cobraFlete, minimoHorasDe, seccionDeLinea, type CatalogoCotizador, type ClaseRenglon, type SeccionCotizador } from '@maqserv/config';
+import {
+  cobraFlete,
+  COND_DE_LINEA,
+  LINEA_ASFALTO,
+  LINEA_MATERIALES,
+  LINEA_VENTA,
+  minimoHorasDe,
+  seccionDeLinea,
+  UNIDADES_DE_SERVICIO,
+  unidadDeLinea,
+  type CatalogoCotizador,
+  type ClaseRenglon,
+  type SeccionCotizador,
+} from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { Btn, IconBtn, Note, Switch } from '@/components/ui';
 
@@ -31,6 +44,8 @@ interface Renglon {
   hora: string;
   flete: string;
   precio: string;
+  /** Servicio: en qué se cobra (2026-11-02: m² la carpeta, pieza el block…). */
+  unidad: string;
   cond: string;
   /** Servicio: cobra según la zona de la obra (agua y retiro, 2026-10-29). */
   porZona: boolean;
@@ -45,7 +60,7 @@ interface Ficha {
   seccion: SeccionCotizador | null;
   activa: boolean;
   oculto: boolean;
-  renglones: Array<{ id?: string; nombre: string; precio_hora?: number; flete_tipo?: string; precio?: number; cond?: string; precios_zona?: Record<string, number> }>;
+  renglones: Array<{ id?: string; nombre: string; precio_hora?: number; flete_tipo?: string; precio?: number; unidad?: string; cond?: string; precios_zona?: Record<string, number> }>;
   fletes: Array<{ nombre: string; monto: number }>;
   condiciones: Array<{ clave: string; titulo: string }>;
   /** Maquinaria: cómo se cobra (Tarifas › Maquinaria). */
@@ -56,15 +71,22 @@ interface Ficha {
 
 const NUEVO_FLETE = '__nuevo__';
 const money = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigits: 2 })}`;
-const vacio = (cond = ''): Renglon => ({ nombre: '', hora: '', flete: '', precio: '', cond, porZona: false, zonas: {}, teniaZonas: false });
+const vacio = (cond = '', unidad = 'viaje'): Renglon => ({ nombre: '', hora: '', flete: '', precio: '', unidad, cond, porZona: false, zonas: {}, teniaZonas: false });
 
 /** Lo que sale de la API, a texto para los campos. */
 function aRenglon(r: Ficha['renglones'][number]): Renglon {
   const t = (n?: number) => (n === undefined || n === null ? '' : String(n));
   const zonas = Object.fromEntries(Object.entries(r.precios_zona ?? {}).map(([z, v]) => [z, t(v)]));
   const porZona = Object.keys(zonas).length > 0;
-  return { id: r.id, nombre: r.nombre, hora: t(r.precio_hora), flete: r.flete_tipo ?? '', precio: t(r.precio), cond: r.cond ?? '', porZona, zonas, teniaZonas: porZona };
+  return { id: r.id, nombre: r.nombre, hora: t(r.precio_hora), flete: r.flete_tipo ?? '', precio: t(r.precio), unidad: r.unidad || 'viaje', cond: r.cond ?? '', porZona, zonas, teniaZonas: porZona };
 }
+
+/** Cómo se ve un servicio de cada línea, de ejemplo en el nombre. */
+const EJEMPLO_DE_LINEA: Record<string, string> = {
+  [LINEA_ASFALTO]: 'Carpeta asfáltica normal',
+  [LINEA_MATERIALES]: 'Block de concreto 15×20×40',
+  [LINEA_VENTA]: 'Retroexcavadora 4x4 seminueva',
+};
 
 /** Para una ficha nueva todavía no hay a quién preguntarle: se arma con el tabulador de su línea. */
 function fichaDeCatalogo(cat: CatalogoCotizador, linea: string, seccion: SeccionCotizador): Ficha {
@@ -182,12 +204,12 @@ export function PrecioEnCotizador({
         const precios = Object.fromEntries(Object.entries(r.zonas).map(([z, v]) => [z, num(v)]).filter(([, v]) => (v as number) > 0));
         const valores = Object.values(precios) as number[];
         if (sale && !valores.length) return { error: `«${nombre}»: pon su precio en al menos una zona. Donde no tenga precio no se ofrece.` };
-        out.push({ id: r.id, nombre, precio: valores.length ? Math.min(...valores) : 0, cond: r.cond || undefined, precios_zona: precios });
+        out.push({ id: r.id, nombre, precio: valores.length ? Math.min(...valores) : 0, unidad: r.unidad, cond: r.cond || undefined, precios_zona: precios });
       } else {
         if (sale && !(num(r.precio) > 0)) return { error: `«${nombre}»: pon su precio. En $0 se cotizaría gratis.` };
         out.push({
           id: r.id, nombre, precio: num(r.precio) || 0,
-          ...(seccion.clase === 'servicio' ? { cond: r.cond || undefined, ...(r.teniaZonas ? { precios_zona: null } : {}) } : {}),
+          ...(seccion.clase === 'servicio' ? { unidad: r.unidad, cond: r.cond || undefined, ...(r.teniaZonas ? { precios_zona: null } : {}) } : {}),
         });
       }
     }
@@ -226,7 +248,12 @@ export function PrecioEnCotizador({
     setRenglones((rs) => rs.filter((_, j) => j !== i));
     setFletesNuevos((f) => Object.fromEntries(Object.entries(f).filter(([k]) => Number(k) !== i).map(([k, v]) => [Number(k) > i ? Number(k) - 1 : k, v])));
   };
-  const agregar = () => setRenglones((rs) => [...rs, vacio(ficha?.condiciones[0]?.clave ?? '')]);
+  // Un renglón nuevo nace con las condiciones y la unidad de su línea (2026-11-02): la carpeta, en m² y con las suyas.
+  const agregar = () => {
+    const deLinea = linea ? COND_DE_LINEA[linea] : undefined;
+    const cond = deLinea && ficha?.condiciones.some((c) => c.clave === deLinea) ? deLinea : ficha?.condiciones[0]?.clave ?? '';
+    setRenglones((rs) => [...rs, vacio(cond, rs[rs.length - 1]?.unidad ?? unidadDeLinea(linea))]);
+  };
 
   // ---- Lo que no se edita aquí ----
   if (!seccionElegida && !(productId && seccion)) {
@@ -253,7 +280,7 @@ export function PrecioEnCotizador({
     );
   }
 
-  const unidad = seccion.clase === 'servicio' ? 'por viaje' : 'por tonelada';
+  const unidadDe = (r: Renglon) => (seccion.clase === 'servicio' ? `por ${r.unidad || 'viaje'}` : 'por tonelada');
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
@@ -280,7 +307,7 @@ export function PrecioEnCotizador({
                     className="adm-input"
                     value={r.nombre}
                     onChange={(e) => set(i, { nombre: e.target.value })}
-                    placeholder={seccion.clase === 'equipo' ? 'Retroexcavadora c/ cucharón' : seccion.clase === 'servicio' ? 'Pipa de agua 10 m³' : 'Base hidráulica'}
+                    placeholder={seccion.clase === 'equipo' ? 'Retroexcavadora c/ cucharón' : seccion.clase === 'servicio' ? (linea && EJEMPLO_DE_LINEA[linea]) || 'Pipa de agua 10 m³' : 'Base hidráulica'}
                   />
                 </label>
                 <IconBtn icon="ph-trash" label="Quitar del cotizador" onClick={() => quitar(i)} />
@@ -323,7 +350,7 @@ export function PrecioEnCotizador({
                   <div className="pf-2">
                     {(ficha?.zonas ?? []).map((z) => (
                       <label key={z.id} style={{ display: 'grid', gap: 6 }}>
-                        <span className="adm-label">{z.nombre} · {unidad}</span>
+                        <span className="adm-label">{z.nombre} · {unidadDe(r)}</span>
                         <input className="adm-input adm-num" type="number" min={0} step="0.01" value={r.zonas[z.id] ?? ''} onChange={(e) => set(i, { zonas: { ...r.zonas, [z.id]: e.target.value } })} placeholder="$ (vacío = no se lleva)" />
                         <span className="adm-help" style={{ margin: 0 }}>{z.municipios.join(', ')}</span>
                       </label>
@@ -331,9 +358,20 @@ export function PrecioEnCotizador({
                   </div>
                 ) : null}
                 <div className="pf-2">
+                  {seccion.clase === 'servicio' ? (
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span className="adm-label">Se cobra por</span>
+                      <AdminSelect
+                        ariaLabel="Unidad de cobro"
+                        value={r.unidad}
+                        onChange={(v) => set(i, { unidad: v })}
+                        options={UNIDADES_DE_SERVICIO.map((u) => ({ value: u, label: u }))}
+                      />
+                    </label>
+                  ) : null}
                   {seccion.clase === 'servicio' && r.porZona ? null : (
                     <label style={{ display: 'grid', gap: 6 }}>
-                      <span className="adm-label">Precio {unidad}</span>
+                      <span className="adm-label">Precio {unidadDe(r)}</span>
                       <input className="adm-input adm-num" type="number" min={0} step="0.01" value={r.precio} onChange={(e) => set(i, { precio: e.target.value })} placeholder="$" />
                     </label>
                   )}

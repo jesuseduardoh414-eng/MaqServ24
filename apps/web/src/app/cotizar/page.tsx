@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { NOINDEX } from '@/lib/seo';
 import type { ProductCard } from '@maqserv/types';
 import { parseProductSlug, requestFormFor } from '@maqserv/config';
@@ -8,16 +9,26 @@ import { getProduct, getCategories } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { QuoteForm } from './QuoteForm';
 import { QuoteGate } from './QuoteGate';
+import { A_LA_MEDIDA, COTIZADOR, LISTA_PARA_COTIZAR } from '@/lib/enlace-cotizar';
 
 export async function generateMetadata(): Promise<Metadata> {
   const theme = await getTheme();
   return { robots: NOINDEX, title: `${t(theme, 'quote.form.title')} — ${t(theme, 'site.name')}` };
 }
 
-type Search = { producto?: string; servicio?: string };
+/** `lista` y `medida`: vienen de «Tu lista para cotizar» y de «Pedir algo a la medida». */
+type Search = { producto?: string; servicio?: string; lista?: string; medida?: string };
 
 export default async function QuotePage({ searchParams }: { searchParams: Promise<Search> }) {
   const sp = await searchParams;
+  /**
+   * SIN NADA QUE COTIZAR, AL COTIZADOR (2026-11-03, pedido del dueño): el
+   * formulario abría con «Buscar equipo» y se esperaba el cliente con los
+   * servicios disponibles. Queda para un equipo, una categoría sin precio, la
+   * lista o «Pedir algo a la medida»; /cotizar a secas (botones guardados en
+   * el diseño, enlaces viejos) lleva a elegir la categoría.
+   */
+  if (!sp.producto && !sp.servicio && !sp.lista && !sp.medida) redirect(COTIZADOR);
   const [theme, user] = await Promise.all([getTheme(), getSessionUser()]);
 
   /**
@@ -29,7 +40,7 @@ export default async function QuotePage({ searchParams }: { searchParams: Promis
     ? `/cotizar?producto=${encodeURIComponent(sp.producto)}`
     : sp.servicio
       ? `/cotizar?servicio=${encodeURIComponent(sp.servicio)}`
-      : '/cotizar';
+      : sp.lista ? LISTA_PARA_COTIZAR : A_LA_MEDIDA;
 
   // ?producto= acepta id numérico o slug nombre-id
   let product: ProductCard | null = null;

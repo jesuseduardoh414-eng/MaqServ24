@@ -10,6 +10,7 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
 import { Band } from '@/components/Band';
 import { VideoCategoria } from '@/components/VideoCategoria';
+import { COTIZADOR } from '@/lib/enlace-cotizar';
 
 // Panel de la imagen de tarjeta. Era claro; pasa a grafito por lo mismo que el
 // del catálogo: el manual pone negro y grafito como fondos prioritarios.
@@ -154,7 +155,7 @@ export function VistaCategorias({ theme, categories, marco = true }: { theme: Th
               <p className="ms-empty-p">Mientras tanto puedes ver todos los servicios o pedir una cotización.</p>
               <div className="ms-empty-acts">
                 <Link href="/servicios" className="ms-link">Ver servicios <Icon name="arrowRight" size={14} /></Link>
-                <Link href="/cotizar" className="ms-link ms-link-muted">Cotizar <Icon name="arrowRight" size={14} /></Link>
+                <Link href={COTIZADOR} className="ms-link ms-link-muted">Cotizar <Icon name="arrowRight" size={14} /></Link>
               </div>
             </div>
           ) : null}

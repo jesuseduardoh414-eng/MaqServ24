@@ -107,7 +107,7 @@ export const heroSettingsSchema = z
     showTrust: z.boolean().default(true),
     showStats: z.boolean().default(true),
     overlay: z.number().min(0).max(100).default(100), // opacidad % del círculo
-    primaryLink: z.string().default('/cotizar'),
+    primaryLink: z.string().default('/cotizador'),
     secondaryLink: z.string().default('/productos'),
     accentColor: z.string().default('#008CFF'),
     titleColor: z.string().default('#F5F7FA'),
@@ -337,7 +337,7 @@ export const promoItemSchema = z.object({
   title: z.string().default(''),
   text: z.string().default(''),
   cta: z.string().default(''), // texto del botón (vacío = sin botón)
-  ctaLink: z.string().default('/cotizar'),
+  ctaLink: z.string().default('/cotizador'),
   /** Último día vigente (AAAA-MM-DD, hora de Monterrey). Pasada la fecha se oculta sola. */
   until: z.string().nullable().default(null),
 });

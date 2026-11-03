@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import { paginaSeo } from '@/lib/seo';
 import Link from '@/components/Enlace';
-import { COTIZADORES_META, COTIZADOR_TIPOS } from '@maqserv/config';
+import { catalogoDelSitio, COTIZADOR_TIPOS, COTIZADORES_SITIO, hayQueElegir } from '@maqserv/config';
 import { IconoCotizador } from '@maqserv/ui';
 import { getTheme, t } from '@/lib/theme';
 import { getQuoterCatalog } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
+import { aLaMedidaDe, resumenDe } from './pagina';
+import { A_LA_MEDIDA } from '@/lib/enlace-cotizar';
 
 /**
  * Siempre en servidor, nunca horneada.
@@ -28,23 +30,31 @@ export async function generateMetadata(): Promise<Metadata> {
 const PASOS = [
   { n: '01', titulo: 'Dinos de qué obra se trata', texto: 'Cliente, obra y municipio de entrega. Es lo que sale en el encabezado del documento.' },
   { n: '02', titulo: 'Elige qué necesitas', texto: 'Equipos y servicios, o materiales y modalidad de entrega, según el cotizador.' },
-  { n: '03', titulo: 'Ajusta cantidades', texto: 'Días y horas, o toneladas y viajes. El resumen se actualiza conforme capturas.' },
+  { n: '03', titulo: 'Ajusta cantidades', texto: 'Horas, viajes, piezas o toneladas, según lo que cotices. El resumen se actualiza conforme capturas.' },
   { n: '04', titulo: 'Revisa y envía', texto: 'Ves el documento tal como se imprime, con condiciones incluidas, antes de mandarlo.' },
 ];
 
 /**
- * Portada pública del cotizador: la bifurcación entre los dos.
+ * Portada pública del cotizador: un cotizador por categoría (2026-11-02), en
+ * el orden del menú.
  *
  * Es la página a la que apunta el menú, y existe porque "Cotizador" a secas no
  * dice si esto sirve para rentar una excavadora o para pedir tres viajes de
- * grava. Aquí se elige con la diferencia enfrente.
+ * agua. Aquí se elige con la diferencia enfrente.
  */
 export default async function CotizadorHome() {
   const theme = await getTheme();
   // Un cotizador apagado en el panel no debe aparecer como opción y llevar a
   // una pantalla que dice "no disponible".
   const catalogos = await Promise.all(COTIZADOR_TIPOS.map((tipo) => getQuoterCatalog(tipo)));
-  const disponibles = COTIZADOR_TIPOS.filter((_, i) => catalogos[i] !== null);
+  const tabulador = Object.fromEntries(COTIZADOR_TIPOS.map((tipo, i) => [tipo, catalogos[i]]));
+  const disponibles = COTIZADORES_SITIO.flatMap((c) => {
+    const cat = tabulador[c.tipo];
+    if (!cat) return [];
+    // Sin nada con precio todavía, la tarjeta lleva directo a pedirlo a la medida.
+    const enLinea = hayQueElegir(catalogoDelSitio(cat, c));
+    return [{ c, enLinea, href: enLinea ? `/cotizador/${c.clave}` : aLaMedidaDe(c) }];
+  });
 
   // Página de presentación: `.ms-hero` + secciones del sistema de diseño
   // (components/EstilosSistema.tsx). Lo propio lleva el prefijo `cz-`.
@@ -91,24 +101,21 @@ export default async function CotizadorHome() {
                   propuesta.
                 </p>
                 <div className="ms-empty-acts">
-                  <Link href="/cotizar" className="ms-btn">{t(theme, 'quote.form.title')}</Link>
+                  <Link href={A_LA_MEDIDA} className="ms-btn">{t(theme, 'quote.form.title')}</Link>
                 </div>
               </div>
             ) : (
               <div className="cz-cards">
-                {disponibles.map((tipo) => {
-                  const meta = COTIZADORES_META[tipo];
-                  return (
-                    <Link key={tipo} href={meta.ruta} className="ms-panel cz-card">
-                      <span className="ms-ico ms-ico-lg" aria-hidden>
-                        <IconoCotizador nombre={meta.icono} size={26} />
-                      </span>
-                      <h3 className="ms-h2 cz-card-t">{meta.titulo}</h3>
-                      <p>{meta.resumen}</p>
-                      <span className="ms-link">Empezar<Icon name="arrowRight" size={16} /></span>
-                    </Link>
-                  );
-                })}
+                {disponibles.map(({ c, enLinea, href }) => (
+                  <Link key={c.clave} href={href} className="ms-panel cz-card">
+                    <span className="ms-ico ms-ico-lg" aria-hidden>
+                      <IconoCotizador nombre={c.icono} size={26} />
+                    </span>
+                    <h3 className="ms-h2 cz-card-t">{c.titulo}</h3>
+                    <p>{resumenDe(c)}</p>
+                    <span className="ms-link">{enLinea ? 'Empezar' : 'Cotizar a la medida'}<Icon name="arrowRight" size={16} /></span>
+                  </Link>
+                ))}
               </div>
             )}
           </section>
@@ -125,8 +132,8 @@ export default async function CotizadorHome() {
               ))}
             </ol>
             <p className="cz-otro">
-              ¿Necesitas algo que no está en el cotizador —agua en pipas, volteos, block o carpeta asfáltica?{' '}
-              <Link href="/cotizar">Mándanos tu requerimiento</Link>{' '}
+              ¿Necesitas algo que no está en el cotizador?{' '}
+              <Link href={A_LA_MEDIDA}>Mándanos tu requerimiento</Link>{' '}
               y un asesor lo arma contigo.
             </p>
           </section>

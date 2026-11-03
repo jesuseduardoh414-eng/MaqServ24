@@ -94,6 +94,41 @@ export const ESTADOS_OPERACION = ['Nuevo León', 'Coahuila', 'Chihuahua'] as con
 export const ESTADOS_COBERTURA = ['Nuevo León'] as const;
 
 /**
+ * CONDICIONES DE LAS LÍNEAS QUE ENTRARON AL COTIZADOR (2026-11-02): carpeta
+ * asfáltica, materiales y venta de maquinaria. Son un punto de partida, sin
+ * reglas inventadas: Dirección las ajusta en Tarifas › Condiciones. Las usa el
+ * renglón nuevo de cada ficha de esas líneas (`COND_DE_LINEA`).
+ */
+export const CONDICIONES_POR_LINEA: CatalogoMaquinaria['condiciones'] = {
+  asfalto: {
+    titulo: 'Condiciones comerciales · Carpeta asfáltica',
+    puntos: [
+      'El precio es por la unidad indicada en la cotización (tonelada aplicada o m²). El volumen se calcula con los m² de la superficie y el espesor en cm.',
+      'La superficie debe estar lista para recibir el trabajo: base compactada, limpia y seca.',
+      'Forma de pago: contado.',
+      'Cualquier cambio en el área, el espesor o las condiciones de la obra puede ajustar el costo; se avisa antes.',
+    ],
+  },
+  materiales: {
+    titulo: 'Condiciones comerciales · Materiales para construcción',
+    puntos: [
+      'El precio es por la unidad indicada en la cotización.',
+      'Sujeto a disponibilidad al confirmar el pedido.',
+      'Forma de pago: contado.',
+      'Cualquier cambio en cantidades o lugar de entrega puede ajustar el costo; se avisa antes.',
+    ],
+  },
+  venta: {
+    titulo: 'Condiciones comerciales · Venta de maquinaria',
+    puntos: [
+      'El precio es por equipo y está sujeto a disponibilidad al confirmar la compra.',
+      'El equipo lo vende un proveedor de la red de MAQSER24; la entrega y la garantía se confirman con la propuesta.',
+      'Forma de pago: contado, al confirmar la compra.',
+    ],
+  },
+};
+
+/**
  * LAS DOS ZONAS DE LOS SERVICIOS POR VIAJE (Dirección, 2026-10-29): el agua y
  * el retiro de material se cobran según la zona de la obra. Guadalupe va en la
  * 2 y Santiago completo también (por la Carretera Nacional). En los demás
@@ -110,9 +145,9 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
   moneda: 'MXN',
   iva: 0.16,
   jornada_horas: 8,
-  // Cobro por hora con mínimo de una jornada y sin flete por ahora (2026-10-29).
+  // Cobro por hora con mínimo de una jornada (2026-10-29); el flete ida y vuelta vuelve el 2026-11-03.
   minimo_horas: 8,
-  cobrar_flete: false,
+  cobrar_flete: true,
   zonas_precio: ZONAS_PRECIO,
   empresa: EMPRESA,
   firma: FIRMA,
@@ -123,25 +158,26 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
     'Por medio de la presente, y aprovechando para enviarle un cordial saludo, ponemos a su consideración la siguiente cotización de renta de maquinaria para su proyecto.',
   municipios: MUNICIPIOS,
   fletes: {
-    Retroexcavadora: 6000,
-    Excavadora: 25000,
-    Motoconformadora: 15000,
-    Vibrocompactador: 10000,
-    Minicargador: 0,
+    // Ida y vuelta, por equipo (lista del dueño, 2026-11-03).
+    Retroexcavadora: 6500,
+    Excavadora: 30000,
+    Motoconformadora: 16000,
+    Vibrocompactador: 12500,
+    Minicargador: 6000,
   },
   equipos: [
-    { id: 'retro_cuch', nombre: 'Retroexcavadora c/ cucharón', icono: 'retro', flete_tipo: 'Retroexcavadora', precio_hora: 800 },
-    { id: 'retro_mart', nombre: 'Retroexcavadora c/ martillo', icono: 'retro_mart', flete_tipo: 'Retroexcavadora', precio_hora: 900 },
-    { id: 'exc_cuch', nombre: 'Excavadora 20 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 1650 },
-    { id: 'exc_mart', nombre: 'Excavadora 20 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 1950 },
-    { id: 'moto', nombre: 'Motoconformadora', icono: 'moto', flete_tipo: 'Motoconformadora', precio_hora: 1650 },
-    { id: 'vibro', nombre: 'Vibrocompactador 10 t', icono: 'vibro', flete_tipo: 'Vibrocompactador', precio_hora: 750 },
-    { id: 'bobcat_cuch', nombre: 'Bob Cat c/ cucharón', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 650 },
-    { id: 'bobcat_adit', nombre: 'Bob Cat c/ aditamentos', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 700 },
+    { id: 'retro_cuch', nombre: 'Retroexcavadora c/ cucharón', icono: 'retro', flete_tipo: 'Retroexcavadora', precio_hora: 850 },
+    { id: 'retro_mart', nombre: 'Retroexcavadora c/ martillo', icono: 'retro_mart', flete_tipo: 'Retroexcavadora', precio_hora: 950 },
+    { id: 'exc_cuch', nombre: 'Excavadora 20 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 1750 },
+    { id: 'exc_mart', nombre: 'Excavadora 20 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 2150 },
+    { id: 'moto', nombre: 'Motoconformadora', icono: 'moto', flete_tipo: 'Motoconformadora', precio_hora: 1750 },
+    { id: 'vibro', nombre: 'Vibrocompactador 10 t', icono: 'vibro', flete_tipo: 'Vibrocompactador', precio_hora: 850 },
+    { id: 'bobcat_cuch', nombre: 'Bob Cat c/ pala frontal', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 650 },
+    { id: 'bobcat_adit', nombre: 'Bob Cat c/ aditamento (mano de chango o martillo)', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 750 },
   ],
   servicios: [
-    { id: 'pipa', nombre: 'Pipa de agua 10 m³', icono: 'pipa', unidad: 'viaje', precio: 3000, presets: [3000], cond: 'pipa', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 3000, z2: 4500 } },
-    { id: 'agua', nombre: 'Pipa de agua 20 m³', icono: 'agua', unidad: 'viaje', precio: 5000, presets: [5000], cond: 'pipa', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 5000, z2: 6500 } },
+    { id: 'pipa', nombre: 'Pipa de agua 10 m³', icono: 'pipa', unidad: 'viaje', precio: 3500, presets: [3500], cond: 'pipa', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 3500, z2: 3500 } },
+    { id: 'agua', nombre: 'Pipa de agua 20 m³', icono: 'agua', unidad: 'viaje', precio: 6000, presets: [6000], cond: 'pipa', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 6000, z2: 6000 } },
     { id: 'retiro', nombre: 'Retiro de material 14 m³', icono: 'retiro', unidad: 'viaje', precio: 4500, presets: [4500], cond: 'retiro', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 4500, z2: 5500 } },
     // Sin servicio hasta nuevo aviso (2026-10-29): conserva su precio para cuando vuelva.
     { id: 'retiro_28', nombre: 'Retiro de material 28 m³', icono: 'retiro', unidad: 'viaje', precio: 5000, presets: [3000, 4000, 5000, 6000, 7000, 8000], cond: 'retiro', linea: 'transporte-y-servicios-de-obra', oculto: true },
@@ -179,8 +215,12 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
         'La unidad cuenta con una manguera de 15 a 20 metros. Si el servicio requiere una longitud mayor, se generará un cargo adicional, el cual será cotizado previamente.',
         'La unidad cuenta con póliza de seguro vigente y el operador dispone de la documentación y acreditaciones correspondientes.',
         'Los precios presentados corresponden únicamente al servicio descrito en la cotización. Cualquier cambio en el alcance, tiempos de espera, ubicación o condiciones de operación podrá generar costos adicionales, los cuales serán notificados previamente al cliente.',
+        // 2026-11-03: un solo precio en el área metropolitana.
+        'Precio por viaje dentro del área metropolitana de Monterrey.',
+        'Para pedidos especiales de cantidades mayores, solicite costos especiales.',
       ],
     },
+    ...CONDICIONES_POR_LINEA,
   },
 };
 
@@ -198,13 +238,13 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
   saludo:
     'Por medio de la presente ponemos a su consideración la cotización correspondiente a los materiales solicitados. Agradecemos la oportunidad de participar en su requerimiento y quedamos a sus órdenes para cualquier aclaración.',
   municipios: MUNICIPIOS,
-  vehiculos: ['Volteo 20 a 22 ton', 'Tolva 48 a 50 ton'],
-  // Por tonelada cargado en planta, sin IVA ni flete (lista de Dirección, 2026-10-29).
+  vehiculos: ['Volteo 14 m³ (20 ton)', 'Tolva 30 m³ (50 ton)', 'Full (90 ton)'],
+  // Por tonelada cargado en planta, sin IVA ni flete (lista del dueño, 2026-11-03).
   productos: [
     { id: 'arena4', nombre: 'Arena #4', precio_ton: 300 },
-    { id: 'arena5', nombre: 'Arena #5', precio_ton: 255 },
-    { id: 'grava1', nombre: 'Grava 1', precio_ton: 280 },
-    { id: 'grava2', nombre: 'Grava 2', precio_ton: 290 },
+    { id: 'arena5', nombre: 'Arena #5', precio_ton: 355 },
+    { id: 'grava1', nombre: 'Grava 1', precio_ton: 300 },
+    { id: 'grava2', nombre: 'Grava 2', precio_ton: 300 },
     { id: 'base', nombre: 'Base hidráulica 1½" a finos', precio_ton: 270 },
     { id: 'subbase', nombre: 'Sub base hidráulica', precio_ton: 265 },
     { id: 'cnc', nombre: 'CNC', precio_ton: 150 },
@@ -212,6 +252,7 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
     { id: 'piedra', nombre: 'Piedra 3" a 12"', precio_ton: 320 },
     // 2026-10-30: mismo precio que la Arena #4.
     { id: 'mixtos', nombre: 'Mixtos', precio_ton: 300 },
+    { id: 'arena4b', nombre: 'Arena #4B', precio_ton: 300 },
   ],
   fletes_ton: [50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300],
   material_banco: {
@@ -222,16 +263,18 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
   },
   unidad_zona: 'VIAJE',
   nota_zona: 'Volteo 14 m³ (20 ton), puesto en obra',
-  ton_por_viaje: 20,
+  // El viaje puesto en obra = precio por tonelada × 22 + flete de la zona (2026-11-03,
+  // "Arena 4 a San Nicolás: $300 × 22 + $3,250 = $9,850"). El flete solo es referencia: no se le enseña al cliente.
+  ton_por_viaje: 22,
   zonas: [
-    // Desde 0 km: "se cobra como la primera" (2026-10-29).
-    { id: 'z1', nombre: 'Hasta 20 km · cerca de pedreras', flete: 2400 },
-    { id: 'z2', nombre: '20–25 km · Escobedo, El Carmen', flete: 2900 },
-    { id: 'z3', nombre: '25–30 km · San Nicolás, García', flete: 3400 },
-    { id: 'z4', nombre: '35–40 km · Santa Catarina, Apodaca, Hidalgo', flete: 3900 },
-    { id: 'z5', nombre: '40–45 km · Salinas Victoria, San Pedro, Ciénega, Mty centro, Zuazua', flete: 4400 },
-    { id: 'z6', nombre: '50–55 km · Carr. Nacional, Estanzuela, Guadalupe, Icamole, Mina', flete: 4900 },
-    { id: 'z7', nombre: '55–60 km · Pesquería, Juárez, Salinas, Marín, San Mateo', flete: 5400 },
+    { id: 'z1', nombre: 'Zona 1 · Cerca de pedrera Escobedo', flete: 2500 },
+    { id: 'z2', nombre: 'Zona 2 · Escobedo, El Carmen, García', flete: 3000 },
+    { id: 'z3', nombre: 'Zona 3 · San Nicolás, Hidalgo', flete: 3250 },
+    { id: 'z4', nombre: 'Zona 4 · Apodaca, Santa Catarina', flete: 3500 },
+    { id: 'z5', nombre: 'Zona 5 · Salinas Victoria, Ciénega de Flores, Zuazua, Monterrey centro', flete: 4000 },
+    { id: 'z6', nombre: 'Zona 6 · San Pedro, zona aeropuerto-OMA', flete: 4500 },
+    { id: 'z7', nombre: 'Zona 7 · Carretera Nacional, Estanzuela, Icamole, Mina, Guadalupe', flete: 5000 },
+    { id: 'z8', nombre: 'Zona 8 · Pesquería, Juárez, Marín, Cadereyta, San Mateo, Santiago', flete: 5500 },
   ],
   condiciones: {
     general: {
@@ -245,9 +288,8 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
     material: {
       titulo: 'Suministro por tonelada',
       puntos: [
-        'El costo del material es por tonelada cargado en planta; no incluye IVA ni flete.',
-        'El flete es opcional y se cotiza por tonelada según la zona de entrega; para cotizarlo se necesita la ubicación de la obra en Google Maps.',
-        'Entregas en volteos de 20 a 22 ton o tolvas de 48 a 50 ton.',
+        'Costos de solo suministro, cargado en planta (pedreras Escobedo), si usted envía su volteo de 14 m³ (20 ton), tolva de 30 m³ (50 ton) o full (90 ton).',
+        'Si requiere entrega en obra se suma el flete: envíe la ubicación de su obra en Google Maps para cotizarle el costo del flete por tonelada.',
       ],
     },
     zona: {

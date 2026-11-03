@@ -61,9 +61,10 @@ export interface ProductCard {
   /**
    * El cotizador que tiene este tipo en su tabulador (2026-10-22, Fase 4):
    * "Cotizar" abre ese cotizador con el tipo ya elegido. Null = se cotiza a la
-   * medida (/cotizar).
+   * medida (/cotizar). Desde 2026-11-02 es la clave del cotizador del sitio
+   * (`/cotizador/<clave>`: maquinaria, agua, acarreos…).
    */
-  quoter?: 'maquinaria' | 'triturados' | null;
+  quoter?: string | null;
 }
 
 export interface MedicalInfo {

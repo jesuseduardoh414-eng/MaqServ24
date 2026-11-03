@@ -6,6 +6,7 @@ import {
   COTIZADOR_TIPOS,
   aplicarRenglonesDeFicha,
   calcularCotizacion,
+  combinar,
   catalogoCotizadorSchema,
   centroDeMunicipio,
   cobraFlete,
@@ -14,10 +15,12 @@ import {
   precioHoraDe,
   precioZona,
   renglonesDeFicha,
+  saludoDe,
   seccionDeLinea,
   tieneImporte,
   type CalculoCotizacion,
   type CatalogoCotizador,
+  type CatalogoTriturados,
   type CotizadorTipo,
   type OpcionesCotizador,
   type PartidaCotizador,
@@ -92,6 +95,16 @@ export class QuoterService {
     const cat = deZonas.length ? { ...guardado, municipios: deZonas } : guardado;
     this.cache.set(tipo, { until: Date.now() + QuoterService.TTL_MS, cat });
     return cat;
+  }
+
+  /**
+   * El tabulador para CALCULAR (2026-11-03): el de maquinaria lleva junto el de
+   * triturados, porque una sola cotización puede llevar los dos. Para editar o
+   * guardar se usa `catalogo()` / `catalogoGuardado()`, nunca este.
+   */
+  async catalogoCalculo(tipo: CotizadorTipo): Promise<CatalogoCotizador> {
+    const cat = await this.catalogo(tipo);
+    return cat.tipo === 'maquinaria' ? combinar(cat, (await this.catalogo('triturados')) as CatalogoTriturados) : cat;
   }
 
   /**
@@ -202,8 +215,9 @@ export class QuoterService {
    * LO QUE UNA FICHA DE INVENTARIO TIENE EN EL COTIZADOR (2026-10-19).
    *
    * Lo pide la ficha para enseñar y editar su precio. `seccion` es null cuando
-   * su línea no tiene cotizador (materiales, asfalto): esas se cotizan con el
-   * formulario y el precio se pone al responder.
+   * su línea no tiene cotizador: esas se cotizan con el formulario y el precio
+   * se pone al responder. Asfalto, materiales y venta sí lo tienen desde
+   * 2026-11-02 (servicios del tabulador de maquinaria).
    */
   async fichaEnCotizador(productId: number) {
     const p = await prisma.products.findUnique({
@@ -408,7 +422,7 @@ export class QuoterService {
 
   /** Vista previa: calcula sin guardar nada. */
   async calcular(tipo: CotizadorTipo, partidas: PartidaCotizador[], opciones: Partial<OpcionesCotizador>): Promise<CalculoCotizacion> {
-    const cat = await this.catalogo(tipo);
+    const cat = await this.catalogoCalculo(tipo);
     return calcularCotizacion(cat, partidas, opciones);
   }
 
@@ -475,7 +489,7 @@ export class QuoterService {
     /** Del acceso directo, sin cliente (2026-10-29): el nombre se queda vacío y el documento no lo imprime. */
     sinCliente?: boolean;
   }) {
-    const cat = await this.catalogo(entrada.tipo);
+    const cat = await this.catalogoCalculo(entrada.tipo);
     const calc = calcularCotizacion(cat, entrada.partidas, entrada.opciones);
     if (!tieneImporte(calc)) {
       throw new BadRequestException('La cotización no tiene partidas con importe. Revisa cantidades y precios.');
@@ -486,7 +500,8 @@ export class QuoterService {
       version: cat.version,
       empresa: cat.empresa,
       firma: cat.firma,
-      saludo: cat.saludo,
+      // Solo agua o solo block no es "renta de maquinaria" (2026-11-02).
+      saludo: saludoDe(cat, entrada.partidas),
       emitida: new Date().toISOString(),
       ...(contexto.destino?.clientId ? { destino: contexto.destino } : {}),
       ...(contexto.fecha ? { fecha: contexto.fecha } : {}),

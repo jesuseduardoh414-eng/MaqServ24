@@ -55,6 +55,8 @@ export interface LineaMaterial {
   toneladas: string;
   fleteTon: number;
   fleteZona: string;
+  /** Pedido grande (2026-11-03): 'tolva' o 'full'. Vacío en planta. */
+  camion: string;
 }
 
 export interface LineaBanco {
@@ -77,6 +79,22 @@ export interface LineaZona {
 export type LineaMaquinaria = LineaEquipo | LineaServicio;
 export type LineaTriturados = LineaMaterial | LineaBanco | LineaZona;
 export type LineaCotizador = LineaMaquinaria | LineaTriturados;
+
+/**
+ * Las tres formas de pedir triturados (2026-11-03, pedido del dueño): lo
+ * recoge en planta (precio de lista por tonelada), por viaje a su obra
+ * (volteo de 14 m³, material y zona) o pedido grande en tolva o full (desde
+ * 100 ton). Una cotización va de una sola forma.
+ */
+export type FormaTriturados = 'planta' | 'viaje' | 'grande';
+
+/** La forma que ya traen las partidas (al volver a una cotización); null si no hay nada. */
+export function formaDe(lineas: LineaCotizador[]): FormaTriturados | null {
+  if (lineas.some((l) => l.tipo === 'zona')) return 'viaje';
+  if (lineas.some((l) => l.tipo === 'material' && l.camion)) return 'grande';
+  if (lineas.some((l) => l.tipo === 'material')) return 'planta';
+  return null;
+}
 
 /** Cadena → número, tolerando vacío y basura. */
 export const num = (v: string | number | null | undefined): number => {
@@ -124,6 +142,7 @@ export const lineaDeMaterial = (cat: CatalogoTriturados, id: string): LineaMater
     toneladas: '',
     fleteTon: 0,
     fleteZona: '',
+    camion: '',
   };
 };
 
@@ -194,6 +213,7 @@ export function aPartidas(lineas: LineaCotizador[]): PartidaCotizador[] {
           toneladas: num(l.toneladas),
           flete_ton: l.fleteTon,
           flete_zona: l.fleteZona.trim(),
+          ...(l.camion ? { camion: l.camion } : {}),
         };
       case 'banco':
         return { tipo: 'banco', precio_m3: num(l.precioM3), m3: num(l.m3) };
@@ -221,7 +241,7 @@ export function aLineas(partidas: PartidaCotizador[]): LineaCotizador[] {
         return {
           uid: nuevoUid(), tipo: 'material', id: p.id, nombre: p.nombre ?? '',
           precio: String(p.precio ?? ''), toneladas: String(p.toneladas ?? ''),
-          fleteTon: p.flete_ton ?? 0, fleteZona: p.flete_zona ?? '',
+          fleteTon: p.flete_ton ?? 0, fleteZona: p.flete_zona ?? '', camion: p.camion ?? '',
         };
       case 'banco':
         return { uid: nuevoUid(), tipo: 'banco', precioM3: String(p.precio_m3 ?? ''), m3: String(p.m3 ?? '') };

@@ -3,6 +3,7 @@
 import {
   calcularEquipo,
   cobraFlete,
+  conUnidad,
   minimoHorasDe,
   porZona,
   precioDeServicio,
@@ -230,15 +231,18 @@ export function PasoDuracion({
           </Linea>
         );
       })}
-
-      {equipos.length === 0 ? (
-        <p className="cz-help">No elegiste maquinaria: continúa si solo necesitas agua o retiro de material.</p>
-      ) : null}
     </div>
   );
 }
 
-/** PASO 4 · servicios sueltos (pipas, retiro). Opcional a propósito. */
+/** Cómo se llama la cantidad según la unidad del servicio (2026-11-02: el block va por pieza, la carpeta por m²). */
+const CANTIDAD_EN: Record<string, string> = {
+  viaje: 'Viajes', pieza: 'Piezas', millar: 'Millares', equipo: 'Equipos', tonelada: 'Toneladas',
+  hora: 'Horas', día: 'Días', 'm²': 'Metros cuadrados (m²)', 'm³': 'Metros cúbicos (m³)',
+};
+const cantidadEn = (unidad: string) => CANTIDAD_EN[unidad || 'viaje'] ?? 'Cantidad';
+
+/** PASO 4 · servicios sueltos (pipas, retiro). Opcional a propósito; en un cotizador de solo servicios, el paso principal. */
 export function PasoServicios({
   cat,
   lineas,
@@ -268,14 +272,17 @@ export function PasoServicios({
 }) {
   const servicios = lineas.filter((l): l is LineaServicio => l.tipo === 'servicio');
   const zonaObra = zonaDeMunicipio(cat, municipio);
+  // Un cotizador del sitio de una sola categoría (agua, acarreos, block…, 2026-11-02): aquí se elige todo.
+  const soloServicios = cat.equipos.length === 0;
+  const conZona = cat.servicios.some(porZona);
 
   return (
     <div className="cz-card">
-      <h2 className="cz-card-h">Servicios adicionales</h2>
+      <h2 className="cz-card-h">{soloServicios ? 'Elige qué necesitas' : 'Servicios adicionales'}</h2>
       <p className="cz-card-s">
-        Agua en pipas y retiro de material. Se cobran según la zona de la obra
-        {zonaObra ? ` (${municipio}: ${zonaObra.nombre})` : ''}.
-        {lineas.some((l) => l.tipo === 'equipo') ? ' Este paso es opcional: si no hace falta ninguno, continúa.' : ''}
+        {soloServicios ? 'Toca una opción para elegirla y pon la cantidad.' : 'Lo que se cotiza aparte de la maquinaria.'}
+        {conZona ? ` ${soloServicios ? 'Se cobra' : 'El agua y los acarreos se cobran'} según la zona de la obra${zonaObra ? ` (${municipio}: ${zonaObra.nombre})` : ''}.` : ''}
+        {lineas.some((l) => l.tipo === 'equipo') ? ' Son opcionales: si no hace falta ninguno, sigue adelante.' : ''}
       </p>
       <TarjetasServicios cat={cat} lineas={lineas} alternar={alternar} mostrarPrecios={mostrarPrecios} municipio={municipio} elegirZona={elegirZona} />
 
@@ -306,7 +313,7 @@ export function PasoServicios({
                   mostrarPrecios ? (
                     <Renglon texto={`${l.cantidad} × ${money(unitario)}`} valor={money(total)} fuerte />
                   ) : (
-                    <Renglon texto="Cantidad solicitada" valor={`${l.cantidad} ${sv.unidad}(s)`} fuerte />
+                    <Renglon texto="Cantidad solicitada" valor={conUnidad(l.cantidad, sv.unidad)} fuerte />
                   )
                 }
               >
@@ -334,11 +341,12 @@ export function PasoServicios({
                   </Campo>
                 ) : null}
                 <div className="cz-qty">
-                  <span className="cz-lbl">Viajes</span>
+                  <span className="cz-lbl">{cantidadEn(sv.unidad)}</span>
                   <Contador
                     valor={l.cantidad}
                     min={1}
-                    ariaLabel="viajes"
+                    max={100_000}
+                    ariaLabel={cantidadEn(sv.unidad).toLowerCase()}
                     onChange={(v) => actualizar(l.uid, { cantidad: v })}
                   />
                 </div>
@@ -406,33 +414,6 @@ function TarjetasServicios({ cat, lineas, alternar, mostrarPrecios, municipio, e
           />
         );
       })}
-    </div>
-  );
-}
-
-/**
- * LOS SERVICIOS TAMBIÉN EN LA PRIMERA PANTALLA (2026-10-30, pedido del dueño:
- * "ponlos como principal, para no tener que avanzar para seleccionarlos si
- * solo quieren ese servicio"). Debajo de los equipos: quien solo quiere agua o
- * retiro lo elige aquí. Los viajes y la zona se ajustan en el paso de Servicios.
- */
-export function ServiciosDelInicio(props: {
-  cat: CatalogoMaquinaria;
-  lineas: LineaMaquinaria[];
-  alternar: (id: string) => void;
-  mostrarPrecios: boolean;
-  municipio: string;
-  elegirZona: boolean;
-}) {
-  if (!props.cat.servicios.length) return null;
-  return (
-    <div className="cz-card">
-      <h2 className="cz-card-h">Servicios</h2>
-      <p className="cz-card-s">
-        Agua en pipas y retiro de material. Si solo necesitas uno de estos, elígelo aquí; los viajes se
-        ajustan en el paso de Servicios.
-      </p>
-      <TarjetasServicios {...props} />
     </div>
   );
 }

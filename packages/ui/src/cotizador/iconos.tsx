@@ -39,6 +39,13 @@ const TRAZOS: Record<string, string> = {
     'M6 26v-4h4l3-3 8 3v4 M6 22l2-3h3 M14 19l11-7 5 9-3 5H14',
   banco:
     'M7 30h26 M10 30V20l10-6 10 6v10 M16 30v-6h8v6',
+  // Los cotizadores por categoría (2026-11-02): camino, block y etiqueta de precio.
+  asfalto:
+    'M14 6L6 34 M26 6l8 28 M20 8v4 M20 17v5 M20 27v6',
+  block:
+    'M4 15h26v14H4z M4 15l6-6h26l-6 6 M30 29l6-6V9 M8 19h7v6H8z M19 19h7v6h-7z',
+  venta:
+    'M21 6h12a1 1 0 0 1 1 1v12L19 34 6 21z',
   personalizado:
     'M7 8h26a2 2 0 0 1 2 2v20a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z M20 14v12 M14 20h12',
   documento:
@@ -57,6 +64,7 @@ const EXTRAS: Record<string, Array<[number, number, number]>> = {
   pipa: [[11, 30, 3], [29, 30, 3]],
   retiro: [[12, 30, 3], [27, 30, 3]],
   zona: [[12, 30, 3], [27, 30, 3]],
+  venta: [[28, 12, 2]],
 };
 
 export function IconoCotizador({

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { COTIZADORES_SITIO } from '@maqserv/config';
 import { getBlogs, getProducts, getSectors } from '@/lib/api';
 import { SITE_URL, esRutaPrivada } from '@/lib/seo';
 import { LANDINGS } from '@/lib/landings';
@@ -12,8 +13,8 @@ const FIJAS: Array<[ruta: string, freq: Frecuencia, prio: number]> = [
   ['/servicios', 'daily', 0.9],
   ['/categorias', 'weekly', 0.7],
   ['/cotizador', 'monthly', 0.8],
-  ['/cotizador/maquinaria', 'monthly', 0.8],
-  ['/cotizador/triturados', 'monthly', 0.8],
+  // Un cotizador por categoría (2026-11-02).
+  ...COTIZADORES_SITIO.map((c): [string, Frecuencia, number] => [`/cotizador/${c.clave}`, 'monthly', 0.8]),
   // Páginas de aterrizaje por servicio (lib/landings.ts).
   ...LANDINGS.map((l): [string, Frecuencia, number] => [l.ruta, 'monthly', 0.9]),
   ['/quienes-somos', 'monthly', 0.6],

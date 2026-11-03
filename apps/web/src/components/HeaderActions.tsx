@@ -8,6 +8,7 @@ import { NotificationsBell } from '@/components/NotificationsBell';
 import { BuscadorGlobal } from '@/components/BuscadorGlobal';
 import { ACCOUNT_LINKS } from '@/lib/account-links';
 import { idsDeFavoritos } from '@/lib/favoritos';
+import { COTIZADOR, LISTA_PARA_COTIZAR } from '@/lib/enlace-cotizar';
 const menuItemStyle: React.CSSProperties = {
   display: 'block', padding: '9px 12px', borderRadius: 'var(--radius-md)',
   color: 'var(--color-text)', textDecoration: 'none', fontSize: '13.5px', fontWeight: 600,
@@ -103,9 +104,10 @@ export function HeaderActions({
       </Link>
 
       {/* Antes era el carrito (/carrito). Sin compras en línea (2026-10-08) el
-          mismo contador es la lista de equipos que el cliente quiere cotizar,
-          y el icono lleva a /cotizar, que la toma de `useCart`. */}
-      <Link href="/cotizar" className="hdr-icon" title={labels.quoteList} aria-label={cart.count > 0 ? `${labels.quoteList} (${cart.count})` : labels.quoteList} style={iconBtn}>
+          mismo contador es la lista de equipos que el cliente quiere cotizar.
+          Con algo en la lista lleva a /cotizar, que la toma de `useCart`; vacía,
+          al cotizador por categorías (2026-11-03). */}
+      <Link href={cart.count > 0 ? LISTA_PARA_COTIZAR : COTIZADOR} className="hdr-icon" title={labels.quoteList} aria-label={cart.count > 0 ? `${labels.quoteList} (${cart.count})` : labels.quoteList} style={iconBtn}>
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1" /><path d="M9 10h6M9 14h6M9 18h3" /></svg>
         {cart.count > 0 ? (
           <span style={{ position: 'absolute', top: 2, right: 2, minWidth: 17, height: 17, padding: '0 4px', borderRadius: 999, background: 'var(--color-secondary)', color: '#fff', fontSize: '10px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1.5px solid var(--color-surface)', fontVariantNumeric: 'tabular-nums' }}>{cart.count}</span>

@@ -22,6 +22,7 @@ import { Icon, Stars, type IconName } from '@/components/Icon';
 import { CategoryStrip } from '@/components/CategoryStrip';
 import { CountUp } from '@/components/CountUp';
 import { HomeProductGrid } from '@/components/HomeProductGrid';
+import { hrefDeCotizar } from '@/lib/enlace-cotizar';
 
 /**
  * Secciones de la home con el diseño SEGAshop. Cada una:
@@ -128,7 +129,7 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           {/* Botones del sistema (`ms-btn`): colores y enlaces siguen saliendo
               del tema; el texto va tal cual lo escribe el panel. */}
           <div className="ms-hero-acts" style={{ marginTop: 28 }}>
-            <Link href={h.primaryLink} data-evento="cta_hero_primario" className="ms-btn ms-btn-lg" style={{ background: h.primaryBg, color: h.primaryText }}>
+            <Link href={hrefDeCotizar(h.primaryLink)} data-evento="cta_hero_primario" className="ms-btn ms-btn-lg" style={{ background: h.primaryBg, color: h.primaryText }}>
               {t(theme, 'home.hero.ctaPrimary')} <Icon name="arrowRight" size={17} />
             </Link>
             {/* "Cotiza por WhatsApp" en lugar de "Ver disponibilidad" (2026-10-19,
@@ -380,7 +381,7 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
               {p.cta.trim() ? (
                 // `marginTop: auto`: en horizontal las tarjetas de una fila miden lo mismo y los botones quedan alineados abajo.
                 <div style={{ marginTop: 'auto', paddingTop: 8 }}>
-                  <Link href={p.ctaLink || '/cotizar'} className="ms-btn" style={{ background: accent }}>
+                  <Link href={hrefDeCotizar(p.ctaLink)} className="ms-btn" style={{ background: accent }}>
                     {p.cta} <Icon name="arrowRight" size={15} />
                   </Link>
                 </div>

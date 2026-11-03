@@ -241,6 +241,21 @@ const zonaSchema = z.object({
   precios: z.record(z.string(), z.number().min(0)).optional(),
 });
 
+/**
+ * LOS CAMIONES DEL PEDIDO GRANDE (2026-11-03, pedido del dueño): "cuando son
+ * pedidos de 100 toneladas se puede entregar por tolva o full". Cada uno
+ * tiene su flete por tonelada en cada zona (`precios_ton`: id de zona →
+ * $/ton). Sin precio en una zona, el flete se confirma aparte: el dueño los
+ * manda después y se capturan en Tarifas › Triturados.
+ */
+const camionSchema = z.object({
+  id: z.string().min(1).max(20),
+  nombre: z.string().min(1).max(60),
+  /** Lo que se lee junto al nombre ("48 a 50 ton"). */
+  detalle: z.string().max(120),
+  precios_ton: z.record(z.string(), z.number().min(0)),
+});
+
 export const catalogoTrituradosSchema = z.object({
   tipo: z.literal('triturados'),
   version: z.string().max(40),
@@ -269,6 +284,10 @@ export const catalogoTrituradosSchema = z.object({
   nota_zona: z.string().max(160),
   ton_por_viaje: z.number().min(1),
   zonas: z.array(zonaSchema).max(60),
+  /** Pedido grande en tolva o full (2026-11-03). Sin el campo, los de fábrica, sin precios. */
+  camiones: z.array(camionSchema).max(6).optional(),
+  /** Toneladas mínimas del pedido grande. Sin el campo, 100. */
+  minimo_camion_ton: z.number().min(0).max(100_000).optional(),
   condiciones: z.record(z.string(), bloqueSchema),
 });
 
@@ -289,6 +308,7 @@ export type ServicioCotizador = z.infer<typeof servicioSchema>;
 export type ZonaPrecio = z.infer<typeof zonaPrecioSchema>;
 export type ProductoTriturado = z.infer<typeof productoSchema>;
 export type ZonaTriturado = z.infer<typeof zonaSchema>;
+export type CamionTriturado = z.infer<typeof camionSchema>;
 
 // ---------------------------------------------------------------------------
 // Partidas (lo que el usuario arma)
@@ -316,7 +336,8 @@ export const partidaMaquinariaSchema = z.discriminatedUnion('tipo', [
     nombre: z.string().max(120).optional(),
     unidad: z.string().max(20).optional(),
     precio: z.number().min(0).max(10_000_000),
-    cantidad: z.number().int().min(1).max(999).default(1),
+    /** Hasta 100 000 (2026-11-02): el block va por pieza y la carpeta por m². */
+    cantidad: z.number().int().min(1).max(100_000).default(1),
     /** A qué zona se lleva (servicios con precio por zona, 2026-10-29). Sale del municipio de la obra. */
     zona: z.string().max(40).optional(),
   }),
@@ -331,6 +352,8 @@ export const partidaTrituradosSchema = z.discriminatedUnion('tipo', [
     toneladas: z.number().min(0).max(1_000_000).default(0),
     flete_ton: z.number().min(0).max(100_000).optional(),
     flete_zona: z.string().max(120).optional(),
+    /** Pedido grande (2026-11-03): en qué camión (`camiones`) se entrega. El flete sale de su precio en la zona. */
+    camion: z.string().max(20).optional(),
   }),
   z.object({
     tipo: z.literal('banco'),
@@ -350,6 +373,23 @@ export const partidaTrituradosSchema = z.discriminatedUnion('tipo', [
 export type PartidaMaquinaria = z.infer<typeof partidaMaquinariaSchema>;
 export type PartidaTriturados = z.infer<typeof partidaTrituradosSchema>;
 export type PartidaCotizador = PartidaMaquinaria | PartidaTriturados;
+
+/**
+ * UNA SOLA COTIZACIÓN CON TODO (2026-11-03, pedido del dueño: "se agrega en
+ * una sola cotización"). La de maquinaria puede llevar también partidas de
+ * triturados: se calculan con SU tabulador, que viaja junto (`triturados`,
+ * solo en memoria: nunca se guarda dentro del de maquinaria).
+ */
+export const partidaCombinadaSchema = z.union([partidaMaquinariaSchema, partidaTrituradosSchema]);
+export type CatalogoCombinado = CatalogoMaquinaria & { triturados?: CatalogoTriturados };
+export const esDeTriturados = (p: PartidaCotizador): p is PartidaTriturados => p.tipo === 'material' || p.tipo === 'zona' || p.tipo === 'banco';
+/** El tabulador de triturados de una cotización: el suyo, o el que trae una de maquinaria combinada. */
+export function trituradosDe(cat: CatalogoCotizador): CatalogoTriturados | null {
+  return cat.tipo === 'triturados' ? cat : (cat as CatalogoCombinado).triturados ?? null;
+}
+export function combinar(maq: CatalogoMaquinaria, tri: CatalogoTriturados | null | undefined): CatalogoCombinado {
+  return tri ? { ...maq, triturados: tri } : maq;
+}
 
 /** Ajustes que el usuario decide y cambian el total (no son partidas). */
 export const opcionesCotizadorSchema = z.object({
@@ -708,6 +748,8 @@ export const RECOGE_EN_PLANTA = 'Recoge en planta';
 export function llevaFlete(partidas: PartidaCotizador[]): boolean {
   return partidas.some((p) =>
     p.tipo === 'zona'
+    // El pedido grande siempre va a obra, aunque su flete aún no tenga precio.
+    || (p.tipo === 'material' && !!p.camion)
     || (p.tipo === 'material' && (Number(p.flete_ton ?? 0) > 0
       || (!!(p.flete_zona ?? '').trim() && (p.flete_zona ?? '').trim().toLowerCase() !== RECOGE_EN_PLANTA.toLowerCase()))));
 }
@@ -746,6 +788,47 @@ export function precioZona(cat: CatalogoTriturados, z: ZonaTriturado | null, pro
   return r2(Number(z.flete) + Number(prod.precio_ton) * cat.ton_por_viaje);
 }
 
+/** Tolva y full de fábrica: sin precios hasta que Dirección los mande (2026-11-03). */
+export const CAMIONES_DE_FABRICA: CamionTriturado[] = [
+  { id: 'tolva', nombre: 'Tolva', detalle: '30 m³ · 50 ton', precios_ton: {} },
+  { id: 'full', nombre: 'Full', detalle: '90 ton', precios_ton: {} },
+];
+export const MINIMO_CAMION_TON = 100;
+
+export const camionesDe = (cat: CatalogoTriturados): CamionTriturado[] => cat.camiones ?? CAMIONES_DE_FABRICA;
+export const minimoCamionDe = (cat: CatalogoTriturados): number => cat.minimo_camion_ton ?? MINIMO_CAMION_TON;
+export const camionDe = (cat: CatalogoTriturados, id: string | null | undefined): CamionTriturado | null =>
+  (id ? camionesDe(cat).find((c) => c.id === id) : undefined) ?? null;
+
+/** La zona por su nombre: el material guarda el NOMBRE de la zona de su flete (`flete_zona`). */
+export function zonaPorNombre(cat: CatalogoTriturados, nombre: string | null | undefined): ZonaTriturado | null {
+  const n = (nombre ?? '').trim().toLowerCase();
+  return (n ? cat.zonas.find((z) => z.nombre.trim().toLowerCase() === n) : undefined) ?? null;
+}
+
+/** Flete por tonelada del camión a esa zona. 0: todavía sin precio, se confirma aparte. */
+export function fleteCamion(cat: CatalogoTriturados, camionId: string | null | undefined, zonaNombre: string | null | undefined): number {
+  const c = camionDe(cat, camionId);
+  const z = zonaPorNombre(cat, zonaNombre);
+  return c && z ? Number(c.precios_ton[z.id] ?? 0) : 0;
+}
+
+/**
+ * EL MÍNIMO DEL PEDIDO GRANDE (2026-11-03, "sí, mínimo 100 ton"): suman todas
+ * las toneladas que van en tolva o full. Null si cumple o si no hay pedido grande.
+ */
+export function faltaMinimoCamion(cat: CatalogoCotizador, partidas: PartidaCotizador[]): string | null {
+  const tri = trituradosDe(cat);
+  if (!tri) return null;
+  const grandes = partidas.filter((p): p is Extract<PartidaTriturados, { tipo: 'material' }> => p.tipo === 'material' && !!(p as { camion?: string }).camion);
+  if (!grandes.length) return null;
+  const ton = grandes.reduce((s, p) => s + Number(p.toneladas ?? 0), 0);
+  const minimo = minimoCamionDe(tri);
+  return ton >= minimo
+    ? null
+    : `El pedido en tolva o full es desde ${minimo} toneladas (llevas ${ton.toLocaleString('es-MX')}). Para menos, elige «Por viaje a mi obra».`;
+}
+
 function condicionesTriturados(
   cat: CatalogoTriturados,
   partidas: PartidaTriturados[],
@@ -770,6 +853,21 @@ function condicionesTriturados(
     });
   }
   if (partidas.some((p) => p.tipo === 'material') && cat.condiciones.material) bloques.push(cat.condiciones.material);
+  // El pedido grande lo dice el cálculo, no el tabulador: el camión y si el flete ya tiene precio.
+  const grandes = partidas.filter((p): p is Extract<PartidaTriturados, { tipo: 'material' }> => p.tipo === 'material' && !!p.camion);
+  if (grandes.length) {
+    const camiones = [...new Set(grandes.map((p) => (camionDe(cat, p.camion)?.nombre ?? p.camion ?? '').toLowerCase()))].join(' y ');
+    const sinPrecio = grandes.some((p) => !(Number(p.flete_ton ?? 0) > 0) && fleteCamion(cat, p.camion, p.flete_zona) <= 0);
+    bloques.push({
+      titulo: 'Pedido grande en tolva o full',
+      puntos: [
+        `Pedido desde ${minimoCamionDe(cat)} toneladas, entregado en ${camiones} puesto en obra.`,
+        sinPrecio
+          ? 'El flete se confirma por separado: no está incluido en este total.'
+          : 'El flete es por tonelada, según el camión y la zona de la obra.',
+      ],
+    });
+  }
   if (partidas.some((p) => p.tipo === 'banco') && cat.condiciones.banco) bloques.push(cat.condiciones.banco);
   if (partidas.some((p) => p.tipo === 'zona') && cat.condiciones.zona) bloques.push(cat.condiciones.zona);
   return bloques;
@@ -806,14 +904,18 @@ export function calcularTriturados(
         pu: r2(precioTon),
         importe: r2(importe),
       });
-      const fleteTon = decimal(p.flete_ton);
+      // Pedido grande (2026-11-03): sin flete negociado, el del camión en esa zona.
+      const camion = camionDe(cat, p.camion);
+      const fleteTon = decimal(p.flete_ton) || (camion ? fleteCamion(cat, camion.id, p.flete_zona) : 0);
       if (fleteTon > 0) {
         const etiqueta = (p.flete_zona ?? '').trim();
         const importeFlete = fleteTon * ton;
         fletes += importeFlete;
         renglones.push({
           clase: 'flete',
-          concepto: etiqueta ? `FLETE ${etiqueta.toUpperCase()}` : 'FLETE A OBRA',
+          concepto: camion
+            ? `FLETE EN ${camion.nombre.toUpperCase()}${etiqueta ? ` · ${etiqueta.toUpperCase()}` : ''}`
+            : etiqueta ? `FLETE ${etiqueta.toUpperCase()}` : 'FLETE A OBRA',
           unidad: 'TON',
           cantidad: ton,
           pu: r2(fleteTon),
@@ -878,50 +980,41 @@ export function calcularCotizacion(
   partidas: PartidaCotizador[],
   opciones: Partial<OpcionesCotizador> = {},
 ): CalculoCotizacion {
-  return catalogo.tipo === 'maquinaria'
-    ? calcularMaquinaria(catalogo, partidas as PartidaMaquinaria[], opciones)
-    : calcularTriturados(catalogo, partidas as PartidaTriturados[], opciones);
+  if (catalogo.tipo === 'triturados') return calcularTriturados(catalogo, partidas as PartidaTriturados[], opciones);
+  const calc = calcularMaquinaria(catalogo, partidas.filter((p) => !esDeTriturados(p)) as PartidaMaquinaria[], opciones);
+  const tri = (catalogo as CatalogoCombinado).triturados;
+  const deTriturados = partidas.filter(esDeTriturados);
+  if (!tri || !deTriturados.length) return calc;
+  // Combinada: la maquinaria siempre lleva IVA, así que los triturados también.
+  return juntarCalculos(calc, calcularTriturados(tri, deTriturados, { con_iva: true }), catalogo.iva);
+}
+
+/** Dos cálculos en un documento: renglones uno tras otro, un solo subtotal, un IVA y las condiciones de los dos. */
+function juntarCalculos(a: CalculoCotizacion, b: CalculoCotizacion, ivaTasa: number): CalculoCotizacion {
+  const subtotal = r2(a.subtotal + b.subtotal);
+  const iva = r2(subtotal * ivaTasa);
+  const titulos = new Set(a.condiciones.map((c) => c.titulo));
+  return {
+    renglones: [...a.renglones, ...b.renglones],
+    desglose: {
+      renta: a.desglose.renta,
+      servicios: a.desglose.servicios,
+      fletes: r2(a.desglose.fletes + b.desglose.fletes),
+      materiales: r2(a.desglose.materiales + b.desglose.materiales),
+    },
+    subtotal,
+    iva,
+    iva_tasa: ivaTasa,
+    con_iva: true,
+    total: r2(subtotal + iva),
+    condiciones: [...a.condiciones, ...b.condiciones.filter((c) => !titulos.has(c.titulo))],
+  };
 }
 
 /** ¿Hay algo que cobrar? Un carrito de renglones en cero no es una cotización. */
 export function tieneImporte(calc: CalculoCotizacion): boolean {
   return calc.renglones.length > 0 && calc.total > 0;
 }
-
-// ---------------------------------------------------------------------------
-// Los pasos del flujo (el "por procesos" que pidió el cliente)
-// ---------------------------------------------------------------------------
-
-export interface PasoCotizador {
-  clave: string;
-  titulo: string;
-  /** Una línea que dice qué se hace aquí. Se pinta bajo el título del paso. */
-  ayuda: string;
-}
-
-/**
- * El orden NO es cosmético: cada paso depende del anterior.
- *
- * Las horas que se cobran (con su mínimo; antes, el tramo día/semana/mes) se
- * piden en el paso 3; por eso elegir equipo y decir cuánto tiempo son pasos distintos.
- * En la app original todo estaba en una sola pantalla y el usuario veía el
- * precio cambiar solo al teclear los días, sin entender por qué.
- */
-export const PASOS_MAQUINARIA: PasoCotizador[] = [
-  { clave: 'obra', titulo: 'Datos de la obra', ayuda: 'Para quién es y dónde se entrega el equipo.' },
-  { clave: 'equipos', titulo: 'Equipos y servicios', ayuda: 'Elige la maquinaria, el agua en pipas o el retiro de material. La maquinaria incluye operador y diésel.' },
-  { clave: 'duracion', titulo: 'Duración', ayuda: 'Se cobra por hora de trabajo: cada día es una jornada, con un mínimo por equipo.' },
-  { clave: 'servicios', titulo: 'Servicios', ayuda: 'Pipas de agua y retiro de material. Este paso es opcional.' },
-  { clave: 'resumen', titulo: 'Resumen', ayuda: 'Revisa el documento antes de guardarlo o enviarlo.' },
-];
-
-export const PASOS_TRITURADOS: PasoCotizador[] = [
-  // Tres pasos (2026-10-15): antes eran cinco, con una "Modalidad" abstracta
-  // al frente y el flete por tonelada en un paso aparte. Ver pasos-triturados.tsx.
-  { clave: 'obra', titulo: 'Datos de la obra', ayuda: 'Para quién es y dónde se entrega el material.' },
-  { clave: 'pedido', titulo: 'Material', ayuda: 'Qué material y cuánto. Puedes combinar las dos formas: en planta por tonelada y puesto en obra por viaje.' },
-  { clave: 'resumen', titulo: 'Factura y resumen', ayuda: 'Con o sin factura, y el documento tal como sale.' },
-];
 
 /**
  * A QUIÉN LE TOCA CADA PARTIDA.
@@ -941,6 +1034,7 @@ export function partidasPorProveedor(
   cat: CatalogoCotizador,
   partidas: PartidaCotizador[],
 ): Array<{ proveedorId: number; conceptos: string[] }> {
+  const tri = trituradosDe(cat);
   const mapa = new Map<number, string[]>();
   const sumar = (id: number | null | undefined, concepto: string) => {
     if (!id) return;
@@ -965,20 +1059,20 @@ export function partidasPorProveedor(
       const sv = cat.servicios.find((x) => x.id === p.id);
       if (!sv) continue;
       sumar(sv.proveedor_id, `${sv.nombre} · ${p.cantidad ?? 1} ${sv.unidad}(s)`);
-    } else if (p.tipo === 'material' && cat.tipo === 'triturados') {
-      const prod = cat.productos.find((x) => x.id === p.id);
+    } else if (p.tipo === 'material' && tri) {
+      const prod = tri.productos.find((x) => x.id === p.id);
       const nombre = prod?.nombre ?? p.nombre ?? 'Material';
       sumar(prod?.proveedor_id, `${nombre} · ${p.toneladas ?? 0} ton`);
-    } else if (p.tipo === 'zona' && cat.tipo === 'triturados') {
-      const prod = cat.productos.find((x) => x.id === p.producto_id);
-      const zona = cat.zonas.find((z) => z.id === p.zona_id);
+    } else if (p.tipo === 'zona' && tri) {
+      const prod = tri.productos.find((x) => x.id === p.producto_id);
+      const zona = tri.zonas.find((z) => z.id === p.zona_id);
       if (!prod) continue;
       sumar(
         prod.proveedor_id,
         `${prod.nombre} · ${p.viajes ?? 1} viaje(s)${zona ? ` · ${zona.nombre}` : ''}`,
       );
-    } else if (p.tipo === 'banco' && cat.tipo === 'triturados') {
-      sumar(cat.material_banco.proveedor_id, `${cat.material_banco.nombre} · ${p.m3 ?? 0} m³`);
+    } else if (p.tipo === 'banco' && tri) {
+      sumar(tri.material_banco.proveedor_id, `${tri.material_banco.nombre} · ${p.m3 ?? 0} m³`);
     }
   }
 
@@ -992,6 +1086,29 @@ export function partidasPorProveedor(
 export const LINEA_MAQUINARIA = 'maquinaria-pesada';
 export const LINEA_TRANSPORTE = 'transporte-y-servicios-de-obra';
 export const LINEA_TRITURADOS = 'triturados';
+/** Con cotizador desde 2026-11-02: sus fichas ponen precio como servicios del tabulador de maquinaria. */
+export const LINEA_ASFALTO = 'soluciones-asfalticas';
+export const LINEA_MATERIALES = 'materiales-para-construccion';
+export const LINEA_VENTA = 'venta-de-maquinaria';
+
+/**
+ * Las unidades en que se cobra un servicio. La ficha elige una; lo que no la
+ * trae (los tabuladores de antes) se cobra por viaje.
+ */
+export const UNIDADES_DE_SERVICIO = ['viaje', 'm²', 'm³', 'pieza', 'millar', 'tonelada', 'equipo', 'servicio', 'hora', 'día'] as const;
+
+/** Con qué unidad y qué condiciones nace un renglón nuevo de cada línea. */
+// La carpeta se cotiza por tonelada aplicada (su página de servicio); el riego, si va por m², se cambia en su ficha.
+const UNIDAD_DE_LINEA: Record<string, string> = { [LINEA_ASFALTO]: 'tonelada', [LINEA_MATERIALES]: 'pieza', [LINEA_VENTA]: 'equipo' };
+export const COND_DE_LINEA: Record<string, string> = { [LINEA_ASFALTO]: 'asfalto', [LINEA_MATERIALES]: 'materiales', [LINEA_VENTA]: 'venta' };
+export const unidadDeLinea = (linea: string | null | undefined): string => (linea && UNIDAD_DE_LINEA[linea]) || 'viaje';
+
+/** "3 viajes", "1 pieza", "250 m²": la cantidad con su unidad, para leerse. */
+export function conUnidad(cantidad: number, unidad: string): string {
+  const u = unidad || 'viaje';
+  if (cantidad === 1 || !/[a-zíá]$/i.test(u)) return `${cantidad} ${u}`;
+  return `${cantidad} ${/[aeiouáéíóú]$/i.test(u) ? `${u}s` : `${u}es`}`;
+}
 
 /** Línea de un servicio del cotizador de maquinaria (con respaldo por su bloque de condiciones). */
 export function lineaDeServicio(sv: { linea?: string; cond: string }): string {
@@ -1066,10 +1183,19 @@ export function ligarProducto(cat: CatalogoCotizador, renglonId: string, product
 export type ClaseRenglon = 'equipo' | 'servicio' | 'material';
 export interface SeccionCotizador { tipo: CotizadorTipo; clase: ClaseRenglon }
 
-/** Dónde vive en el cotizador lo de cada línea. Null: la línea no tiene cotizador (se pide con el formulario). */
+/**
+ * Dónde vive en el cotizador lo de cada línea. Null: la línea no tiene cotizador (se pide con el formulario).
+ *
+ * Asfalto, materiales y venta (2026-11-02, "que se coticen en automático"):
+ * van como servicios del tabulador de maquinaria, cada uno con su unidad
+ * (m², pieza, equipo). Basta ponerle precio a su ficha para que su cotizador
+ * del sitio lo ofrezca.
+ */
 export function seccionDeLinea(linea: string | null | undefined): SeccionCotizador | null {
   if (linea === LINEA_MAQUINARIA) return { tipo: 'maquinaria', clase: 'equipo' };
-  if (linea === LINEA_TRANSPORTE) return { tipo: 'maquinaria', clase: 'servicio' };
+  if (linea === LINEA_TRANSPORTE || linea === LINEA_ASFALTO || linea === LINEA_MATERIALES || linea === LINEA_VENTA) {
+    return { tipo: 'maquinaria', clase: 'servicio' };
+  }
   if (linea === LINEA_TRITURADOS) return { tipo: 'triturados', clase: 'material' };
   return null;
 }
@@ -1083,8 +1209,10 @@ export interface RenglonDeFicha {
   precio_hora?: number;
   /** Equipo: qué flete se cobra (clave de `fletes`). */
   flete_tipo?: string;
-  /** Servicio: por viaje. Material: por tonelada. */
+  /** Servicio: por su unidad. Material: por tonelada. */
   precio?: number;
+  /** Servicio: en qué se cobra (`UNIDADES_DE_SERVICIO`; 2026-11-02). Sin el campo, la que ya tenía. */
+  unidad?: string;
   /** Servicio: el bloque de condiciones que se imprime. */
   cond?: string;
   /** Servicio: precio por viaje en cada zona (el agua, 2026-10-29). Null: deja de cobrar por zona. */
@@ -1102,7 +1230,7 @@ export function renglonesDeFicha(cat: CatalogoCotizador, clase: ClaseRenglon, pr
   }
   if (cat.tipo === 'maquinaria' && clase === 'servicio') {
     const rs = cat.servicios.filter(es);
-    return { renglones: rs.map((s) => ({ id: s.id, nombre: s.nombre, precio: s.precio, cond: s.cond, ...(porZona(s) ? { precios_zona: { ...s.precios_zona } } : {}) })), oculto: rs.length > 0 && rs.every((s) => s.oculto) };
+    return { renglones: rs.map((s) => ({ id: s.id, nombre: s.nombre, precio: s.precio, unidad: s.unidad || 'viaje', cond: s.cond, ...(porZona(s) ? { precios_zona: { ...s.precios_zona } } : {}) })), oculto: rs.length > 0 && rs.every((s) => s.oculto) };
   }
   if (cat.tipo === 'triturados' && clase === 'material') {
     const rs = cat.productos.filter(es);
@@ -1155,8 +1283,9 @@ function iconoDeEquipo(nombre: string): string {
   return martillo ? 'martillo_exc' : 'excavadora';
 }
 
-/** Icono de un servicio nuevo, por su bloque de condiciones. */
-const ICONO_SERVICIO: Record<string, string> = { pipa: 'pipa', banco: 'banco', retiro: 'retiro' };
+/** Icono de un servicio nuevo, por su bloque de condiciones (o, si no dice, por su línea). */
+const ICONO_SERVICIO: Record<string, string> = { pipa: 'pipa', banco: 'banco', retiro: 'retiro', asfalto: 'asfalto', materiales: 'block', venta: 'venta' };
+const ICONO_DE_LINEA: Record<string, string> = { [LINEA_ASFALTO]: 'asfalto', [LINEA_MATERIALES]: 'block', [LINEA_VENTA]: 'venta' };
 
 /**
  * Deja los renglones de la ficha como vienen: actualiza los que traen id,
@@ -1208,18 +1337,20 @@ export function aplicarRenglonesDeFicha(
     const nuevos: ServicioCotizador[] = renglones.map((r) => {
       const { id, ya } = idPara(porId, r);
       const precio = r.precio ?? ya?.precio ?? 0;
-      const cond = r.cond ?? ya?.cond ?? Object.keys(cat.condiciones)[0] ?? 'renta';
+      const condLinea = COND_DE_LINEA[opciones.linea];
+      const cond = r.cond ?? ya?.cond ?? (condLinea && cat.condiciones[condLinea] ? condLinea : Object.keys(cat.condiciones)[0] ?? 'renta');
       // Con un solo precio sugerido, ese ES el precio; con varios (retiros), se
       // conservan y se suma el nuevo para que siga a la mano en el panel.
       const presets = ya && ya.presets.length > 1
         ? [...new Set([...ya.presets, precio])].sort((a, b) => a - b)
         : [precio];
       return {
-        ...(ya ?? { icono: ICONO_SERVICIO[cond] ?? previos[0]?.icono ?? 'retiro', unidad: 'viaje', proveedor_id: null, productos: [productId] }),
+        ...(ya ?? { icono: ICONO_SERVICIO[cond] ?? previos[0]?.icono ?? ICONO_DE_LINEA[opciones.linea] ?? 'retiro', proveedor_id: null, productos: [productId] }),
         id,
         nombre: r.nombre.trim(),
         precio,
         presets,
+        unidad: r.unidad || ya?.unidad || unidadDeLinea(opciones.linea),
         cond,
         linea: opciones.linea,
         // Por zona: lo que mande la ficha; sin el campo, lo que ya tenía.
@@ -1296,6 +1427,7 @@ export interface PartidaAnalizada {
  * partir una solicitud por línea y ofrecer cada parte a quien le toca.
  */
 export function analizarPartidas(cat: CatalogoCotizador, partidas: PartidaCotizador[]): PartidaAnalizada[] {
+  const tri = trituradosDe(cat);
   const out: PartidaAnalizada[] = [];
   for (const p of partidas) {
     if (p.tipo === 'equipo' && cat.tipo === 'maquinaria') {
@@ -1315,23 +1447,20 @@ export function analizarPartidas(cat: CatalogoCotizador, partidas: PartidaCotiza
       }
       const zona = porZona(sv) ? zonaPrecioDe(cat, p.zona) : null;
       out.push({ partida: p, linea: lineaDeServicio(sv), concepto: `${sv.nombre} · ${p.cantidad ?? 1} ${sv.unidad}(s)${zona ? ` · ${zona.nombre}` : ''}`, productos: sv.productos ?? [], proveedorId: sv.proveedor_id ?? null });
-    } else if (p.tipo === 'material' && cat.tipo === 'triturados') {
-      const prod = cat.productos.find((x) => x.id === p.id);
-      out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${prod?.nombre ?? p.nombre ?? 'Material'} · ${p.toneladas ?? 0} ton`, productos: prod?.productos ?? [], proveedorId: prod?.proveedor_id ?? null });
-    } else if (p.tipo === 'zona' && cat.tipo === 'triturados') {
-      const prod = cat.productos.find((x) => x.id === p.producto_id);
-      const zona = cat.zonas.find((z) => z.id === p.zona_id);
+    } else if (p.tipo === 'material' && tri) {
+      const prod = tri.productos.find((x) => x.id === p.id);
+      const camion = camionDe(tri, p.camion);
+      out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${prod?.nombre ?? p.nombre ?? 'Material'} · ${p.toneladas ?? 0} ton${camion ? ` · en ${camion.nombre.toLowerCase()}` : ''}`, productos: prod?.productos ?? [], proveedorId: prod?.proveedor_id ?? null });
+    } else if (p.tipo === 'zona' && tri) {
+      const prod = tri.productos.find((x) => x.id === p.producto_id);
+      const zona = tri.zonas.find((z) => z.id === p.zona_id);
       if (!prod) continue;
       out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${prod.nombre} · ${p.viajes ?? 1} viaje(s)${zona ? ` · ${zona.nombre}` : ''}`, productos: prod.productos ?? [], proveedorId: prod.proveedor_id ?? null });
-    } else if (p.tipo === 'banco' && cat.tipo === 'triturados') {
-      out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${cat.material_banco.nombre} · ${p.m3 ?? 0} m³`, productos: cat.material_banco.productos ?? [], proveedorId: cat.material_banco.proveedor_id ?? null });
+    } else if (p.tipo === 'banco' && tri) {
+      out.push({ partida: p, linea: LINEA_TRITURADOS, concepto: `${tri.material_banco.nombre} · ${p.m3 ?? 0} m³`, productos: tri.material_banco.productos ?? [], proveedorId: tri.material_banco.proveedor_id ?? null });
     }
   }
   return out;
-}
-
-export function pasosDe(tipo: CotizadorTipo): PasoCotizador[] {
-  return tipo === 'maquinaria' ? PASOS_MAQUINARIA : PASOS_TRITURADOS;
 }
 
 /** Nombre y descripción de cada cotizador. Lo usan el menú y las dos portadas. */
@@ -1350,3 +1479,184 @@ export const COTIZADORES_META: Record<CotizadorTipo, { titulo: string; resumen: 
     ruta: '/cotizador/triturados',
   },
 };
+
+/** Un renglón del tabulador, para saber a qué cotizador del sitio pertenece. */
+export interface RenglonDelSitio {
+  clase: ClaseRenglon;
+  linea: string;
+  cond?: string;
+}
+
+/**
+ * LOS COTIZADORES DEL SITIO, UNO POR CATEGORÍA (2026-11-02).
+ *
+ * Pedido del dueño: "cambiar el menú de cotizadores y acomodarlos por
+ * categorías", en este orden, aunque alguna todavía no tenga precios. Por
+ * dentro siguen siendo DOS tabuladores: cada cotizador del sitio es una vista
+ * de uno de ellos con solo lo de su categoría. El precio sigue en la ficha del
+ * tipo, y una categoría sin renglones se llena sola el día que su ficha tenga
+ * precio (Inventario › la ficha › Precio en el cotizador).
+ *
+ * Triturados no venía en la lista del dueño; se queda junto a los materiales
+ * para no esconder un cotizador que ya funciona.
+ *
+ * El panel y los accesos directos siguen con los dos tabuladores completos.
+ */
+export interface CotizadorDelSitio {
+  /** /cotizador/<clave>. */
+  clave: string;
+  titulo: string;
+  /** Una línea bajo el nombre, en el menú y en la portada del cotizador. */
+  resumen: string;
+  tipo: CotizadorTipo;
+  /** La categoría: con ella se pide a la medida mientras no haya nada con precio. */
+  linea: string;
+  /** A dónde se pide a la medida, si no es el formulario con la categoría puesta. */
+  aLaMedida?: string;
+  icono: string;
+  /** Qué renglones del tabulador entran. */
+  incluye: (r: RenglonDelSitio) => boolean;
+}
+
+export const COTIZADORES_SITIO: readonly CotizadorDelSitio[] = [
+  {
+    clave: 'maquinaria',
+    titulo: 'Renta de maquinaria',
+    resumen: 'Por hora, con operador y diésel',
+    tipo: 'maquinaria',
+    linea: LINEA_MAQUINARIA,
+    icono: 'excavadora',
+    incluye: (r) => r.clase === 'equipo',
+  },
+  {
+    clave: 'agua',
+    titulo: 'Servicios de agua',
+    resumen: 'Pipas de 10 y 20 m³, por viaje',
+    tipo: 'maquinaria',
+    linea: LINEA_TRANSPORTE,
+    icono: 'agua',
+    incluye: (r) => r.clase === 'servicio' && r.linea === LINEA_TRANSPORTE && r.cond === 'pipa',
+  },
+  {
+    clave: 'acarreos',
+    titulo: 'Acarreos',
+    resumen: 'Retiro de material en volteo, por viaje',
+    tipo: 'maquinaria',
+    linea: LINEA_TRANSPORTE,
+    icono: 'retiro',
+    incluye: (r) => r.clase === 'servicio' && r.linea === LINEA_TRANSPORTE && r.cond !== 'pipa',
+  },
+  {
+    clave: 'carpeta-asfaltica',
+    titulo: 'Carpeta asfáltica',
+    resumen: 'Riego de impregnación y carpeta asfáltica',
+    tipo: 'maquinaria',
+    linea: LINEA_ASFALTO,
+    icono: 'asfalto',
+    incluye: (r) => r.clase === 'servicio' && r.linea === LINEA_ASFALTO,
+  },
+  {
+    clave: 'materiales',
+    titulo: 'Materiales de construcción',
+    resumen: 'Block de concreto',
+    tipo: 'maquinaria',
+    linea: LINEA_MATERIALES,
+    icono: 'block',
+    incluye: (r) => r.clase === 'servicio' && r.linea === LINEA_MATERIALES,
+  },
+  {
+    clave: 'triturados',
+    titulo: 'Triturados',
+    resumen: 'Grava, arena y base por tonelada',
+    tipo: 'triturados',
+    linea: LINEA_TRITURADOS,
+    icono: 'material',
+    incluye: (r) => r.clase === 'material',
+  },
+  {
+    clave: 'venta-de-maquinaria',
+    titulo: 'Venta de maquinaria',
+    resumen: 'Equipos a la venta con la red de proveedores',
+    tipo: 'maquinaria',
+    linea: LINEA_VENTA,
+    // Como el botón de su página de venta: Contacto con «Comprar maquinaria» ya elegido.
+    aLaMedida: '/contacto?necesidad=Comprar%20maquinaria',
+    icono: 'venta',
+    incluye: (r) => r.clase === 'servicio' && r.linea === LINEA_VENTA,
+  },
+];
+
+export function cotizadorDelSitio(clave: string): CotizadorDelSitio | null {
+  return COTIZADORES_SITIO.find((c) => c.clave === clave) ?? null;
+}
+
+/** A qué cotizador del sitio lleva un renglón del tabulador ("Cotizar" en su ficha). */
+export function cotizadorDeRenglon(tipo: CotizadorTipo, r: RenglonDelSitio): CotizadorDelSitio | null {
+  return COTIZADORES_SITIO.find((c) => c.tipo === tipo && c.incluye(r)) ?? null;
+}
+
+/** El tabulador con solo lo de ese cotizador. El cálculo no cambia: es el mismo motor. */
+export function catalogoDelSitio(cat: CatalogoCotizador, c: CotizadorDelSitio): CatalogoCotizador {
+  return filtrarTabulador(cat, c.incluye);
+}
+
+/**
+ * Varios cotizadores del sitio en UNA cotización (2026-11-03, pedido del
+ * dueño: "si se quiere otro servicio, poner las demás opciones"): el de agua
+ * con acarreos, la renta con agua… Solo los del mismo tabulador; triturados se
+ * cotiza aparte.
+ */
+export function catalogoDeVarios(cat: CatalogoCotizador, claves: readonly string[]): CatalogoCotizador {
+  const cotizadores = claves.map(cotizadorDelSitio).filter((c): c is CotizadorDelSitio => !!c && c.tipo === cat.tipo);
+  return filtrarTabulador(cat, (r) => cotizadores.some((c) => c.incluye(r)));
+}
+
+function filtrarTabulador(cat: CatalogoCotizador, incluye: (r: RenglonDelSitio) => boolean): CatalogoCotizador {
+  if (cat.tipo === 'maquinaria') {
+    return {
+      ...cat,
+      equipos: cat.equipos.filter(() => incluye({ clase: 'equipo', linea: LINEA_MAQUINARIA })),
+      servicios: cat.servicios.filter((s) => incluye({ clase: 'servicio', linea: lineaDeServicio(s), cond: s.cond })),
+    };
+  }
+  return incluye({ clase: 'material', linea: LINEA_TRITURADOS }) ? cat : { ...cat, productos: [] };
+}
+
+/** "renta de maquinaria", "renta de maquinaria y servicios de agua", "a, b y c": las categorías en una frase. */
+export function categoriasEnTexto(claves: readonly string[]): string {
+  const t = claves.map((k) => cotizadorDelSitio(k)?.titulo.toLowerCase()).filter((x): x is string => !!x);
+  return t.length <= 1 ? (t[0] ?? '') : `${t.slice(0, -1).join(', ')} y ${t[t.length - 1]}`;
+}
+
+/** ¿Hay algo que elegir? Sin esto, el cotizador de la categoría pide a la medida. */
+export function hayQueElegir(cat: CatalogoCotizador): boolean {
+  const ve = (r: { oculto?: boolean }) => !r.oculto;
+  return cat.tipo === 'maquinaria' ? cat.equipos.some(ve) || cat.servicios.some(ve) : cat.productos.some(ve);
+}
+
+/**
+ * EL SALUDO DEL DOCUMENTO SEGÚN LO QUE SE COTIZA (2026-11-02).
+ *
+ * El del tabulador de maquinaria dice "cotización de renta de maquinaria", y
+ * una cotización de solo agua o solo block no lo es. Si todas las partidas son
+ * de un mismo cotizador del sitio que no es el de renta, esa frase se cambia
+ * por el nombre de su categoría. Si Dirección escribió otro saludo en Tarifas
+ * (sin esa frase), sale tal cual; una cotización mezclada, también.
+ */
+export function saludoDe(cat: CatalogoCotizador, partidas: PartidaCotizador[]): string {
+  if (cat.tipo !== 'maquinaria' || !partidas.length) return cat.saludo;
+  const claves = new Set<string | null>();
+  for (const p of partidas) {
+    if (p.tipo === 'equipo') { claves.add('maquinaria'); continue; }
+    if (esDeTriturados(p)) { claves.add('triturados'); continue; }
+    const sv = p.tipo === 'servicio' ? servicioDe(cat, p.id) : undefined;
+    claves.add(sv ? cotizadorDeRenglon('maquinaria', { clase: 'servicio', linea: lineaDeServicio(sv), cond: sv.cond })?.clave ?? null : null);
+  }
+  // Con algo escrito a mano no se sabe de qué categoría es: el saludo de siempre.
+  if (claves.has(null)) return cat.saludo;
+  const lista = [...claves] as string[];
+  if (lista.length === 1 && lista[0] === 'maquinaria') return cat.saludo;
+  // Una sola categoría, o varias juntas ("renta de maquinaria y servicios de agua", 2026-11-03).
+  const texto = categoriasEnTexto(lista);
+  return texto ? cat.saludo.replace(/renta de maquinaria/i, texto) : cat.saludo;
+}
