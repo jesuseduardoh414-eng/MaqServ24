@@ -163,19 +163,19 @@ export function CotizadorPublico({
       variante="sitio"
       titulo={`Cotización de ${categoriasEnTexto(todas)}`}
       masServicios={{ opciones, agregar }}
-      extras={medida.length ? (
-        <>
-          {medida.map((m) => (
-            <CotizadorALaMedida
-              key={m.clave}
-              pedido={m}
-              productos={aLaMedida[m.clave] ?? []}
-              cambiar={(cambio) => cambiarMedida(m.clave, cambio)}
-              quitar={() => setMedida((ms) => ms.filter((x) => x.clave !== m.clave))}
-            />
-          ))}
-        </>
-      ) : null}
+      // Cada una en su sección, en el orden en que se agregó.
+      extras={Object.fromEntries(
+        medida.map((m) => [
+          m.clave,
+          <CotizadorALaMedida
+            key={m.clave}
+            pedido={m}
+            productos={aLaMedida[m.clave] ?? []}
+            cambiar={(cambio) => cambiarMedida(m.clave, cambio)}
+            quitar={() => setMedida((ms) => ms.filter((x) => x.clave !== m.clave))}
+          />,
+        ]),
+      )}
       notasExtra={notasExtra}
       despues={<OtroServicio activas={todas} />}
       logo={logo}

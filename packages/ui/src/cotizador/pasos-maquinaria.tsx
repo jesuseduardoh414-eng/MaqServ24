@@ -254,6 +254,7 @@ export function PasoServicios({
   municipio,
   elegirZona,
   agregarOtro,
+  titulo,
 }: {
   cat: CatalogoMaquinaria;
   lineas: LineaMaquinaria[];
@@ -269,6 +270,8 @@ export function PasoServicios({
   elegirZona: boolean;
   /** Panel: «Otro servicio (nombre y precio a mano)», para lo que no está en el tabulador (2026-10-30). */
   agregarOtro?: () => void;
+  /** El nombre de la categoría (2026-11-03): cada una va en su propia tarjeta. */
+  titulo?: string;
 }) {
   const servicios = lineas.filter((l): l is LineaServicio => l.tipo === 'servicio');
   const zonaObra = zonaDeMunicipio(cat, municipio);
@@ -278,7 +281,7 @@ export function PasoServicios({
 
   return (
     <div className="cz-card">
-      <h2 className="cz-card-h">{soloServicios ? 'Elige qué necesitas' : 'Servicios adicionales'}</h2>
+      <h2 className="cz-card-h">{titulo ?? (soloServicios ? 'Elige qué necesitas' : 'Servicios adicionales')}</h2>
       <p className="cz-card-s">
         {soloServicios ? 'Toca una opción para elegirla y pon la cantidad.' : 'Lo que se cotiza aparte de la maquinaria.'}
         {conZona ? ` ${soloServicios ? 'Se cobra' : 'El agua y los acarreos se cobran'} según la zona de la obra${zonaObra ? ` (${municipio}: ${zonaObra.nombre})` : ''}.` : ''}

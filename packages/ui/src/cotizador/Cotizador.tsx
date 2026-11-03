@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   calcularCotizacion,
+  catalogoDelSitio,
+  COTIZADORES_SITIO,
+  cotizadorDelSitio,
   condicionesSinPrecios,
   conZonaDeLaObra,
   esUbicacionDeMapas,
@@ -58,7 +61,7 @@ import {
   type LineaTriturados,
   type LineaZona,
 } from './estado';
-import { PasoDuracion, PasoEquipos, PasoServicios } from './pasos-maquinaria';
+import { PasoDuracion, PasoEquipos, PasoServicios, ServicioAMano } from './pasos-maquinaria';
 import { CategoriaAMano, unidadDeProducto, type ProductoALaMedida } from './categorias';
 import { AjustesDelTotal, Facturacion, PasoPedido, entregaDecidida, zonaDelMunicipio } from './pasos-triturados';
 
@@ -146,10 +149,11 @@ export interface CotizadorProps {
   despues?: ReactNode;
   /**
    * Servicios extra de otras categorías en esta MISMA solicitud (sitio,
-   * 2026-11-03): se pintan arriba de «¿Necesitas otro servicio?» y su texto
-   * (`notasExtra`) va en las notas del documento y de la solicitud.
+   * 2026-11-03), por la clave de su categoría: cada uno sale como sección, en
+   * el orden en que se agregó, y su texto (`notasExtra`) va en las notas del
+   * documento y de la solicitud.
    */
-  extras?: ReactNode;
+  extras?: Record<string, ReactNode>;
   notasExtra?: string;
   /**
    * Panel y enlace (2026-11-03): las categorías SIN precio de lista que se
@@ -159,6 +163,9 @@ export interface CotizadorProps {
   aMano?: { categorias: Array<{ clave: string; titulo: string; icono: string; productos: ProductoALaMedida[] }>; quitar: (clave: string) => void };
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
 }
+
+/** La sección de lo escrito a mano sin categoría (el «Otro servicio» del panel). */
+const A_MANO_SUELTOS = '__a-mano';
 
 /** Las dos pantallas: armar (cliente y lo que se cotiza) y el documento. */
 const PASOS = [{ clave: 'armar' }, { clave: 'resumen' }] as const;
@@ -369,9 +376,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   };
 
   /** Escritos a mano sin categoría (el «Otro servicio» del panel). */
-  const aManoSueltos = lineas.some((l) => l.tipo === 'servicio' && l.id === SERVICIO_A_MANO && !l.categoria);
-  /** La tarjeta de servicios: con servicios en el tabulador de esta cotización o con alguno escrito a mano. */
-  const serviciosVisibles = tipo === 'maquinaria' && ((catalogo as CatalogoMaquinaria).servicios.length > 0 || aManoSueltos);
+  const sueltos = lineas.filter((l): l is LineaServicio => l.tipo === 'servicio' && l.id === SERVICIO_A_MANO && !l.categoria);
   /** Los renglones de una categoría sin precio, y quitarla con ellos. */
   const deCategoria = (clave: string) => lineas.filter((l): l is LineaServicio => l.tipo === 'servicio' && l.categoria === clave);
   const quitarCategoria = (clave: string) => {
@@ -384,6 +389,132 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
         ? prev.filter((l) => !(l.tipo === 'servicio' && l.categoria === clave && l.nombre === p.nombre))
         : [...prev, lineaDeServicioAMano({ nombre: p.nombre, unidad: unidadDeProducto(p.unidad), categoria: clave })],
     );
+
+  /**
+   * EN EL ORDEN EN QUE SE AGREGAN (2026-11-03, pedido del dueño: "si escojo
+   * más de un servicio, que no se suban los campos, que aparezcan abajo").
+   * Cada categoría es una sección; la que se agrega sale al final, justo
+   * arriba de «¿Necesitas otro servicio?», y no en un lugar fijo más arriba.
+   */
+  const presentes: string[] = [];
+  if (tipo === 'maquinaria') {
+    const maq = catalogo as CatalogoMaquinaria;
+    if (maq.equipos.length) presentes.push('maquinaria');
+    for (const c of COTIZADORES_SITIO) {
+      if (c.tipo === 'maquinaria' && c.clave !== 'maquinaria' && (catalogoDelSitio(maq, c) as CatalogoMaquinaria).servicios.length) presentes.push(c.clave);
+    }
+    for (const c of aMano?.categorias ?? []) presentes.push(c.clave);
+  }
+  if (catTrit) presentes.push('triturados');
+  presentes.push(...Object.keys(extras ?? {}));
+  if (sueltos.length) presentes.push(A_MANO_SUELTOS);
+  const ordenVisto = useRef<string[]>([]);
+  const previo = ordenVisto.current.filter((k) => presentes.includes(k));
+  const orden = [...previo, ...presentes.filter((k) => !previo.includes(k))].filter((k, n, a) => a.indexOf(k) === n);
+  ordenVisto.current = orden;
+
+  const seccion = (k: string): ReactNode => {
+    if (k === 'maquinaria') {
+      return (
+        <>
+          <PasoEquipos
+            cat={paraElegir as CatalogoMaquinaria}
+            lineas={lineas as LineaMaquinaria[]}
+            mostrarPrecios={preciosEnPasos}
+            alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
+            agregarOtra={(id) => agregar(lineaDeEquipo(id))}
+          />
+          {lineas.some((l) => l.tipo === 'equipo') ? (
+            <PasoDuracion
+              cat={catalogo as CatalogoMaquinaria}
+              lineas={lineas as LineaMaquinaria[]}
+              mostrarPrecios={preciosEnPasos}
+              editarPrecios={editarPrecios}
+              actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaEquipo>)}
+              quitar={quitar}
+            />
+          ) : null}
+        </>
+      );
+    }
+    if (k === 'triturados') {
+      return paraElegirTrit ? (
+        <PasoPedido
+          encabezado={tipo === 'maquinaria' ? 'Triturados: ¿cómo los quieres?' : undefined}
+          cat={paraElegirTrit}
+          lineas={lineas as LineaTriturados[]}
+          mostrarPrecios={preciosEnPasos}
+          editarPrecios={editarPrecios}
+          alternarMaterial={alternarMaterial}
+          alternarViaje={alternarViaje}
+          forma={forma}
+          cambiarForma={cambiarForma}
+          ubicacion={ctx.ubicacion}
+          ponerUbicacion={sinUbicacion ? undefined : (ubicacion) => setCtx((c) => ({ ...c, ubicacion }))}
+          ubicacionObligatoria={!esPanel}
+          preciosAlFinal={preciosAlFinal}
+          permitirOtro={esPanel}
+          agregarMaterial={agregarMaterial}
+          agregarBanco={() => agregar(lineaDeBanco(catTrit as CatalogoTriturados))}
+          actualizar={actualizar}
+          quitar={quitar}
+          nuevo={nuevo}
+          tocado={tocado}
+          municipio={ctx.municipio}
+        />
+      ) : null;
+    }
+    if (k === A_MANO_SUELTOS) {
+      return (
+        <div className="cz-card">
+          <h2 className="cz-card-h">Otros servicios</h2>
+          <p className="cz-card-s">Lo que no está en el tabulador: nombre, unidad y precio a mano.</p>
+          <div style={{ marginTop: 16 }}>
+            {sueltos.map((l) => (
+              <ServicioAMano key={l.uid} l={l} actualizar={(uid, patch) => actualizar(uid, patch)} quitar={quitar} mostrarPrecios={preciosEnPasos} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+    const am = tipo === 'maquinaria' ? aMano?.categorias.find((c) => c.clave === k) : undefined;
+    if (am) {
+      return (
+        <CategoriaAMano
+          titulo={am.titulo}
+          icono={am.icono}
+          productos={am.productos}
+          lineas={deCategoria(am.clave)}
+          alternar={(p) => alternarProducto(am.clave, p)}
+          agregarOtro={() => agregar(lineaDeServicioAMano({ categoria: am.clave }))}
+          actualizar={(uid, patch) => actualizar(uid, patch)}
+          quitarLinea={quitar}
+          quitar={() => quitarCategoria(am.clave)}
+          mostrarPrecios={preciosEnPasos}
+        />
+      );
+    }
+    if (extras?.[k]) return extras[k];
+    // Una categoría de servicios (agua, acarreos…): su propia tarjeta, con su nombre.
+    const c = cotizadorDelSitio(k);
+    if (!c || tipo !== 'maquinaria') return null;
+    const cat = catalogoDelSitio(paraElegir, c) as CatalogoMaquinaria;
+    const ids = new Set(cat.servicios.map((sv) => sv.id));
+    return (
+      <PasoServicios
+        titulo={c.titulo}
+        cat={cat}
+        lineas={lineas.filter((l) => l.tipo === 'servicio' && ids.has(l.id)) as LineaMaquinaria[]}
+        mostrarPrecios={preciosEnPasos}
+        editarPrecios={editarPrecios}
+        municipio={ctx.municipio}
+        elegirZona={esPanel}
+        alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
+        actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
+        quitar={quitar}
+      />
+    );
+  };
 
   // ---- validación por paso ----
   const clave = pasos[paso]?.clave ?? '';
@@ -593,88 +724,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
               )}
             </div>
           ) : null}
-          {tipo === 'maquinaria' && clave === 'armar' ? (
-            <>
-              {/* Sin equipos en este cotizador (agua, acarreos…), sin su tarjeta. */}
-              {(catalogo as CatalogoMaquinaria).equipos.length ? (
-                <PasoEquipos
-                  cat={paraElegir as CatalogoMaquinaria}
-                  lineas={lineas as LineaMaquinaria[]}
-                  mostrarPrecios={preciosEnPasos}
-                  alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
-                  agregarOtra={(id) => agregar(lineaDeEquipo(id))}
-                />
-              ) : null}
-              {lineas.some((l) => l.tipo === 'equipo') ? (
-                <PasoDuracion
-                  cat={catalogo as CatalogoMaquinaria}
-                  lineas={lineas as LineaMaquinaria[]}
-                  mostrarPrecios={preciosEnPasos}
-                  editarPrecios={editarPrecios}
-                  actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaEquipo>)}
-                  quitar={quitar}
-                />
-              ) : null}
-              {serviciosVisibles ? (
-                <PasoServicios
-                  cat={paraElegir as CatalogoMaquinaria}
-                  lineas={lineas as LineaMaquinaria[]}
-                  mostrarPrecios={preciosEnPasos}
-                  editarPrecios={editarPrecios}
-                  municipio={ctx.municipio}
-                  elegirZona={esPanel}
-                  alternar={(id) => alternar(esServicio(id), () => lineaDeServicio(catalogo as CatalogoMaquinaria, id))}
-                  actualizar={(uid, patch) => actualizar(uid, patch as Partial<LineaServicio>)}
-                  quitar={quitar}
-                  agregarOtro={esPanel ? () => agregar(lineaDeServicioAMano()) : undefined}
-                />
-              ) : null}
-            </>
-          ) : null}
-
-          {paraElegirTrit && clave === 'armar' ? (
-            <PasoPedido
-              encabezado={tipo === 'maquinaria' ? 'Triturados: ¿cómo los quieres?' : undefined}
-              cat={paraElegirTrit}
-              lineas={lineas as LineaTriturados[]}
-              mostrarPrecios={preciosEnPasos}
-              editarPrecios={editarPrecios}
-              alternarMaterial={alternarMaterial}
-              alternarViaje={alternarViaje}
-              forma={forma}
-              cambiarForma={cambiarForma}
-              ubicacion={ctx.ubicacion}
-              ponerUbicacion={sinUbicacion ? undefined : (ubicacion) => setCtx((c) => ({ ...c, ubicacion }))}
-              ubicacionObligatoria={!esPanel}
-              preciosAlFinal={preciosAlFinal}
-              permitirOtro={esPanel}
-              agregarMaterial={agregarMaterial}
-              agregarBanco={() => agregar(lineaDeBanco(catTrit as CatalogoTriturados))}
-              actualizar={actualizar}
-              quitar={quitar}
-              nuevo={nuevo}
-              tocado={tocado}
-              municipio={ctx.municipio}
-            />
-          ) : null}
-
-          {clave === 'armar' && tipo === 'maquinaria'
-            ? aMano?.categorias.map((c) => (
-                <CategoriaAMano
-                  key={c.clave}
-                  titulo={c.titulo}
-                  icono={c.icono}
-                  productos={c.productos}
-                  lineas={deCategoria(c.clave)}
-                  alternar={(p) => alternarProducto(c.clave, p)}
-                  agregarOtro={() => agregar(lineaDeServicioAMano({ categoria: c.clave }))}
-                  actualizar={(uid, patch) => actualizar(uid, patch)}
-                  quitarLinea={quitar}
-                  quitar={() => quitarCategoria(c.clave)}
-                  mostrarPrecios={preciosEnPasos}
-                />
-              ))
-            : null}
+          {/* Cada categoría en su sección, en el orden en que se agregó (2026-11-03). */}
+          {clave === 'armar' ? orden.map((k) => <Fragment key={k}>{seccion(k)}</Fragment>) : null}
 
           {clave === 'resumen' ? (
             <div className="cz-card">
@@ -804,9 +855,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
             </div>
           ) : null}
 
-          {clave === 'armar' ? extras : null}
 
-          {clave === 'armar' && (masServicios?.opciones.length || (esPanel && tipo === 'maquinaria' && !serviciosVisibles)) ? (
+          {clave === 'armar' && (masServicios?.opciones.length || (esPanel && tipo === 'maquinaria')) ? (
             <div className="cz-card">
               <h2 className="cz-card-h">¿Necesitas otro servicio?</h2>
               <p className="cz-card-s">
@@ -821,8 +871,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   ))}
                 </div>
               ) : null}
-              {/* Sin la tarjeta de servicios a la vista (la renta sola), el «Otro servicio» del panel vive aquí. */}
-              {esPanel && tipo === 'maquinaria' && !serviciosVisibles ? (
+              {/* El «Otro servicio» del panel: lo escrito a mano sale en su tarjeta, al final. */}
+              {esPanel && tipo === 'maquinaria' ? (
                 <button type="button" className="cz-agregar" onClick={() => agregar(lineaDeServicioAMano())} style={{ marginTop: 14 }}>
                   <Plus className="size-4" aria-hidden />
                   Otro servicio (nombre y precio a mano)
