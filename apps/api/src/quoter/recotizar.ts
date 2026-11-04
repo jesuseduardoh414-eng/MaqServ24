@@ -11,6 +11,7 @@ import {
   ponerPrecio,
   quitarPrecio,
   saludoDe,
+  tituloDe,
   tieneImporte,
   type CalculoCotizacion,
   type CatalogoCotizador,
@@ -420,6 +421,7 @@ export class Recotizar {
       empresa: cat.empresa,
       firma: cat.firma,
       saludo: saludoDe(cat, partidas),
+      titulo: tituloDe(cat, partidas),
     };
     const c = cambios.contexto;
     const nuevo = await prisma.quoter_quotes.update({

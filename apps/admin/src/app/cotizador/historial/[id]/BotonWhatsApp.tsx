@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { descargarArchivo, documentoPdf, type DatosDocumento } from '@maqserv/ui';
 import { Btn } from '@/components/ui';
 import { useBranding } from '@/components/branding';
-import { waDe } from '@/app/proveedores/wa';
+import { pestanaParaChat, waDe } from '@/app/proveedores/wa';
 
 /**
  * MANDAR LA COTIZACIÓN POR WHATSAPP (2026-11-04).
@@ -39,7 +39,7 @@ export function BotonWhatsApp({
   async function mandar() {
     if (!wa) return;
     // La pestaña se abre en el clic: si se abre después de armar el PDF, el navegador la bloquea.
-    const ventana = window.open('', '_blank');
+    const ventana = pestanaParaChat();
     setOcupado(true);
     setResultado(null);
     let conPdf = true;

@@ -6,7 +6,7 @@ import { problemaEmail } from '@maqserv/config';
 import { Modal } from '@/components/Modal';
 import { Btn, Chip, FormField, Note, Panel } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
-import { waDe } from './wa';
+import { pestanaParaChat, waDe } from './wa';
 
 /**
  * INVITAR ALIADO (2026-10-27, revisión de Proveedores).
@@ -42,7 +42,7 @@ const textoWhatsApp = (nombre: string, contacto: string | null, url: string) =>
  * se le pone la dirección cuando llega el enlace.
  */
 async function mandar(d: { nombre: string; contacto: string | null; correo: string | null; telefono: string | null; por: Por }): Promise<{ ok: boolean; mensaje: string }> {
-  const ventana = d.por === 'whatsapp' ? window.open('', '_blank') : null;
+  const ventana = d.por === 'whatsapp' ? pestanaParaChat() : null;
   const r = await fetch('/api/admin/providers/invitar', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -16,6 +16,7 @@ import {
   precioZona,
   renglonesDeFicha,
   saludoDe,
+  tituloDe,
   seccionDeLinea,
   tieneImporte,
   type CalculoCotizacion,
@@ -502,6 +503,8 @@ export class QuoterService {
       firma: cat.firma,
       // Solo agua o solo block no es "renta de maquinaria" (2026-11-02).
       saludo: saludoDe(cat, entrada.partidas),
+      // Ni el título: «Cotización de renta de maquinaria y servicios de agua» (2026-11-04).
+      titulo: tituloDe(cat, entrada.partidas),
       emitida: new Date().toISOString(),
       ...(contexto.destino?.clientId ? { destino: contexto.destino } : {}),
       ...(contexto.fecha ? { fecha: contexto.fecha } : {}),
@@ -754,6 +757,20 @@ export class QuoterService {
   async obtener(id: number) {
     const q = await prisma.quoter_quotes.findUnique({ where: { id } });
     if (!q) throw new NotFoundException('Cotización no encontrada');
+    const partidas = q.items as unknown as PartidaCotizador[];
+    const snapshot = q.snapshot as unknown as {
+      calc: CalculoCotizacion;
+      version: string;
+      empresa: CatalogoCotizador['empresa'];
+      firma: CatalogoCotizador['firma'];
+      saludo: string;
+      /** «Cotización de renta de maquinaria y servicios de agua» (2026-11-04). */
+      titulo?: string;
+      emitida: string;
+      /** Fecha de inicio o entrega y, en triturados con flete, la ubicación en Google Maps. */
+      fecha?: string;
+      ubicacion?: string;
+    };
     return {
       id: q.id,
       tipo: q.kind as CotizadorTipo,
@@ -768,17 +785,11 @@ export class QuoterService {
       telefono: q.phone,
       notas: q.notes,
       opciones: q.options as unknown as OpcionesCotizador,
-      partidas: q.items as unknown as PartidaCotizador[],
-      documento: q.snapshot as unknown as {
-        calc: CalculoCotizacion;
-        version: string;
-        empresa: CatalogoCotizador['empresa'];
-        firma: CatalogoCotizador['firma'];
-        saludo: string;
-        emitida: string;
-        /** Fecha de inicio o entrega y, en triturados con flete, la ubicación en Google Maps. */
-        fecha?: string;
-        ubicacion?: string;
+      partidas,
+      documento: {
+        ...snapshot,
+        // Las emitidas antes del 2026-11-04 no lo guardaron: sale de sus partidas.
+        titulo: snapshot.titulo ?? tituloDe(await this.catalogoCalculo(q.kind as CotizadorTipo), partidas ?? []),
       },
       total: Number(q.total),
       admin: q.admin_name,

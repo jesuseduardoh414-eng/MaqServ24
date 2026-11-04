@@ -15,7 +15,6 @@ import {
 } from '@maqserv/ui';
 import {
   categoriaConPrecio,
-  categoriasEnTexto,
   COTIZADORES_SITIO,
   cotizadorDelSitio,
   type CatalogoCotizador,
@@ -161,7 +160,8 @@ export function CotizadorPublico({
     <Cotizador
       catalogo={catalogo}
       variante="sitio"
-      titulo={`Cotización de ${categoriasEnTexto(todas)}`}
+      // El título sale de lo que lleva; lo pedido a la medida también cuenta.
+      categoriasExtra={medida.map((m) => m.clave)}
       masServicios={{ opciones, agregar }}
       // Cada una en su sección, en el orden en que se agregó.
       extras={Object.fromEntries(

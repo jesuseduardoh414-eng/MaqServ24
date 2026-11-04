@@ -1683,6 +1683,17 @@ export function categoriasDePartidas(cat: CatalogoCotizador, partidas: PartidaCo
 }
 
 /**
+ * EL TÍTULO DEL DOCUMENTO SEGÚN LO QUE LLEVA (2026-11-04): «Cotización de
+ * renta de maquinaria y servicios de agua», no «de maquinaria» para todo lo
+ * que va en ese tabulador. `extra`: categorías que van sin partida (lo que el
+ * sitio pide a la medida). Sin ninguna conocida, el del tabulador.
+ */
+export function tituloDe(cat: CatalogoCotizador, partidas: PartidaCotizador[], extra: readonly string[] = []): string {
+  const texto = categoriasEnTexto([...new Set([...categoriasDePartidas(cat, partidas), ...extra])]);
+  return `Cotización de ${texto || COTIZADORES_META[cat.tipo].titulo.toLowerCase()}`;
+}
+
+/**
  * EL SALUDO DEL DOCUMENTO SEGÚN LO QUE SE COTIZA (2026-11-02).
  *
  * El del tabulador de maquinaria dice "cotización de renta de maquinaria", y

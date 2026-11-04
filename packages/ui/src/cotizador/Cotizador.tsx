@@ -14,6 +14,7 @@ import {
   llevaFlete,
   RECOGE_EN_PLANTA,
   saludoDe,
+  tituloDe,
   problemaEmail,
   problemaTelefono,
   soloVisibles,
@@ -134,11 +135,13 @@ export interface CotizadorProps {
    */
   soloPrecios?: boolean;
   /**
-   * El título del documento (2026-11-02): el sitio tiene un cotizador por
-   * categoría y el de agua no es una "Cotización de maquinaria". Sin él, el
-   * del tabulador.
+   * El título del documento, si se quiere fijo. Sin él (lo normal desde
+   * 2026-11-04) sale de lo que lleva: «Cotización de renta de maquinaria y
+   * servicios de agua» (`tituloDe`).
    */
   titulo?: string;
+  /** Categorías que van en la cotización sin partida (lo que el sitio pide a la medida): también van en el título. */
+  categoriasExtra?: string[];
   /**
    * «¿Necesitas otro servicio?» (sitio, 2026-11-03, pedido del dueño): las
    * demás categorías del mismo tabulador; tocar una agrega sus opciones a esta
@@ -186,7 +189,7 @@ const PASOS = [{ clave: 'armar' }, { clave: 'resumen' }] as const;
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, masServicios, despues, extras, notasExtra = '', aMano, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, categoriasExtra, masServicios, despues, extras, notasExtra = '', aMano, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
   /**
    * EN UNA SOLA PANTALLA (2026-11-03, con la captura del cotizador de PUCSA:
@@ -595,7 +598,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
 
   // ---- documento ----
   const datosDoc = (folio: string): DatosDocumento => ({
-    titulo: titulo ?? (tipo === 'maquinaria' ? 'Cotización de maquinaria' : 'Cotización de triturados'),
+    titulo: titulo ?? tituloDe(catalogo, partidas, categoriasExtra),
     folio,
     cliente: ctx.cliente,
     obra: ctx.obra,

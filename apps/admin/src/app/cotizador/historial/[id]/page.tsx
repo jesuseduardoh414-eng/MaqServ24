@@ -29,6 +29,8 @@ interface CotizacionDetalle {
     empresa: EmpresaCotizador;
     firma: FirmaCotizador;
     saludo: string;
+    /** Según lo que lleva: «Cotización de renta de maquinaria y servicios de agua» (2026-11-04). */
+    titulo?: string;
     version: string;
     emitida: string;
     /** Fecha de inicio o entrega (2026-10-23). */
@@ -58,7 +60,7 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
 
   // El mismo documento para la vista y para el PDF que se manda por WhatsApp.
   const datos: Omit<DatosDocumento, 'logo'> = {
-    titulo: `Cotización de ${meta?.titulo?.toLowerCase() ?? cot.tipo}`,
+    titulo: cot.documento.titulo ?? `Cotización de ${meta?.titulo?.toLowerCase() ?? cot.tipo}`,
     folio: cot.folio,
     fecha: cot.documento.emitida,
     cliente: cot.cliente,

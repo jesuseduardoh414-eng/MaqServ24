@@ -18,7 +18,6 @@ import {
 import {
   categoriaConPrecio,
   categoriasDePartidas,
-  categoriasEnTexto,
   COTIZADORES_SITIO,
   type CatalogoCotizador,
   type CotizadorTipo,
@@ -267,7 +266,6 @@ function ConCategorias({ tabuladores, entrada, productos, solicitud, fichaId, cl
       logo={logo}
       sinUbicacion={app}
       soloPrecios={app}
-      titulo={`Cotización de ${categoriasEnTexto(activas)}`}
       masServicios={{
         opciones: COTIZADORES_SITIO.filter((c) => !activas.includes(c.clave)).map((c) => ({
           clave: c.clave,

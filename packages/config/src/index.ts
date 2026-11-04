@@ -101,6 +101,7 @@ export {
   catalogoDeCategorias,
   categoriaConPrecio,
   categoriasDePartidas,
+  tituloDe,
   type Tabuladores,
   saludoDe,
   type CotizadorDelSitio,
