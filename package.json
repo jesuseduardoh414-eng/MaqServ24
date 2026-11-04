@@ -13,7 +13,8 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm --filter @maqserv/db generate",
-    "db:pull": "pnpm --filter @maqserv/db pull"
+    "db:pull": "pnpm --filter @maqserv/db pull",
+    "indexnow": "node scripts/indexnow.mjs"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

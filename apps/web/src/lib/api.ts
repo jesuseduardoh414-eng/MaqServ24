@@ -267,8 +267,15 @@ export function getWhyChooseUs(): Promise<WhyChooseUsItem[]> {
 }
 
 
+/**
+ * La API acepta `limit` de 1 a 50; fuera de ese rango lo ignora y devuelve 3
+ * (su valor por defecto). Hasta 2026-11-04 /blog, el sitemap y llms.txt pedían
+ * 60 y por eso solo enseñaban 3 artículos: los demás quedaban sin enlace.
+ */
+const BLOGS_MAX_API = 50;
+
 export function getBlogs(limit = 3): Promise<BlogCard[]> {
-  return getOr(`/content/blogs?limit=${limit}`, []);
+  return getOr(`/content/blogs?limit=${Math.min(Math.max(limit, 1), BLOGS_MAX_API)}`, []);
 }
 
 export function getBlog(id: number): Promise<BlogDetail> {

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import { paginaSeo, sinHtml, telefonoE164, SITE_URL, IMAGEN_OG } from '@/lib/seo';
+import { paginaSeo, sinHtml, telefonoE164, SITE_URL, IMAGEN_OG, NEGOCIO } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
 import { redesParaMostrar } from '@/components/RedesSociales';
 import type { Metadata } from 'next';
-import { defaultTheme, type Theme } from '@maqserv/config';
+import { ESTADOS_COBERTURA, defaultTheme, type Theme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getFaqs } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -70,6 +70,12 @@ async function datosEstructurados(theme: Theme, faqEncendida: boolean) {
       logo: `${SITE_URL}/brand/maqser24-logo.png`,
       image: `${SITE_URL}${IMAGEN_OG}`,
       description: t(theme, 'site.tagline'),
+      // Ciudad sin calle y zona que se atiende (ficha del negocio, 2026-11-04).
+      address: { '@type': 'PostalAddress', addressLocality: NEGOCIO.ciudad, addressRegion: NEGOCIO.estado, addressCountry: NEGOCIO.pais },
+      areaServed: [
+        { '@type': 'City', name: NEGOCIO.ciudad },
+        ...ESTADOS_COBERTURA.map((e) => ({ '@type': 'State', name: e })),
+      ],
       // Perfiles oficiales (Diseño → Footer): le dicen a Google que son de MAQSER24.
       ...(() => {
         const redes = redesParaMostrar((theme.tokens.footer ?? defaultTheme.tokens.footer).social)
@@ -78,7 +84,25 @@ async function datosEstructurados(theme: Theme, faqEncendida: boolean) {
         return redes.length ? { sameAs: redes } : {};
       })(),
       ...(tel || c.email
-        ? { contactPoint: [{ '@type': 'ContactPoint', contactType: 'sales', availableLanguage: 'es', ...(tel ? { telephone: tel } : {}), ...(c.email ? { email: c.email } : {}) }] }
+        ? {
+            contactPoint: [
+              {
+                '@type': 'ContactPoint',
+                contactType: 'sales',
+                availableLanguage: 'es',
+                areaServed: 'MX',
+                ...(tel ? { telephone: tel } : {}),
+                ...(c.email ? { email: c.email } : {}),
+                // Organization no admite horario propio: va en su punto de contacto.
+                hoursAvailable: {
+                  '@type': 'OpeningHoursSpecification',
+                  dayOfWeek: [...NEGOCIO.horario.dias],
+                  opens: NEGOCIO.horario.abre,
+                  closes: NEGOCIO.horario.cierra,
+                },
+              },
+            ],
+          }
         : {}),
     },
     {

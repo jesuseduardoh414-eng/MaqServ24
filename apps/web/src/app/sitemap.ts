@@ -48,7 +48,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority,
   }));
 
-  // Artículos del blog (el endpoint admite hasta 60).
+  // Artículos del blog (la API da hasta 50; getBlogs recorta lo que se pida).
   try {
     for (const b of await getBlogs(60)) {
       entries.push({ url: `${SITE_URL}/blog/${b.slug}`, changeFrequency: 'monthly', priority: 0.6, ...(b.date ? { lastModified: b.date } : {}) });

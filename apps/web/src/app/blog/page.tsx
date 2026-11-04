@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { paginaSeo } from '@/lib/seo';
+import { migas, paginaSeo, SITE_URL } from '@/lib/seo';
+import { JsonLd } from '@/components/JsonLd';
 import { getTheme, t } from '@/lib/theme';
 import { getBlogs } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -22,6 +23,27 @@ export default async function BlogIndexPage() {
   return (
     <>
       <SiteHeader theme={theme} />
+      {/* Migas y el índice del blog con sus artículos (auditoría SEO 2026-11-04: /blog no tenía JSON-LD). */}
+      <JsonLd
+        data={[
+          migas([{ nombre: t(theme, 'nav.home'), ruta: '/' }, { nombre: 'Blog' }]),
+          {
+            '@context': 'https://schema.org',
+            '@type': 'Blog',
+            name: t(theme, 'seo.blog.title'),
+            description: t(theme, 'seo.blog.description'),
+            url: `${SITE_URL}/blog`,
+            inLanguage: 'es',
+            publisher: { '@id': `${SITE_URL}/#organization` },
+            blogPost: blogs.map((b) => ({
+              '@type': 'BlogPosting',
+              headline: b.title,
+              url: `${SITE_URL}/blog/${b.slug}`,
+              ...(b.date ? { datePublished: b.date } : {}),
+            })),
+          },
+        ]}
+      />
       <BlogIndex
         posts={blogs}
         eyebrow={copy('blog.hero.eyebrow', 'Diario de obra · Nº 24')}

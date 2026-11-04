@@ -51,21 +51,23 @@ export const LANDINGS: Landing[] = [
     clave: 'machinery',
     categoria: 'maquinaria-pesada',
     nombre: 'Renta de maquinaria pesada',
-    resumen: 'Excavadoras, retroexcavadoras, motoconformadoras y vibrocompactadores',
+    resumen: 'Retroexcavadoras, excavadoras, motoconformadoras, vibrocompactadores y Bob Cat',
     eyebrow: 'Renta de maquinaria',
-    h1: 'Renta de maquinaria pesada en Monterrey y el norte de México',
-    // Oferta vigente (2026-10-06, lista del cliente): solo estos cuatro equipos.
+    h1: 'Renta de maquinaria pesada en Monterrey y Nuevo León',
+    // Oferta vigente = equipos del cotizador (quoter-defaults.ts, revisado 2026-11-04):
+    // por hora, mínimo 8 h por equipo, con operador y diésel.
     intro: [
-      'Renta excavadoras, retroexcavadoras, motoconformadoras y vibrocompactadores para tu obra. Cotizas en línea con un tabulador estándar y MAQSER24 asigna el equipo de un proveedor de su red.',
+      'Renta retroexcavadoras, excavadoras de 20 t, motoconformadoras, vibrocompactadores y Bob Cat con operador y diésel para tu obra. Cotizas en línea con precio por hora y MAQSER24 asigna el equipo de un proveedor de su red.',
       `Atendemos ${ZONA}. Tú nos dices la obra, el equipo y los días; nosotros coordinamos la entrega y damos seguimiento hasta que termina el servicio.`,
     ],
     incluye: {
       titulo: 'Equipos que puedes rentar',
       items: [
-        'Excavadoras',
-        'Retroexcavadoras',
-        'Motoconformadoras',
-        'Vibrocompactadores',
+        'Retroexcavadora con cucharón o martillo',
+        'Excavadora de 20 t con cucharón o martillo',
+        'Motoconformadora',
+        'Vibrocompactador de 10 t',
+        'Bob Cat con pala frontal o aditamento',
         'Renta con operador y diésel',
       ],
     },
@@ -80,8 +82,8 @@ export const LANDINGS: Landing[] = [
         respuesta: `En ${ZONA}. Al cotizar eliges el municipio de entrega y aparece en tu documento.`,
       },
       {
-        pregunta: '¿Por cuánto tiempo puedo rentar un equipo?',
-        respuesta: 'Por días de trabajo. Capturas los días y las horas en el cotizador y te mandamos la cotización con el precio de ese tiempo.',
+        pregunta: '¿Cómo se cobra la renta de la maquinaria?',
+        respuesta: 'Por hora de trabajo, con un mínimo de 8 horas por equipo. Capturas las horas en el cotizador y ves el precio de ese tiempo antes de enviar tu solicitud.',
       },
       {
         pregunta: '¿Quién me entrega la máquina?',
@@ -154,7 +156,7 @@ export const LANDINGS: Landing[] = [
     eyebrow: 'Transporte y servicios de obra',
     h1: 'Pipas de agua y camiones de volteo para tu obra',
     intro: [
-      'Solicita agua en pipas de 10 o 20 m³ y retiros de material en camiones de 14 o 28 m³.',
+      'Solicita agua en pipas de 10 o 20 m³ y retiros de material en camión de volteo de 14 m³.',
       `Operamos en ${ZONA}. Nos dices cuántos viajes necesitas y a dónde, y coordinamos al proveedor para que llegue a tu obra.`,
     ],
     incluye: {
@@ -162,19 +164,18 @@ export const LANDINGS: Landing[] = [
       items: [
         'Entrega de agua en pipa de 10 m³',
         'Entrega de agua en pipa de 20 m³',
-        'Retiro de material en 14 m³',
-        'Retiro de material en 28 m³',
+        'Retiro de material en volteo de 14 m³',
       ],
     },
     usos: ['Compactación de terracerías', 'Riego para control de polvo', 'Curado de concreto', 'Rellenos y nivelación', 'Limpieza de terreno'],
     faqs: [
       {
         pregunta: '¿Cómo se cobra el agua en pipas?',
-        respuesta: 'Por viaje, en pipa de 10 o 20 m³. En tu solicitud indicas cuántos viajes necesitas y el municipio de entrega, y te respondemos con la propuesta.',
+        respuesta: 'Por viaje, en pipa de 10 o 20 m³; el precio depende de la zona de tu obra. En el cotizador eliges cuántos viajes necesitas y el municipio de entrega.',
       },
       {
         pregunta: '¿De qué tamaño son los viajes de material?',
-        respuesta: 'Los retiros de material se hacen en camiones de 14 m³ o de 28 m³.',
+        respuesta: 'En camión de volteo de 14 m³, por viaje. El precio depende de la zona de tu obra.',
       },
       {
         pregunta: '¿En qué zonas dan servicio?',
@@ -196,12 +197,12 @@ export const LANDINGS: Landing[] = [
     eyebrow: 'Triturados',
     h1: 'Grava, arena y base hidráulica para construcción',
     intro: [
-      'Compra triturados para tu obra: arena 4, arena 5, grava 1, grava 2, base hidráulica y CNC. Cotizas en línea por tonelada en planta o por viaje puesto en obra.',
+      'Compra triturados para tu obra: arena #4, #4B y #5, grava 1 y 2, base y sub base hidráulica, CNC, sello 3/8", piedra de 3" a 12" y mixtos. Cotizas en línea por tonelada en planta o por viaje puesto en obra.',
       `Surtimos en ${ZONA}. Te mandamos la cotización con precio por correo y la puedes compartir con tu equipo.`,
     ],
     incluye: {
       titulo: 'Materiales disponibles',
-      items: ['Arena 4', 'Arena 5', 'Grava 1', 'Grava 2', 'Base hidráulica', 'CNC'],
+      items: ['Arena #4', 'Arena #4B', 'Arena #5', 'Grava 1', 'Grava 2', 'Base hidráulica', 'Sub base hidráulica', 'CNC', 'Sello 3/8"', 'Piedra de 3" a 12"', 'Mixtos', 'Material de banco (por m³)'],
     },
     usos: ['Firmes y losas de concreto', 'Bases para caminos y estacionamientos', 'Rellenos y nivelación', 'Mezclas y aplanados'],
     faqs: [

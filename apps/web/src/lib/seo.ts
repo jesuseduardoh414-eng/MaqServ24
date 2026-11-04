@@ -8,6 +8,23 @@ export const SITE_URL = (process.env.SITE_URL ?? 'http://localhost:3000').trim()
 /** Imagen para compartir cuando la página no tiene una propia (scripts/generar-imagen-og.cjs). */
 export const IMAGEN_OG = '/og/portada.png';
 
+/**
+ * Datos del negocio para los datos estructurados, tal como los aprobó el
+ * cliente (docs/seo/ficha-negocio.md, cuestionario del 2026-11-04). No se
+ * publica calle: solo la ciudad. El texto visible del horario sale de Diseño →
+ * Contacto; si allí cambia, cambia también aquí.
+ */
+export const NEGOCIO = {
+  ciudad: 'Monterrey',
+  estado: 'Nuevo León',
+  pais: 'MX',
+  horario: {
+    dias: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    abre: '08:00',
+    cierra: '18:00',
+  },
+} as const;
+
 /** Quita etiquetas HTML y compacta espacios (para descripciones y JSON-LD). */
 export function sinHtml(html: string | null | undefined): string {
   return (html ?? '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();

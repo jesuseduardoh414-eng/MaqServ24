@@ -112,6 +112,12 @@ const nextConfig: NextConfig = {
       // Antes iban a /vendedores, que da 404 desde que se apagó el marketplace
       // (MARKETPLACE_ACTIVO=false): un 301 a un 404 tira el valor SEO de la
       // URL vieja. El catálogo es lo más parecido a "tiendas"/"marcas".
+      // Fichas que ya no existen y aún tenían impresiones en Google (auditoría
+      // SEO 2026-11-04): a su equivalente actual, en un solo salto. El
+      // manipulador telescópico (manipulador-telescopico-10-m-9933) se deja en
+      // 404 a propósito: ya no se ofrece y no tiene página equivalente.
+      { source: '/productos/excavadora-hidraulica-320-9950', destination: '/renta-de-maquinaria-pesada', permanent: true },
+      { source: '/servicios/excavadora-hidraulica-320-9950', destination: '/renta-de-maquinaria-pesada', permanent: true },
       { source: '/stores', destination: '/servicios', permanent: true },
       { source: '/Marcas', destination: '/servicios', permanent: true },
       // /rastreo se quitó con las compras en línea (2026-10-08): ya no hay
@@ -125,6 +131,17 @@ const nextConfig: NextConfig = {
   },
   /** Sin `X-Powered-By: Next.js`: no hay por qué decirle a nadie con qué está hecho. */
   poweredByHeader: false,
+  /**
+   * Bots que reciben title, canonical y Open Graph dentro del <head> del HTML
+   * inicial (auditoría SEO 2026-11-04). Desde Next 15.2 los metadatos de las
+   * páginas dinámicas se envían por streaming al final del <body>, y solo esta
+   * lista los recibe en el <head>. La opción REEMPLAZA la lista de Next, así que
+   * se repite la suya (vistas previas de WhatsApp, LinkedIn, Slack…) y se suman
+   * Googlebot y los bots de IA (ChatGPT, Claude, Perplexity, Meta, Common Crawl).
+   * Se comprueba con verificar_bots.sh del seo-kit contra localhost.
+   */
+  htmlLimitedBots:
+    /[\w-]+-Google|Google-[\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight|Googlebot|GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-SearchBot|Claude-User|PerplexityBot|Perplexity-User|meta-externalagent|CCBot|Amazonbot|DuckAssistBot|MistralAI-User/i,
   /**
    * Cabeceras de seguridad (auditoría 2026-10-23). HSTS ya lo pone LiteSpeed.
    * - frame-ancestors 'self': nadie mete el sitio en un iframe ajeno para
