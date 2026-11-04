@@ -13,5 +13,7 @@ export {
   imprimirDocumento,
   type DatosDocumento,
 } from './documento';
+// El documento como archivo PDF: el panel lo descarga para mandarlo por WhatsApp (2026-11-04).
+export { documentoPdf, descargarArchivo } from './pdf';
 export { money, money2, cantidad, fechaCorta, fechaLarga } from './formato';
 export { aLineas, aPartidas, lineasDeFicha, type ClientePanel, type ContextoCotizador, type EmpresaCliente, type LineaCotizador } from './estado';

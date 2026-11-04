@@ -5,7 +5,9 @@ import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { PageHeader } from '@/components/ui';
 import { DocumentoGuardado } from './DocumentoGuardado';
+import type { DatosDocumento } from '@maqserv/ui';
 import { BotonEnviarCliente } from './BotonEnviarCliente';
+import { BotonWhatsApp } from './BotonWhatsApp';
 import { AccionesEstado } from './AccionesEstado';
 import { EstadoCotizacion } from '../EstadoCotizacion';
 
@@ -54,6 +56,36 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
 
   const meta = COTIZADORES_META[cot.tipo];
 
+  // El mismo documento para la vista y para el PDF que se manda por WhatsApp.
+  const datos: Omit<DatosDocumento, 'logo'> = {
+    titulo: `Cotización de ${meta?.titulo?.toLowerCase() ?? cot.tipo}`,
+    folio: cot.folio,
+    fecha: cot.documento.emitida,
+    cliente: cot.cliente,
+    obra: cot.obra ?? '',
+    atencion: cot.atencion ?? '',
+    municipio: cot.municipio ?? '',
+    notas: cot.notas ?? '',
+    empresa: cot.documento.empresa,
+    firma: cot.documento.firma,
+    saludo: cot.documento.saludo,
+    calc: cot.documento.calc,
+    pago: cot.pago ?? null,
+    ...(cot.documento.fecha || cot.documento.ubicacion
+      ? {
+          detalle: [
+            ...(cot.documento.fecha ? [{
+              label: cot.tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega',
+              valor: new Date(`${cot.documento.fecha}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
+            }] : []),
+            // Triturados con flete (2026-10-29): dónde medir los km.
+            ...(cot.documento.ubicacion ? [{ label: 'Ubicación (Google Maps)', valor: cot.documento.ubicacion }] : []),
+          ],
+        }
+      : {}),
+    mostrarPrecios: true,
+  };
+
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       <PageHeader
@@ -81,37 +113,11 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
           el encabezado. */}
       <div style={{ maxWidth: 1000 }}>
         <DocumentoGuardado
-          datos={{
-            titulo: `Cotización de ${meta?.titulo?.toLowerCase() ?? cot.tipo}`,
-            folio: cot.folio,
-            fecha: cot.documento.emitida,
-            cliente: cot.cliente,
-            obra: cot.obra ?? '',
-            atencion: cot.atencion ?? '',
-            municipio: cot.municipio ?? '',
-            notas: cot.notas ?? '',
-            empresa: cot.documento.empresa,
-            firma: cot.documento.firma,
-            saludo: cot.documento.saludo,
-            calc: cot.documento.calc,
-            pago: cot.pago ?? null,
-            ...(cot.documento.fecha || cot.documento.ubicacion
-              ? {
-                  detalle: [
-                    ...(cot.documento.fecha ? [{
-                      label: cot.tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega',
-                      valor: new Date(`${cot.documento.fecha}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
-                    }] : []),
-                    // Triturados con flete (2026-10-29): dónde medir los km.
-                    ...(cot.documento.ubicacion ? [{ label: 'Ubicación (Google Maps)', valor: cot.documento.ubicacion }] : []),
-                  ],
-                }
-              : {}),
-            mostrarPrecios: true,
-          }}
+          datos={datos}
           acciones={
             <>
               <BotonEnviarCliente id={cot.id} correo={cot.correo} estado={cot.estado} />
+              <BotonWhatsApp datos={datos} telefono={cot.telefono} contacto={cot.atencion || cot.cliente} />
               <AccionesEstado id={cot.id} folio={cot.folio} estado={cot.estado} ligada={cot.ligada ?? false} />
             </>
           }
