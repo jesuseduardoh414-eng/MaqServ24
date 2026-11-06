@@ -162,6 +162,26 @@ export class AdminQuoterController {
   }
 
   /**
+   * UN MUNICIPIO QUE FALTA EN LAS ZONAS DE TRITURADOS (2026-11-06, el dueño:
+   * "cuando hagan falta municipios en triturados, poner un campo para
+   * agregarlo"; eligió que se agregue al cotizar y se quede guardado). Lo usan
+   * el enlace y el panel (módulo `cotizador`, no `tarifas`): solo dice en qué
+   * zona queda un municipio, no cambia ningún precio. Se ve y se corrige en
+   * Tarifas › Triturados.
+   */
+  @Post('triturados/municipio')
+  async municipioEnZona(@Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({
+      municipio: z.string().trim().min(2, 'Escribe el municipio.').max(80),
+      zonaId: z.string().min(1).max(40),
+    }).safeParse(body);
+    if (!p.success) throw new BadRequestException(primerError(p.error));
+    const r = await this.quoter.municipioEnZona(p.data.municipio, p.data.zonaId, req.adminEmail);
+    await registrarAccion(req, 'cotizador', 'triturados.municipio', r.municipio, `zona ${r.zona}`);
+    return { zonas: r.zonas };
+  }
+
+  /**
    * La lista de proveedores para poner dueño a cada partida.
    *
    * Vive bajo el módulo `cotizador` y no en /admin/providers a propósito:

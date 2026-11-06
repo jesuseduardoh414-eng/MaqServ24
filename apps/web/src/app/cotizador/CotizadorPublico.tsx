@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  claveDeProducto,
   Cotizador,
   lineasDeFicha,
   NumeroTexto,
@@ -14,10 +15,16 @@ import {
   type ResultadoEnvio,
 } from '@maqserv/ui';
 import {
+  catalogoDeCategorias,
   categoriaConPrecio,
   COTIZADORES_SITIO,
   cotizadorDelSitio,
+  CUESTIONARIOS,
+  notasDeCuestionario,
+  renglonDeCuestionario,
+  SERVICIO_A_MANO,
   type CatalogoCotizador,
+  type PartidaCotizador,
   type Tabuladores,
 } from '@maqserv/config';
 import Link from '@/components/Enlace';
@@ -25,11 +32,25 @@ import { evento } from '@/lib/analitica';
 
 export type { ProductoALaMedida };
 
+/** La cantidad escrita, entera (las partidas van por pieza, tarima, viaje…). 0 si no hay. */
+function cantidadDe(texto: string): number {
+  const n = Math.round(Number(texto.replace(/,/g, '').trim()) || 0);
+  return Math.min(100_000, Math.max(0, n));
+}
+
+/** Un renglón pedido a la medida: escrito a mano, con su categoría y sin precio (lo pone el panel). */
+function partidaPorCotizar(d: { nombre: string; unidad: string; categoria: string; cantidad: number }): PartidaCotizador {
+  return { tipo: 'servicio', id: SERVICIO_A_MANO, nombre: d.nombre.slice(0, 120), unidad: d.unidad.slice(0, 20), categoria: d.categoria, cantidad: d.cantidad, precio: 0 } as PartidaCotizador;
+}
+
 /** Lo que se pidió de una categoría sin precio: sus productos con cantidad, o un texto si no tiene productos. */
 interface PedidoALaMedida {
   clave: string;
-  elegidos: Array<{ id: number; nombre: string; unidad: string | null; cantidad: string }>;
+  /** `clave`: el producto o su presentación (`claveDeProducto`). */
+  elegidos: Array<{ clave: string; nombre: string; unidad: string | null; cantidad: string }>;
   texto: string;
+  /** Lo contestado en su cuestionario (venta de maquinaria, 2026-11-06), por pregunta. */
+  respuestas: Record<string, string>;
 }
 
 /**
@@ -71,13 +92,32 @@ export function CotizadorPublico({
   // Las categorías con precio que se están cotizando: la de entrada y las que agregue.
   const categorias = useCategorias(tabuladores, [cotizador]);
   const { activas } = categorias;
-  // La página no pinta el cotizador sin el tabulador de la categoría de entrada.
-  const catalogo = categorias.catalogo as CatalogoCotizador;
-  const [medida, setMedida] = useState<PedidoALaMedida[]>([]);
+  /**
+   * Se entró por una categoría SIN precio de lista (2026-11-06, el dueño: "para
+   * los clientes, solo escogen el material y después se cotiza"): abre ya con
+   * sus productos para elegir, como lo que se agrega desde «¿Necesitas otro
+   * servicio?». Antes era una pantalla «se cotiza a la medida» con un botón al
+   * formulario.
+   */
+  const [medida, setMedida] = useState<PedidoALaMedida[]>(() =>
+    categoriaConPrecio(tabuladores, cotizador) ? [] : [{ clave: cotizador, elegidos: [], texto: '', respuestas: {} }],
+  );
+  /**
+   * El tabulador de esta cotización, contando lo pedido a la medida: así, si
+   * va algo a la medida, la cotización es de maquinaria (donde viaja lo escrito
+   * a mano) aunque se haya entrado por triturados. Lo que no tiene precio no
+   * agrega nada que elegir.
+   */
+  const catalogo = useMemo(
+    () => catalogoDeCategorias(tabuladores, [...activas, ...medida.map((m) => m.clave)]) as CatalogoCotizador,
+    [tabuladores, activas, medida],
+  );
 
   /** ¿Tiene algo con precio en su tabulador? Entonces se suma con su cotizador. */
   const conPrecio = (clave: string): boolean => categoriaConPrecio(tabuladores, clave);
-  const opciones = COTIZADORES_SITIO.filter((c) => !activas.includes(c.clave) && !medida.some((m) => m.clave === c.clave)).map((c) => ({
+  // Ya está en la cotización: con su cotizador, o a la medida (la de entrada sin precio puede quitarse y volver).
+  const yaEsta = (clave: string) => (activas.includes(clave) && conPrecio(clave)) || medida.some((m) => m.clave === clave);
+  const opciones = COTIZADORES_SITIO.filter((c) => !yaEsta(c.clave)).map((c) => ({
     clave: c.clave,
     titulo: c.titulo,
     icono: c.icono,
@@ -85,21 +125,54 @@ export function CotizadorPublico({
   }));
   const agregar = (clave: string) => {
     if (conPrecio(clave)) categorias.activar(clave);
-    else setMedida((m) => (m.some((x) => x.clave === clave) ? m : [...m, { clave, elegidos: [], texto: '' }]));
+    else setMedida((m) => (m.some((x) => x.clave === clave) ? m : [...m, { clave, elegidos: [], texto: '', respuestas: {} }]));
   };
   const cambiarMedida = (clave: string, cambio: (m: PedidoALaMedida) => PedidoALaMedida) =>
     setMedida((ms) => ms.map((m) => (m.clave === clave ? cambio(m) : m)));
 
-  // Lo que va a la medida, en las notas del documento y de la solicitud.
-  const notasExtra = medida.length
-    ? `Por cotizar a la medida (precio por confirmar):\n${medida
-        .map((m) => {
-          const detalle = [...m.elegidos.map((e) => `${e.nombre} · ${e.cantidad.trim() || '¿cuánto?'} ${unidadDeProducto(e.unidad)}`), m.texto.trim()].filter(Boolean).join('; ');
-          return `- ${cotizadorDelSitio(m.clave)?.titulo ?? m.clave}: ${detalle || 'sin detalle'}`;
-        })
-        .join('\n')}`
-    : '';
-  const todas = [...activas, ...medida.map((m) => m.clave)];
+  /**
+   * LO PEDIDO A LA MEDIDA, COMO PARTIDAS (2026-11-06): cada cosa elegida con su
+   * cantidad va como renglón «Por cotizar» (escrito a mano, con su categoría y
+   * en $0). Así el documento la enseña, su solicitud se abre en su línea y el
+   * panel le pone precio con el lápiz. Lo descrito con texto (venta, que no
+   * tiene productos) va también como renglón, y completo en las notas.
+   */
+  const partidasExtra = useMemo<PartidaCotizador[]>(
+    () =>
+      medida.flatMap((m) => {
+        const titulo = cotizadorDelSitio(m.clave)?.titulo ?? m.clave;
+        const elegidos = m.elegidos
+          .filter((e) => cantidadDe(e.cantidad) > 0)
+          .map((e) => partidaPorCotizar({ nombre: e.nombre, unidad: unidadDeProducto(e.unidad), categoria: m.clave, cantidad: cantidadDe(e.cantidad) }));
+        // Con cuestionario (venta de maquinaria, 2026-11-06): un renglón con lo que busca.
+        if (CUESTIONARIOS[m.clave]) {
+          const renglon = renglonDeCuestionario(m.clave, m.respuestas);
+          return renglon ? [partidaPorCotizar({ nombre: renglon, unidad: 'equipo', categoria: m.clave, cantidad: 1 })] : [];
+        }
+        const texto = m.texto.trim();
+        return texto ? [...elegidos, partidaPorCotizar({ nombre: `${titulo}: ${texto}`, unidad: 'servicio', categoria: m.clave, cantidad: 1 })] : elegidos;
+      }),
+    [medida],
+  );
+  const sinCantidad = medida.flatMap((m) => m.elegidos).find((e) => cantidadDe(e.cantidad) <= 0);
+  // Lo obligatorio del cuestionario sin contestar.
+  const sinContestar = medida
+    .flatMap((m) => (CUESTIONARIOS[m.clave] ?? []).filter((p) => p.obligatoria && !(m.respuestas[p.clave] ?? '').trim()).map((p) => ({ m, p })))[0];
+  const faltaExtra = sinCantidad
+    ? `Escribe cuánto necesitas de ${sinCantidad.nombre}.`
+    : sinContestar
+      ? `${cotizadorDelSitio(sinContestar.m.clave)?.titulo ?? sinContestar.m.clave}: contesta «${sinContestar.p.etiqueta}».`
+      : null;
+  // En las notas: el texto completo de lo descrito a mano y el cuestionario pregunta por pregunta.
+  const descritos = medida.filter((m) => m.texto.trim());
+  const contestados = medida.filter((m) => CUESTIONARIOS[m.clave] && notasDeCuestionario(m.clave, m.respuestas));
+  const notasExtra = [
+    descritos.length
+      ? `Pedido a la medida:\n${descritos.map((m) => `- ${cotizadorDelSitio(m.clave)?.titulo ?? m.clave}: ${m.texto.trim()}`).join('\n')}`
+      : '',
+    ...contestados.map((m) => `${cotizadorDelSitio(m.clave)?.titulo ?? m.clave} — lo que busca el cliente:\n${notasDeCuestionario(m.clave, m.respuestas)}`),
+  ].filter(Boolean).join('\n\n');
+  const todas = [...new Set([...activas, ...medida.map((m) => m.clave)])];
 
   // Una sola vez al montar: si el cliente quita la partida, no vuelve sola.
   const [lineasIniciales] = useState(() => (fichaId ? lineasDeFicha(catalogo, fichaId) : []));
@@ -177,6 +250,8 @@ export function CotizadorPublico({
         ]),
       )}
       notasExtra={notasExtra}
+      partidasExtra={partidasExtra}
+      faltaExtra={faltaExtra}
       despues={<OtroServicio activas={todas} />}
       logo={logo}
       inicial={{ ...inicial, municipio, ...(primera ? { clienteId: primera.id, cliente: primera.name } : {}) }}
@@ -207,10 +282,48 @@ function CotizadorALaMedida({ pedido, productos, cambiar, quitar }: {
 }) {
   const c = cotizadorDelSitio(pedido.clave);
   const titulo = c?.titulo ?? pedido.clave;
+  // Por su clave: cada presentación de un mismo producto se elige aparte (el block, 2026-11-06).
   const alternar = (p: ProductoALaMedida) =>
-    cambiar((m) => (m.elegidos.some((e) => e.id === p.id)
-      ? { ...m, elegidos: m.elegidos.filter((e) => e.id !== p.id) }
-      : { ...m, elegidos: [...m.elegidos, { id: p.id, nombre: p.nombre, unidad: p.unidad, cantidad: '' }] }));
+    cambiar((m) => (m.elegidos.some((e) => e.clave === claveDeProducto(p))
+      ? { ...m, elegidos: m.elegidos.filter((e) => e.clave !== claveDeProducto(p)) }
+      : { ...m, elegidos: [...m.elegidos, { clave: claveDeProducto(p), nombre: p.nombre, unidad: p.unidad, cantidad: '' }] }));
+  /**
+   * EL CUESTIONARIO (venta de maquinaria, 2026-11-06): el cliente contesta qué
+   * equipo busca, marca, modelo, año y características; el encargado le
+   * responde con el costo.
+   */
+  const preguntas = CUESTIONARIOS[pedido.clave];
+  if (preguntas) {
+    return (
+      <div className="cz-card">
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+          <h2 className="cz-card-h">{titulo}</h2>
+          <button type="button" className="cz-rm" aria-label={`Quitar ${titulo}`} title="Quitar" onClick={quitar}>✕</button>
+        </div>
+        <p className="cz-card-s">Cuéntanos qué equipo buscas: te respondemos con el costo en tu cotización.</p>
+        <div className="cz-row">
+          {preguntas.map((p) => {
+            const id = `czq-${pedido.clave}-${p.clave}`;
+            const valor = pedido.respuestas[p.clave] ?? '';
+            const poner = (v: string) => cambiar((m) => ({ ...m, respuestas: { ...m.respuestas, [p.clave]: v.slice(0, p.max) } }));
+            return (
+              <div key={p.clave} className={`cz-field${p.largo ? ' full' : ''}`}>
+                <label className="cz-lbl" htmlFor={id}>
+                  {p.etiqueta}
+                  {p.obligatoria ? <span className="req"> *</span> : null}
+                </label>
+                {p.largo ? (
+                  <textarea id={id} className="cz-textarea" maxLength={p.max} placeholder={p.ejemplo} value={valor} onChange={(e) => poner(e.target.value)} />
+                ) : (
+                  <input id={id} className="cz-input" maxLength={p.max} placeholder={p.ejemplo} value={valor} onChange={(e) => poner(e.target.value)} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="cz-card">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
@@ -222,11 +335,11 @@ function CotizadorALaMedida({ pedido, productos, cambiar, quitar }: {
         <div className="cz-cards">
           {productos.map((p) => (
             <Tarjeta
-              key={p.id}
+              key={claveDeProducto(p)}
               icono={c?.icono ?? 'material'}
               titulo={p.nombre}
               nota={`por ${unidadDeProducto(p.unidad)} · precio por confirmar`}
-              n={pedido.elegidos.some((e) => e.id === p.id) ? 1 : 0}
+              n={pedido.elegidos.some((e) => e.clave === claveDeProducto(p)) ? 1 : 0}
               onClick={() => alternar(p)}
             />
           ))}
@@ -244,15 +357,15 @@ function CotizadorALaMedida({ pedido, productos, cambiar, quitar }: {
       {pedido.elegidos.length ? (
         <div style={{ display: 'grid', gap: 12, marginTop: 14 }}>
           {pedido.elegidos.map((e) => (
-            <div key={e.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: 12, alignItems: 'center' }}>
+            <div key={e.clave} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 160px', gap: 12, alignItems: 'center' }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>{e.nombre}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Entero (2026-11-06): va como partida por pieza, tarima o viaje. */}
                 <NumeroTexto
-                  decimal
                   ariaLabel={`Cuánto de ${e.nombre}`}
                   placeholder="Cantidad"
                   valor={e.cantidad}
-                  onChange={(v) => cambiar((m) => ({ ...m, elegidos: m.elegidos.map((x) => (x.id === e.id ? { ...x, cantidad: v } : x)) }))}
+                  onChange={(v) => cambiar((m) => ({ ...m, elegidos: m.elegidos.map((x) => (x.clave === e.clave ? { ...x, cantidad: v } : x)) }))}
                 />
                 <span className="cz-help" style={{ whiteSpace: 'nowrap' }}>{unidadDeProducto(e.unidad)}</span>
               </div>

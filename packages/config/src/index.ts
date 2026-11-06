@@ -100,6 +100,13 @@ export {
   hayQueElegir,
   catalogoDeCategorias,
   categoriaConPrecio,
+  presentacionesDeFicha,
+  CUESTIONARIOS,
+  renglonDeCuestionario,
+  notasDeCuestionario,
+  type PreguntaCuestionario,
+  productosALaMedida,
+  renglonesPorCotizar,
   categoriasDePartidas,
   tituloDe,
   type Tabuladores,
@@ -209,6 +216,7 @@ export {
   MUNICIPIOS_NORTE,
   PAGO_DE_FABRICA,
   CONDICIONES_POR_LINEA,
+  CONDICIONES_CAL,
 } from './quoter-defaults';
 export { coordenadasDe } from './coordenadas';
 export {

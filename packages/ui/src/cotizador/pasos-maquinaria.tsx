@@ -16,7 +16,7 @@ import {
 } from '@maqserv/config';
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
-import { money, money2 } from './formato';
+import { money, money2, precioEnPantalla as dinero } from './formato';
 import { Campo, Chip, Contador, Linea, NumeroTexto, Renglon, Tarjeta } from './piezas';
 import { ShInput } from '../shadcn/input';
 import { num, type LineaEquipo, type LineaMaquinaria, type LineaServicio } from './estado';
@@ -238,7 +238,8 @@ export function PasoDuracion({
 /** Cómo se llama la cantidad según la unidad del servicio (2026-11-02: el block va por pieza, la carpeta por m²). */
 const CANTIDAD_EN: Record<string, string> = {
   viaje: 'Viajes', pieza: 'Piezas', millar: 'Millares', equipo: 'Equipos', tonelada: 'Toneladas',
-  hora: 'Horas', día: 'Días', 'm²': 'Metros cuadrados (m²)', 'm³': 'Metros cúbicos (m³)',
+  hora: 'Horas', día: 'Días', 'm²': 'Metros cuadrados (m²)', 'm³': 'Metros cúbicos (m³)', litro: 'Litros',
+  tarima: 'Tarimas', 'viaje Torton': 'Viajes en Torton', 'viaje tráiler': 'Viajes en tráiler',
 };
 const cantidadEn = (unidad: string) => CANTIDAD_EN[unidad || 'viaje'] ?? 'Cantidad';
 
@@ -314,7 +315,7 @@ export function PasoServicios({
                 onQuitar={() => quitar(l.uid)}
                 dinero={
                   mostrarPrecios ? (
-                    <Renglon texto={`${l.cantidad} × ${money(unitario)}`} valor={money(total)} fuerte />
+                    <Renglon texto={`${l.cantidad} × ${dinero(unitario)}`} valor={dinero(total)} fuerte />
                   ) : (
                     <Renglon texto="Cantidad solicitada" valor={conUnidad(l.cantidad, sv.unidad)} fuerte />
                   )
@@ -326,7 +327,7 @@ export function PasoServicios({
                     <div className="cz-chips">
                       {zonas.map((z) => (
                         <Chip key={z.id} on={zona?.id === z.id} onClick={() => actualizar(l.uid, { zona: z.id === zonaObra?.id ? '' : z.id })}>
-                          {z.nombre}{mostrarPrecios ? ` · ${money(sv.precios_zona?.[z.id] ?? 0)}` : ''}
+                          {z.nombre}{mostrarPrecios ? ` · ${dinero(sv.precios_zona?.[z.id] ?? 0)}` : ''}
                         </Chip>
                       ))}
                     </div>
@@ -359,7 +360,7 @@ export function PasoServicios({
                     <div className="cz-chips">
                       {sv.presets.map((p) => (
                         <Chip key={p} on={num(l.precio) === p} onClick={() => actualizar(l.uid, { precio: String(p) })}>
-                          {money(p)}
+                          {dinero(p)}
                         </Chip>
                       ))}
                     </div>
@@ -403,7 +404,7 @@ function TarjetasServicios({ cat, lineas, alternar, mostrarPrecios, municipio, e
         const nota = fuera
           ? `No se ofrece en ${municipio}`
           : mostrarPrecios && precio
-            ? `${money(precio)} / ${s.unidad}${porZona(s) && zonaObra ? ` · ${zonaObra.nombre}` : ''}`
+            ? `${dinero(precio)} / ${s.unidad}${porZona(s) && zonaObra ? ` · ${zonaObra.nombre}` : ''}`
             : porZona(s) && zonaObra ? `por ${s.unidad} · ${zonaObra.nombre}` : `por ${s.unidad}`;
         return (
           <Tarjeta
@@ -444,7 +445,7 @@ export function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
       titulo={l.nombre.trim() || 'Servicio escrito a mano'}
       nota={l.categoria ? 'Sin precio de lista: captura el precio' : 'No está en el tabulador: nombre y precio a mano'}
       onQuitar={() => quitar(l.uid)}
-      dinero={mostrarPrecios ? <Renglon texto={`${l.cantidad} × ${money(unitario)}`} valor={money(unitario * l.cantidad)} fuerte /> : null}
+      dinero={mostrarPrecios ? <Renglon texto={`${l.cantidad} × ${dinero(unitario)}`} valor={dinero(unitario * l.cantidad)} fuerte /> : null}
     >
       <Campo label="Nombre del servicio" req>
         {(id) => (

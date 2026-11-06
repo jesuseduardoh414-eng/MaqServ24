@@ -59,7 +59,8 @@ export const UNIDADES_POR_CATEGORIA: Record<string, string[]> = {
   'materiales-para-construccion': ['m3', 'tonelada', 'pieza', 'bulto', 'viaje'],
   // La carpeta se cierra por superficie colocada; por tonelada cuando solo es
   // suministro de mezcla.
-  'soluciones-asfalticas': ['m2', 'tonelada', 'm3'],
+  // El riego de impregnación se cobra por litro (2026-11-06).
+  'soluciones-asfalticas': ['m2', 'tonelada', 'm3', 'litro'],
 
   // Líneas RETIRADAS (eran categorías hasta el 2026-09-21). Se conservan para
   // poder cerrar en su unidad las solicitudes que ya estaban abiertas con ese

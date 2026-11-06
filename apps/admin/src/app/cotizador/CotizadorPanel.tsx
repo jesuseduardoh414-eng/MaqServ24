@@ -68,6 +68,7 @@ const humano = (k: string) => (k.charAt(0).toUpperCase() + k.slice(1)).replace(/
 export function CotizadorPanel({
   tabuladores,
   entrada,
+  categoria,
   productos,
   titulo,
   resumen,
@@ -77,8 +78,14 @@ export function CotizadorPanel({
   app = false,
 }: {
   tabuladores: Tabuladores;
-  /** Con qué categoría abre: la renta o los triturados. */
+  /** Con qué tabulador abre: el de maquinaria o el de triturados. */
   entrada: CotizadorTipo;
+  /**
+   * Con qué categoría abre, si no es la del tabulador (2026-11-06, el menú del
+   * enlace con los siete cotizadores): agua, acarreos, carpeta… Sin ella, la
+   * renta o los triturados.
+   */
+  categoria?: string;
   /** Los productos de las categorías sin precio de lista. */
   productos: Record<string, ProductoALaMedida[]>;
   titulo: string;
@@ -178,6 +185,7 @@ export function CotizadorPanel({
         key={solicitud?.id ?? (fichaId ? `tipo-${fichaId}` : 'suelta')}
         tabuladores={tabuladores}
         entrada={entrada}
+        categoria={categoria ?? entrada}
         productos={productos}
         solicitud={solicitud ?? null}
         fichaId={fichaId ?? null}
@@ -194,9 +202,10 @@ export function CotizadorPanel({
  * El cotizador con sus categorías. Va aparte para que una solicitud nueva (su
  * `key`) empiece de cero también en las categorías, no solo en lo capturado.
  */
-function ConCategorias({ tabuladores, entrada, productos, solicitud, fichaId, clientesPanel, logo, app }: {
+function ConCategorias({ tabuladores: deEntrada, entrada, categoria, productos, solicitud, fichaId, clientesPanel, logo, app }: {
   tabuladores: Tabuladores;
   entrada: CotizadorTipo;
+  categoria: string;
   productos: Record<string, ProductoALaMedida[]>;
   solicitud: SolicitudACotizar | null;
   fichaId: number | null;
@@ -204,6 +213,24 @@ function ConCategorias({ tabuladores, entrada, productos, solicitud, fichaId, cl
   logo: string | null;
   app: boolean;
 }) {
+  /**
+   * Los tabuladores, que pueden cambiar mientras se cotiza (2026-11-06): un
+   * municipio que se agrega a una zona de triturados ya cuenta en esta misma
+   * cotización, sin recargar la página.
+   */
+  const [tabuladores, setTabuladores] = useState(deEntrada);
+  async function guardarZonaTriturados(municipio: string, zonaId: string) {
+    const r = await fetch('/api/admin/quoter/triturados/municipio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ municipio, zonaId }),
+    });
+    const body = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(body?.message ?? 'No se pudo guardar el municipio en esa zona.');
+    if (Array.isArray(body?.zonas)) {
+      setTabuladores((t) => (t.triturados ? { ...t, triturados: { ...t.triturados, zonas: body.zonas } } : t));
+    }
+  }
   /**
    * Con qué abre: lo que ya traía la solicitud o el tipo desde Disponibilidad,
    * leído con el tabulador completo de su entrada. Sus categorías abren con él.
@@ -214,7 +241,7 @@ function ConCategorias({ tabuladores, entrada, productos, solicitud, fichaId, cl
       solicitud?.documento && solicitud.documento.tipo === entrada
         ? aLineas(solicitud.documento.partidas)
         : fichaId && !solicitud ? lineasDeFicha(completo, fichaId) : undefined;
-    return { lineas, categorias: [entrada as string, ...categoriasDePartidas(completo, aPartidas(lineas ?? []))] };
+    return { lineas, categorias: [categoria, ...categoriasDePartidas(completo, aPartidas(lineas ?? []))] };
   });
   const categorias = useCategorias(tabuladores, inicio.categorias);
   const { activas } = categorias;
@@ -282,10 +309,13 @@ function ConCategorias({ tabuladores, entrada, productos, solicitud, fichaId, cl
           icono: c.icono,
           productos: productos[c.clave] ?? [],
         })),
-        quitar: categorias.quitar,
+        // La única que queda no se va (el enlace puede abrir con carpeta o block):
+        // su ✕ solo borra sus renglones, y no aparece otro tabulador en su lugar.
+        quitar: (clave) => { if (activas.length > 1) categorias.quitar(clave); },
       }}
       inicial={solicitud?.inicial}
       lineasIniciales={inicio.lineas}
+      guardarZonaTriturados={guardarZonaTriturados}
       onEnviar={enviar}
     />
   );

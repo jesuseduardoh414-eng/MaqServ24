@@ -3,6 +3,7 @@ import { Prisma, prisma } from '@maqserv/db';
 import {
   COTIZADORES_META,
   analizarPartidas,
+  renglonesPorCotizar,
   calcularCotizacion,
   type CalculoCotizacion,
   type CatalogoCotizador,
@@ -221,13 +222,18 @@ export class QuoterServicio {
     // Ya no hay aprobación automática (2026-10-23): esta es la campana de que
     // llegó algo por revisar. El documento sigue "solicitada"; pasa a "enviada"
     // al mandarle el precio y a "aceptada" cuando el cliente la acepta.
+    // Lo pedido a la medida (2026-11-06) llega «por cotizar»: hay que ponerle precio antes de mandarla.
+    const porCotizar = renglonesPorCotizar(calcTotal).length;
+    const comoLlego = porCotizar
+      ? `Trae ${porCotizar === 1 ? '1 renglón' : `${porCotizar} renglones`} por cotizar (lo pidió a la medida): ponles precio con el lápiz antes de mandarla.`
+      : 'Llegó con precio estimado del tabulador.';
     void avisarPanel({
       modulo: 'cotizaciones',
       evento: 'cotizacion',
-      titulo: `Nueva solicitud ${cot.folio} de ${entrada.cliente || cuenta.name}: revisa el precio y mándaselo`,
+      titulo: `Nueva solicitud ${cot.folio} de ${entrada.cliente || cuenta.name}: ${porCotizar ? 'ponle precio' : 'revisa el precio'} y mándaselo`,
       cuerpo: servicios.length > 1
-        ? `Viene en ${servicios.length} partes (${servicios.map((s) => nombresLinea.get(s.linea) ?? s.linea).join(', ')}). Llegó con precio estimado del tabulador.`
-        : `${nombresLinea.get(principal.linea) ?? principal.linea}. Llegó con precio estimado del tabulador.`,
+        ? `Viene en ${servicios.length} partes (${servicios.map((s) => nombresLinea.get(s.linea) ?? s.linea).join(', ')}). ${comoLlego}`
+        : `${nombresLinea.get(principal.linea) ?? principal.linea}. ${comoLlego}`,
       link: `/cotizaciones?ver=${principal.quoteId}`,
     });
 

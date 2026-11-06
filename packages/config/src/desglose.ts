@@ -79,6 +79,8 @@ export interface FilaDesglose {
    * fila no se edita.
    */
   edicion: { unidad: string; valor: number; tarifa: number | null; usos?: number } | null;
+  /** Pedido a la medida sin precio todavía (2026-11-06): se le pone con el lápiz. */
+  porCotizar?: boolean;
 }
 
 /** La fila con su partida (índice) y la tarifa que corrige. */
@@ -141,7 +143,7 @@ export function renglonesPorPartida(
 }
 
 function explicada(cat: CatalogoCotizador, r: RenglonCotizacion, p: PartidaCotizador | null, i: number | null, fichas: FichasDeRenglones): FilaExplicada {
-  const base = { concepto: r.concepto, cantidad: r.cantidad, unidad: r.unidad, pu: r.pu, importe: r.importe, clase: r.clase };
+  const base = { concepto: r.concepto, cantidad: r.cantidad, unidad: r.unidad, pu: r.pu, importe: r.importe, clase: r.clase, ...(r.porCotizar ? { porCotizar: true } : {}) };
   if (!p) return { ...base, fuente: 'Renglón del documento', negociado: false, edicion: null, partida: null, ref: null };
   return { ...base, ...explicarRenglon(cat, r, p, fichas), partida: i };
 }
@@ -181,7 +183,9 @@ export function explicarRenglon(cat: CatalogoCotizador, r: RenglonCotizacion, p:
   if (cat.tipo === 'maquinaria' && p.tipo === 'servicio') {
     const sv = servicioDe(cat, p.id);
     if (!sv && p.id === SERVICIO_A_MANO) {
-      return { fuente: 'Servicio escrito a mano', negociado: false, edicion: { unidad: `por ${p.unidad || 'servicio'}`, valor: r.pu, tarifa: null }, ref: null };
+      // Lo que el cliente pidió a la medida (2026-11-06) llega sin precio: el lápiz se lo pone.
+      const fuente = r.porCotizar ? 'Lo pidió a la medida: ponle precio con el lápiz' : 'Servicio escrito a mano';
+      return { fuente, negociado: false, edicion: { unidad: `por ${p.unidad || 'servicio'}`, valor: r.pu, tarifa: null }, ref: null };
     }
     if (!sv) return sinTarifa('El servicio ya no está en el tabulador');
     // Por zona (el agua): la tarifa es la de su zona, y corregirla cambia solo esa zona.

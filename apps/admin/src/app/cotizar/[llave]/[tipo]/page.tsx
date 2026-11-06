@@ -1,9 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import { notFound, redirect } from 'next/navigation';
-import { COTIZADORES_META, esAccesoDirecto } from '@maqserv/config';
+import { esAccesoDirecto } from '@maqserv/config';
 import { getAdmin, tieneModulo } from '@/lib/admin';
 import { cargarCotizador } from '@/lib/cotizador';
-import { llaveValida, tipoDirecto } from '@/lib/acceso-directo';
+import { llaveValida, cotizadorDirecto } from '@/lib/acceso-directo';
 import { CotizadorPanel } from '@/app/cotizador/CotizadorPanel';
 import { AppCotizador } from './AppCotizador';
 
@@ -20,20 +20,25 @@ import { AppCotizador } from './AppCotizador';
  * Es el MISMO cotizador del panel (precios editables por cotización, clientes,
  * historial), sin el menú lateral. El manifiesto para instalarlo también lleva
  * la llave: el ícono del celular abre directo aquí.
+ *
+ * LOS SIETE COTIZADORES (2026-11-06, pedido del dueño: "un menú con todos los
+ * cotizadores, como aparece en la web, ya no solo triturados y maquinaria").
+ * El segmento `[tipo]` es la clave del cotizador del sitio (maquinaria, agua,
+ * acarreos, carpeta-asfaltica, materiales, triturados, venta-de-maquinaria) y
+ * la cotización abre con esa categoría.
  */
 type Params = { params: Promise<{ llave: string; tipo: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { llave, tipo: t } = await params;
-  const tipo = tipoDirecto(t);
-  if (!tipo || !llaveValida(llave)) return {};
-  const nombre = COTIZADORES_META[tipo].titulo;
+  const c = cotizadorDirecto(t);
+  if (!c || !llaveValida(llave)) return {};
   return {
-    title: `Cotizador de ${nombre.toLowerCase()}`,
-    manifest: `/cotizar/${llave}/${tipo}/manifest.webmanifest`,
-    appleWebApp: { capable: true, title: nombre, statusBarStyle: 'black-translucent' },
+    title: `Cotizador de ${c.titulo.toLowerCase()}`,
+    manifest: `/cotizar/${llave}/${c.clave}/manifest.webmanifest`,
+    appleWebApp: { capable: true, title: c.titulo, statusBarStyle: 'black-translucent' },
     // Con tamaño: así el iPhone usa este y no el ícono general del panel.
-    icons: { apple: [{ url: `/pwa/${tipo}-180.png`, sizes: '180x180' }] },
+    icons: { apple: [{ url: `/pwa/${c.clave}-180.png`, sizes: '180x180' }] },
     // La dirección es la llave: que ningún buscador la guarde.
     robots: { index: false, follow: false },
     referrer: 'no-referrer',
@@ -44,20 +49,30 @@ export const viewport: Viewport = { themeColor: '#0b0d11' };
 
 export default async function CotizadorDirecto({ params }: Params) {
   const { llave, tipo: t } = await params;
-  const tipo = tipoDirecto(t);
-  if (!tipo || !llaveValida(llave)) notFound();
+  const c = cotizadorDirecto(t);
+  if (!c || !llaveValida(llave)) notFound();
 
   // Sin sesión (o una sin el cotizador): la abre el enlace y vuelve aquí.
   const admin = await getAdmin();
-  if (!admin || !tieneModulo(admin, 'cotizador')) redirect(`/api/acceso-directo?llave=${encodeURIComponent(llave)}&tipo=${tipo}`);
+  if (!admin || !tieneModulo(admin, 'cotizador')) redirect(`/api/acceso-directo?llave=${encodeURIComponent(llave)}&tipo=${c.clave}`);
 
   // Como en /cotizador/<tipo>: los dos tabuladores (una cotización lleva cualquier
   // categoría, 2026-11-03); sin API, los de fábrica, y el servidor recalcula al guardar.
   const { tabuladores, productos } = await cargarCotizador();
 
   return (
-    <AppCotizador tipo={tipo} llave={llave} nombre={esAccesoDirecto(admin.email) ? null : admin.name}>
-      <CotizadorPanel tabuladores={tabuladores} entrada={tipo} productos={productos} titulo={`Cotizador de ${COTIZADORES_META[tipo].titulo.toLowerCase()}`} resumen={COTIZADORES_META[tipo].resumen} app />
+    <AppCotizador clave={c.clave} llave={llave} nombre={esAccesoDirecto(admin.email) ? null : admin.name}>
+      <CotizadorPanel
+        // Otra categoría del menú = otra cotización, desde cero.
+        key={c.clave}
+        tabuladores={tabuladores}
+        entrada={c.tipo}
+        categoria={c.clave}
+        productos={productos}
+        titulo={`Cotizador de ${c.titulo.toLowerCase()}`}
+        resumen={c.resumen}
+        app
+      />
     </AppCotizador>
   );
 }

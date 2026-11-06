@@ -10,16 +10,26 @@ import type { LineaServicio } from './estado';
 /** Un producto del catálogo de una categoría que todavía no tiene precio de lista. */
 export interface ProductoALaMedida {
   id: number;
+  /**
+   * Distingue las presentaciones de un mismo producto (2026-11-06: el block por
+   * pieza, tarima, viaje Torton y viaje tráiler; `productosALaMedida`). Sin
+   * ella, el id del producto.
+   */
+  clave?: string;
   nombre: string;
   /** La unidad de su ficha ("m2", "tonelada"…); sin ella, por pieza. */
   unidad: string | null;
 }
 
+/** Con qué se reconoce una tarjeta a la medida: su presentación o su producto. */
+export const claveDeProducto = (p: ProductoALaMedida): string => p.clave ?? String(p.id);
+
 /** "m2" → "m²", "tonelada" → "ton"…; lo que no se conoce, tal cual (o "pieza" si no hay). */
 export function unidadDeProducto(u: string | null): string {
   const mapa: Record<string, string> = { m2: 'm²', m3: 'm³', tonelada: 'ton', toneladas: 'ton', pieza: 'pieza', piezas: 'pieza', viaje: 'viaje', hora: 'hora', dia: 'día', día: 'día' };
   const k = (u ?? '').trim().toLowerCase();
-  return mapa[k] ?? (k || 'pieza');
+  // Lo desconocido, con sus mayúsculas: «viaje Torton» (2026-11-06).
+  return mapa[k] ?? ((u ?? '').trim() || 'pieza');
 }
 
 /**
@@ -70,7 +80,7 @@ export function CategoriaAMano({ titulo, icono, productos, lineas, alternar, agr
       {productos.length ? (
         <div className="cz-cards">
           {productos.map((p) => (
-            <Tarjeta key={p.id} icono={icono} titulo={p.nombre} nota={`por ${unidadDeProducto(p.unidad)} · precio a mano`} n={cuenta(p)} onClick={() => alternar(p)} />
+            <Tarjeta key={claveDeProducto(p)} icono={icono} titulo={p.nombre} nota={`por ${unidadDeProducto(p.unidad)} · precio a mano`} n={cuenta(p)} onClick={() => alternar(p)} />
           ))}
         </div>
       ) : null}

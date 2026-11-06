@@ -13,6 +13,7 @@ import {
   saludoDe,
   tituloDe,
   tieneImporte,
+  renglonesPorCotizar,
   type CalculoCotizacion,
   type CatalogoCotizador,
   type CotizadorTipo,
@@ -413,7 +414,10 @@ export class Recotizar {
     const partidas = cambios.partidas ?? ((doc.items ?? []) as unknown as PartidaCotizador[]);
     const opciones = cambios.opciones ?? ((doc.options ?? {}) as Partial<OpcionesCotizador>);
     const calc = calcularCotizacion(cat, partidas, opciones);
-    if (!tieneImporte(calc)) throw new BadRequestException('Con ese cambio la cotización se queda sin importe. Revisa cantidades y precios.');
+    // Lo del sitio a la medida (2026-11-06) sigue «por cotizar» mientras el panel le pone precio renglón por renglón.
+    if (!tieneImporte(calc) && !(doc.origin === 'sitio' && renglonesPorCotizar(calc).length)) {
+      throw new BadRequestException('Con ese cambio la cotización se queda sin importe. Revisa cantidades y precios.');
+    }
     const snapshot = {
       ...((doc.snapshot ?? {}) as Record<string, unknown>),
       calc,

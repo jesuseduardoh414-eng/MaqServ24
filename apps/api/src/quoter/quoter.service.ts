@@ -12,6 +12,7 @@ import {
   cobraFlete,
   conRenglonesGuardados,
   minimoHorasDe,
+  normalizarNombre,
   precioHoraDe,
   precioZona,
   renglonesDeFicha,
@@ -19,6 +20,7 @@ import {
   tituloDe,
   seccionDeLinea,
   tieneImporte,
+  renglonesPorCotizar,
   type CalculoCotizacion,
   type CatalogoCotizador,
   type CatalogoTriturados,
@@ -245,6 +247,33 @@ export class QuoterService {
       // Las zonas de agua y retiro (2026-10-29): un servicio puede cobrar distinto en cada una.
       zonas: cat.tipo === 'maquinaria' ? (cat.zonas_precio ?? []).map((z) => ({ id: z.id, nombre: z.nombre, municipios: z.municipios })) : [],
     };
+  }
+
+  /**
+   * EN QUÉ ZONA DE TRITURADOS QUEDA UN MUNICIPIO (2026-11-06): se agrega a la
+   * elegida y se quita de cualquier otra (un municipio cae en una sola zona).
+   * Bajo el mismo candado que Tarifas. Devuelve las zonas como quedaron, para
+   * que el cotizador abierto las use sin recargar.
+   */
+  async municipioEnZona(municipio: string, zonaId: string, correo: string): Promise<{ municipio: string; zona: string; zonas: CatalogoTriturados['zonas'] }> {
+    const m = municipio.trim().replace(/\s+/g, ' ');
+    const clave = normalizarNombre(m);
+    let resultado: { municipio: string; zona: string; zonas: CatalogoTriturados['zonas'] } | null = null;
+    await conCandado(['tabulador:triturados'], async () => {
+      const cat = await this.catalogoGuardado('triturados');
+      if (cat.tipo !== 'triturados') throw new BadRequestException('El tabulador de triturados no está disponible.');
+      const zona = cat.zonas.find((z) => z.id === zonaId);
+      if (!zona) throw new BadRequestException('Esa zona ya no existe: recarga la página y elige otra.');
+      const zonas = cat.zonas.map((z) => {
+        const sin = (z.municipios ?? []).filter((x) => normalizarNombre(x) !== clave);
+        return { ...z, municipios: z.id === zonaId ? [...sin, m] : sin };
+      });
+      const ok = catalogoCotizadorSchema.safeParse({ ...cat, zonas });
+      if (!ok.success) throw new BadRequestException('No se pudo guardar el municipio en esa zona.');
+      await this.escribir('triturados', ok.data, correo);
+      resultado = { municipio: m, zona: zona.nombre, zonas };
+    });
+    return resultado!;
   }
 
   /**
@@ -492,7 +521,8 @@ export class QuoterService {
   }) {
     const cat = await this.catalogoCalculo(entrada.tipo);
     const calc = calcularCotizacion(cat, entrada.partidas, entrada.opciones);
-    if (!tieneImporte(calc)) {
+    // Del sitio, lo pedido a la medida (2026-11-06) puede venir solo, «por cotizar»: el panel le pone precio.
+    if (!tieneImporte(calc) && !(contexto.origen === 'sitio' && renglonesPorCotizar(calc).length)) {
       throw new BadRequestException('La cotización no tiene partidas con importe. Revisa cantidades y precios.');
     }
 

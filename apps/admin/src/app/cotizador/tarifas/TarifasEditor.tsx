@@ -15,7 +15,7 @@ import {
   type CotizadorTipo,
   type PagoCotizador,
 } from '@maqserv/config';
-import { mostrarResultado } from '@maqserv/ui';
+import { mostrarResultado, zonaDelMunicipio } from '@maqserv/ui';
 import { Btn, Chip, FormField, IconBtn, Panel, Segmented, Stat, Stats, Switch } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
 import { AdminSelect } from '@/components/AdminSelect';
@@ -433,6 +433,68 @@ function ZonasAgua({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Partial<Cat
   );
 }
 
+/**
+ * LOS MUNICIPIOS QUE SE LE AGREGARON A UNA ZONA DE TRITURADOS (2026-11-06):
+ * los que su nombre no dice. Se agregan al cotizar en el enlace o el panel, o
+ * aquí; con ellos la zona del flete se elige sola. El nombre de la zona sigue
+ * contando como antes («Zona 3 · San Nicolás, Hidalgo»).
+ */
+function MunicipiosDeZona({ zona, poner, quitarDeOtras }: {
+  zona: CatalogoTriturados['zonas'][number];
+  poner: (municipios: string[]) => void;
+  quitarDeOtras: (municipio: string) => void;
+}) {
+  const [nuevo, setNuevo] = useState('');
+  const lista = zona.municipios ?? [];
+  const agregar = () => {
+    const m = nuevo.trim().replace(/\s+/g, ' ');
+    if (m.length < 2 || lista.some((x) => x.toLowerCase() === m.toLowerCase())) { setNuevo(''); return; }
+    quitarDeOtras(m);
+    poner([...lista, m]);
+    setNuevo('');
+  };
+  return (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', padding: '0 16px 12px' }}>
+      {lista.map((m) => (
+        <Chip key={m} tone="info">
+          {m}
+          <button
+            type="button"
+            aria-label={`Quitar ${m} de ${zona.nombre}`}
+            onClick={() => poner(lista.filter((x) => x !== m))}
+            style={{ marginLeft: 6, background: 'none', border: 0, color: 'inherit', cursor: 'pointer', padding: 0, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </Chip>
+      ))}
+      <input
+        className="adm-input"
+        style={{ width: 200, height: 30, fontSize: 13 }}
+        value={nuevo}
+        maxLength={80}
+        placeholder="+ Agregar municipio"
+        aria-label={`Agregar municipio a ${zona.nombre}`}
+        onChange={(e) => setNuevo(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); agregar(); } }}
+        onBlur={() => { if (nuevo.trim()) agregar(); }}
+      />
+    </div>
+  );
+}
+
+/** Los municipios del cotizador que no caen en ninguna zona de triturados: su flete se elige a mano. */
+function SinZonaTriturados({ cat }: { cat: CatalogoTriturados }) {
+  const sin = cat.municipios.filter((m) => !zonaDelMunicipio(cat, m));
+  return (
+    <p className="tf-sub" style={{ margin: 0, padding: '10px 16px', borderTop: '1px solid var(--adm-border)' }}>
+      {sin.length
+        ? `Sin zona de flete: ${sin.join(', ')}. Agrégalos a su zona aquí o al cotizar en el enlace o el panel.`
+        : 'Todos los municipios del cotizador caen en alguna zona de flete.'}
+    </p>
+  );
+}
+
 function EditorTriturados({ cat, set, fichas }: {
   cat: CatalogoTriturados;
   set: (p: Partial<CatalogoCotizador>) => void;
@@ -470,14 +532,23 @@ function EditorTriturados({ cat, set, fichas }: {
           </div>
           <div className="adm-thead"><div>Zona</div><div>Flete del viaje</div><div /></div>
           {cat.zonas.map((z, i) => (
-            <div key={z.id} className="adm-trow">
-              <input className="adm-input" value={z.nombre} onChange={(e) => ponerZona(i, { nombre: e.target.value })} aria-label={`Nombre de la zona ${i + 1}`} />
-              <div className="tf-pesos">
-                <input className="adm-input adm-num" type="number" min="0" value={z.flete} onChange={(e) => ponerZona(i, { flete: Number(e.target.value) })} aria-label={`Flete de ${z.nombre}`} />
+            <div key={z.id}>
+              <div className="adm-trow">
+                <input className="adm-input" value={z.nombre} onChange={(e) => ponerZona(i, { nombre: e.target.value })} aria-label={`Nombre de la zona ${i + 1}`} />
+                <div className="tf-pesos">
+                  <input className="adm-input adm-num" type="number" min="0" value={z.flete} onChange={(e) => ponerZona(i, { flete: Number(e.target.value) })} aria-label={`Flete de ${z.nombre}`} />
+                </div>
+                <IconBtn icon="ph-trash" label={`Quitar ${z.nombre}`} danger onClick={() => set({ zonas: cat.zonas.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)} />
               </div>
-              <IconBtn icon="ph-trash" label={`Quitar ${z.nombre}`} danger onClick={() => set({ zonas: cat.zonas.filter((_, j) => j !== i) } as Partial<CatalogoCotizador>)} />
+              <MunicipiosDeZona
+                zona={z}
+                poner={(municipios) => ponerZona(i, { municipios })}
+                // Un municipio va en una sola zona: al agregarlo aquí sale de las demás.
+                quitarDeOtras={(m) => set({ zonas: cat.zonas.map((x, j) => (j === i ? x : { ...x, municipios: (x.municipios ?? []).filter((y) => y.toLowerCase() !== m.toLowerCase()) })) } as Partial<CatalogoCotizador>)}
+              />
             </div>
           ))}
+          <SinZonaTriturados cat={cat} />
           <div style={{ padding: '10px 16px', display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--adm-border)' }}>
             <Btn size="sm" icon="ph-plus" onClick={() => set({ zonas: [...cat.zonas, { id: `z_${Date.now()}`, nombre: 'Zona nueva', flete: 0 }] } as Partial<CatalogoCotizador>)}>Agregar zona</Btn>
             <input className="adm-input" style={{ flex: '1 1 260px', height: 34, fontSize: 13.5 }} value={cat.nota_zona} onChange={(e) => set({ nota_zona: e.target.value } as Partial<CatalogoCotizador>)} placeholder="Nota que sale junto a las zonas en la cotización" aria-label="Nota del viaje" />
@@ -520,31 +591,24 @@ function EditorTriturados({ cat, set, fichas }: {
 }
 
 /**
- * EL PEDIDO GRANDE EN TOLVA O FULL (2026-11-03): el flete por tonelada de
- * cada camión en cada zona de entrega, y desde cuántas toneladas se ofrece.
- * Vacío = sin precio todavía: la cotización dice que el flete se confirma
- * aparte (el dueño manda los costos después).
+ * EL PEDIDO GRANDE (2026-11-03): desde cuántas toneladas se ofrece y con qué
+ * camiones (tolva, full y de 7 y 14 m³ desde el 2026-11-06).
  */
 function PedidoGrande({ cat, set }: { cat: CatalogoTriturados; set: (p: Partial<CatalogoCotizador>) => void }) {
+  /*
+   * SIN PRECIOS POR ZONA (2026-11-06, el dueño: "en ese tipo de viajes no salen
+   * las opciones de las zonas, ya que ahí el flete cambia"). El flete de cada
+   * camión se escribe en cada cotización (enlace y panel) o se confirma aparte;
+   * aquí quedan los camiones que se ofrecen y el mínimo.
+   */
   const camiones = camionesDe(cat);
-  const columnas = `minmax(0, 1fr) repeat(${camiones.length}, 140px)`;
-  const ponerPrecio = (camionId: string, zonaId: string, valor: string) => {
-    const n = Number(valor);
-    set({
-      camiones: camiones.map((c) => {
-        if (c.id !== camionId) return c;
-        const { [zonaId]: _antes, ...resto } = c.precios_ton;
-        return { ...c, precios_ton: valor.trim() && n > 0 ? { ...resto, [zonaId]: n } : resto };
-      }),
-    } as Partial<CatalogoCotizador>);
-  };
   return (
     <Panel
       flush
       clip
       icon="ph-truck"
-      title="Pedido grande · tolva o full"
-      desc="Flete por tonelada de cada camión según la zona de entrega. Vacío: todavía sin precio y la cotización dice que el flete se confirma aparte."
+      title="Pedido grande · tolva, full y camiones"
+      desc="El flete no va por zona: se escribe en cada cotización según el camión y el lugar de la obra, o la cotización dice que se confirma aparte."
       style={{ marginTop: 20 }}
     >
       <div className="tf-tabla">
@@ -552,28 +616,11 @@ function PedidoGrande({ cat, set }: { cat: CatalogoTriturados; set: (p: Partial<
           <span className="tf-nombre">Desde cuántas toneladas</span>
           <input className="adm-input adm-num" type="number" min="1" value={minimoCamionDe(cat)} onChange={(e) => set({ minimo_camion_ton: Number(e.target.value) } as Partial<CatalogoCotizador>)} aria-label="Toneladas mínimas del pedido grande" />
         </div>
-        <div className="adm-thead" style={{ gridTemplateColumns: columnas }}>
-          <div>Zona</div>
-          {camiones.map((c) => <div key={c.id}>{c.nombre} · $/ton</div>)}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '12px 16px', borderTop: '1px solid var(--adm-border)' }}>
+          {camiones.map((c) => (
+            <Chip key={c.id} tone="info">{c.nombre}{c.detalle && c.detalle !== c.nombre.replace(/^Camión de /, '') ? ` · ${c.detalle}` : ''}</Chip>
+          ))}
         </div>
-        {cat.zonas.map((z) => (
-          <div key={z.id} className="adm-trow" style={{ gridTemplateColumns: columnas }}>
-            <span className="tf-nombre">{z.nombre}</span>
-            {camiones.map((c) => (
-              <div key={c.id} className="tf-pesos">
-                <input
-                  className="adm-input adm-num"
-                  type="number"
-                  min="0"
-                  placeholder="Sin precio"
-                  value={c.precios_ton[z.id] ?? ''}
-                  onChange={(e) => ponerPrecio(c.id, z.id, e.target.value)}
-                  aria-label={`Flete en ${c.nombre} a ${z.nombre}, por tonelada`}
-                />
-              </div>
-            ))}
-          </div>
-        ))}
       </div>
     </Panel>
   );

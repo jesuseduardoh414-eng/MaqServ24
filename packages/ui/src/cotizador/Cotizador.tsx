@@ -13,6 +13,7 @@ import {
   faltaZona,
   llevaFlete,
   RECOGE_EN_PLANTA,
+  renglonesPorCotizar,
   saludoDe,
   tituloDe,
   problemaEmail,
@@ -159,6 +160,21 @@ export interface CotizadorProps {
   extras?: Record<string, ReactNode>;
   notasExtra?: string;
   /**
+   * Lo que el cliente pidió de esas categorías sin precio (sitio, 2026-11-06:
+   * el block por tarima, cuánto): partidas escritas a mano con su categoría y
+   * en $0. Van en el documento como «Por cotizar» y abren su solicitud; el
+   * panel les pone precio. Con ellas se puede pedir aunque no haya nada más.
+   */
+  partidasExtra?: PartidaCotizador[];
+  /** Lo que le falta a eso (la cantidad de algo que eligió), o null. */
+  faltaExtra?: string | null;
+  /**
+   * Enlace y panel (2026-11-06): guardar en qué zona de flete de triturados
+   * queda un municipio que no está en ninguna. Quien llama actualiza su
+   * tabulador con la respuesta; sin ella, la zona se elige a mano.
+   */
+  guardarZonaTriturados?: (municipio: string, zonaId: string) => Promise<void>;
+  /**
    * Panel y enlace (2026-11-03): las categorías SIN precio de lista que se
    * agregaron (carpeta, block, venta), con los productos de su catálogo. Cada
    * una sale en su tarjeta y lo que se toca se cotiza con precio a mano.
@@ -189,7 +205,7 @@ const PASOS = [{ clave: 'armar' }, { clave: 'resumen' }] as const;
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, categoriasExtra, masServicios, despues, extras, notasExtra = '', aMano, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, categoriasExtra, masServicios, despues, extras, notasExtra = '', partidasExtra, faltaExtra = null, guardarZonaTriturados, aMano, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
   /**
    * EN UNA SOLA PANTALLA (2026-11-03, con la captura del cotizador de PUCSA:
@@ -232,8 +248,6 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const preciosEnPasos = verPrecios;
   const editarPrecios = esPanel;
   const preciosAlFinal = verPrecios && !preciosEnPasos;
-  /** El sitio con precios de lista: total grande al final y la nota para mejorar el precio. */
-  const sitioConPrecios = verPrecios && !esPanel;
 
   const [paso, setPaso] = useState(0);
   const [ctx, setCtx] = useState<ContextoCotizador>({ ...CONTEXTO_VACIO, ...inicial });
@@ -249,10 +263,18 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
 
   const opciones: Partial<OpcionesCotizador> = tipo === 'maquinaria' ? { modo_unidad: modoUnidad } : { con_iva: conIva };
   // El agua sin zona elegida a mano toma la del municipio de la obra (2026-10-29).
-  const partidas = useMemo(() => conZonaDeLaObra(catalogo, aPartidas(lineas), ctx.municipio), [catalogo, lineas, ctx.municipio]);
+  // Y al final lo pedido a la medida (sitio): «por cotizar», sin importe.
+  const partidas = useMemo(
+    () => [...conZonaDeLaObra(catalogo, aPartidas(lineas), ctx.municipio), ...(partidasExtra ?? [])],
+    [catalogo, lineas, ctx.municipio, partidasExtra],
+  );
   // Triturados con flete: la ubicación en Google Maps va en el documento (2026-10-29).
   const ubicacionValida = !!catTrit && llevaFlete(partidas) && esUbicacionDeMapas(ctx.ubicacion);
   const calc = useMemo(() => calcularCotizacion(catalogo, partidas, opciones), [catalogo, partidas, modoUnidad, conIva]);
+  /** Todo lo pedido va a la medida (2026-11-06): todavía no hay precio de lista que enseñar. */
+  const todoPorCotizar = calc.total <= 0 && renglonesPorCotizar(calc).length > 0;
+  /** El sitio con precios de lista: total grande al final y la nota para mejorar el precio. */
+  const sitioConPrecios = verPrecios && !esPanel && !todoPorCotizar;
   /**
    * LO QUE SE ENSEÑA EN EL SITIO (2026-10-23). El tabulador llega en ceros y el
    * motor descarta los renglones de importe cero —servicios, material por
@@ -303,14 +325,30 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
    * grande en tolva o full; una cotización va de una sola forma. Se deduce de
    * lo que ya trae (al volver a una cotización) y se elige con tarjetas.
    */
-  const [forma, setForma] = useState<FormaTriturados | null>(() => formaDe(lineasIniciales ?? []));
+  /** Lo que ya va puesto en obra (la cal de patio, 2026-11-06): tiene su propia forma. */
+  const esEnObra = (id: string) => !!catTrit?.productos.find((p) => p.id === id)?.en_obra;
+  const [forma, setForma] = useState<FormaTriturados | null>(() => formaDe(lineasIniciales ?? [], esEnObra));
   const zonaObraTrit = () => (catTrit ? zonaDelMunicipio(catTrit, ctx.municipio) : null);
-  /** Con qué entrega nace un material en cada forma: en planta, sin flete; en el grande, tolva y la zona de la obra. */
+  /**
+   * El municipio que no estaba en ninguna zona (2026-11-06): se guarda en la
+   * elegida y los viajes sin zona la toman. El tabulador nuevo llega por
+   * `catalogo` cuando quien llama lo actualiza.
+   */
+  const guardarZona = async (municipio: string, zonaId: string) => {
+    if (!guardarZonaTriturados) return;
+    await guardarZonaTriturados(municipio, zonaId);
+    setLineas((prev) => prev.map((l) => (l.tipo === 'zona' && !l.zonaId ? { ...l, zonaId } : l)));
+  };
+  /**
+   * Con qué entrega nace un material en cada forma: en planta, sin flete; en el
+   * grande, tolva y el lugar EN BLANCO (2026-11-06: ahí el flete no va por zona,
+   * se escribe el lugar de la obra).
+   */
   const entregaDe = (f: FormaTriturados | null, otro?: LineaMaterial): Pick<LineaMaterial, 'fleteTon' | 'fleteZona' | 'camion'> =>
     otro
       ? { fleteTon: otro.fleteTon, fleteZona: otro.fleteZona, camion: otro.camion }
       : f === 'grande'
-        ? { fleteTon: 0, fleteZona: zonaObraTrit()?.nombre ?? '', camion: 'tolva' }
+        ? { fleteTon: 0, fleteZona: '', camion: 'tolva' }
         : { fleteTon: 0, fleteZona: RECOGE_EN_PLANTA, camion: '' };
   const cambiarForma = (f: FormaTriturados) => {
     if (f === forma || !catTrit) return;
@@ -318,9 +356,13 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     const cat = catTrit;
     const zona = zonaObraTrit();
     setLineas((prev) => {
-      const materiales = prev.filter((l): l is LineaMaterial => l.tipo === 'material');
+      const todos = prev.filter((l): l is LineaMaterial => l.tipo === 'material');
       const viajes = prev.filter((l): l is LineaZona => l.tipo === 'zona');
       const resto = prev.filter((l) => l.tipo !== 'material' && l.tipo !== 'zona');
+      // La cal de patio (2026-11-06) va sola en su forma: al entrar se quedan solo
+      // sus renglones; al salir, se van (no se cotiza en planta, viaje ni grande).
+      if (f === 'cal') return [...resto, ...todos.filter((l) => esEnObra(l.id))];
+      const materiales = todos.filter((l) => !esEnObra(l.id));
       // Lo ya elegido se pasa a la forma nueva: mismo material, otra entrega.
       if (f === 'viaje') {
         const ids = [...new Set([...viajes.map((l) => l.productoId), ...materiales.filter((l) => l.id !== 'custom').map((l) => l.id)])];
@@ -464,6 +506,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
           nuevo={nuevo}
           tocado={tocado}
           municipio={ctx.municipio}
+          guardarZona={guardarZonaTriturados ? guardarZona : undefined}
         />
       ) : null;
     }
@@ -523,7 +566,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const clave = pasos[paso]?.clave ?? '';
 
   const faltante = useMemo(() => {
-    const d = { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel, soloPrecios, forma, minimoCamion: faltaMinimoCamion(catalogo, partidas), zona: faltaZona(catalogo, partidas, ctx.municipio) };
+    const d = { ctx, lineas, esPanel, calc: calcVista, conClientes: !!clientesPanel, soloPrecios, forma, minimoCamion: faltaMinimoCamion(catalogo, partidas), zona: faltaZona(catalogo, partidas, ctx.municipio), hayExtras: (partidasExtra?.length ?? 0) > 0, faltaExtra };
     if (clave !== 'armar') return validar(clave, d);
     // La pantalla única junta lo que antes eran pasos: se revisa en ese orden.
     const conTriturados = lineas.some((l) => l.tipo === 'material' || l.tipo === 'zona');
@@ -533,7 +576,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
       if (f) return f;
     }
     return null;
-  }, [clave, tipo, ctx, lineas, esPanel, calcVista, clientesPanel, soloPrecios, forma, catalogo, partidas]);
+  }, [clave, tipo, ctx, lineas, esPanel, calcVista, clientesPanel, soloPrecios, forma, catalogo, partidas, partidasExtra, faltaExtra]);
   const puedeAvanzar = faltante === null;
 
   /** Al pasar al documento (o volver a editar), la pantalla empieza arriba. */
@@ -720,7 +763,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   catalogo={catalogo}
                   clientes={clientesPanel?.lista}
                   tocado={tocado}
-                  modoUnidad={tipo === 'maquinaria' ? { valor: modoUnidad, poner: setModoUnidad } : undefined}
+                  // Solo si se cotiza renta de equipo (2026-11-06): en agua, block o triturados no dice nada.
+                  modoUnidad={tipo === 'maquinaria' && (catalogo as CatalogoMaquinaria).equipos.length > 0 ? { valor: modoUnidad, poner: setModoUnidad } : undefined}
                 />
               ) : (
                 <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} />
@@ -792,7 +836,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   el que la persona hizo los cinco pasos no puede depender de
                   que lo encuentre. En el panel no hace falta — ahí el total
                   acompañó toda la captura desde el resumen lateral. */}
-              {preciosAlFinal || sitioConPrecios ? (
+              {/* Todo a la medida (2026-11-06): no hay total que decir; el precio llega con la cotización. */}
+              {(preciosAlFinal || sitioConPrecios) && !(calc.total <= 0 && renglonesPorCotizar(calc).length) ? (
                 <div className="cz-total">
                   <span className="n">
                     <span>
@@ -868,7 +913,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   : 'Toca uno y se agrega a esta misma solicitud: los que tienen precio aquí salen arriba con sus opciones; los demás, como servicio extra que describes y cuyo precio te confirmamos.'}
               </p>
               {masServicios?.opciones.length ? (
-                <div className="cz-cards">
+                <div className="cz-cards cz-opciones">
                   {masServicios.opciones.map((o) => (
                     <Tarjeta key={o.clave} icono={o.icono} titulo={o.titulo} nota={o.resumen} modo="agregar" onClick={() => masServicios.agregar(o.clave)} />
                   ))}
@@ -888,7 +933,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
           <div className="cz-barra" role="region" aria-label="Total y siguiente paso">
             <div className="cz-barra-in">
               {tocado && faltante ? <Aviso tono="bad">{faltante}</Aviso> : null}
-              <div className="cz-barra-fila">
+              <div className="cz-barra-fila" data-final={esUltimo || undefined}>
                 {esUltimo ? (
                   <>
                     <ShButton variant="outline" onClick={retroceder} disabled={enviando}>
@@ -907,15 +952,17 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   </>
                 ) : (
                   <>
-                    {verPrecios ? (
+                    {/* Sin nada con precio y con algo a la medida (aunque aún sin cantidad): no hay total que decir. */}
+                    {/* En el panel y el enlace siempre el total: ahí quien cotiza pone el precio. */}
+                    {verPrecios && (esPanel || !(calc.total <= 0 && (renglonesPorCotizar(calc).length || Object.keys(extras ?? {}).length))) ? (
                       <div className="cz-barra-total">
-                        <span>Total {calc.con_iva ? 'con IVA' : 'sin IVA'}</span>
+                        <span>Total {calc.con_iva ? 'con IVA' : 'sin IVA'}{renglonesPorCotizar(calc).length ? ' · más lo por cotizar' : ''}</span>
                         <b>{money(calc.total)}</b>
                       </div>
                     ) : (
                       // Sin precios en el sitio: lo que lleva, y que el precio llega por correo.
                       <div className="cz-barra-total">
-                        <span>{partidas.length === 1 ? '1 partida' : `${partidas.length} partidas`}</span>
+                        <span>{partidas.length === 0 ? 'Elige qué necesitas' : partidas.length === 1 ? '1 partida' : `${partidas.length} partidas`}</span>
                         <em>Te mandamos el precio por correo</em>
                       </div>
                     )}
@@ -1399,6 +1446,9 @@ function validar(
     minimoCamion?: string | null;
     /** Lo que falta para cobrar el agua por zona (`faltaZona`), o null. */
     zona?: string | null;
+    /** El sitio con algo pedido a la medida (2026-11-06): ya hay qué pedir, aunque no haya otra partida. */
+    hayExtras?: boolean;
+    faltaExtra?: string | null;
   },
 ): string | null {
   const { ctx, lineas, esPanel, calc } = d;
@@ -1416,7 +1466,8 @@ function validar(
   }
 
   if (clave === 'servicios') {
-    if (!lineas.length) return 'Elige al menos una opción para continuar.';
+    if (d.faltaExtra) return d.faltaExtra;
+    if (!lineas.length && !d.hayExtras) return 'Elige al menos una opción para continuar.';
     // El servicio escrito a mano (2026-10-30): sin nombre o sin precio saldría un renglón mudo o en cero.
     const aMano = lineas.filter((l) => l.tipo === 'servicio' && l.id === SERVICIO_A_MANO) as LineaServicio[];
     if (aMano.some((l) => !l.nombre.trim())) return 'Ponle nombre al servicio que escribiste a mano.';
@@ -1434,7 +1485,7 @@ function validar(
     if (lineas.length === 0) {
       return d.forma
         ? 'Elige al menos un material.'
-        : 'Elige cómo lo quieres: lo recoges en planta, por viaje a tu obra o pedido grande en tolva o full.';
+        : 'Elige cómo lo quieres: lo recoges en planta, por viaje a tu obra, pedido grande o cal de patio.';
     }
     // Cada renglón incompleto se marca en rojo ahí mismo; esto dice cuál falta.
     if (lineas.some((l) => l.tipo === 'material' && !l.id)) return 'Elige qué material es cada partida por tonelada.';
@@ -1443,7 +1494,7 @@ function validar(
     if (lineas.some((l) => l.tipo === 'material' && num(l.toneladas) <= 0)) return 'Captura las toneladas de cada material.';
     // Pedido grande (2026-11-03): zona y camión, y desde 100 toneladas.
     const grande = lineas.filter((l): l is LineaMaterial => l.tipo === 'material' && !!l.camion);
-    if (grande.some((l) => !l.fleteZona.trim() || l.fleteZona.trim() === RECOGE_EN_PLANTA)) return 'Elige la zona de la obra para el pedido en tolva o full.';
+    if (grande.some((l) => !l.fleteZona.trim() || l.fleteZona.trim() === RECOGE_EN_PLANTA)) return 'Escribe la zona o el lugar de la obra para el pedido en tolva o full.';
     if (d.minimoCamion) return d.minimoCamion;
     // Sin esto el flete se quedaba en cero sin que nadie lo decidiera (2026-10-21).
     const material = lineas.find((l) => l.tipo === 'material');

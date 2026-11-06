@@ -1,6 +1,6 @@
 import Link from '@/components/Enlace';
 import { cookies } from 'next/headers';
-import { catalogoDelSitio, COTIZADORES_META, COTIZADORES_SITIO, hayQueElegir, type CatalogoMaquinaria, type CatalogoTriturados, type CotizadorDelSitio } from '@maqserv/config';
+import { catalogoDelSitio, COTIZADORES_META, COTIZADORES_SITIO, hayQueElegir, productosALaMedida, type CatalogoMaquinaria, type CatalogoTriturados, type CotizadorDelSitio } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getProducts, getQuoterCatalog } from '@/lib/api';
 import { getSessionUser } from '@/lib/session';
@@ -55,7 +55,8 @@ export async function PaginaCotizador({ cotizador, fichaId }: { cotizador: Cotiz
     await Promise.all(
       sinPrecio.map(async (c) => {
         const r = await getProducts({ category: c.linea }).catch(() => null);
-        return [c.clave, (r?.items ?? []).map((p) => ({ id: p.id, nombre: p.name, unidad: p.priceUnit }))] as const;
+        // Con sus presentaciones, si su ficha ya las tiene (el block, 2026-11-06).
+        return [c.clave, productosALaMedida(tabuladores, r?.items ?? [])] as const;
       }),
     ),
   );
@@ -104,19 +105,8 @@ export async function PaginaCotizador({ cotizador, fichaId }: { cotizador: Cotiz
                 <Link href={aLaMedidaDe(cotizador)} className="ms-btn">{t(theme, 'quote.form.title')}</Link>
               </div>
             </div>
-          ) : !hayQueElegir(catalogo) ? (
-            <div className="ms-empty czp-caja">
-              <span className="ms-ico ms-ico-lg ms-ico-muted" aria-hidden><Icon name="calculator" size={22} /></span>
-              <h2 className="ms-empty-t">{cotizador.titulo}: se cotiza a la medida</h2>
-              <p className="ms-empty-p">
-                Por ahora no tenemos precios de lista en línea para esta categoría. Cuéntanos qué
-                necesitas y te mandamos la cotización.
-              </p>
-              <div className="ms-empty-acts">
-                <Link href={aLaMedidaDe(cotizador)} className="ms-btn">{t(theme, 'quote.form.title')}</Link>
-              </div>
-            </div>
           ) : (
+            // Sin precio de lista también (2026-11-06): el cliente elige qué y cuánto, y se le cotiza después.
             <CotizadorPublico
               tabuladores={tabuladores}
               cotizador={cotizador.clave}

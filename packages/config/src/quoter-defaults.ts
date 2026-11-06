@@ -94,6 +94,23 @@ export const ESTADOS_OPERACION = ['Nuevo León', 'Coahuila', 'Chihuahua'] as con
 export const ESTADOS_COBERTURA = ['Nuevo León'] as const;
 
 /**
+ * LA CAL DE PATIO (2026-11-06), con el texto que mandó el dueño: «Pedido mínimo.
+ * En la cal las tolvas vienen entre 25 y 32 toneladas. Se pide el pago de 28
+ * toneladas para hacer la programación. Se tarda máximo 48 horas después del
+ * pago. Ya cuando llegue se realiza ajuste, para arriba o para abajo.»
+ */
+export const CONDICIONES_CAL = {
+  titulo: 'Cal de patio · puesta en obra',
+  puntos: [
+    'Precio por tonelada ya puesta en obra, en el área metropolitana de Monterrey.',
+    'Pedido mínimo: en la cal, las tolvas vienen entre 25 y 32 toneladas.',
+    'Se pide el pago de 28 toneladas para hacer la programación.',
+    'Se tarda máximo 48 horas después del pago.',
+    'Ya cuando llegue se realiza el ajuste, para arriba o para abajo.',
+  ],
+};
+
+/**
  * CONDICIONES DE LAS LÍNEAS QUE ENTRARON AL COTIZADOR (2026-11-02): carpeta
  * asfáltica, materiales y venta de maquinaria. Son un punto de partida, sin
  * reglas inventadas: Dirección las ajusta en Tarifas › Condiciones. Las usa el
@@ -103,7 +120,7 @@ export const CONDICIONES_POR_LINEA: CatalogoMaquinaria['condiciones'] = {
   asfalto: {
     titulo: 'Condiciones comerciales · Carpeta asfáltica',
     puntos: [
-      'El precio es por la unidad indicada en la cotización (tonelada aplicada o m²). El volumen se calcula con los m² de la superficie y el espesor en cm.',
+      'La carpeta asfáltica se cobra por tonelada y el riego de impregnación por litro. Las cantidades se calculan con los m² de la superficie y el espesor en cm.',
       'La superficie debe estar lista para recibir el trabajo: base compactada, limpia y seca.',
       'Forma de pago: contado.',
       'Cualquier cambio en el área, el espesor o las condiciones de la obra puede ajustar el costo; se avisa antes.',
@@ -253,6 +270,8 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
     // 2026-10-30: mismo precio que la Arena #4.
     { id: 'mixtos', nombre: 'Mixtos', precio_ton: 300 },
     { id: 'arena4b', nombre: 'Arena #4B', precio_ton: 300 },
+    // 2026-11-06: ya puesta en obra (área metropolitana de Monterrey), se pagan 28 ton para programar la tolva.
+    { id: 'cal_patio', nombre: 'Cal de patio', precio_ton: 1650, en_obra: true, minimo_ton: 28 },
   ],
   fletes_ton: [50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300],
   material_banco: {
@@ -299,6 +318,8 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
         'Los costos ya incluyen suministro y flete a su obra.',
       ],
     },
+    // La cal de patio (2026-11-06, el texto del dueño).
+    cal: CONDICIONES_CAL,
     banco: {
       titulo: 'Material de banco',
       puntos: [

@@ -122,8 +122,14 @@ export function PasoPedido({
   forma,
   cambiarForma,
   encabezado,
+  guardarZona,
 }: {
   cat: CatalogoTriturados;
+  /**
+   * Enlace y panel (2026-11-06): guardar en qué zona queda un municipio que no
+   * está en ninguna. Sin ella (el sitio), la zona se elige a mano como siempre.
+   */
+  guardarZona?: (municipio: string, zonaId: string) => Promise<void>;
   /** Dentro de una cotización de maquinaria (2026-11-03): dice que esta parte es de triturados. */
   encabezado?: string;
   lineas: LineaTriturados[];
@@ -173,9 +179,12 @@ export function PasoPedido({
     : null;
 
   // Los materiales del tabulador en tarjetas: en planta y en el pedido grande se cotizan por tonelada.
+  // Lo que va ya puesto en obra (la cal de patio, 2026-11-06) tiene su propia forma y no sale aquí.
+  const deTabulador = cat.productos.filter((p) => !p.en_obra);
+  const enObra = cat.productos.filter((p) => p.en_obra && !p.oculto);
   const tarjetasPorTon = alternarMaterial ? (
     <div className="cz-cards" style={{ marginBottom: materiales.length ? 14 : 0 }}>
-      {cat.productos.map((p) => (
+      {deTabulador.map((p) => (
         <Tarjeta
           key={p.id}
           icono="material"
@@ -196,10 +205,40 @@ export function PasoPedido({
   const fleteViejo = materiales.some((l) => l.fleteTon > 0 && !l.camion);
   // Por viaje: el precio de cada material, a la zona del primer viaje (o la de la obra).
   const zonaViaje = zonaDe(cat, zonas[0]?.zonaId ?? '') ?? zonaDelMunicipio(cat, municipio);
+  // Por viaje, el precio depende de la zona: si el municipio no está en ninguna, se agrega aquí. (En el pedido grande la zona se escribe libre.)
+  const sinZona = guardarZona && forma === 'viaje' && municipio?.trim() && !zonaDelMunicipio(cat, municipio)
+    ? <MunicipioSinZona key={municipio} cat={cat} municipio={municipio.trim()} guardar={guardarZona} />
+    : null;
 
   return (
     <>
-      <FormaEntrega cat={cat} forma={forma} cambiar={cambiarForma} titulo={encabezado} />
+      <FormaEntrega cat={cat} forma={forma} cambiar={cambiarForma} titulo={encabezado} conCal={enObra.length > 0} />
+      {sinZona}
+
+      {forma === 'cal' ? (
+        <Bloque
+          icono="material"
+          titulo="Cal de patio, puesta en obra"
+          desc={`Precio por tonelada ya puesta en obra, en el área metropolitana de Monterrey. Se pagan mínimo ${enObra[0]?.minimo_ton ?? 28} toneladas para programar la tolva (vienen de 25 a 32); al llegar se ajusta.`}
+          vacio={materiales.length === 0}
+          tarjetas={alternarMaterial ? (
+            <div className="cz-cards" style={{ marginBottom: materiales.length ? 14 : 0 }}>
+              {enObra.map((p) => (
+                <Tarjeta
+                  key={p.id}
+                  icono="material"
+                  titulo={p.nombre}
+                  nota={mostrarPrecios && p.precio_ton > 0 ? `${money(p.precio_ton)} / ton · puesta en obra` : 'por tonelada · puesta en obra'}
+                  n={materiales.filter((l) => l.id === p.id).length}
+                  onClick={() => alternarMaterial(p.id)}
+                />
+              ))}
+            </div>
+          ) : undefined}
+        >
+          {filasPorTon}
+        </Bloque>
+      ) : null}
 
       {forma === 'planta' ? (
         <Bloque
@@ -232,7 +271,7 @@ export function PasoPedido({
             vacio={zonas.length === 0}
             tarjetas={
               <div className="cz-cards" style={{ marginBottom: zonas.length ? 14 : 0 }}>
-                {cat.productos.map((p) => {
+                {deTabulador.map((p) => {
                   const pv = mostrarPrecios && zonaViaje ? precioZona(cat, zonaViaje, p.id) : null;
                   return (
                     <Tarjeta
@@ -259,7 +298,7 @@ export function PasoPedido({
       {forma === 'grande' ? (
         <Bloque
           icono="zona"
-          titulo="Pedido grande en tolva o full"
+          titulo="Pedido grande: tolva, full o camión"
           desc={`Desde ${minimoCamionDe(cat)} toneladas. El material va a precio de lista por tonelada; el flete por tonelada se cotiza según el camión y la ubicación de tu obra.`}
           textoAgregar={textoOtro}
           onAgregar={agregarMaterial}
@@ -307,30 +346,38 @@ export function PasoPedido({
  * 14 m³); cuando son pedidos de 100 toneladas, en tolva o full". Cambiar de
  * forma conserva el material elegido y cambia solo cómo se entrega.
  */
-function FormaEntrega({ cat, forma, cambiar, titulo }: {
+function FormaEntrega({ cat, forma, cambiar, titulo, conCal }: {
   cat: CatalogoTriturados;
   forma: FormaTriturados | null;
   cambiar: (f: FormaTriturados) => void;
   titulo?: string;
+  /** Hay algo ya puesto en obra (la cal de patio, 2026-11-06): su propia opción. */
+  conCal?: boolean;
 }) {
   return (
     <section className="cz-card">
       <h2 className="cz-card-h">{titulo ?? '¿Cómo lo quieres?'}</h2>
       <p className="cz-card-s">Elige una forma; la cotización va de una sola.</p>
-      <div className="cz-cards">
+      {/* `cz-opciones`: en el celular, una debajo de otra como renglones (2026-11-06). */}
+      <div className="cz-cards cz-opciones">
         <Tarjeta icono="banco" titulo="Lo recojo en planta" nota="Mandas tu camión · precio de lista" modo="opcion" n={forma === 'planta' ? 1 : 0} onClick={() => cambiar('planta')} />
         <Tarjeta icono="zona" titulo="Por viaje a mi obra" nota={cat.nota_zona} modo="opcion" n={forma === 'viaje' ? 1 : 0} onClick={() => cambiar('viaje')} />
-        <Tarjeta icono="material" titulo="Pedido grande" nota={`Tolva o full · desde ${minimoCamionDe(cat)} ton`} modo="opcion" n={forma === 'grande' ? 1 : 0} onClick={() => cambiar('grande')} />
+        <Tarjeta icono="material" titulo="Pedido grande" nota={`Tolva, full o camión de 7 o 14 m³ · desde ${minimoCamionDe(cat)} ton`} modo="opcion" n={forma === 'grande' ? 1 : 0} onClick={() => cambiar('grande')} />
+        {conCal ? (
+          <Tarjeta icono="material" titulo="Cal de patio" nota="Puesta en obra · área metropolitana de Monterrey" modo="opcion" n={forma === 'cal' ? 1 : 0} onClick={() => cambiar('cal')} />
+        ) : null}
       </div>
     </section>
   );
 }
 
 /**
- * EL PEDIDO GRANDE: CAMIÓN Y ZONA, una sola vez para todo el material (va a
- * una obra). El flete es por tonelada según el camión y la zona (Tarifas ›
- * Triturados); sin precio todavía, se dice que se confirma aparte. En el panel
- * y en el enlace se puede escribir el flete de esta cotización.
+ * EL PEDIDO GRANDE: CAMIÓN Y LUGAR, una sola vez para todo el material (va a
+ * una obra). Camiones: tolva, full y de 7 y 14 m³ (2026-11-06). El flete NO
+ * sale de las zonas (2026-11-06, el dueño: "en ese tipo de viajes no salen las
+ * opciones de las zonas, ya que ahí el flete cambia"): el lugar se escribe
+ * libre y, en el panel y el enlace, el flete por tonelada también; sin él, se
+ * dice que se confirma aparte.
  */
 function EntregaCamion({
   cat, materiales, actualizar, mostrarPrecios, editarPrecios, tocado, municipio, ubicacion,
@@ -346,26 +393,25 @@ function EntregaCamion({
 }) {
   const primero = materiales[0];
   const aTodos = (patch: Partial<LineaMaterial>) => materiales.forEach((l) => actualizar(l.uid, patch));
-  const zona = zonaPorNombre(cat, primero.fleteZona);
   const camion = camionDe(cat, primero.camion);
   const ton = materiales.reduce((s, l) => s + num(l.toneladas), 0);
   const minimo = minimoCamionDe(cat);
-  const tarifa = camion ? fleteCamion(cat, camion.id, primero.fleteZona) : 0;
-  const fleteTon = primero.fleteTon || tarifa;
-  const sugerida = !zona ? zonaDelMunicipio(cat, municipio) : null;
+  const fleteTon = primero.fleteTon;
+  /** El lugar de la obra, escrito libre. */
+  const lugar = primero.fleteZona.trim() === RECOGE_EN_PLANTA ? '' : primero.fleteZona.trim();
   return (
     <div className="cz-flete">
       <div className="cz-flete-h">
-        <b>¿En qué camión y a qué zona?</b>
-        <span>El flete va por tonelada, según el camión y la zona de la obra.</span>
+        <b>¿En qué camión y a dónde?</b>
+        <span>El flete por tonelada depende del camión y del lugar de la obra.</span>
       </div>
-      <div className="cz-cards cz-cards-2">
+      <div className="cz-cards cz-cards-2 cz-opciones">
         {camionesDe(cat).map((c) => (
           <Tarjeta
             key={c.id}
             icono="zona"
             titulo={c.nombre}
-            nota={c.detalle || 'Puesto en obra'}
+            nota={c.detalle && !c.nombre.includes(c.detalle) ? c.detalle : 'Puesto en obra'}
             modo="opcion"
             n={primero.camion === c.id ? 1 : 0}
             onClick={() => aTodos({ camion: c.id, fleteTon: 0 })}
@@ -373,39 +419,32 @@ function EntregaCamion({
         ))}
       </div>
       <div className="cz-entrega-zonas">
-        <label className="cz-lbl" htmlFor="cz-zona-camion">¿A qué zona? <i aria-hidden>*</i></label>
-        <ShSelect value={zona?.id ?? ''} onValueChange={(v) => { const z = cat.zonas.find((x) => x.id === v); if (z) aTodos({ fleteZona: z.nombre, fleteTon: 0 }); }}>
-          <ShSelectTrigger id="cz-zona-camion" aria-label="Zona de la obra" aria-invalid={(tocado && !zona) || undefined} className="max-w-md">
-            <ShSelectValue placeholder="Elige la zona de la obra" />
-          </ShSelectTrigger>
-          <ShSelectContent>
-            {cat.zonas.map((z) => {
-              const pt = camion && mostrarPrecios ? fleteCamion(cat, camion.id, z.nombre) : 0;
-              return <ShSelectItem key={z.id} value={z.id}>{z.nombre}{pt > 0 ? ` · ${money(pt)} / ton` : ''}</ShSelectItem>;
-            })}
-          </ShSelectContent>
-        </ShSelect>
-        {sugerida ? (
-          <button type="button" className="cz-sugerencia" onClick={() => aTodos({ fleteZona: sugerida.nombre, fleteTon: 0 })}>
-            <MapPin className="size-4" aria-hidden />
-            <span>La obra es en {municipio}: usar <b>{sugerida.nombre}</b></span>
-          </button>
-        ) : null}
-        {tocado && !zona ? <p className="cz-err">Elige la zona de la obra.</p> : null}
+        {/* LIBRE (2026-11-06): cualquier lugar; sin las zonas de flete de los viajes. */}
+        <label className="cz-lbl" htmlFor="cz-zona-camion">¿A dónde va? <i aria-hidden>*</i></label>
+        <ShInput
+          id="cz-zona-camion"
+          className="max-w-md"
+          value={lugar}
+          maxLength={120}
+          placeholder={municipio?.trim() ? `Ej. ${municipio.trim()}, parque industrial, colonia…` : 'Ej. parque industrial, colonia, municipio…'}
+          aria-invalid={(tocado && !lugar) || undefined}
+          onChange={(e) => aTodos({ fleteZona: e.target.value })}
+        />
+        {tocado && !lugar ? <p className="cz-err">Escribe a dónde va: el lugar de la obra.</p> : null}
       </div>
       <p className={tocado && ton < minimo ? 'cz-err' : 'cz-help'} style={{ margin: 0 }}>
         {ton < minimo ? `Llevas ${ton.toLocaleString('es-MX')} ton: el pedido en tolva o full es desde ${minimo}.` : `${ton.toLocaleString('es-MX')} ton en total.`}
       </p>
       {editarPrecios ? (
-        <Campo label="Flete por tonelada" help={tarifa > 0 ? `Tabulador: ${money(tarifa)}` : 'Sin precio en Tarifas todavía: escríbelo o se confirma aparte'}>
-          <NumeroTexto ariaLabel="flete por tonelada" placeholder={tarifa > 0 ? String(tarifa) : 'Ej. 150'} valor={primero.fleteTon ? String(primero.fleteTon) : ''} onChange={(v) => aTodos({ fleteTon: num(v) })} />
+        <Campo label="Flete por tonelada" help="Escríbelo si ya lo sabes; si no, se confirma aparte.">
+          <NumeroTexto ariaLabel="flete por tonelada" placeholder="Ej. 150" valor={primero.fleteTon ? String(primero.fleteTon) : ''} onChange={(v) => aTodos({ fleteTon: num(v) })} />
         </Campo>
       ) : null}
-      {camion && zona ? (
+      {camion && lugar ? (
         fleteTon > 0 ? (
           mostrarPrecios ? <Importe texto={`Flete en ${camion.nombre.toLowerCase()} · ${ton.toLocaleString('es-MX')} ton × ${money(fleteTon)}`} valor={money(fleteTon * ton)} /> : null
         ) : (
-          <p className="cz-help" style={{ margin: 0 }}>El flete en {camion.nombre.toLowerCase()} a esta zona se confirma aparte: todavía no está en este total.</p>
+          <p className="cz-help" style={{ margin: 0 }}>El flete en {camion.nombre.toLowerCase()} se confirma aparte: todavía no está en este total.</p>
         )
       ) : null}
       {ubicacion}
@@ -471,6 +510,9 @@ function FilaMaterial({
   const prod = cat.productos.find((p) => p.id === l.id);
   const precio = num(l.precio) || prod?.precio_ton || 0;
   const ton = num(l.toneladas);
+  // La cal de patio (2026-11-06): se cobra el mínimo (28 ton) si piden menos, como el documento.
+  const minimo = prod?.en_obra ? Number(prod.minimo_ton ?? 0) : 0;
+  const cobradas = Math.max(ton, minimo);
 
   function elegir(id: string) {
     const p = cat.productos.find((x) => x.id === id);
@@ -524,7 +566,12 @@ function FilaMaterial({
           <NumeroTexto decimal ariaLabel="precio por tonelada" valor={l.precio} onChange={(v) => actualizar(l.uid, { precio: v })} />
         </Campo>
       ) : null}
-      {mostrarPrecios ? <Importe texto={`${ton.toLocaleString('es-MX')} ton × ${money2(precio)}`} valor={money(precio * ton)} /> : null}
+      {mostrarPrecios ? (
+        <Importe
+          texto={`${cobradas.toLocaleString('es-MX')} ton${ton > 0 && cobradas > ton ? ' (mínimo)' : ''} × ${money2(precio)}${prod?.en_obra ? ' · puesta en obra' : ''}`}
+          valor={money(precio * (ton > 0 ? cobradas : 0))}
+        />
+      ) : null}
       <Quitar onClick={() => quitar(l.uid)} que={l.nombre || 'material'} />
     </div>
   );
@@ -564,7 +611,7 @@ function FilaZona({
               <ShSelectValue placeholder="Elige el material" />
             </ShSelectTrigger>
             <ShSelectContent>
-              {cat.productos.map((p) => {
+              {cat.productos.filter((p) => !p.en_obra).map((p) => {
                 // En el panel, el precio del viaje a ESA zona junto a cada material.
                 const pv = mostrarPrecios ? precioZona(cat, z, p.id) : null;
                 return (
@@ -665,9 +712,65 @@ export function zonaDelMunicipio(cat: CatalogoTriturados, municipio: string | nu
   if (!m) return null;
   const partes = (nombre: string) => nombre.split(/[·,]/).map(normal).filter(Boolean);
   return (
+    // Primero los que se le agregaron a la zona (2026-11-06): esos se eligieron a propósito.
+    cat.zonas.find((z) => (z.municipios ?? []).some((x) => normal(x) === m)) ??
     cat.zonas.find((z) => partes(z.nombre).some((p) => p === m || p === `${m} centro`)) ??
     cat.zonas.find((z) => partes(z.nombre).some((p) => m.startsWith(`${p} `) || p.startsWith(`${m} `))) ??
     null
+  );
+}
+
+/**
+ * UN MUNICIPIO QUE NO ESTÁ EN NINGUNA ZONA (2026-11-06, el dueño: "cuando
+ * hagan falta municipios en triturados, poner un campo para agregarlo"). En el
+ * enlace y el panel se elige su zona una vez y se guarda (`guardar`): desde
+ * ahí la zona del flete sale sola para ese municipio. Se guarda en la zona del
+ * tabulador, así que también se ve y se corrige en Tarifas › Triturados.
+ */
+function MunicipioSinZona({ cat, municipio, guardar }: {
+  cat: CatalogoTriturados;
+  municipio: string;
+  guardar: (municipio: string, zonaId: string) => Promise<void>;
+}) {
+  const [zonaId, setZonaId] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <section className="cz-card">
+      <h2 className="cz-card-h">{municipio} no está en ninguna zona de flete</h2>
+      <p className="cz-card-s">Elige en qué zona queda. Se guarda y la próxima vez su zona sale sola.</p>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 12 }}>
+        <ShSelect value={zonaId} onValueChange={(v) => { setZonaId(v); setError(null); }}>
+          <ShSelectTrigger id="cz-zona-municipio" aria-label={`Zona de ${municipio}`} className="max-w-md">
+            <ShSelectValue placeholder={`¿En qué zona queda ${municipio}?`} />
+          </ShSelectTrigger>
+          <ShSelectContent>
+            {cat.zonas.map((z) => <ShSelectItem key={z.id} value={z.id}>{z.nombre}</ShSelectItem>)}
+          </ShSelectContent>
+        </ShSelect>
+        <button
+          type="button"
+          className="cz-agregar"
+          style={{ width: 'auto', padding: '0 16px' }}
+          disabled={!zonaId || guardando}
+          onClick={async () => {
+            setGuardando(true);
+            setError(null);
+            try {
+              await guardar(municipio, zonaId);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'No se pudo guardar. Inténtalo otra vez.');
+            } finally {
+              setGuardando(false);
+            }
+          }}
+        >
+          <Plus className="size-4" aria-hidden />
+          {guardando ? 'Guardando…' : `Guardar ${municipio} en esa zona`}
+        </button>
+      </div>
+      {error ? <p className="cz-err" style={{ margin: '8px 0 0' }}>{error}</p> : null}
+    </section>
   );
 }
 
@@ -712,7 +815,7 @@ function ZonaEntrega({ cat, materiales, aTodos, tocado, municipio, mostrarPrecio
   const usar = (z: CatalogoTriturados['zonas'][number]) => aTodos({ fleteTon: fleteTonDeZona(cat, z), fleteZona: z.nombre });
   return (
     <div className="cz-entrega">
-      <div className="cz-cards cz-cards-2">
+      <div className="cz-cards cz-cards-2 cz-opciones">
         <Tarjeta
           icono="banco"
           titulo="Lo recojo en planta"

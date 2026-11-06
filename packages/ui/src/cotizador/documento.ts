@@ -72,6 +72,7 @@ export const DOCUMENTO_CSS = `
 .czdoc tbody tr.flete td{ color:#5a626b; font-size:10.5px; }
 .czdoc td.r, .czdoc th.r{ text-align:right; white-space:nowrap; }
 .czdoc td.concepto{ font-weight:600; }
+.czdoc td.pc{ color:#5a626b; font-style:italic; }
 .czdoc .czdoc-tot{ margin-left:auto; width:262px; }
 .czdoc .czdoc-tot .tr{ display:flex; justify-content:space-between; padding:5px 0; font-size:11.5px; }
 .czdoc .czdoc-tot .tr.g{ border-top:2px solid #11161c; margin-top:4px; padding-top:8px;
@@ -144,6 +145,7 @@ export const DOCUMENTO_CSS = `
   .czdoc tbody td.c-u{ grid-area:u; color:#5a626b; font-size:12px; }
   .czdoc tbody td.c-pu{ grid-area:pu; text-align:left; color:#5a626b; font-size:12px; }
   .czdoc tbody td.c-pu::before{ content:'× '; }
+  .czdoc tbody td.c-pu.pc::before{ content:''; }
   .czdoc tbody td.c-imp{ grid-area:imp; font-size:13px; font-weight:700; color:#15181c; }
   .czdoc tbody tr.flete td.concepto{ font-weight:500; font-size:12px; color:#5a626b; }
   .czdoc .czdoc-tot{ width:100%; }
@@ -172,9 +174,12 @@ export function documentoCuerpo(d: DatosDocumento): string {
   const filas = calc.renglones
     .map((r) => {
       const num = r.clase === 'flete' ? '' : String(++n);
-      const importes = conPrecio
-        ? `<td class="r c-pu">${money2(r.pu)}</td><td class="r c-imp">${money2(r.importe)}</td>`
-        : '';
+      // A la medida sin precio todavía (2026-11-06): «Por cotizar», no «$0.00».
+      const importes = !conPrecio
+        ? ''
+        : r.porCotizar
+          ? '<td class="r c-pu pc">Por cotizar</td><td class="r c-imp pc">—</td>'
+          : `<td class="r c-pu">${money2(r.pu)}</td><td class="r c-imp">${money2(r.importe)}</td>`;
       // Las clases c-* acomodan el renglón en el celular (ver DOCUMENTO_CSS).
       return `<tr class="${esc(r.clase)}"><td class="c-n">${num}</td><td class="concepto">${esc(r.concepto)}</td>
         <td class="c-u">${esc(r.unidad)}</td><td class="r c-cant">${cantidad(r.cantidad, r.unidad)}</td>${importes}</tr>`;
@@ -185,12 +190,18 @@ export function documentoCuerpo(d: DatosDocumento): string {
     ? '<th>No.</th><th>Concepto</th><th>U.</th><th class="r">Cant.</th><th class="r">P.U.</th><th class="r">Importe</th>'
     : '<th>No.</th><th>Concepto</th><th>U.</th><th class="r">Cant.</th>';
 
+  // Lo pedido a la medida: se avisa que su precio llega aparte; si TODO es a la medida, no hay totales en $0.
+  const porCotizar = calc.renglones.some((r) => r.porCotizar);
   const totales = conPrecio
-    ? `<div class="czdoc-tot">
+    ? `${calc.subtotal > 0 || !porCotizar
+        ? `<div class="czdoc-tot">
         <div class="tr"><span>Subtotal</span><span>${money2(calc.subtotal)}</span></div>
         ${calc.con_iva ? `<div class="tr"><span>I.V.A. ${Math.round(calc.iva_tasa * 100)}%</span><span>${money2(calc.iva)}</span></div>` : ''}
         <div class="tr g"><span>Total</span><span>${money2(calc.total)}</span></div>
       </div>`
+        : ''}${porCotizar
+        ? '<div class="czdoc-note">Lo marcado «Por cotizar» todavía no tiene precio de lista: MAQSER24 le confirma su precio con la cotización.</div>'
+        : ''}`
     : `<div class="czdoc-note">${d.notaSinPrecios ? esc(d.notaSinPrecios) : `Esta solicitud no incluye importes. Un asesor le enviará la
         cotización con precios y vigencia.`}</div>`;
 
@@ -240,7 +251,8 @@ export function documentoCuerpo(d: DatosDocumento): string {
 
   // A dónde se paga (2026-10-30): solo con precio, y solo las cuentas con banco y algún número.
   const cuentas = (d.pago?.cuentas ?? []).filter((c) => c.banco.trim() && (c.cuenta.trim() || c.clabe.trim()));
-  const pago = conPrecio && d.pago && cuentas.length
+  // Sin nada que pagar todavía (todo «Por cotizar», 2026-11-06) no van los datos bancarios.
+  const pago = conPrecio && calc.total > 0 && d.pago && cuentas.length
     ? `<div class="czdoc-pago"><h4>Datos para el pago</h4>
         ${d.pago.titular.trim() || d.pago.rfc.trim()
           ? `<p class="czdoc-pago-tit">${esc(d.pago.titular)}${d.pago.rfc.trim() ? ` <span>· RFC ${esc(d.pago.rfc)}</span>` : ''}</p>`

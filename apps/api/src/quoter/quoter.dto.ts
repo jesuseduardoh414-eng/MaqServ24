@@ -3,12 +3,15 @@ import { z } from 'zod';
 import { zCorreo, zTelefono } from '../common/campos';
 import {
   camionDe,
+  categoriaConPrecio,
+  cotizadorDelSitio,
+  SERVICIO_A_MANO,
+  type Tabuladores,
   esCotizadorTipo,
   esUbicacionDeMapas,
   faltaMinimoCamion,
   faltaZona,
   trituradosDe,
-  fleteCamion,
   opcionesCotizadorSchema,
   porZona,
   servicioDe,
@@ -150,7 +153,23 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
       }
       if (p.tipo === 'servicio') {
         const sv = servicioDe(cat, p.id);
-        // El servicio escrito a mano es solo del panel (2026-10-30).
+        /**
+         * A LA MEDIDA DESDE EL SITIO (2026-11-06, el dueño: "para los clientes,
+         * solo escogen el material y después se cotiza"): lo que pide de una
+         * categoría SIN precio de lista (el block por tarima, venta de
+         * maquinaria) llega escrito a mano con su categoría y SIEMPRE en $0:
+         * sale «por cotizar» y el panel le pone precio. Un precio escrito a
+         * mano sigue siendo solo del panel (2026-10-30).
+         */
+        if (!sv && p.id === SERVICIO_A_MANO) {
+          const nombre = (p.nombre ?? '').trim().slice(0, 120);
+          const categoria = p.categoria ? cotizadorDelSitio(p.categoria) : null;
+          const tab: Tabuladores = { maquinaria: cat.tipo === 'maquinaria' ? cat : null, triturados: tri };
+          if (!nombre || !categoria || categoriaConPrecio(tab, categoria.clave)) {
+            throw new BadRequestException(`Partida ${n}: eso se pide con su cotizador. Vuelve a elegirlo.`);
+          }
+          return { tipo: 'servicio', id: SERVICIO_A_MANO, nombre, unidad: (p.unidad ?? 'pieza').trim().slice(0, 20) || 'pieza', categoria: categoria.clave, cantidad: p.cantidad, precio: 0 } as PartidaCotizador;
+        }
         if (!sv) throw new BadRequestException(`Partida ${n}: ese servicio no está en el tabulador. Pídelo a la medida en /cotizar.`);
         const { zona: _elegida, nombre: _nombre, unidad: _unidad, ...resto } = p;
         return sv && porZona(sv) && zonaObra ? { ...resto, precio: 0, zona: zonaObra } : { ...resto, precio: 0 };
@@ -161,10 +180,11 @@ export function partidasPublicas(tipo: CotizadorTipo, crudas: unknown[], cat: Ca
           throw new BadRequestException(`Partida ${n}: ese material no está en el tabulador. Pídelo a la medida en /cotizar.`);
         }
         const { precio: _p, nombre: _n, ...resto } = p;
-        // Pedido grande (2026-11-03): el flete es el del camión en esa zona (0 = se confirma aparte).
+        // Pedido grande: el flete de tolva y full no sale de una zona (2026-11-06); del sitio
+        // llega en 0 y se confirma aparte. El lugar escrito viaja en flete_zona.
         if (p.camion) {
           if (!camionDe(tri, p.camion)) throw new BadRequestException(`Partida ${n}: ese camión no está en el cotizador.`);
-          return { ...resto, flete_ton: fleteCamion(tri, p.camion, p.flete_zona) } as PartidaCotizador;
+          return { ...resto, flete_ton: 0 } as PartidaCotizador;
         }
         return { ...resto, flete_ton: fleteDelSitio(tri, p.flete_zona, p.flete_ton) } as PartidaCotizador;
       }

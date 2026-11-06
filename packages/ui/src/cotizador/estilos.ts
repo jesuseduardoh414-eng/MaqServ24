@@ -55,7 +55,8 @@ export const COTIZADOR_CSS = `
 
 /* ---- Campos ---- */
 .cz-row{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:13px; }
-.cz-field{ display:grid; gap:6px; min-width:0; align-content:start; }
+/* Su columna acotada (2026-11-06): un valor largo en un selector o buscador se corta con «…» en vez de ensanchar la tarjeta. */
+.cz-field{ display:grid; gap:6px; min-width:0; align-content:start; grid-template-columns:minmax(0, 1fr); }
 .cz-field.full{ grid-column:1/-1; }
 .cz-lbl{ font-size:11.5px; font-weight:700; letter-spacing:.025em; color:var(--cz-muted); }
 .cz-lbl .req{ color:var(--cz-accent); }
@@ -216,6 +217,60 @@ export const COTIZADOR_CSS = `
   .cz-fila-imp{ justify-items:start; text-align:left; min-height:0; }
 }
 
+/* ---- El celular, revisado (2026-11-06, el dueño: "en tolva y full los
+   botones se ven mal; revisa todo el diseño en móvil") ---- */
+@media (max-width: 640px){
+  /* Elegir UNA opción (cómo lo quiere, el camión, planta u obra): renglones a
+     todo lo ancho, ícono a la izquierda y la palomita centrada. Antes eran
+     tarjetas de dos en dos y la tercera quedaba sola. */
+  .cz-cards.cz-opciones{ grid-template-columns:minmax(0, 1fr); gap:8px; }
+  .cz-opciones .cz-pick{ display:grid; grid-template-columns:38px minmax(0, 1fr); column-gap:12px; row-gap:1px;
+    align-items:center; padding:11px 44px 11px 12px; min-height:62px; }
+  .cz-opciones .cz-pick .ico{ grid-row:1 / span 2; margin:0; }
+  .cz-opciones .cz-pick b, .cz-opciones .cz-pick .pu{ grid-column:2; }
+  .cz-opciones .cz-pick-badges{ top:50%; right:12px; transform:translateY(-50%); }
+  /* Los renglones (material, viaje): sin el hueco a la derecha que apartaba la
+     ✕; el primer campo va solo en su línea y la ✕ queda junto a su etiqueta. */
+  .cz-fila{ padding:12px; gap:10px; }
+  .cz-fila > .cz-field:first-child{ flex:1 1 100%; }
+  .cz-fila > .cz-field:first-child .cz-lbl, .cz-fila > .cz-field:first-child > label{ padding-right:38px; }
+  .cz-fila-rm{ top:4px; right:4px; width:36px; height:36px; }
+  .cz-fila > .cz-field, .cz-fila > .cz-qty{ flex:1 1 calc(50% - 5px); }
+  /* El importe del renglón en una línea: lo que es a la izquierda, el monto a la derecha. */
+  .cz-fila-imp{ flex:1 1 100%; display:flex; justify-content:space-between; align-items:baseline; gap:10px;
+    padding:8px 0 0; border-top:1px dashed var(--cz-border); }
+  .cz-fila-imp span{ white-space:normal; }
+  /* Menos margen en las tarjetas anidadas: cada borde le quitaba ancho a los campos. */
+  .cz-card{ padding:16px; }
+  .cz-line{ padding:12px; }
+  .cz-line-h{ margin-bottom:12px; padding-bottom:12px; }
+  /* El tiempo de un equipo de dos en dos (días | horas extra, equipos | costo):
+     uno debajo de otro eran pantallas enteras. «Horas en total» va completo. */
+  .cz-ctrl{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px 10px; }
+  .cz-ctrl > .cz-field:first-child{ grid-column:1 / -1; }
+  .cz-stp button{ width:36px; }
+  /* En el documento, «Editar» y el otro botón (pedir, guardar o nueva) del mismo ancho. */
+  .cz-barra-fila[data-final] > button{ flex:1 1 0; min-width:0; }
+  /* Los botones punteados («+ Otro material…»): el texto largo baja de línea en vez de salirse del borde. */
+  .cz-agregar{ padding:10px 12px; font-size:13px; line-height:1.35; text-align:center; }
+  .cz-agregar svg{ flex-shrink:0; }
+}
+/* El flete y la entrega (2026-11-06): una zona de nombre largo («Zona 7 ·
+   Carretera Nacional, Estanzuela, Icamole, Mina, Guadalupe») medía su ancho y
+   empujaba toda la sección —Tolva, Full y los textos— fuera de la pantalla.
+   La columna queda acotada y el selector corta el nombre con «…». */
+.cz-flete, .cz-entrega, .cz-entrega-zonas, .cz-ubicacion{ grid-template-columns:minmax(0, 1fr); }
+.cz-flete [role="combobox"], .cz-entrega-zonas [role="combobox"], .cz-fila [role="combobox"]{ min-width:0; }
+/* En pantallas táctiles el :hover se queda pegado en lo último que se tocó y
+   parecía elegido: el realce solo con mouse. */
+@media (hover: none){
+  .cz-pick:not([data-on="1"]):hover{ border-color:var(--cz-border); transform:none; box-shadow:none; }
+  .cz-agregar:hover{ background:transparent; border-color:color-mix(in srgb, var(--cz-accent) 55%, var(--cz-border)); }
+  .cz-chip:not([data-on="1"]):hover{ border-color:var(--cz-border); color:var(--cz-muted); }
+  .cz-sugerencia:hover{ border-color:color-mix(in srgb, var(--cz-accent) 40%, var(--cz-border)); }
+  .cz-btn.primary:hover:not(:disabled){ transform:none; }
+}
+
 /* ---- Botones ---- */
 .cz-btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:46px; padding:0 20px;
   border-radius:var(--radius-button, 10px); font-size:14px; font-weight:700; cursor:pointer; border:1px solid transparent; }
@@ -263,7 +318,8 @@ export const COTIZADOR_CSS = `
    panel, fija, tapaba el menú lateral. */
 .cz-cliente label, .cz-datos label{ font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--cz-muted); }
 .cz-cliente + .cz-card{ margin-top:14px; }
-.cz-datos{ display:grid; gap:13px; }
+/* Acotadas al ancho de la tarjeta (2026-11-06): un cliente de nombre largo empujaba el campo fuera. */
+.cz-datos{ display:grid; gap:13px; grid-template-columns:minmax(0, 1fr); }
 .cz-dos{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
 .cz-barra{ position:sticky; bottom:0; z-index:30; margin-top:16px; background:var(--cz-surface); border:1px solid var(--cz-border);
   border-radius:var(--cz-radius); box-shadow:0 -18px 40px -24px rgba(0,0,0,.6); padding:12px 14px calc(env(safe-area-inset-bottom, 0px) + 12px); }

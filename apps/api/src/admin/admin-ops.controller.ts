@@ -5,6 +5,7 @@ import {
 import { z } from 'zod';
 import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/quote-validity';
 import { prisma } from '@maqserv/db';
+import { renglonesPorCotizar, type CalculoCotizacion } from '@maqserv/config';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailerService } from '../notifications/mailer.service';
@@ -244,6 +245,15 @@ export class AdminOpsController {
     const reqDoc = (q.requirements ?? {}) as { quoterId?: unknown; folio?: unknown };
     const documentoId = typeof reqDoc.quoterId === 'number' ? reqDoc.quoterId : null;
     const documentoFolio = documentoId && typeof reqDoc.folio === 'string' ? reqDoc.folio : null;
+    // Lo que el cliente pidió a la medida (2026-11-06) se manda solo con precio: «Por cotizar» no le llega.
+    if (respondiendo && documentoId) {
+      const doc = await prisma.quoter_quotes.findUnique({ where: { id: documentoId }, select: { snapshot: true } });
+      const calc = (doc?.snapshot as { calc?: CalculoCotizacion } | null)?.calc;
+      const faltan = calc ? renglonesPorCotizar(calc) : [];
+      if (faltan.length) {
+        throw new BadRequestException(`Falta ponerle precio a: ${faltan.map((r) => r.nombre ?? r.concepto).join(', ')}. Usa el lápiz de cada renglón y vuelve a mandarlo.`);
+      }
+    }
     const subtotal = documentoId ? Number(q.subtotal) : (parsed.data.subtotal ?? Number(q.subtotal));
     const freight = documentoId ? Number(q.freight_cost) : (parsed.data.freightCost ?? Number(q.freight_cost));
     const tax = documentoId ? Number(q.tax) : (parsed.data.tax ?? Number(q.tax));

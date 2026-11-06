@@ -13,6 +13,7 @@ import {
   quitarPrecio,
   renglonesPorPartida,
   servicioDe,
+  SERVICIO_A_MANO,
   minimoHorasDe,
   porZona,
   zonaDe,
@@ -565,7 +566,8 @@ function dondeObra(o: { address: string | null; municipality: string | null }): 
 function nombreDePartida(cat: CatalogoCotizador, p: PartidaCotizador): string {
   if (cat.tipo === 'maquinaria') {
     if (p.tipo === 'equipo') return equipoDe(cat, p.id)?.nombre ?? 'Equipo que ya no está en el tabulador';
-    if (p.tipo === 'servicio') return servicioDe(cat, p.id)?.nombre ?? 'Servicio que ya no está en el tabulador';
+    // Escrito a mano (panel) o pedido a la medida (sitio, 2026-11-06): su propio nombre.
+    if (p.tipo === 'servicio') return servicioDe(cat, p.id)?.nombre ?? (p.id === SERVICIO_A_MANO && p.nombre?.trim() ? p.nombre.trim() : 'Servicio que ya no está en el tabulador');
   } else {
     if (p.tipo === 'material') return productoDe(cat, p.id)?.nombre ?? p.nombre ?? 'Material';
     if (p.tipo === 'zona') return `${productoDe(cat, p.producto_id)?.nombre ?? 'Material'} · ${zonaDe(cat, p.zona_id)?.nombre ?? 'zona'}`;
@@ -639,7 +641,7 @@ function Partida({ cat, p, filas, edita, puedeTarifas, onCantidad, onQuitar, onP
             </>
           ) : p.tipo === 'servicio' ? (
             <>
-              <Num label={`Cantidad (${(cat.tipo === 'maquinaria' && servicioDe(cat, p.id)?.unidad) || 'viajes'})`} valor={p.cantidad ?? 1} onCambio={(n) => onCantidad({ cantidad: n })} min={1} max={999} disabled={!edita} />
+              <Num label={`Cantidad (${(cat.tipo === 'maquinaria' && servicioDe(cat, p.id)?.unidad) || p.unidad || 'viajes'})`} valor={p.cantidad ?? 1} onCambio={(n) => onCantidad({ cantidad: n })} min={1} max={100_000} disabled={!edita} />
               {zonasAgua.length ? (
                 <label>
                   Zona
@@ -702,10 +704,18 @@ function Renglon({ f, edita, puedeTarifas, onPrecio, onTarifa }: {
             {f.fuente}
           </div>
         </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div className="adm-num" style={{ fontSize: 14, fontWeight: 600 }}>{money(f.importe)}</div>
-          <div className="adm-num" style={{ fontSize: 12, color: 'var(--adm-muted)', marginTop: 2 }}>{cantidad(f.cantidad)} {f.unidad.toLowerCase()} × {money(f.pu)}</div>
-        </div>
+        {f.porCotizar ? (
+          // Pedido a la medida (2026-11-06): todavía sin precio; «Mandar precio» no deja enviarlo así.
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--adm-warn)' }}>Por cotizar</div>
+            <div className="adm-num" style={{ fontSize: 12, color: 'var(--adm-muted)', marginTop: 2 }}>{cantidad(f.cantidad)} {f.unidad.toLowerCase()} · sin precio</div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+            <div className="adm-num" style={{ fontSize: 14, fontWeight: 600 }}>{money(f.importe)}</div>
+            <div className="adm-num" style={{ fontSize: 12, color: 'var(--adm-muted)', marginTop: 2 }}>{cantidad(f.cantidad)} {f.unidad.toLowerCase()} × {money(f.pu)}</div>
+          </div>
+        )}
         {edita && f.edicion ? (
           <IconBtn icon="ph-pencil-simple" label={`Cambiar el precio de ${f.concepto}`} plain onClick={() => { setAbierto(!abierto); setValor(String(f.edicion?.valor ?? '')); }} style={{ marginTop: -4 }} />
         ) : null}

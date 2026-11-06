@@ -3,6 +3,16 @@
 /** Pesos redondeados: para tarjetas, chips y totales de pantalla. */
 export const money = (n: number): string => `$${Math.round(Number(n) || 0).toLocaleString('es-MX')}`;
 
+/**
+ * Precio de un servicio en pantalla (2026-11-06: el riego de impregnación va a
+ * $10.50 el litro y salía «$11»): pesos enteros como `money`, con centavos
+ * solo cuando el precio los tiene. Así lo que se ve cuadra con el documento.
+ */
+export const precioEnPantalla = (n: number): string => {
+  const v = Math.round((Number(n) || 0) * 100) / 100;
+  return Number.isInteger(v) ? money(v) : money2(v);
+};
+
 /** Pesos con centavos: para el documento, donde la suma tiene que cuadrar. */
 export const money2 = (n: number): string =>
   `$${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('es-MX', {

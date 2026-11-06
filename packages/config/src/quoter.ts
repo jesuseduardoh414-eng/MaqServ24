@@ -232,6 +232,14 @@ const productoSchema = z.object({
   proveedor_id: proveedorDe(),
   productos: productosDe(),
   oculto: ocultoDe(),
+  /**
+   * Ya puesto en obra (2026-11-06, la cal de patio): su precio por tonelada
+   * incluye el flete, no se le suma ninguno, y se cotiza en su propia forma
+   * («Cal de patio» en «¿Cómo lo quieres?»), no en planta, viaje ni grande.
+   */
+  en_obra: z.boolean().optional(),
+  /** Toneladas que se cobran como mínimo (la cal: se pagan 28 para programar la tolva). */
+  minimo_ton: z.number().min(0).max(1000).optional(),
 });
 
 const zonaSchema = z.object({
@@ -239,6 +247,13 @@ const zonaSchema = z.object({
   nombre: z.string().min(1).max(160),
   flete: z.number().min(0),
   precios: z.record(z.string(), z.number().min(0)).optional(),
+  /**
+   * Municipios de la zona que su nombre no dice (2026-11-06, el dueño: "cuando
+   * hagan falta municipios en triturados, poner un campo para agregarlo"). Se
+   * agregan al cotizar en el enlace o el panel, o en Tarifas › Triturados; con
+   * ellos la zona del flete se elige sola.
+   */
+  municipios: z.array(z.string().trim().min(1).max(80)).max(200).optional(),
 });
 
 /**
@@ -422,6 +437,13 @@ export interface RenglonCotizacion {
   importe: number;
   /** Nota corta para la pantalla; el documento impreso no la usa. */
   detalle?: string;
+  /** Pedido a la medida sin precio todavía (2026-11-06): importe 0, el documento dice «Por cotizar». */
+  porCotizar?: boolean;
+}
+
+/** ¿Le falta precio a algo? Entonces no se le puede mandar al cliente como cotización. */
+export function renglonesPorCotizar(calc: { renglones: RenglonCotizacion[] }): RenglonCotizacion[] {
+  return calc.renglones.filter((r) => r.porCotizar);
 }
 
 export interface CalculoCotizacion {
@@ -676,7 +698,29 @@ export function calcularMaquinaria(
         const nombre = (p.nombre ?? '').trim();
         const precio = decimal(p.precio);
         const cantidad = entero(p.cantidad, 1);
-        if (p.id !== SERVICIO_A_MANO || !nombre || precio <= 0) continue;
+        if (p.id !== SERVICIO_A_MANO || !nombre) continue;
+        if (precio <= 0) {
+          /**
+           * A LA MEDIDA (2026-11-06, el dueño: "para los clientes, solo escogen
+           * el material y después se cotiza"): lo que el cliente pidió de una
+           * categoría sin precio de lista lleva su categoría y llega en $0. Sale
+           * «por cotizar», sin sumar, para que el panel le ponga precio con el
+           * lápiz; sin categoría, un renglón en cero no dice nada y se omite.
+           */
+          if (!p.categoria) continue;
+          renglones.push({
+            clase: 'servicio',
+            id: SERVICIO_A_MANO,
+            nombre,
+            concepto: nombre.toUpperCase(),
+            unidad: (p.unidad || 'servicio').toUpperCase(),
+            cantidad,
+            pu: 0,
+            importe: 0,
+            porCotizar: true,
+          });
+          continue;
+        }
         servicios += precio * cantidad;
         renglones.push({
           clase: 'servicio',
@@ -794,10 +838,16 @@ export function precioZona(cat: CatalogoTriturados, z: ZonaTriturado | null, pro
   return r2(Number(z.flete) + Number(prod.precio_ton) * cat.ton_por_viaje);
 }
 
-/** Tolva y full de fábrica: sin precios hasta que Dirección los mande (2026-11-03). */
+/**
+ * Los camiones del pedido grande: tolva y full (2026-11-03) y los camiones de
+ * 7 y 14 m³ (2026-11-06, el dueño: "tolva, full, camión de 7 metros cúbicos,
+ * camión de 14 metros cúbicos"). Su flete se escribe en cada cotización.
+ */
 export const CAMIONES_DE_FABRICA: CamionTriturado[] = [
   { id: 'tolva', nombre: 'Tolva', detalle: '30 m³ · 50 ton', precios_ton: {} },
   { id: 'full', nombre: 'Full', detalle: '90 ton', precios_ton: {} },
+  { id: 'camion7', nombre: 'Camión de 7 m³', detalle: '7 m³', precios_ton: {} },
+  { id: 'camion14', nombre: 'Camión de 14 m³', detalle: '14 m³', precios_ton: {} },
 ];
 export const MINIMO_CAMION_TON = 100;
 
@@ -858,19 +908,28 @@ function condicionesTriturados(
       ],
     });
   }
-  if (partidas.some((p) => p.tipo === 'material') && cat.condiciones.material) bloques.push(cat.condiciones.material);
+  // «Suministro por tonelada» (cargado en planta, usted manda su camión) solo cuando
+  // van por el material a la planta (2026-11-06, el dueño: "quitar la nota de suministro
+  // por tonelada en donde no sea que vayan por el material a planta").
+  const enObra = (p: PartidaTriturados) => p.tipo === 'material' && !!productoDe(cat, p.id)?.en_obra;
+  if (partidas.some((p) => p.tipo === 'material' && !p.camion && !enObra(p)) && cat.condiciones.material) bloques.push(cat.condiciones.material);
+  // La cal de patio, puesta en obra (2026-11-06): su pedido mínimo, la tolva y el ajuste al llegar.
+  if (partidas.some(enObra) && cat.condiciones.cal) bloques.push(cat.condiciones.cal);
   // El pedido grande lo dice el cálculo, no el tabulador: el camión y si el flete ya tiene precio.
   const grandes = partidas.filter((p): p is Extract<PartidaTriturados, { tipo: 'material' }> => p.tipo === 'material' && !!p.camion);
   if (grandes.length) {
     const camiones = [...new Set(grandes.map((p) => (camionDe(cat, p.camion)?.nombre ?? p.camion ?? '').toLowerCase()))].join(' y ');
-    const sinPrecio = grandes.some((p) => !(Number(p.flete_ton ?? 0) > 0) && fleteCamion(cat, p.camion, p.flete_zona) <= 0);
+    // El flete de tolva y full no sale de las zonas (2026-11-06): se escribe en cada cotización.
+    const sinPrecio = grandes.some((p) => !(Number(p.flete_ton ?? 0) > 0));
     bloques.push({
-      titulo: 'Pedido grande en tolva o full',
+      titulo: 'Pedido grande',
       puntos: [
-        `Pedido desde ${minimoCamionDe(cat)} toneladas, entregado en ${camiones} puesto en obra.`,
+        // Pedido del dueño (2026-11-06): "poner este costo es entregado en obra, en pedidos grandes".
+        'Este costo es entregado en obra.',
+        `Pedido desde ${minimoCamionDe(cat)} toneladas, entregado en ${camiones}.`,
         sinPrecio
           ? 'El flete se confirma por separado: no está incluido en este total.'
-          : 'El flete es por tonelada, según el camión y la zona de la obra.',
+          : 'El flete es por tonelada, según el camión y el lugar de la obra.',
       ],
     });
   }
@@ -896,23 +955,31 @@ export function calcularTriturados(
       // el catálogo y el nombre es obligatorio (si no, saldría un renglón mudo).
       const nombre = (p.nombre ?? prod?.nombre ?? '').trim();
       const precioTon = decimal(p.precio && Number(p.precio) > 0 ? p.precio : prod?.precio_ton ?? 0);
-      const ton = decimal(p.toneladas);
-      if (!nombre || ton <= 0 || precioTon <= 0) continue;
+      const pedidas = decimal(p.toneladas);
+      if (!nombre || pedidas <= 0 || precioTon <= 0) continue;
+      // Ya puesta en obra (la cal de patio, 2026-11-06): se cobra el mínimo si piden
+      // menos (las 28 ton que se pagan para programar la tolva) y nunca lleva flete aparte.
+      const enObra = !!prod?.en_obra;
+      const ton = enObra ? Math.max(pedidas, Number(prod?.minimo_ton ?? 0)) : pedidas;
       const importe = precioTon * ton;
       materiales += importe;
       renglones.push({
         clase: 'material',
         id: p.id,
         nombre,
-        concepto: nombre.toUpperCase(),
+        concepto: enObra ? `${nombre.toUpperCase()} · PUESTA EN OBRA` : nombre.toUpperCase(),
         unidad: 'TON',
         cantidad: ton,
         pu: r2(precioTon),
         importe: r2(importe),
+        ...(enObra && ton > pedidas ? { detalle: `Mínimo ${ton} ton (pidió ${pedidas})` } : {}),
       });
-      // Pedido grande (2026-11-03): sin flete negociado, el del camión en esa zona.
+      if (enObra) continue;
+      // Pedido grande: el flete por tonelada que se escribió en la cotización.
+      // Ya no sale de la zona (2026-11-06, el dueño: "en ese tipo de viajes no
+      // salen las opciones de las zonas, ya que ahí el flete cambia"); sin él, se confirma aparte.
       const camion = camionDe(cat, p.camion);
-      const fleteTon = decimal(p.flete_ton) || (camion ? fleteCamion(cat, camion.id, p.flete_zona) : 0);
+      const fleteTon = decimal(p.flete_ton);
       if (fleteTon > 0) {
         const etiqueta = (p.flete_zona ?? '').trim();
         const importeFlete = fleteTon * ton;
@@ -1101,19 +1168,23 @@ export const LINEA_VENTA = 'venta-de-maquinaria';
  * Las unidades en que se cobra un servicio. La ficha elige una; lo que no la
  * trae (los tabuladores de antes) se cobra por viaje.
  */
-export const UNIDADES_DE_SERVICIO = ['viaje', 'm²', 'm³', 'pieza', 'millar', 'tonelada', 'equipo', 'servicio', 'hora', 'día'] as const;
+// El block se vende por pieza, tarima, viaje en Torton y viaje en tráiler (2026-11-06).
+export const UNIDADES_DE_SERVICIO = ['viaje', 'm²', 'm³', 'litro', 'pieza', 'tarima', 'millar', 'tonelada', 'viaje Torton', 'viaje tráiler', 'equipo', 'servicio', 'hora', 'día'] as const;
 
 /** Con qué unidad y qué condiciones nace un renglón nuevo de cada línea. */
-// La carpeta se cotiza por tonelada aplicada (su página de servicio); el riego, si va por m², se cambia en su ficha.
+// La carpeta se cotiza por tonelada aplicada (su página de servicio); el riego de impregnación, por litro (2026-11-06, en su ficha).
 const UNIDAD_DE_LINEA: Record<string, string> = { [LINEA_ASFALTO]: 'tonelada', [LINEA_MATERIALES]: 'pieza', [LINEA_VENTA]: 'equipo' };
 export const COND_DE_LINEA: Record<string, string> = { [LINEA_ASFALTO]: 'asfalto', [LINEA_MATERIALES]: 'materiales', [LINEA_VENTA]: 'venta' };
 export const unidadDeLinea = (linea: string | null | undefined): string => (linea && UNIDAD_DE_LINEA[linea]) || 'viaje';
 
-/** "3 viajes", "1 pieza", "250 m²": la cantidad con su unidad, para leerse. */
+/** "3 viajes", "1 pieza", "250 m²", "2 viajes Torton": la cantidad con su unidad, para leerse. */
 export function conUnidad(cantidad: number, unidad: string): string {
   const u = unidad || 'viaje';
-  if (cantidad === 1 || !/[a-zíá]$/i.test(u)) return `${cantidad} ${u}`;
-  return `${cantidad} ${/[aeiouáéíóú]$/i.test(u) ? `${u}s` : `${u}es`}`;
+  // De varias palabras (2026-11-06, «viaje Torton»): se pluraliza solo la primera.
+  const [primera, ...resto] = u.split(' ');
+  if (cantidad === 1 || !/[a-zíá]$/i.test(primera)) return `${cantidad} ${u}`;
+  const plural = /[aeiouáéíóú]$/i.test(primera) ? `${primera}s` : `${primera}es`;
+  return [String(cantidad), plural, ...resto].join(' ');
 }
 
 /** Línea de un servicio del cotizador de maquinaria (con respaldo por su bloque de condiciones). */
@@ -1592,6 +1663,55 @@ export const COTIZADORES_SITIO: readonly CotizadorDelSitio[] = [
   },
 ];
 
+/** Una pregunta del cuestionario de una categoría. */
+export interface PreguntaCuestionario {
+  clave: string;
+  etiqueta: string;
+  ejemplo?: string;
+  obligatoria?: boolean;
+  /** Texto largo (caja de varias líneas). */
+  largo?: boolean;
+  max: number;
+}
+
+/**
+ * CUESTIONARIOS POR CATEGORÍA (2026-11-06, el dueño: "venta de maquinaria, que
+ * aparezca una encuesta…; las preguntas son equipo que busca, marca, modelo,
+ * año y características; eso es un cuestionario que responde el cliente, y el
+ * encargado responde ya con el costo"). En el sitio sale en lugar de los
+ * productos; lo contestado va como renglón «Por cotizar» (el equipo, marca,
+ * modelo y año) y completo en las notas, y en el panel se le pone el costo.
+ */
+export const CUESTIONARIOS: Record<string, PreguntaCuestionario[]> = {
+  'venta-de-maquinaria': [
+    { clave: 'equipo', etiqueta: '¿Qué equipo busca?', ejemplo: 'Ej. Retroexcavadora, excavadora de 20 t', obligatoria: true, max: 80 },
+    { clave: 'marca', etiqueta: 'Marca', ejemplo: 'Ej. Caterpillar', max: 40 },
+    { clave: 'modelo', etiqueta: 'Modelo', ejemplo: 'Ej. 416F', max: 40 },
+    { clave: 'anio', etiqueta: 'Año', ejemplo: 'Ej. 2018, o de 2015 en adelante', max: 30 },
+    { clave: 'caracteristicas', etiqueta: 'Características', ejemplo: 'Horas de uso, aditamentos, para qué trabajo, presupuesto…', largo: true, max: 600 },
+  ],
+};
+
+/** El renglón de lo contestado: «Retroexcavadora · Caterpillar · 416F · 2018» (sin las características, que van en las notas). */
+export function renglonDeCuestionario(clave: string, respuestas: Record<string, string>): string {
+  const preguntas = CUESTIONARIOS[clave] ?? [];
+  return preguntas
+    .filter((p) => !p.largo)
+    .map((p) => (respuestas[p.clave] ?? '').trim())
+    .filter(Boolean)
+    .join(' · ')
+    .slice(0, 120);
+}
+
+/** Lo contestado, pregunta por pregunta, para las notas de la solicitud. */
+export function notasDeCuestionario(clave: string, respuestas: Record<string, string>): string {
+  return (CUESTIONARIOS[clave] ?? [])
+    .map((p) => [p.etiqueta.replace(/^¿|\?$/g, ''), (respuestas[p.clave] ?? '').trim()] as const)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join('\n');
+}
+
 export function cotizadorDelSitio(clave: string): CotizadorDelSitio | null {
   return COTIZADORES_SITIO.find((c) => c.clave === clave) ?? null;
 }
@@ -1659,6 +1779,37 @@ export function catalogoDeCategorias(tab: Tabuladores, activas: readonly string[
     return conTriturados ? combinar(base, conTriturados) : base;
   }
   return tab.triturados ?? tab.maquinaria;
+}
+
+/**
+ * LAS PRESENTACIONES DE UNA FICHA QUE ESPERA PRECIO (2026-11-06, el block: "se
+ * vende por pieza, tarima, viaje Torton y viaje tráiler; pendiente precio,
+ * dejar campo para poner precio"). Son sus renglones del tabulador aunque
+ * estén ocultos: mientras no tienen precio, la categoría se cotiza a la medida
+ * y cada presentación sale como su propia tarjeta, con su unidad.
+ */
+export function presentacionesDeFicha(tab: Tabuladores, productId: number): Array<{ id: string; nombre: string; unidad: string }> {
+  return (tab.maquinaria?.servicios ?? [])
+    .filter((s) => (s.productos ?? []).includes(productId))
+    .map((s) => ({ id: s.id, nombre: s.nombre, unidad: s.unidad || 'pieza' }));
+}
+
+/**
+ * Lo que se ofrece a la medida de una categoría sin precio: cada producto del
+ * catálogo y, si su ficha ya tiene presentaciones, una tarjeta por cada una.
+ * `clave` distingue las presentaciones de un mismo producto. Lo usan el sitio,
+ * el panel y el enlace.
+ */
+export function productosALaMedida(
+  tab: Tabuladores,
+  items: Array<{ id: number; name: string; priceUnit: string | null }>,
+): Array<{ id: number; clave: string; nombre: string; unidad: string | null }> {
+  return items.flatMap((p) => {
+    const pres = presentacionesDeFicha(tab, p.id);
+    return pres.length
+      ? pres.map((r) => ({ id: p.id, clave: `${p.id}:${r.id}`, nombre: r.nombre, unidad: r.unidad }))
+      : [{ id: p.id, clave: String(p.id), nombre: p.name, unidad: p.priceUnit }];
+  });
 }
 
 /** ¿La categoría tiene algo con precio de lista? Entonces se cotiza con su cotizador; si no, a la medida. */

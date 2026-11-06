@@ -1,5 +1,5 @@
 import { prisma } from '@maqserv/db';
-import { centroDeMunicipio } from '@maqserv/config';
+import { centroDeMunicipio, renglonesPorCotizar, type CalculoCotizacion } from '@maqserv/config';
 import { leerZonas, municipiosDe } from '../common/zonas';
 import { MatchingService } from './matching.service';
 import { normalizarZona } from './matching';
@@ -41,6 +41,14 @@ export async function avisosDeRevision(quoteId: number): Promise<string[]> {
       })
     : [{ id: q.id, total: q.total, service_category: q.service_category }];
   const avisos: string[] = [];
+
+  // Lo que el cliente pidió a la medida (2026-11-06) llega sin precio: va primero, porque sin eso no se puede mandar.
+  if (typeof req.quoterId === 'number') {
+    const doc = await prisma.quoter_quotes.findUnique({ where: { id: req.quoterId }, select: { snapshot: true } });
+    const calc = (doc?.snapshot as { calc?: CalculoCotizacion } | null)?.calc;
+    const faltan = calc ? renglonesPorCotizar(calc) : [];
+    if (faltan.length) avisos.push(`Lo pidió a la medida y falta ponerle precio con el lápiz: ${faltan.map((r) => r.nombre ?? r.concepto).join(', ')}.`);
+  }
 
   const total = partes.reduce((s, p) => s + Number(p.total ?? 0), 0);
   if (total > MONTO_ALTO) avisos.push(`Pasa de ${dinero(MONTO_ALTO)} (${dinero(total)}): revisa cantidades y tarifas con calma.`);

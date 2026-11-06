@@ -3,6 +3,7 @@ import {
   CATALOGO_TRITURADOS_DEFAULT,
   categoriaConPrecio,
   COTIZADORES_SITIO,
+  productosALaMedida,
   type CatalogoMaquinaria,
   type CatalogoTriturados,
   type Tabuladores,
@@ -31,7 +32,8 @@ export async function cargarCotizador(): Promise<{ tabuladores: Tabuladores; pro
     await Promise.all(
       sinPrecio.map(async (c) => {
         const r = await adminFetch<{ items: Array<{ id: number; name: string; priceUnit: string | null }> }>(`/catalog/products?category=${encodeURIComponent(c.linea)}`);
-        return [c.clave, (r?.items ?? []).map((p) => ({ id: p.id, nombre: p.name, unidad: p.priceUnit }))] as const;
+        // Con sus presentaciones, si su ficha ya las tiene (el block, 2026-11-06).
+        return [c.clave, productosALaMedida(tabuladores, r?.items ?? [])] as const;
       }),
     ),
   );

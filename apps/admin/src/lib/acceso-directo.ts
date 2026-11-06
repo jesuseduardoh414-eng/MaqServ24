@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { COTIZADORES_ACTIVOS, HUELLA_ACCESO_DIRECTO, esCotizadorTipo, type CotizadorTipo } from '@maqserv/config';
+import { HUELLA_ACCESO_DIRECTO, cotizadorDelSitio, type CotizadorDelSitio } from '@maqserv/config';
 
 /**
  * La llave del enlace del acceso directo (2026-10-29), comprobada en el panel
@@ -12,5 +12,9 @@ export function llaveValida(llave: string | null | undefined): boolean {
   return timingSafeEqual(huella, Buffer.from(HUELLA_ACCESO_DIRECTO, 'hex'));
 }
 
-/** El cotizador de la dirección, si existe y está activo. */
-export const tipoDirecto = (v: string): CotizadorTipo | null => (esCotizadorTipo(v) && COTIZADORES_ACTIVOS.includes(v) ? v : null);
+/**
+ * El cotizador de la dirección, si existe (2026-11-06: los siete del menú del
+ * sitio, no solo maquinaria y triturados). `/cotizar/<llave>/maquinaria` y
+ * `/triturados` siguen igual: son las mismas claves.
+ */
+export const cotizadorDirecto = (v: string): CotizadorDelSitio | null => cotizadorDelSitio(v);

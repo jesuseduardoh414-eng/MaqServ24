@@ -76,7 +76,8 @@ export function ShCombobox({
           aria-expanded={abierto}
           aria-describedby={describedBy}
           className={cn(
-            'flex h-11 w-full items-center justify-between gap-2 rounded-[var(--ui-radius)] px-3.5 text-sm',
+            // min-w-0: un valor largo («Constructora … S.A. de C.V.») se corta con «…» y no ensancha la tarjeta (2026-11-06).
+            'flex h-11 w-full min-w-0 items-center justify-between gap-2 rounded-[var(--ui-radius)] px-3.5 text-sm',
             'border border-[var(--ui-border)] bg-[var(--ui-surface-2)] text-left transition-colors',
             'hover:border-[color-mix(in_srgb,var(--ui-accent)_55%,var(--ui-border))]',
             // El anillo de foco lo pone la regla `:focus-visible` global del
