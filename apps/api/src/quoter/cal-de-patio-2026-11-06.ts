@@ -13,8 +13,8 @@ import { QuoterService } from './quoter.service';
  * para abajo.»).
  *
  * Va en triturados como material «en obra»: su precio ya trae el flete, se
- * cobran mínimo 28 ton y se cotiza en su propia opción («Cal de patio» en
- * «¿Cómo lo quieres?»). Se le crea su ficha en Inventario (sin foto) y se
+ * cobran mínimo 28 ton y sale como una tarjeta más junto a la grava y los
+ * demás materiales, en cualquier forma. Se le crea su ficha en Inventario (sin foto) y se
  * agrega el bloque de condiciones `cal` si falta. Corre UNA vez al arrancar
  * (`tabulador_cambios`); lo que se cambie después en su ficha no se pisa.
  */

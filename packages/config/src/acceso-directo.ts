@@ -24,3 +24,31 @@ export const MODULOS_ACCESO_DIRECTO = ['cotizador'] as const;
 /** ¿Es la cuenta del acceso directo? */
 export const esAccesoDirecto = (email: string | null | undefined): boolean =>
   (email ?? '').trim().toLowerCase() === CUENTA_ACCESO_DIRECTO;
+
+/**
+ * CALCULADORAS DE MATERIAL DEL ENLACE (2026-11-09). Las dos de PUCSA
+ * Triturados (pavimento y m³ ↔ toneladas): "por el momento solo se deben
+ * mostrar en el enlace". Van en el menú del enlace, debajo de los
+ * cotizadores, y abren en `/cotizar/<llave>/<clave>`. La pantalla está en
+ * @maqserv/ui (calculadoras); aquí solo la lista, para que el servidor del
+ * panel reconozca la dirección sin cargar componentes.
+ */
+export const CALCULADORAS_ENLACE = [
+  {
+    clave: 'calculadora-pavimento',
+    titulo: 'Calculadora de pavimento',
+    resumen: 'Material para una calle: subrasante, subbase, base y carpeta',
+    icono: 'calculadora',
+  },
+  {
+    clave: 'm3-a-toneladas',
+    titulo: 'Conversor de m³ a toneladas',
+    resumen: 'Triturados y carpeta asfáltica, de m³ a toneladas y al revés',
+    icono: 'conversion',
+  },
+] as const;
+
+export type CalculadoraEnlace = (typeof CALCULADORAS_ENLACE)[number];
+
+export const calculadoraDelEnlace = (clave: string): CalculadoraEnlace | null =>
+  CALCULADORAS_ENLACE.find((c) => c.clave === clave) ?? null;

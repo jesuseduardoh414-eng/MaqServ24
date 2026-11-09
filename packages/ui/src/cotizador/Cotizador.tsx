@@ -325,7 +325,10 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
    * grande en tolva o full; una cotización va de una sola forma. Se deduce de
    * lo que ya trae (al volver a una cotización) y se elige con tarjetas.
    */
-  /** Lo que ya va puesto en obra (la cal de patio, 2026-11-06): tiene su propia forma. */
+  /**
+   * Lo que ya va puesto en obra (la cal de patio, 2026-11-06): una tarjeta más
+   * entre los materiales de cualquier forma, pero sin flete ni camión.
+   */
   const esEnObra = (id: string) => !!catTrit?.productos.find((p) => p.id === id)?.en_obra;
   const [forma, setForma] = useState<FormaTriturados | null>(() => formaDe(lineasIniciales ?? [], esEnObra));
   const zonaObraTrit = () => (catTrit ? zonaDelMunicipio(catTrit, ctx.municipio) : null);
@@ -359,19 +362,18 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
       const todos = prev.filter((l): l is LineaMaterial => l.tipo === 'material');
       const viajes = prev.filter((l): l is LineaZona => l.tipo === 'zona');
       const resto = prev.filter((l) => l.tipo !== 'material' && l.tipo !== 'zona');
-      // La cal de patio (2026-11-06) va sola en su forma: al entrar se quedan solo
-      // sus renglones; al salir, se van (no se cotiza en planta, viaje ni grande).
-      if (f === 'cal') return [...resto, ...todos.filter((l) => esEnObra(l.id))];
+      // La cal de patio (2026-11-06) se queda igual en cualquier forma: ya va puesta en obra.
+      const cal = todos.filter((l) => esEnObra(l.id));
       const materiales = todos.filter((l) => !esEnObra(l.id));
       // Lo ya elegido se pasa a la forma nueva: mismo material, otra entrega.
       if (f === 'viaje') {
         const ids = [...new Set([...viajes.map((l) => l.productoId), ...materiales.filter((l) => l.id !== 'custom').map((l) => l.id)])];
         const zonaId = viajes[0]?.zonaId || zona?.id || '';
-        return [...resto, ...ids.map((id): LineaZona => viajes.find((l) => l.productoId === id) ?? { ...lineaDeZona(cat), productoId: id, zonaId })];
+        return [...resto, ...cal, ...ids.map((id): LineaZona => viajes.find((l) => l.productoId === id) ?? { ...lineaDeZona(cat), productoId: id, zonaId })];
       }
       const ids = materiales.length ? null : [...new Set(viajes.map((l) => l.productoId))];
       const base = materiales.length ? materiales : (ids ?? []).map((id) => lineaDeMaterial(cat, id));
-      return [...resto, ...base.map((l) => ({ ...l, ...entregaDe(f) }))];
+      return [...resto, ...cal, ...base.map((l) => ({ ...l, ...entregaDe(f) }))];
     });
   };
 
@@ -382,7 +384,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const agregarMaterial = () => {
     const uid = nuevoUid();
     setLineas((prev) => {
-      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material');
+      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material' && !esEnObra(l.id));
       // Los materiales del tabulador se eligen en sus tarjetas; este botón es el de
       // "Otro material (nombre y precio a mano)": nace escrito a mano, sin lista
       // para elegir (2026-10-30, pedido del dueño).
@@ -404,8 +406,10 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     const uid = nuevoUid();
     setLineas((prev) => {
       if (prev.some((l) => l.tipo === 'material' && l.id === id)) return prev.filter((l) => !(l.tipo === 'material' && l.id === id));
-      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material');
       const base = lineaDeMaterial(catTrit as CatalogoTriturados, id);
+      // La cal llega puesta en obra: sin flete ni camión, en cualquier forma (2026-11-06).
+      if (esEnObra(id)) return [...prev, { ...base, uid, fleteTon: 0, fleteZona: RECOGE_EN_PLANTA, camion: '' }];
+      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material' && !esEnObra(l.id));
       return [...prev, { ...base, uid, ...entregaDe(forma, otro) }];
     });
     setNuevo(uid);
@@ -1485,7 +1489,7 @@ function validar(
     if (lineas.length === 0) {
       return d.forma
         ? 'Elige al menos un material.'
-        : 'Elige cómo lo quieres: lo recoges en planta, por viaje a tu obra, pedido grande o cal de patio.';
+        : 'Elige cómo lo quieres: lo recoges en planta, por viaje a tu obra o pedido grande.';
     }
     // Cada renglón incompleto se marca en rojo ahí mismo; esto dice cuál falta.
     if (lineas.some((l) => l.tipo === 'material' && !l.id)) return 'Elige qué material es cada partida por tonelada.';

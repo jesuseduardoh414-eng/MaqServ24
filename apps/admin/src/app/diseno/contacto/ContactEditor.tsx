@@ -100,7 +100,7 @@ export function ContactEditor({ themeId, copys, tokens, contact }: {
             <Field label="Correo"><input type="email" maxLength={190} value={config.email} onChange={(e) => setC({ email: e.target.value })} style={inputStyle} placeholder="info@maqser24.com" /></Field>
             <Field label="Horario"><input value={config.hours} onChange={(e) => setC({ hours: e.target.value })} style={inputStyle} placeholder="Lun–Sáb · 8:00–18:00" /></Field>
           </div>
-          <Field label="Dirección (origen del cálculo de fletes)"><input value={config.address} onChange={(e) => setC({ address: e.target.value })} style={inputStyle} placeholder="Calle, número, colonia, ciudad, estado" /></Field>
+          <Field label="Dirección (se muestra en el sitio y es el origen de los fletes)"><input value={config.address} onChange={(e) => setC({ address: e.target.value })} style={inputStyle} placeholder="Calle, número, colonia, ciudad, estado" /></Field>
         </div>
 
         {/* Chips del formulario */}

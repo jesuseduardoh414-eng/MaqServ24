@@ -294,4 +294,7 @@ export {
   NOMBRE_ACCESO_DIRECTO,
   MODULOS_ACCESO_DIRECTO,
   esAccesoDirecto,
+  CALCULADORAS_ENLACE,
+  calculadoraDelEnlace,
+  type CalculadoraEnlace,
 } from './acceso-directo';

@@ -178,10 +178,23 @@ export function PasoPedido({
     ? <UbicacionMapas valor={ubicacion} poner={ponerUbicacion} obligatoria={ubicacionObligatoria} tocado={!!tocado} />
     : null;
 
-  // Los materiales del tabulador en tarjetas: en planta y en el pedido grande se cotizan por tonelada.
-  // Lo que va ya puesto en obra (la cal de patio, 2026-11-06) tiene su propia forma y no sale aquí.
-  const deTabulador = cat.productos.filter((p) => !p.en_obra);
+  /**
+   * LO QUE VA YA PUESTO EN OBRA (la cal de patio, 2026-11-06, el dueño: "no va
+   * en cómo lo quieres, va como opción de triturado, donde está la grava"): una
+   * tarjeta más junto a los demás materiales en las tres formas, pero su renglón
+   * se cobra puesto en obra, sin flete aparte ni camión, y con su mínimo.
+   */
+  const esEnObra = (id: string) => !!cat.productos.find((p) => p.id === id)?.en_obra;
   const enObra = cat.productos.filter((p) => p.en_obra && !p.oculto);
+  const deTabulador = cat.productos.filter((p) => !p.en_obra);
+  /** Los renglones por tonelada que sí llevan la entrega de la forma (sin la cal). */
+  const conEntrega = materiales.filter((l) => !esEnObra(l.id));
+  const notaEnObra = (p: (typeof enObra)[number]) =>
+    mostrarPrecios && p.precio_ton > 0 ? `${money(p.precio_ton)} / ton · puesta en obra` : 'por tonelada · puesta en obra';
+  const tarjetaEnObra = (p: (typeof enObra)[number]) =>
+    alternarMaterial ? (
+      <Tarjeta key={p.id} icono="material" titulo={p.nombre} nota={notaEnObra(p)} n={materiales.filter((l) => l.id === p.id).length} onClick={() => alternarMaterial(p.id)} />
+    ) : null;
   const tarjetasPorTon = alternarMaterial ? (
     <div className="cz-cards" style={{ marginBottom: materiales.length ? 14 : 0 }}>
       {deTabulador.map((p) => (
@@ -194,11 +207,15 @@ export function PasoPedido({
           onClick={() => alternarMaterial(p.id)}
         />
       ))}
+      {enObra.map(tarjetaEnObra)}
     </div>
   ) : undefined;
-  const filasPorTon = materiales.map((l) => (
+  const fila = (l: LineaMaterial) => (
     <FilaMaterial key={l.uid} cat={cat} l={l} actualizar={actualizar} quitar={quitar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios} conTarjetas={!!alternarMaterial} permitirOtro={permitirOtro} abrir={l.uid === nuevo} tocado={tocado} />
-  ));
+  );
+  const filasPorTon = materiales.map(fila);
+  /** Los renglones de la cal (puesta en obra) en «Por viaje», debajo de los viajes. */
+  const filasEnObra = materiales.filter((l) => esEnObra(l.id)).map(fila);
   // Con tarjetas, el botón solo queda para el material escrito a mano (panel).
   const textoOtro = alternarMaterial ? (permitirOtro ? 'Otro material (nombre y precio a mano)' : undefined) : materiales.length ? 'Agregar otro material' : 'Agregar material por tonelada';
   // Una cotización vieja con flete por tonelada y sin camión: se enseña su flete para poder cambiarlo.
@@ -212,33 +229,8 @@ export function PasoPedido({
 
   return (
     <>
-      <FormaEntrega cat={cat} forma={forma} cambiar={cambiarForma} titulo={encabezado} conCal={enObra.length > 0} />
+      <FormaEntrega cat={cat} forma={forma} cambiar={cambiarForma} titulo={encabezado} />
       {sinZona}
-
-      {forma === 'cal' ? (
-        <Bloque
-          icono="material"
-          titulo="Cal de patio, puesta en obra"
-          desc={`Precio por tonelada ya puesta en obra, en el área metropolitana de Monterrey. Se pagan mínimo ${enObra[0]?.minimo_ton ?? 28} toneladas para programar la tolva (vienen de 25 a 32); al llegar se ajusta.`}
-          vacio={materiales.length === 0}
-          tarjetas={alternarMaterial ? (
-            <div className="cz-cards" style={{ marginBottom: materiales.length ? 14 : 0 }}>
-              {enObra.map((p) => (
-                <Tarjeta
-                  key={p.id}
-                  icono="material"
-                  titulo={p.nombre}
-                  nota={mostrarPrecios && p.precio_ton > 0 ? `${money(p.precio_ton)} / ton · puesta en obra` : 'por tonelada · puesta en obra'}
-                  n={materiales.filter((l) => l.id === p.id).length}
-                  onClick={() => alternarMaterial(p.id)}
-                />
-              ))}
-            </div>
-          ) : undefined}
-        >
-          {filasPorTon}
-        </Bloque>
-      ) : null}
 
       {forma === 'planta' ? (
         <Bloque
@@ -251,7 +243,7 @@ export function PasoPedido({
           tarjetas={tarjetasPorTon}
           pie={fleteViejo ? (
             <FleteTonelada
-              cat={cat} materiales={materiales} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
+              cat={cat} materiales={conEntrega} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
               preciosAlFinal={preciosAlFinal} tocado={tocado} municipio={municipio}
               quiereFlete={quiereFlete} ponerQuiereFlete={setQuiereFlete}
               ubicacion={materialAObra ? ubicacionCampo : null}
@@ -268,9 +260,9 @@ export function PasoPedido({
             icono="zona"
             titulo="Por viaje a mi obra"
             desc={`${cat.nota_zona}. Elige el material y la zona de tu obra; el precio del viaje ya incluye material y flete.`}
-            vacio={zonas.length === 0}
+            vacio={zonas.length === 0 && filasEnObra.length === 0}
             tarjetas={
-              <div className="cz-cards" style={{ marginBottom: zonas.length ? 14 : 0 }}>
+              <div className="cz-cards" style={{ marginBottom: zonas.length || filasEnObra.length ? 14 : 0 }}>
                 {deTabulador.map((p) => {
                   const pv = mostrarPrecios && zonaViaje ? precioZona(cat, zonaViaje, p.id) : null;
                   return (
@@ -284,12 +276,15 @@ export function PasoPedido({
                     />
                   );
                 })}
+                {/* La cal no va por viaje: se cobra por tonelada puesta en obra. */}
+                {enObra.map(tarjetaEnObra)}
               </div>
             }
           >
             {zonas.map((l) => (
               <FilaZona key={l.uid} cat={cat} l={l} actualizar={actualizar} quitar={quitar} mostrarPrecios={mostrarPrecios} />
             ))}
+            {filasEnObra}
           </Bloque>
           {zonas.length > 0 ? ubicacionCampo : null}
         </>
@@ -304,9 +299,10 @@ export function PasoPedido({
           onAgregar={agregarMaterial}
           vacio={materiales.length === 0}
           tarjetas={tarjetasPorTon}
-          pie={materiales.length > 0 ? (
+          // El camión y el lugar son de lo que va por tonelada; la cal llega puesta en obra.
+          pie={conEntrega.length > 0 ? (
             <EntregaCamion
-              cat={cat} materiales={materiales} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
+              cat={cat} materiales={conEntrega} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
               tocado={tocado} municipio={municipio} ubicacion={ubicacionCampo}
             />
           ) : null}
@@ -346,13 +342,11 @@ export function PasoPedido({
  * 14 m³); cuando son pedidos de 100 toneladas, en tolva o full". Cambiar de
  * forma conserva el material elegido y cambia solo cómo se entrega.
  */
-function FormaEntrega({ cat, forma, cambiar, titulo, conCal }: {
+function FormaEntrega({ cat, forma, cambiar, titulo }: {
   cat: CatalogoTriturados;
   forma: FormaTriturados | null;
   cambiar: (f: FormaTriturados) => void;
   titulo?: string;
-  /** Hay algo ya puesto en obra (la cal de patio, 2026-11-06): su propia opción. */
-  conCal?: boolean;
 }) {
   return (
     <section className="cz-card">
@@ -363,9 +357,6 @@ function FormaEntrega({ cat, forma, cambiar, titulo, conCal }: {
         <Tarjeta icono="banco" titulo="Lo recojo en planta" nota="Mandas tu camión · precio de lista" modo="opcion" n={forma === 'planta' ? 1 : 0} onClick={() => cambiar('planta')} />
         <Tarjeta icono="zona" titulo="Por viaje a mi obra" nota={cat.nota_zona} modo="opcion" n={forma === 'viaje' ? 1 : 0} onClick={() => cambiar('viaje')} />
         <Tarjeta icono="material" titulo="Pedido grande" nota={`Tolva, full o camión de 7 o 14 m³ · desde ${minimoCamionDe(cat)} ton`} modo="opcion" n={forma === 'grande' ? 1 : 0} onClick={() => cambiar('grande')} />
-        {conCal ? (
-          <Tarjeta icono="material" titulo="Cal de patio" nota="Puesta en obra · área metropolitana de Monterrey" modo="opcion" n={forma === 'cal' ? 1 : 0} onClick={() => cambiar('cal')} />
-        ) : null}
       </div>
     </section>
   );
@@ -518,7 +509,7 @@ function FilaMaterial({
     const p = cat.productos.find((x) => x.id === id);
     actualizar(l.uid, id === OTRO
       ? { id, nombre: '', precio: '' }
-      : { id, nombre: p?.nombre ?? '', precio: p ? String(p.precio_ton) : '' });
+      : { id, nombre: p?.nombre ?? '', precio: p ? String(p.precio_ton) : '', ...(p?.en_obra ? { fleteTon: 0, fleteZona: RECOGE_EN_PLANTA, camion: '' } : {}) });
   }
 
   return (
@@ -553,7 +544,7 @@ function FilaMaterial({
           )}
         </Campo>
       ) : null}
-      <Campo label="Toneladas" req error={tocado && ton <= 0 ? 'Captura las toneladas' : null}>
+      <Campo label="Toneladas" req help={minimo > 0 ? `Mínimo ${minimo.toLocaleString('es-MX')} ton · puesta en obra` : undefined} error={tocado && ton <= 0 ? 'Captura las toneladas' : null}>
         <NumeroTexto decimal ariaLabel="toneladas" placeholder="Ej. 30" valor={l.toneladas} onChange={(v) => actualizar(l.uid, { toneladas: v })} />
       </Campo>
       {editarPrecios ? (

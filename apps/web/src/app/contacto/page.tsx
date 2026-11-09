@@ -7,6 +7,7 @@ import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon, type IconName } from '@/components/Icon';
 import { ContactForm } from './ContactForm';
 import { telHref, whatsappHref } from '@/lib/telefono';
+import { mapaHref } from '@/lib/direccion';
 import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -49,11 +50,14 @@ export default async function ContactPage() {
   const theme = await getTheme();
   const c = theme.tokens.contact ?? defaultTheme.tokens.contact;
 
-  const channels: Array<{ label: string; value: string; href?: string; icon: IconName }> = [
+  // Dirección (2026-11-09): la de Diseño → Contacto, tal cual; abre Google Maps en otra pestaña.
+  const direccion = c.address.trim();
+  const channels: Array<{ label: string; value: string; href?: string; icon: IconName; externo?: boolean }> = [
     { label: 'Teléfono', value: c.phone, href: c.phone ? telHref(c.phone) : undefined, icon: 'phone' as IconName },
     { label: 'WhatsApp', value: c.whatsapp, href: c.whatsapp ? waHref(c.whatsapp) : undefined, icon: 'chat' as IconName },
     { label: 'Correo', value: c.email, href: c.email ? `mailto:${c.email}` : undefined, icon: 'mail' as IconName },
     { label: 'Horario', value: c.hours, icon: 'clock' as IconName },
+    { label: 'Dirección', value: direccion, href: direccion ? mapaHref(direccion) : undefined, icon: 'mapPin' as IconName, externo: true },
   ].filter((x) => x.value);
 
   return (
@@ -111,7 +115,7 @@ export default async function ContactPage() {
                     </>
                   );
                   return ch.href
-                    ? <a key={ch.label} href={ch.href} className="ct-ch">{inner}</a>
+                    ? <a key={ch.label} href={ch.href} className="ct-ch" {...(ch.externo ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{inner}</a>
                     : <div key={ch.label} className="ct-ch">{inner}</div>;
                 })}
               </div>

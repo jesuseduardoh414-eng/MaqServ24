@@ -12,6 +12,9 @@ import type { CSSProperties } from 'react';
  * dentro del JavaScript de la página.
  */
 const TRAZOS: Record<string, string> = {
+  // Calculadoras de material del enlace (2026-11-09): calculadora y flechas de ida y vuelta.
+  calculadora: 'M12 5h16a3 3 0 0 1 3 3v24a3 3 0 0 1-3 3H12a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z M14 10h12v6H14z M15 22h0 M20 22h0 M25 22h0 M15 28h0 M20 28h0 M25 28h0',
+  conversion: 'M7 14h24 M26 9l5 5-5 5 M33 26H9 M14 21l-5 5 5 5',
   excavadora:
     'M4 27h19a3 3 0 0 1 0 6H4a3 3 0 0 1 0-6z M9 27v-6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6 M11 15h6 M18 20l8-4 6 4 M32 20l1.6 5-5 1.5-1.2-4',
   martillo_exc:

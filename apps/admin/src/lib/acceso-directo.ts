@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { HUELLA_ACCESO_DIRECTO, cotizadorDelSitio, type CotizadorDelSitio } from '@maqserv/config';
+import { HUELLA_ACCESO_DIRECTO, calculadoraDelEnlace, cotizadorDelSitio, type CotizadorDelSitio } from '@maqserv/config';
 
 /**
  * La llave del enlace del acceso directo (2026-10-29), comprobada en el panel
@@ -18,3 +18,9 @@ export function llaveValida(llave: string | null | undefined): boolean {
  * `/triturados` siguen igual: son las mismas claves.
  */
 export const cotizadorDirecto = (v: string): CotizadorDelSitio | null => cotizadorDelSitio(v);
+
+/**
+ * La clave de la dirección si el enlace la abre: un cotizador o, desde
+ * 2026-11-09, una de las calculadoras de material (solo existen en el enlace).
+ */
+export const destinoDirecto = (v: string): string | null => cotizadorDelSitio(v)?.clave ?? calculadoraDelEnlace(v)?.clave ?? null;

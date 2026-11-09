@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ADMIN_COOKIE, ADMIN_REFRESH_COOKIE, API_URL } from '@/lib/admin';
-import { llaveValida, cotizadorDirecto } from '@/lib/acceso-directo';
+import { llaveValida, destinoDirecto } from '@/lib/acceso-directo';
 
 /**
  * ABRIR SESIÓN CON EL ENLACE DEL ACCESO DIRECTO (2026-10-29).
@@ -12,8 +12,8 @@ import { llaveValida, cotizadorDirecto } from '@/lib/acceso-directo';
  */
 export async function GET(req: NextRequest) {
   const llave = req.nextUrl.searchParams.get('llave') ?? '';
-  // `tipo` es la clave del cotizador (maquinaria, agua, acarreos…).
-  const tipo = cotizadorDirecto(req.nextUrl.searchParams.get('tipo') ?? '')?.clave;
+  // `tipo` es la clave del cotizador (maquinaria, agua, acarreos…) o de una calculadora (2026-11-09).
+  const tipo = destinoDirecto(req.nextUrl.searchParams.get('tipo') ?? '');
   if (!tipo || !llaveValida(llave)) return new NextResponse('No encontrado', { status: 404 });
 
   let datos: { token?: string; refresh_token?: string } | null = null;

@@ -88,14 +88,16 @@ export type LineaCotizador = LineaMaquinaria | LineaTriturados;
  * (volteo de 14 m³, material y zona) o pedido grande en tolva o full (desde
  * 100 ton). Una cotización va de una sola forma.
  */
-/** `cal`: lo que ya va puesto en obra, la cal de patio (2026-11-06). */
-export type FormaTriturados = 'planta' | 'viaje' | 'grande' | 'cal';
+export type FormaTriturados = 'planta' | 'viaje' | 'grande';
 
-/** La forma que ya traen las partidas (al volver a una cotización); null si no hay nada. */
+/**
+ * La forma que ya traen las partidas (al volver a una cotización); null si no
+ * hay nada. Lo que va puesto en obra (la cal de patio, 2026-11-06) cabe en
+ * cualquier forma y no la decide: sola, se abre en planta.
+ */
 export function formaDe(lineas: LineaCotizador[], enObra: (id: string) => boolean = () => false): FormaTriturados | null {
-  if (lineas.some((l) => l.tipo === 'material' && enObra(l.id))) return 'cal';
   if (lineas.some((l) => l.tipo === 'zona')) return 'viaje';
-  if (lineas.some((l) => l.tipo === 'material' && l.camion)) return 'grande';
+  if (lineas.some((l) => l.tipo === 'material' && !enObra(l.id) && l.camion)) return 'grande';
   if (lineas.some((l) => l.tipo === 'material')) return 'planta';
   return null;
 }

@@ -10,6 +10,7 @@ import { CookiesPreferencias } from '@/components/AvisoCookies';
 import { Icon } from '@/components/Icon';
 import { LANDINGS } from '@/lib/landings';
 import { telHref } from '@/lib/telefono';
+import { mapaHref } from '@/lib/direccion';
 import { fotoLigera } from '@/lib/foto';
 import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 
@@ -250,6 +251,9 @@ export function SiteFooter({ theme }: { theme: Theme }) {
         .sf-contacto{ display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
         .sf-ct{ display:inline-flex; align-items:center; gap:10px; color:rgba(255,255,255,.78); text-decoration:none; font-size:14.5px; }
         .sf-ct svg{ color:var(--color-primary); flex-shrink:0; }
+        /* Dirección: puede ser larga, se parte en renglones con el pin arriba. */
+        .sf-dir{ align-items:flex-start; max-width:380px; line-height:1.5; }
+        .sf-dir svg{ margin-top:3px; }
         /* Columnas parejas. Mismo ritmo vertical en todas. */
         .sf-cols{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap:32px 40px; padding:36px 0 44px; }
         .sf-h{ margin:0 0 14px; color:#fff; font-weight:600; font-size:14.5px; }
@@ -297,11 +301,17 @@ export function SiteFooter({ theme }: { theme: Theme }) {
             </div>
             <p className="sf-tag">{f.tagline}</p>
           </div>
-          {contactoPie.phone || contactoPie.email ? (
+          {contactoPie.phone || contactoPie.email || contactoPie.address.trim() ? (
             <div className="sf-contacto">
               {contactoPie.phone ? <a href={telHref(contactoPie.phone)} className="sf-a sf-ct"><Icon name="phone" size={16} />{contactoPie.phone}</a> : null}
               {contactoPie.email ? <a href={`mailto:${contactoPie.email}`} className="sf-a sf-ct"><Icon name="mail" size={16} />{contactoPie.email}</a> : null}
               {contactoPie.hours ? <span className="sf-ct"><Icon name="clock" size={16} />{contactoPie.hours}</span> : null}
+              {/* Dirección (2026-11-09): la de Diseño → Contacto; abre Google Maps. */}
+              {contactoPie.address.trim() ? (
+                <a href={mapaHref(contactoPie.address)} target="_blank" rel="noopener noreferrer" className="sf-a sf-ct sf-dir">
+                  <Icon name="mapPin" size={16} />{contactoPie.address.trim()}
+                </a>
+              ) : null}
             </div>
           ) : null}
         </div>

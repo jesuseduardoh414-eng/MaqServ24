@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from '@/components/Enlace';
-import { COTIZADORES_SITIO, cotizadorDelSitio } from '@maqserv/config';
+import { CALCULADORAS_ENLACE, COTIZADORES_SITIO, calculadoraDelEnlace, cotizadorDelSitio } from '@maqserv/config';
 import { IconoCotizador } from '@maqserv/ui';
 import { useBranding } from '@/components/branding';
 
@@ -24,12 +24,15 @@ interface EventoInstalar extends Event {
  * categoría; para sumar otra a la MISMA cotización sigue estando «¿Necesitas
  * otro servicio?» abajo.
  *
+ * CALCULADORAS DE MATERIAL (2026-11-09): debajo de los cotizadores, el mismo
+ * menú lista «Calculadoras» (pavimento y m³ ↔ toneladas). Solo existen aquí.
+ *
  * En Android el botón abre la instalación del navegador; en iPhone eso no
  * existe y se explica el camino de Safari (Compartir → Agregar a inicio). Ya
  * instalada (se abre sola, sin barra del navegador), el aviso no sale.
  */
 export function AppCotizador({ clave, llave, nombre, children }: {
-  /** El cotizador abierto: maquinaria, agua, acarreos… */
+  /** El cotizador abierto (maquinaria, agua, acarreos…) o la calculadora. */
   clave: string;
   /** La llave del enlace: el cambio entre cotizadores la conserva. */
   llave: string;
@@ -38,7 +41,10 @@ export function AppCotizador({ clave, llave, nombre, children }: {
   children: ReactNode;
 }) {
   const branding = useBranding();
+  const calc = calculadoraDelEnlace(clave);
   const actual = cotizadorDelSitio(clave) ?? COTIZADORES_SITIO[0];
+  // Lo que dice el botón del menú: el cotizador o la calculadora abierta.
+  const boton = calc ? { icono: calc.icono, grupo: 'Calculadora', titulo: calc.titulo } : { icono: actual.icono, grupo: 'Cotizador', titulo: actual.titulo };
   const [instalar, setInstalar] = useState<EventoInstalar | null>(null);
   const [esIphone, setEsIphone] = useState(false);
   const [instalada, setInstalada] = useState(true);
@@ -80,6 +86,28 @@ export function AppCotizador({ clave, llave, nombre, children }: {
 
   const logo = branding.logoLight || branding.logoAlt || null;
 
+  // Un renglón del menú (cotizador o calculadora): ícono, nombre, resumen y la palomita si está abierto.
+  const opcion = (c: { clave: string; titulo: string; resumen: string; icono: string }, on: boolean) => (
+    <Link
+      key={c.clave}
+      href={`/cotizar/${llave}/${c.clave}`}
+      data-on={on || undefined}
+      aria-current={on ? 'page' : undefined}
+      onClick={() => setAbierto(false)}
+    >
+      <span className="cza-ico"><IconoCotizador nombre={c.icono} size={26} /></span>
+      <span className="cza-item">
+        <b>{c.titulo}</b>
+        <small>{c.resumen}</small>
+      </span>
+      {on ? (
+        <svg className="cza-check" viewBox="0 0 16 16" width={16} height={16} aria-hidden>
+          <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : null}
+    </Link>
+  );
+
   return (
     <div className="cza">
       <style>{CSS}</style>
@@ -97,10 +125,10 @@ export function AppCotizador({ clave, llave, nombre, children }: {
             aria-controls="cza-cotizadores"
             onClick={() => setAbierto((a) => !a)}
           >
-            <IconoCotizador nombre={actual.icono} size={22} />
+            <IconoCotizador nombre={boton.icono} size={22} />
             <span className="cza-menu-txt">
-              <small>Cotizador</small>
-              <b>{actual.titulo}</b>
+              <small>{boton.grupo}</small>
+              <b>{boton.titulo}</b>
             </span>
             <svg className="cza-flecha" viewBox="0 0 16 16" width={14} height={14} aria-hidden>
               <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
@@ -108,41 +136,22 @@ export function AppCotizador({ clave, llave, nombre, children }: {
           </button>
 
           {abierto ? (
-            <nav id="cza-cotizadores" className="cza-lista" aria-label="Cotizadores">
+            <nav id="cza-cotizadores" className="cza-lista" aria-label="Cotizadores y calculadoras">
               <p className="cza-lista-t">Cotizadores</p>
-              {COTIZADORES_SITIO.map((c) => {
-                const on = c.clave === actual.clave;
-                return (
-                  <Link
-                    key={c.clave}
-                    href={`/cotizar/${llave}/${c.clave}`}
-                    data-on={on || undefined}
-                    aria-current={on ? 'page' : undefined}
-                    onClick={() => setAbierto(false)}
-                  >
-                    <span className="cza-ico"><IconoCotizador nombre={c.icono} size={26} /></span>
-                    <span className="cza-item">
-                      <b>{c.titulo}</b>
-                      <small>{c.resumen}</small>
-                    </span>
-                    {on ? (
-                      <svg className="cza-check" viewBox="0 0 16 16" width={16} height={16} aria-hidden>
-                        <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    ) : null}
-                  </Link>
-                );
-              })}
+              {COTIZADORES_SITIO.map((c) => opcion(c, !calc && c.clave === actual.clave))}
+              <p className="cza-lista-t cza-lista-sep">Calculadoras</p>
+              {CALCULADORAS_ENLACE.map((c) => opcion(c, c.clave === calc?.clave))}
             </nav>
           ) : null}
         </div>
 
         <div className="cza-acc">
-          <Link href={`/cotizador/historial?kind=${actual.tipo}`}>Historial</Link>
+          <Link href={calc ? '/cotizador/historial' : `/cotizador/historial?kind=${actual.tipo}`}>Historial</Link>
         </div>
       </header>
 
-      {!instalada && (instalar || esIphone) ? (
+      {/* En una calculadora no: se instala desde un cotizador (la calculadora no tiene ícono propio). */}
+      {!calc && !instalada && (instalar || esIphone) ? (
         <div className="cza-instalar">
           <span>
             <b>Ponlo en el inicio de tu celular.</b>{' '}
@@ -192,6 +201,7 @@ const CSS = `
 .cza-lista{ position:absolute; top:calc(100% + 8px); left:0; width:340px; max-height:calc(100vh - 90px); overflow:auto; padding:6px;
   border:1px solid var(--adm-border); border-radius:12px; background:var(--adm-page); box-shadow:0 14px 40px rgba(0,0,0,.35); }
 .cza-lista-t{ margin:6px 10px 6px; font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--adm-muted); }
+.cza-lista-sep{ margin-top:10px; padding-top:10px; border-top:1px solid var(--adm-border); }
 .cza-lista a{ display:flex; align-items:center; gap:12px; padding:9px 10px; border-radius:9px; color:var(--adm-text); text-decoration:none; min-height:52px; }
 .cza-lista a:hover{ background:color-mix(in srgb, var(--adm-text) 6%, transparent); }
 .cza-lista a[data-on]{ background:color-mix(in srgb, var(--adm-accent, #008CFF) 14%, transparent); }
