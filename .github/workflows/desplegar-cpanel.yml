@@ -8,6 +8,8 @@
 # SE DISPARA:
 #   - solo con cada push a `main` (automático), y
 #   - a mano desde Actions → "Desplegar en cPanel" → Run workflow.
+#   Un commit vacío (o que solo toca .md) NO lo dispara, por `paths-ignore`:
+#   para repetir un despliegue sin cambios, usa Run workflow.
 #
 # ORDEN Y FRENO: api → web → admin, UNA a la vez, y después de reiniciar cada
 # una espera a que responda antes de seguir. Si una no levanta, se detiene ahí:
