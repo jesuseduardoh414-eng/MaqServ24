@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal';
 import { useRouter } from 'next/navigation';
 import { Btn, Chip, EmptyState, FormField, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, Switch, Toolbar } from '@/components/ui';
 import { SiteEditor, type Obra } from './SiteEditor';
+import { Trato } from '@/components/Trato';
 
 /**
  * CLIENTES Y OBRAS.
@@ -421,6 +422,12 @@ function FichaCliente({ clientId }: { clientId: number }) {
           </div>
         </div>
       ) : null}
+
+      {/* El trato con el cliente (2026-11-09): lo anotado aquí, en sus
+          solicitudes y en sus obras, más lo que el sistema le mandó por correo. */}
+      <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--adm-border)' }}>
+        <Trato objetivo={{ cliente: clientId }} con="cliente" telefono={ficha.phone} nombre={ficha.name} compacto />
+      </div>
     </div>
   );
 }

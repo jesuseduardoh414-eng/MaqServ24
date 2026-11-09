@@ -3,6 +3,7 @@ import { Prisma, prisma } from '@maqserv/db';
 import {
   COTIZADORES_META,
   alinearATarifa,
+  esTarifaDeTriturados,
   analizarPartidas,
   calcularCotizacion,
   conZonaDeLaObra,
@@ -379,12 +380,17 @@ export class Recotizar {
       .map((p) => (p.requirements as { quoterId?: unknown } | null)?.quoterId)
       .filter((id): id is number => typeof id === 'number' && id !== menos))];
     if (!ids.length) return 0;
-    const docs = await prisma.quoter_quotes.findMany({ where: { id: { in: ids }, kind: tipo, state: { in: EDITABLES } } });
-    const cat = await this.quoter.catalogoCalculo(tipo);
+    // Una tarifa de triturados también la llevan las cotizaciones de maquinaria
+    // que traen material junto (2026-11-09): esas se recalculan igual.
+    const tipos: CotizadorTipo[] = esTarifaDeTriturados(ref) ? ['triturados', 'maquinaria'] : [tipo];
+    const docs = await prisma.quoter_quotes.findMany({ where: { id: { in: ids }, kind: { in: tipos }, state: { in: EDITABLES } } });
+    const cats = new Map<string, CatalogoCotizador>();
+    for (const t of tipos) cats.set(t, await this.quoter.catalogoCalculo(t));
     let n = 0;
     for (const d of docs) {
       try {
-        const partidas = alinearATarifa(cat, structuredClone(d.items as unknown as PartidaCotizador[]), ref, antes, nuevo);
+        const cat = cats.get(d.kind) ?? (await this.quoter.catalogoCalculo(d.kind as CotizadorTipo));
+        const partidas = alinearATarifa(cat,structuredClone(d.items as unknown as PartidaCotizador[]), ref, antes, nuevo);
         const r = await this.recalcular(d.id, { partidas });
         if (Math.abs(Number(r.total) - Number(d.total)) >= 0.01) n += 1;
       } catch (e) {

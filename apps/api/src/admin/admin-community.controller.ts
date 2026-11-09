@@ -282,7 +282,7 @@ export class AdminCommunityController {
       kind: 'question_answered',
       to: d.correo,
       toName: d.nombre,
-      ...correoPreguntaRespondida({ nombre: d.nombre?.split(/\s+/)[0] ?? null, pregunta: d.pregunta, respuesta: d.respuesta, url }),
+      ...(await correoPreguntaRespondida({ nombre: d.nombre?.split(/\s+/)[0] ?? null, pregunta: d.pregunta, respuesta: d.respuesta, url })),
     });
   }
 }

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { Btn, Chip, EmptyState, Note } from '@/components/ui';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
+import { anotarSolo } from '@/lib/trato';
 
 /**
  * ¿QUIÉN PUEDE ATENDER ESTA SOLICITUD? (documento, secciones 16 y 17).
@@ -205,7 +206,15 @@ export function QuoteMatches({ quoteId }: { quoteId: number }) {
                     <div className="adm-meta" style={{ marginTop: 8 }}>
                       {m.contactName ? <span>{m.contactName}</span> : null}
                       {m.phone ? (
-                        <a href={`tel:${m.phone}`} className="adm-link adm-mono" style={{ fontWeight: 500 }}>{m.phone}</a>
+                        // Llamarle se anota solo en el trato de la solicitud y del aliado (2026-11-09).
+                        <a
+                          href={`tel:${m.phone}`}
+                          className="adm-link adm-mono"
+                          style={{ fontWeight: 500 }}
+                          onClick={() => { if (m.providerId > 0) void anotarSolo({ solicitud: quoteId, aliado: m.providerId, con: 'aliado', canal: 'llamada' }, { avisar: true }); }}
+                        >
+                          {m.phone}
+                        </a>
                       ) : null}
                     </div>
                   ) : null}

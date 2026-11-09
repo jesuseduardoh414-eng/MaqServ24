@@ -374,7 +374,7 @@ export class AdminAuthController {
     if (!a || !a.password) return { ok: true };
 
     const token = await firmarRestablecimientoAdmin(a.id, a.password);
-    const correoListo = correoRestablecerContrasena({
+    const correoListo = await correoRestablecerContrasena({
       nombre: a.name, url: `${base}/restablecer?token=${token}`, minutos: RESTABLECER_ADMIN_MINUTOS,
     });
     await this.mailer.enviar({ kind: 'admin_password_reset', to: a.email, toName: a.name, ...correoListo });

@@ -28,6 +28,7 @@ import {
   type OpcionesCotizador,
   type PartidaCotizador,
   type RenglonDeFicha,
+  esTarifaDeTriturados,
 } from '@maqserv/config';
 import { conCandado } from '../common/candado';
 import { MailerService } from '../notifications/mailer.service';
@@ -332,7 +333,10 @@ export class QuoterService {
    * unidad en que se editó) para la bitácora y para reconocer, en las demás
    * solicitudes pendientes, los renglones que traían la tarifa vieja.
    */
-  async corregirTarifa(tipo: CotizadorTipo, ref: RefTarifa, valor: number, correo: string): Promise<{ antes: number | null; nombre: string }> {
+  async corregirTarifa(tipoPedido: CotizadorTipo, ref: RefTarifa, valor: number, correo: string): Promise<{ antes: number | null; nombre: string }> {
+    // La tarifa de un material se escribe en triturados aunque venga de una
+    // cotización de maquinaria que lo lleva junto (2026-11-09).
+    const tipo: CotizadorTipo = esTarifaDeTriturados(ref) ? 'triturados' : tipoPedido;
     const r2 = (n: number) => Math.round(n * 100) / 100;
     let antes: number | null = null;
     let nombre = '';
@@ -900,7 +904,7 @@ export class QuoterService {
         await this.mailer.enviar({
           kind: 'quoter_request_internal',
           to: interno,
-          ...correoSolicitudInterna({
+          ...(await correoSolicitudInterna({
             folio: q.folio,
             cotizador,
             cliente: q.client_name,
@@ -912,7 +916,7 @@ export class QuoterService {
             conceptos,
             // Directo a la solicitud, que es donde se revisa y se responde.
             url: servicio?.quoteId ? `${panel}/cotizaciones?ver=${servicio.quoteId}` : `${panel}/cotizador/historial/${q.id}`,
-          }),
+          })),
         });
       }
 
@@ -923,12 +927,12 @@ export class QuoterService {
           kind: 'quoter_request_ack',
           to: q.email,
           toName: q.client_name,
-          ...correoAcuseSolicitud({
+          ...(await correoAcuseSolicitud({
             nombre: q.client_name,
             folio: q.folio,
             cotizador,
             url: servicio ? `${sitio}${servicio.url}` : null,
-          }),
+          })),
         });
       }
     } catch (e) {
@@ -998,7 +1002,7 @@ export class QuoterService {
       kind: 'quoter_quote_sent',
       to: q.email,
       toName: q.client_name,
-      ...correoCotizacionDelPanel({
+      ...(await correoCotizacionDelPanel({
         nombre: q.client_name,
         folio: q.folio,
         cotizador: COTIZADORES_META[q.kind as CotizadorTipo].titulo.toLowerCase(),
@@ -1019,7 +1023,7 @@ export class QuoterService {
         notas: q.notes,
         firma: doc.firma?.nombre ? doc.firma : null,
         aceptarUrl,
-      }),
+      })),
     });
 
     if (envio !== 'enviado') {

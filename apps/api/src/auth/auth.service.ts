@@ -88,7 +88,7 @@ export class AuthService {
     const url = `${sitio()}/api/auth/verificar?t=${encodeURIComponent(token)}&next=${encodeURIComponent(destino)}`;
     // Solo la primera palabra del nombre: el correo va a una dirección que
     // nadie ha comprobado todavía, y no debe repetir texto libre (auditoría 2026-10-23).
-    const correo = correoConfirmarCuenta({ nombre: u.name.split(/\s+/)[0].slice(0, 30), url, horas: VERIFICACION_HORAS });
+    const correo = await correoConfirmarCuenta({ nombre: u.name.split(/\s+/)[0].slice(0, 30), url, horas: VERIFICACION_HORAS });
     const estado = await this.mailer.enviar({ kind: 'email_verification', to: u.email, toName: u.name, ...correo });
     if (estado !== 'enviado') this.logger.warn(`Confirmación de ${u.email}: el correo quedó como "${estado}"`);
   }
@@ -255,7 +255,7 @@ export class AuthService {
          * nada que confirmar, pero la persona debe enterarse de que su
          * cuenta existe. Solo al CREARLA, nunca en cada inicio de sesión.
          */
-        const bienvenida = correoBienvenida({ nombre: usuario.name, url: `${sitio()}/cuenta` });
+        const bienvenida = await correoBienvenida({ nombre: usuario.name, url: `${sitio()}/cuenta` });
         void this.mailer
           .enviar({ kind: 'welcome', to: usuario.email, toName: usuario.name, ...bienvenida })
           .catch((e: unknown) => this.logger.warn(`Bienvenida a ${usuario?.email}: ${(e as Error).message}`));
@@ -318,7 +318,7 @@ export class AuthService {
     const r = await crearRestablecimiento(email);
     if (!r) return { ok: true };
     const url = `${sitio()}/restablecer?token=${r.token}`;
-    const correo = correoRestablecerContrasena({ nombre: r.name, url, minutos: 60 });
+    const correo = await correoRestablecerContrasena({ nombre: r.name, url, minutos: 60 });
     const estado = await this.mailer.enviar({ kind: 'password_reset', to: r.email, toName: r.name, ...correo });
     if (estado !== 'enviado') {
       this.logger.warn(`Restablecer contraseña de ${r.email}: el correo quedó como "${estado}"`);

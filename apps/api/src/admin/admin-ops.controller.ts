@@ -14,7 +14,7 @@ import { DIAS_AVISO } from '../catalog/provider-trust';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { PASOS, esEstado } from '../quotes/service-flow';
 import { ServiceService } from '../quotes/service.service';
-import { registrarAccion } from './audit';
+import { anotarContacto } from './trato';
 import { sincronizarReserva } from '../quotes/reservas';
 import { cancelarDocumentoSiNadaSigue } from '../quoter/documento-estado';
 
@@ -179,6 +179,11 @@ export class AdminOpsController {
    *
    * Solo se sella la PRIMERA vez: registrar la tercera llamada no puede
    * reescribir cuándo fue la primera.
+   *
+   * Desde el 2026-11-09 es un renglón más del trato con el cliente (ver
+   * `trato.ts`): el panel lo anota con "Ya le hablé por…" en la solicitud y el
+   * renglón sella el primer contacto. Esta ruta se queda para lo que la siga
+   * llamando, y hace lo mismo: deja su renglón y sella.
    */
   @Modulo('cotizaciones')
   @Patch('quotes/:id/contacto')
@@ -193,17 +198,10 @@ export class AdminOpsController {
       select: { id: true, first_contact_at: true, first_contact_via: true },
     });
     if (!q) throw new NotFoundException('Cotización no encontrada');
-    if (q.first_contact_at) {
-      return { ok: true, yaEstaba: true, at: q.first_contact_at.toISOString(), via: q.first_contact_via };
-    }
-
-    const quien = await prisma.admins.findUnique({ where: { id: req.adminId }, select: { name: true } });
-    const at = new Date();
-    await prisma.quotes.update({
-      where: { id },
-      data: { first_contact_at: at, first_contact_by: quien?.name ?? null, first_contact_via: p.data.via ?? 'llamada' },
-    });
-    return { ok: true, yaEstaba: false, at: at.toISOString(), via: p.data.via ?? 'llamada' };
+    const yaEstaba = Boolean(q.first_contact_at);
+    await anotarContacto(req, { objetivo: { solicitud: id }, con: 'cliente', canal: p.data.via ?? 'llamada' });
+    const ahora = await prisma.quotes.findUnique({ where: { id }, select: { first_contact_at: true, first_contact_via: true } });
+    return { ok: true, yaEstaba, at: ahora?.first_contact_at?.toISOString() ?? null, via: ahora?.first_contact_via ?? p.data.via ?? 'llamada' };
   }
 
   /**

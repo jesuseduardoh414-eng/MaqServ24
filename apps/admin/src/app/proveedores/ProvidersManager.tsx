@@ -1,8 +1,7 @@
 'use client';
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, centroDeMunicipio, coordenadasDe, esLineaServicio, presentacionEstado, radioDeCobertura } from '@maqserv/config';
-import { colorVivo } from '@/components/modo';
+import { ESTADOS_OPERACION, ESTADO_SOLICITUD_PROVEEDOR, centroDeMunicipio, coordenadasDe, esLineaServicio, radioDeCobertura, type UnidadEquipo } from '@maqserv/config';
 import { AdminSelect } from '@/components/AdminSelect';
 import { AdminDatePicker } from '@/components/AdminFecha';
 import { Modal } from '@/components/Modal';
@@ -18,8 +17,11 @@ import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
 import { LINEAS_MAPA, MapaRed } from './MapaRed';
 import { InvitacionesPendientes, InvitarAliado } from './InvitarAliado';
 import { QueOfrece, categoriasDelTipo, faltaEnOferta, tipoDeCategorias, type TipoOferta } from './QueOfrece';
+import { EquiposDelAliado } from './EquipoDelAliado';
 import { DescargarExcelProveedores } from './ExcelProveedores';
 import { waDe } from './wa';
+import { Trato } from '@/components/Trato';
+import { anotarSolo } from '@/lib/trato';
 import { avisar, confirmar } from '@/components/Dialogos';
 import { mostrarResultado } from '@maqserv/ui';
 
@@ -74,6 +76,10 @@ interface EquipoRow {
   confirmedAt: string | null;
   /** Lo ofreció el aliado desde su portal y espera revisión. */
   pending?: boolean;
+  /** Cuántas iguales tiene y el económico, placas… de cada una (2026-11-09). */
+  units?: number;
+  identificacion?: UnidadEquipo[];
+  identificable?: boolean;
 }
 
 /** Un renglón del tabulador de un cotizador (ver `renglonesDe`). */
@@ -130,7 +136,8 @@ const AVISO: CSSProperties = { fontSize: 13, color: 'var(--adm-text-2)', lineHei
 const GRID = 'minmax(0,1fr) 170px 140px 120px';
 
 /** Las pestañas del expediente (2026-10-27): antes eran ocho secciones una debajo de otra. */
-type Pestana = 'datos' | 'equipos' | 'papeles' | 'cumple';
+// 'trato' (2026-11-09): llamadas, WhatsApp y correos con el aliado.
+type Pestana = 'datos' | 'equipos' | 'papeles' | 'cumple' | 'trato';
 
 /** "Maquinaria, Transporte": sus líneas en corto (los nombres del mapa); lo demás, con su nombre. */
 const serviciosCortos = (p: ProviderRow) => {
@@ -195,12 +202,14 @@ function conPuntos(xs: Array<ReactNode | null | false | undefined>) {
   ));
 }
 
-export function ProvidersManager({ initial, abrir, enfocarCorreo = false }: {
+export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirEn }: {
   initial: ProviderRow[];
   /** Abrir de entrada el expediente de este aliado (?ver=). */
   abrir?: number;
   /** …y llevar al campo de su correo (?dato=correo). */
   enfocarCorreo?: boolean;
+  /** …o abrirlo en su trato (?dato=trato, desde un recordatorio del Inicio). */
+  abrirEn?: Pestana;
 }) {
   const [todos, setProvs] = useState(initial);
   // En vivo (2026-10-26): al llegar un aviso la campana pide la página otra vez;
@@ -321,7 +330,7 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false }: {
     const p = todos.find((x) => x.id === abrir);
     if (!p) return;
     setAbierto(true);
-    void abrirExpediente(p);
+    void abrirExpediente(p, abrirEn ?? 'datos');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abrir, todos, abierto]);
 
@@ -671,8 +680,6 @@ function ExpedienteModal({
       <style>{`
         .pv-tabs { position: sticky; top: -22px; z-index: 3; background: ${D.card}; margin: -22px -22px 20px; padding: 14px 22px; border-bottom: 1px solid var(--adm-border); }
         .pv-tab > section:first-child { border-top: 0 !important; margin-top: 0 !important; padding-top: 0 !important; }
-        .adm-trow.pv-eq { display: flex; align-items: center; gap: 12px; padding: 11px 16px; color: inherit; text-decoration: none; }
-        .pv-eq:hover .adm-cell-title { color: var(--adm-accent); }
       `}</style>
       <div className="pv-tabs">
         <Segmented<Pestana>
@@ -684,6 +691,7 @@ function ExpedienteModal({
             { key: 'equipos', label: pendientes.length ? `Equipos · ${pendientes.length} nuevo${pendientes.length === 1 ? '' : 's'}` : 'Equipos', count: pendientes.length ? undefined : equipos.length },
             { key: 'papeles', label: 'Papeles', count: vigentes },
             { key: 'cumple', label: 'Cómo cumple' },
+            { key: 'trato', label: 'Trato' },
           ]}
         />
       </div>
@@ -703,6 +711,17 @@ function ExpedienteModal({
           */}
           <AccesoAliado p={p} />
           <EliminarOReactivar p={p} onEliminar={onEliminar} onRevisado={onRevisado} />
+        </div>
+      ) : null}
+
+      {pestana === 'trato' ? (
+        <div className="pv-tab">
+          {/* EL TRATO CON EL ALIADO (2026-11-09): lo anotado aquí, en Servicios y en
+              Solicitudes, más lo que el sistema le mandó por correo. Llamarle o
+              abrir WhatsApp desde aquí se anota solo. */}
+          <section>
+            <Trato objetivo={{ aliado: p.id }} con="aliado" telefono={p.phone} nombre={p.contactName || p.name} />
+          </section>
         </div>
       ) : null}
 
@@ -758,23 +777,8 @@ function ExpedienteModal({
               <p style={VACIO}>Todavía no tiene equipos. Los agrega él desde su portal, o tú con «Agregar equipo».</p>
             ) : (
               <Panel flush clip>
-                {equipos.map((e) => {
-                  const disp = presentacionEstado(e.availability);
-                  const sub = [e.pending ? null : e.tipo, e.brand, e.location].filter(Boolean).join(' · ');
-                  return (
-                    <a key={e.id} href={`/productos/editar/${e.id}`} className="adm-trow pv-eq">
-                      <span style={{ minWidth: 0, flex: 1 }}>
-                        <span className="adm-cell-title" style={{ display: 'block' }}>{e.name}</span>
-                        {sub ? <span className="adm-cell-sub" style={{ display: 'block' }}>{sub}</span> : null}
-                      </span>
-                      {e.pending ? (
-                        <Chip tone="warn" title="No está en tu lista de tipos: se decide en Inventario">Nuevo</Chip>
-                      ) : (
-                        <StatusText color={colorVivo(disp)} title={disp.nota}>{disp.nombre}</StatusText>
-                      )}
-                    </a>
-                  );
-                })}
+                {/* Cada máquina con sus unidades: económico y placas, y el lápiz para corregirlas (2026-11-09). */}
+                <EquiposDelAliado equipos={equipos} onCambio={onRevisado} />
               </Panel>
             )}
             {pendientes.length ? (
@@ -1051,6 +1055,8 @@ function AccesoAliado({ p }: { p: ProviderRow }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={btnClass('secondary', 'sm')}
+                // Queda en su trato (2026-11-09).
+                onClick={() => void anotarSolo({ aliado: p.id, con: 'aliado', canal: 'whatsapp', nota: 'Su enlace de acceso al portal' }, { avisar: true })}
               >
                 <i className="ph ph-whatsapp-logo" aria-hidden />Mandar por WhatsApp
               </a>

@@ -75,7 +75,9 @@ scripts/    → empaquetado para cPanel y generadores de recursos de marca
   cotizadores y cotizaciones emitidas, servicios en curso y agenda.
 - Proveedores (expediente, papeles, sello de verificado, equipos ofrecidos),
   inventario y categorías.
-- Indicadores (12 del documento institucional; utilización y margen aún no se miden).
+- Indicadores («¿Cómo va el negocio?»): el camino de una solicitud, tarjetas con
+  semáforo y meta, dónde falta red y, desde el 2026-11-09, el uso de las
+  máquinas de los aliados (por tipo y por aliado), medido solo con los servicios.
 - Cobranza, pagos a aliados, margen y zonas: **solo diseño**, con datos de
   ejemplo, hasta que Dirección defina el modelo de cobro.
 - **Diseño configurable** sin recompilar: marca, secciones del home, contacto,

@@ -1,14 +1,15 @@
 'use client';
 
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { AdminSelect } from '@/components/AdminSelect';
+import { Trato } from '@/components/Trato';
 import {
   Btn, Chip, EmptyState, IconBtn, PageHeader, Panel, SearchBox, Segmented, StatusText, Toolbar, type Tone,
 } from '@/components/ui';
 import { QuoteRespond } from './QuoteRespond';
 import { AvisosRevision, useRevision } from './QuoteRevision';
 import { QuoteMatches } from './QuoteMatches';
-import { QuoteContact } from './QuoteContact';
 
 export interface QuoteItem {
   id: number;
@@ -113,9 +114,28 @@ const ORIGEN: Record<QuoteItem['origen'], { label: string; title: string }> = {
   maquina: { label: 'Cotizador de máquinas', title: 'Eligió una máquina con su precio en el sitio' },
 };
 
+/**
+ * El nombre de la línea, nunca su clave (2026-11-09, detalle de la auditoría):
+ * sin «lo que pidió» se veía «venta-de-maquinaria» bajo el nombre del cliente.
+ */
+const NOMBRE_LINEA: Record<string, string> = {
+  'maquinaria-pesada': 'Renta de maquinaria pesada',
+  'transporte-y-servicios-de-obra': 'Transporte y servicios de obra',
+  'materiales-para-construccion': 'Materiales para construcción',
+  'soluciones-asfalticas': 'Soluciones asfálticas',
+  'venta-de-maquinaria': 'Venta de maquinaria',
+  triturados: 'Triturados',
+};
+function nombreDeLinea(slug: string | null): string | null {
+  if (!slug) return null;
+  if (NOMBRE_LINEA[slug]) return NOMBRE_LINEA[slug];
+  const t = slug.replace(/-nueva$/, '').replace(/-/g, ' ').trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : null;
+}
+
 /** Lo que pidió, en una línea: la línea de servicio. */
 function necesidad(q: QuoteItem): string | null {
-  return q.productInterested?.split(' · ')[0]?.trim() || q.serviceCategory || null;
+  return q.productInterested?.split(' · ')[0]?.trim() || nombreDeLinea(q.serviceCategory);
 }
 
 /** El detalle corto: los conceptos del cotizador, o lo primero que escribió el cliente. */
@@ -424,6 +444,7 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
 }
 
 function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; totalDocumento: number; onClose: () => void }) {
+  const router = useRouter();
   const chip = chipDe(q, e);
   // Por cotizar: avisos y desglose con el lápiz (2026-10-23).
   const revision = useRevision(q.id, e === 'por_cotizar');
@@ -495,6 +516,22 @@ function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; to
           </dl>
         </section>
 
+        {/* El trato con el cliente (2026-11-09): llamadas, WhatsApp y correos de
+            esta solicitud. «Ya le hablé» vive aquí ahora y sigue sellando el
+            primer contacto de la Historia; llamar o abrir WhatsApp se anota solo. */}
+        <section>
+          <Trato
+            key={q.id}
+            objetivo={{ solicitud: q.id }}
+            con="cliente"
+            telefono={q.phone}
+            nombre={q.name}
+            textoWhatsApp={`Hola${q.name ? ` ${q.name.split(/\s+/)[0]}` : ''}, te escribo de MAQSER24 por tu solicitud ${q.quoteNumber}.`}
+            compacto
+            onCambio={() => router.refresh()}
+          />
+        </section>
+
         {reqs.length > 0 || q.comments ? (
           <section>
             <h3 className="sl-h3">Lo que pidió</h3>
@@ -560,7 +597,7 @@ function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; to
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {e === 'por_cotizar' ? (
             <>
-              <QuoteContact quoteId={q.id} firstContactAt={q.firstContactAt} firstContactVia={q.firstContactVia} />
+              {/* «Ya le hablé» pasó al trato con el cliente, arriba (2026-11-09). */}
               <QuoteMatches quoteId={q.id} />
               <CotizarConTabulador q={q} />
               {/* Aquí sí es la acción principal: el panel es de una sola solicitud. */}

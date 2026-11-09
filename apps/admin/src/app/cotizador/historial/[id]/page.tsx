@@ -119,7 +119,7 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
           acciones={
             <>
               <BotonEnviarCliente id={cot.id} correo={cot.correo} estado={cot.estado} />
-              <BotonWhatsApp datos={datos} telefono={cot.telefono} contacto={cot.atencion || cot.cliente} />
+              <BotonWhatsApp id={cot.id} datos={datos} telefono={cot.telefono} contacto={cot.atencion || cot.cliente} />
               <AccionesEstado id={cot.id} folio={cot.folio} estado={cot.estado} ligada={cot.ligada ?? false} />
             </>
           }

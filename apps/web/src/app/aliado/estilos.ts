@@ -152,6 +152,13 @@ export const CSS = `
 .al-equipo-acts{ display:flex; gap:8px; flex-wrap:wrap; }
 .al-mant{ flex:1 1 100%; display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding-top:12px; margin-top:4px; border-top:1px solid var(--color-border); }
 .al-mant .ms-field{ flex:1 1 160px; margin:0; }
+/* Cada unidad con su económico y placas (2026-11-09). */
+.al-equipo-u{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:8px; }
+.al-unidad{ display:inline-flex; align-items:center; gap:5px; padding:3px 9px; border-radius:999px; font-size:12.5px; line-height:1.4; border:1px solid var(--color-border); background:color-mix(in srgb, var(--color-text) 4%, transparent); color:var(--color-text); overflow-wrap:anywhere; }
+.al-unidad svg{ flex-shrink:0; color:var(--color-text-muted); }
+.al-unidad-falta{ font-size:12.5px; color:var(--color-text-muted); }
+.al-un-edit{ grid-column:1 / -1; display:grid; gap:12px; padding-top:12px; margin-top:4px; border-top:1px solid var(--color-border); min-width:0; }
+.al-un-acts{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
 
 /* ── Listas con filas (papeles, propuestas, historial corto) ── */
 .al-lista{ padding:0; overflow:hidden; }

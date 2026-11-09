@@ -11,7 +11,13 @@ import { reglasDinero } from '../money/reglas';
 import { promises as fs } from 'node:fs';
 import { Throttle } from '@nestjs/throttler';
 import { PREFIJO_PRIVADO, borrarPrivado, facturaStorage, papelStorage, rutaPrivada } from '../common/archivos-privados';
-import { esLineaServicio, requestFormFor } from '@maqserv/config';
+import {
+  MAX_UNIDADES_IDENTIFICADAS, atributosConUnidades, esLineaServicio, identificacionDe, limpiarUnidades, llevaIdentificacion, requestFormFor,
+  textoUnidad, unidadVacia,
+} from '@maqserv/config';
+import { Prisma } from '@maqserv/db';
+import { exigirSinRepetidas, guardarUnidades, listaUnidadesSchema, unidadAsignadaDe, unidadSchema, type UnidadAsignada } from '../catalog/unidades-equipo';
+import { sincronizarReserva } from '../quotes/reservas';
 
 import { MailerService } from '../notifications/mailer.service';
 import { notasDe, pedidoDe, sinContacto, zonaAproximada } from './pedido';
@@ -104,6 +110,8 @@ const ofertaSchema = z.object({
   modelo: z.string().trim().max(120).optional(),
   ubicacion: z.string().trim().max(160).optional(),
   unidades: z.coerce.number().int().min(1).max(999).optional(),
+  /** Económico, placas, serie y año de cada unidad, en orden (2026-11-09). Todo opcional. */
+  identificacion: z.array(unidadSchema).max(MAX_UNIDADES_IDENTIFICADAS).optional(),
   /** Con `categoria: '__nueva__'`: el nombre de la categoría que no está en la lista (2026-10-28). */
   categoriaNueva: z.string().trim().max(100).optional(),
 });
@@ -193,6 +201,9 @@ export class ProviderPortalController {
         where: { provider_id: id, status: 1 },
         select: {
           id: true, name: true, stock: true, location: true,
+          // Económico, placas… de cada unidad (2026-11-09) y su línea: solo
+          // máquinas y vehículos se identifican una por una.
+          attributes: true, category_id: true,
         },
         orderBy: { name: 'asc' },
       }),
@@ -218,6 +229,39 @@ export class ProviderPortalController {
       : [];
     const porEquipo = new Map<number, typeof bloques>();
     for (const b of bloques) porEquipo.set(b.product_id, [...(porEquipo.get(b.product_id) ?? []), b]);
+
+    /**
+     * CADA UNIDAD CON SU IDENTIFICACIÓN (2026-11-09). Solo máquinas y
+     * vehículos (o lo que ya trae lista): una tonelada de grava no lleva placas.
+     * Y en cada servicio, de cuáles puede elegir la que va: las que ya
+     * identificó en esa línea, con la apartada para ese folio primero.
+     */
+    const idsCat = [...new Set(equipos.map((e) => e.category_id))];
+    const slugDeCat = new Map(
+      (idsCat.length ? await prisma.categories.findMany({ where: { id: { in: idsCat } }, select: { id: true, cat_slug: true } }) : [])
+        .map((c) => [c.id, c.cat_slug]),
+    );
+    const identificable = (e: (typeof equipos)[number]) =>
+      llevaIdentificacion(slugDeCat.get(e.category_id)) || identificacionDe(e.attributes).length > 0;
+    const opcionesUnidad = (q: { quote_number: string; service_category: string | null }) => {
+      const apartados = new Set(bloques.filter((b) => b.note === `${PREFIJO_RESERVA}${q.quote_number}`).map((b) => b.product_id));
+      return equipos
+        .filter((e) => !q.service_category || slugDeCat.get(e.category_id) === q.service_category)
+        .sort((a, b) => Number(apartados.has(b.id)) - Number(apartados.has(a.id)))
+        .flatMap((e) => identificacionDe(e.attributes).flatMap((u, indice) =>
+          unidadVacia(u) ? [] : [{ productId: e.id, indice, texto: textoUnidad(u), equipo: e.name, apartada: apartados.has(e.id) }]));
+    };
+    const unidadDe = (q: { quote_number: string; service_category: string | null; requirements: unknown }) => {
+      const u = unidadAsignadaDe(q.requirements);
+      if (u && u.aliadoId === id) return { productId: u.productId, indice: u.indice, texto: textoUnidad(u), equipo: u.equipo };
+      // Sin elegir: si lo apartado es un equipo de UNA sola unidad identificada,
+      // es esa (no tiene otra) y no hay nada que apretar.
+      const apartados = new Set(bloques.filter((b) => b.note === `${PREFIJO_RESERVA}${q.quote_number}`).map((b) => b.product_id));
+      const unico = apartados.size === 1 ? equipos.find((e) => apartados.has(e.id)) : undefined;
+      if (!unico || (unico.stock ?? 1) > 1) return null;
+      const suyas = identificacionDe(unico.attributes).flatMap((x, indice) => (unidadVacia(x) ? [] : [{ x, indice }]));
+      return suyas.length === 1 ? { productId: unico.id, indice: suyas[0].indice, texto: textoUnidad(suyas[0].x), equipo: unico.name } : null;
+    };
 
     const docs = estadoDocumentos(p.provider_documents, hoy);
     const avisos = documentosQueAvisan(p.provider_documents, hoy);
@@ -388,6 +432,10 @@ export class ProviderPortalController {
           pedido: pedidoDe(a.quotes.service_category, a.quotes.requirements, a.quotes.comments, true),
           // Quién maneja la unidad (2026-10-15): su enlace es para él, no para la empresa.
           operador: (() => { const o = operadorDe(a.quotes.requirements); return o ? { nombre: o.nombre, telefono: o.telefono } : null; })(),
+          // Qué unidad va (2026-11-09): la obra pide las placas para dejar entrar.
+          pideUnidad: llevaIdentificacion(a.quotes.service_category),
+          unidad: unidadDe(a.quotes),
+          opcionesUnidad: llevaIdentificacion(a.quotes.service_category) ? opcionesUnidad(a.quotes) : [],
         })),
 
       /**
@@ -423,6 +471,10 @@ export class ProviderPortalController {
           name: e.name,
           state: d.state,
           location: d.location,
+          /** Cuántas unidades iguales tiene y la identificación de cada una (2026-11-09). */
+          unidades: Math.max(1, e.stock ?? 1),
+          identificacion: identificacionDe(e.attributes),
+          identificable: identificable(e),
           /** Hasta cuándo sigue ocupado (AAAA-MM-DD), si hoy no está libre. */
           hasta: d.until,
           mantenimiento: mant
@@ -638,6 +690,47 @@ export class ProviderPortalController {
   }
 
   /**
+   * QUÉ UNIDAD VA (2026-11-09). La obra pide las placas para dejar entrar y la
+   * oficina tiene que poder decirlas sin llamarle: el aliado elige cuál de sus
+   * unidades identificadas manda. Se guarda una foto de sus datos en la
+   * solicitud (`requirements.unidadAsignada`, como el operador) y lo apartado
+   * se pasa a ese equipo si era otro de sus modelos (quotes/reservas.ts).
+   * `productId: null` la quita.
+   */
+  @Put('servicios/:quoteNumber/unidad')
+  async unidadDelServicio(@Req() req: AliadoRequest, @Param('quoteNumber') quoteNumber: string, @Body() body: unknown) {
+    const p = z.object({
+      productId: z.number().int().positive().nullable(),
+      indice: z.number().int().min(0).max(MAX_UNIDADES_IDENTIFICADAS).optional(),
+    }).safeParse(body);
+    if (!p.success) throw new BadRequestException('Elige la unidad.');
+    const q = await prisma.quotes.findFirst({ where: { quote_number: quoteNumber.slice(0, 40) }, select: { id: true, service_state: true, requirements: true } });
+    const suya = q
+      ? await prisma.service_assignments.findFirst({ where: { quote_id: q.id, provider_id: req.providerId, state: 'aceptado' }, select: { id: true } })
+      : null;
+    if (!q || !suya) throw new BadRequestException('Ese servicio no es tuyo.');
+    if (['terminado', 'cerrado', 'cancelado'].includes(q.service_state ?? '')) throw new BadRequestException('Ese servicio ya terminó.');
+
+    const { unidadAsignada: _antes, ...resto } = (q.requirements ?? {}) as Record<string, unknown>;
+    void _antes;
+    let unidad: UnidadAsignada | null = null;
+    if (p.data.productId !== null) {
+      const e = await prisma.products.findUnique({ where: { id: p.data.productId }, select: { provider_id: true, status: true, name: true, attributes: true } });
+      if (!e || e.provider_id !== req.providerId || e.status !== 1) throw new BadRequestException('Ese equipo no es tuyo.');
+      const u = identificacionDe(e.attributes)[p.data.indice ?? 0];
+      if (!u || unidadVacia(u)) throw new BadRequestException('Esa unidad ya no está en tu lista: actualiza la página.');
+      unidad = { ...u, aliadoId: req.providerId, productId: p.data.productId, indice: p.data.indice ?? 0, equipo: e.name };
+    }
+    await prisma.quotes.update({
+      where: { id: q.id },
+      data: { requirements: (unidad ? { ...resto, unidadAsignada: unidad } : resto) as unknown as Prisma.InputJsonValue, updated_at: new Date() },
+    });
+    // Lo apartado sigue a la unidad elegida (si es de otro de sus modelos). Nunca lanza.
+    await sincronizarReserva(Number(q.id));
+    return { ok: true, unidad: unidad ? { productId: unidad.productId, indice: unidad.indice, texto: textoUnidad(unidad), equipo: unidad.equipo } : null };
+  }
+
+  /**
    * DÓNDE VA LA UNIDAD (2026-10-14). Mientras el servicio está "en traslado",
    * el teléfono del aliado manda su ubicación cada pocos minutos desde este
    * portal. Fuera de esa ventana se rechaza con `detener: true`: el teléfono
@@ -760,6 +853,21 @@ export class ProviderPortalController {
   }
 
   /**
+   * SUS UNIDADES, UNA POR UNA (2026-11-09): número económico, placas, serie y
+   * año de cada máquina igual. Cuántas renglones manda es cuántas unidades
+   * tiene (`stock`); quitar un renglón es dar de baja esa unidad. También lo
+   * que ofreció y espera revisión: lo puede completar mientras.
+   */
+  @Put('equipos/:productId/unidades')
+  async unidades(@Req() req: AliadoRequest, @Param('productId', ParseIntPipe) productId: number, @Body() body: unknown) {
+    const p = z.object({ unidades: listaUnidadesSchema }).safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Revisa los datos de tus unidades.');
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { provider_id: true, status: true } });
+    if (!e || e.provider_id !== req.providerId || (e.status !== 1 && e.status !== ESTADO_POR_REVISAR)) throw new BadRequestException('Ese equipo no es tuyo.');
+    return { ok: true, ...(await guardarUnidades(productId, p.data.unidades)) };
+  }
+
+  /**
    * Sus propios datos. Antes esto solo se podía cambiar llamando a la oficina,
    * que es justo lo que el documento (20) pide quitar de en medio.
    *
@@ -876,6 +984,12 @@ export class ProviderPortalController {
       : null;
     const base = tipo?.name ?? d.nombre?.trim() ?? '';
     if (base.length < 3) throw new BadRequestException('Escribe qué equipo es.');
+    // Económico, placas… de cada unidad (2026-11-09), solo de máquinas y
+    // vehículos. Con alguna identificada, la lista cuenta las unidades; si
+    // escribió más unidades que renglones, las demás quedan sin identificar.
+    const ident = llevaIdentificacion(d.categoria) ? limpiarUnidades(d.identificacion ?? []) : [];
+    const conIdent = ident.some((u) => !unidadVacia(u));
+    if (conIdent) exigirSinRepetidas(ident);
 
     const ahora = new Date();
     const creado = await prisma.products.create({
@@ -893,7 +1007,8 @@ export class ProviderPortalController {
         is_rental: tipo?.is_rental ?? (d.categoria === 'maquinaria-pesada' || d.categoria === 'transporte-y-servicios-de-obra'),
         price_unit: tipo?.price_unit ?? null,
         location: d.ubicacion || null,
-        stock: d.unidades ?? 1,
+        stock: conIdent ? Math.max(ident.length, d.unidades ?? 1) : d.unidades ?? 1,
+        ...(conIdent ? { attributes: atributosConUnidades(null, ident) as never } : {}),
         status: tipo ? 1 : ESTADO_POR_REVISAR,
         ...(tipo ? { availability_confirmed_at: ahora } : {}),
         featured: 0,
@@ -924,7 +1039,7 @@ export class ProviderPortalController {
           kind: 'provider_offer_review',
           to: interno,
           providerId: p.id,
-          ...correoEquipoPropuesto({ aliado: p.name, equipo: creado.name, marca: d.marca || null, linea: propuesta ? `${propuesta.nombre} (categoría nueva)` : categoria.cat_name, url: `${panel}${propuesta ? '/categorias' : '/productos'}` }),
+          ...(await correoEquipoPropuesto({ aliado: p.name, equipo: creado.name, marca: d.marca || null, linea: propuesta ? `${propuesta.nombre} (categoría nueva)` : categoria.cat_name, url: `${panel}${propuesta ? '/categorias' : '/productos'}` })),
         })
         .catch(() => undefined);
     }

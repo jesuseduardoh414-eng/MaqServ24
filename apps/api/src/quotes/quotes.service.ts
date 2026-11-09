@@ -191,12 +191,12 @@ export class QuotesService {
         to: customer.email,
         toName: customer.name,
         quoteId: Number(q.id),
-        ...correoAcuseSolicitudAMedida({
+        ...(await correoAcuseSolicitudAMedida({
           nombre: customer.name,
           folio: q.quote_number,
           pidio,
           url: `${sitio}/cuenta/cotizaciones/${encodeURIComponent(q.quote_number)}`,
-        }),
+        })),
       });
 
       // Al buzón desde el que sale el correo, como el aviso del cotizador.
@@ -208,7 +208,7 @@ export class QuotesService {
         to: interno,
         replyTo: customer.email,
         quoteId: Number(q.id),
-        ...correoSolicitudAMedidaInterna({
+        ...(await correoSolicitudAMedidaInterna({
           folio: q.quote_number,
           cliente: customer.name,
           empresa: customer.company?.trim() || null,
@@ -221,7 +221,7 @@ export class QuotesService {
             : null,
           comentarios: q.comments,
           url: `${panel}/cotizaciones?ver=${q.id}`,
-        }),
+        })),
       });
     } catch (e) {
       this.log.error(`No se pudieron mandar los correos de la solicitud ${q.quote_number}: ${(e as Error).message}`);

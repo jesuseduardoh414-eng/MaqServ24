@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { mostrarResultado } from '@maqserv/ui';
 import { Modal } from '@/components/Modal';
-import { Btn, Chip, FormField, Note, Panel, Segmented, Switch } from '@/components/ui';
+import { Btn, Chip, FormField, Note, Panel, SearchBox, Segmented, Switch } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
 
 /**
@@ -15,8 +15,10 @@ import { confirmar } from '@/components/Dialogos';
  * `{nombre}`, `{folio}`… donde van los datos vivos. Al lado, la vista previa
  * armada por la misma plantilla que manda el sistema, con datos de ejemplo.
  *
- * Primera entrega: los 10 correos que más se leen. El remitente no se edita
- * aquí (decisión del dueño: "ya en un futuro").
+ * Primera entrega (2026-10-28): los 10 correos que más se leen. Segunda
+ * (2026-11-09): los otros 25, así que ya se edita todo lo que manda el
+ * sistema. Con 35 en la lista, arriba va un buscador. El remitente no se
+ * edita aquí (decisión del dueño: "ya en un futuro").
  */
 
 interface Hueco { clave: string; etiqueta: string; fabrica: string; texto: string; variables: Record<string, string>; obligatorias: string[]; largo: boolean }
@@ -30,6 +32,7 @@ export function DisenoCorreos() {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [pestana, setPestana] = useState<'textos' | 'diseno'>('textos');
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
 
   useEffect(() => {
     let vivo = true;
@@ -42,7 +45,11 @@ export function DisenoCorreos() {
 
   if (!datos) return <Panel title="Cómo llegan tus correos" icon="ph-envelope-simple"><p className="adm-help" style={{ margin: 0 }}>Cargando…</p></Panel>;
 
-  const grupos = (['cliente', 'aliado', 'sitio', 'interno'] as const).map((p) => ({ para: p, lista: datos.correos.filter((c) => c.para === p) })).filter((g) => g.lista.length);
+  // Sin acentos ni mayúsculas: «contrasena» encuentra «contraseña».
+  const llano = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const q = llano(busca.trim());
+  const visibles = q ? datos.correos.filter((c) => llano(`${c.nombre} ${c.cuando}`).includes(q)) : datos.correos;
+  const grupos = (['cliente', 'aliado', 'sitio', 'interno'] as const).map((p) => ({ para: p, lista: visibles.filter((c) => c.para === p) })).filter((g) => g.lista.length);
   const editando = datos.correos.find((c) => c.kind === abierto) ?? null;
 
   return (
@@ -69,10 +76,16 @@ export function DisenoCorreos() {
             .ce-fila .n { min-width: 0; font-size: 13.5px; font-weight: 500; color: var(--adm-text); }
             .ce-fila .c { font-size: 12.5px; color: var(--adm-muted); min-width: 0; }
             @media (max-width: 760px) { .ce-fila { grid-template-columns: minmax(0, 1fr) auto 14px; } .ce-fila .c { display: none; } }
+            .ce-busca { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
+            @media (max-width: 760px) { .ce-busca > :last-child { width: 100% !important; } }
           `}</style>
-          <p className="adm-help" style={{ margin: '0 0 12px' }}>
-            Primera entrega: los {datos.correos.length} correos que más se leen. Los demás siguen con su texto de fábrica por ahora.
-          </p>
+          <div className="ce-busca">
+            <p className="adm-help" style={{ margin: 0 }}>
+              Los {datos.correos.length} correos que manda el sistema. Toca uno para cambiar lo que dice.
+            </p>
+            <SearchBox value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar un correo…" aria-label="Buscar un correo" style={{ width: 240, maxWidth: '100%' }} />
+          </div>
+          {grupos.length === 0 ? <p className="adm-help" style={{ margin: 0 }}>Ningún correo se llama así.</p> : null}
           {grupos.map((g) => (
             <div key={g.para} className="ce-grupo">
               <p className="ce-grupo-t">{PARA[g.para]}</p>

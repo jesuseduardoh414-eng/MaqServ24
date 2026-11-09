@@ -7,6 +7,7 @@ import { Icon } from '@/components/Icon';
 import { confirmar as confirmarDialogo } from '@/components/Dialogos';
 import { CompartirUbicacion } from './CompartirUbicacion';
 import { OperadorServicio } from './OperadorServicio';
+import { UnidadServicio } from './UnidadServicio';
 import {
   AMBAR, API, Barra, Chip, Dato, Encabezado, ICONO_AVANCE, Insignia, LoQuePide, SIGUIENTE, Vacio, VerDocumento,
   avisar, fechaHora, hace, llamar, mananaOcho, minutosDesde, pagoTexto, type Tono,
@@ -377,6 +378,10 @@ function TarjetaServicio({ s }: { s: Servicio }) {
         <div className="al-exige">
           <Icon name="warning" size={14} /><span>Exige: {s.requirements.join(' · ')}</span>
         </div>
+      ) : null}
+      {/* Qué unidad va: la obra pide las placas para dejar entrar (2026-11-09). */}
+      {s.pideUnidad && s.state !== 'terminado' ? (
+        <UnidadServicio quoteNumber={s.quoteNumber} inicial={s.unidad ?? null} opciones={s.opcionesUnidad ?? []} />
       ) : null}
       {/* Quién maneja la unidad: su enlace comparte la ubicación (2026-10-15). */}
       {s.state !== 'terminado' ? <OperadorServicio quoteNumber={s.quoteNumber} inicial={s.operador ?? null} /> : null}

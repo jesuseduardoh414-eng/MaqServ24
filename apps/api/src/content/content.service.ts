@@ -260,7 +260,7 @@ export class ContentService {
         kind: 'contact_internal',
         to: interno,
         replyTo: email,
-        ...correoContactoInterno({ nombre: name, correo: email, telefono: phone, empresa: company, tema: need || null, mensaje: message, url: panel ? `${panel}/mensajes` : null }),
+        ...(await correoContactoInterno({ nombre: name, correo: email, telefono: phone, empresa: company, tema: need || null, mensaje: message, url: panel ? `${panel}/mensajes` : null })),
       });
     }
     /**
@@ -273,7 +273,7 @@ export class ContentService {
       kind: 'contact_ack',
       to: email,
       toName: name,
-      ...correoAcuseContacto({ nombre: name.split(/\s+/)[0].slice(0, 30), mensaje: '', telefono: phone }),
+      ...(await correoAcuseContacto({ nombre: name.split(/\s+/)[0].slice(0, 30), mensaje: '', telefono: phone })),
     });
 
     // `crm_pushed` se sella solo si Perfex confirmó. Los que queden en false son
@@ -507,17 +507,17 @@ export class ContentService {
         kind: 'provider_signup_internal',
         to: interno,
         ...(correo ? { replyTo: correo } : {}),
-        ...correoSolicitudProveedorInterno({
+        ...(await correoSolicitudProveedorInterno({
           nombre, tipo: tipo.nombre, contacto, telefono, correo,
           ubicacion: `${ciudad}, ${estado}`, ofrece, mensaje,
           url: panel ? `${panel}/proveedores` : null,
-        }),
+        })),
       });
     }
     if (correo) {
       // Del nombre, solo la primera palabra: va a un correo que nadie comprobó y
       // no debe repetir texto libre (auditoría 2026-10-23).
-      void this.mailer.enviar({ kind: 'provider_signup_ack', to: correo, toName: contacto ?? nombre, ...correoAcuseProveedor({ nombre: (contacto ?? nombre).split(/\s+/)[0].slice(0, 30) }) });
+      void this.mailer.enviar({ kind: 'provider_signup_ack', to: correo, toName: contacto ?? nombre, ...(await correoAcuseProveedor({ nombre: (contacto ?? nombre).split(/\s+/)[0].slice(0, 30) })) });
     }
     return { ok: true };
   }

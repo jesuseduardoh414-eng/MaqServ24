@@ -1,9 +1,10 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Logger, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { AdminGuard, Modulo } from './admin-auth';
 import { horas, mediana, periodoAnterior } from './analytics';
 import { MatchingService } from '../quotes/matching.service';
-import { diaLocal } from '../money/cuentas';
+import { diaLocal, masDias } from '../money/cuentas';
+import { META_USO, usoDeLasMaquinas } from './uso-maquinas';
 
 /**
  * ¿CÓMO VA EL NEGOCIO? (Indicadores, rediseño del 2026-10-27).
@@ -15,17 +16,24 @@ import { diaLocal } from '../money/cuentas';
  * ningún número decía si estaba bien o mal.
  *
  * Ahora, en el orden en que se lee: el camino de una solicitud (llegaron →
- * se cotizaron → aceptaron → se terminaron), cuatro tarjetas con semáforo y su
+ * se cotizaron → aceptaron → se terminaron), cinco tarjetas con semáforo y su
  * meta, dónde nos falta red (solo lo que de verdad nadie pudo tomar), las
- * solicitudes por mes y los clientes que regresan. Cada número se puede abrir
- * para ver qué solicitudes lo forman (`casos`).
+ * solicitudes por mes, los clientes que regresan y el uso de las máquinas.
+ * Cada número se puede abrir para ver qué solicitudes lo forman (`casos`).
+ *
+ * USO DE LAS MÁQUINAS (2026-11-09): la "Utilización" que se quitó el 27 de
+ * octubre por no poder medirse vuelve, ahora medida sola con lo que ya pasa
+ * por el sistema (cada máquina de aliado con su tipo y sus unidades, y qué
+ * máquina llevó cada servicio y cuándo). La cuenta y sus reglas están en
+ * uso-maquinas.ts.
  */
 
-/** Metas del semáforo: las de Claude hasta que Dirección diga otras (2026-10-27). */
+/** Metas del semáforo: las de Claude hasta que Dirección diga otras (2026-10-27; uso, 2026-11-09). */
 const METAS = {
   cotizacion: { verde: 4, amarillo: 8, texto: 'Meta: menos de 4 h' }, // horas; menos es mejor
   aceptan: { verde: 30, amarillo: 20, texto: 'Meta: más de 30%' }, // %; más es mejor
   problemas: { verde: 10, amarillo: 20, texto: 'Meta: menos de 10%' }, // %; menos es mejor
+  uso: META_USO, // %; más es mejor
 };
 /** Con menos casos que esto el número no dice nada: va en gris, sin semáforo. */
 const MINIMO = 3;
@@ -64,6 +72,7 @@ function enQueVa(q: { status: string | null; service_state: string | null; respo
 @Controller('admin/analytics')
 @UseGuards(AdminGuard)
 export class AdminAnalyticsController {
+  private readonly log = new Logger(AdminAnalyticsController.name);
   constructor(private readonly matching: MatchingService) {}
 
   @Get()
@@ -107,11 +116,19 @@ export class AdminAnalyticsController {
     const aceptan = pct(e.aceptadas, e.cotizadas);
     const problemas = pct(prob.afectados, prob.terminados);
 
-    const [faltaRed, porMes, clientes, contexto] = await Promise.all([
+    // El uso se cuenta por días: el periodo en días de Monterrey, y el anterior
+    // termina la víspera para que ningún día cuente en los dos.
+    const ventana = { desde: diaLocal(desde), hasta: diaLocal(hasta) };
+    const [faltaRed, porMes, clientes, contexto, uso] = await Promise.all([
       this.faltaRed(desde, hasta),
       this.porMes(periodo === '365' ? 12 : 6),
       this.clientes(),
       this.contexto(),
+      // Si el uso falla, el resto del tablero sale igual (sin su tarjeta).
+      usoDeLasMaquinas(ventana, { desde: diaLocal(previo.desde), hasta: masDias(ventana.desde, -1) }, ventana.hasta).catch((err: Error) => {
+        this.log.warn(`No se pudo medir el uso de las máquinas: ${err.message}`);
+        return null;
+      }),
     ]);
 
     return {
@@ -128,10 +145,20 @@ export class AdminAnalyticsController {
           cancelados: prob.cancelados, conIncidencia: prob.conIncidencia,
         },
         margen: { valor: margenAhora.valor, servicios: margenAhora.servicios, antes: margenAntes.valor },
+        // La muestra son los servicios que sacaron una máquina: con menos de
+        // MINIMO va en gris, y sin ninguno no hay número (no un 0% engañoso).
+        uso: uso
+          ? {
+              valor: uso.valor, muestra: uso.servicios, antes: uso.antes,
+              semaforo: semaforo(uso.valor, uso.servicios, METAS.uso, false), meta: METAS.uso.texto,
+              ocupados: uso.ocupados, posibles: uso.posibles, maquinas: uso.maquinas, unidades: uso.unidades, aliados: uso.aliados,
+            }
+          : undefined,
       },
       faltaRed,
       porMes,
       clientes,
+      uso: uso ? { porTipo: uso.porTipo, porAliado: uso.porAliado, detalle: uso.detalle, sinMaquina: uso.sinMaquina } : undefined,
     };
   }
 

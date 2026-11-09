@@ -119,7 +119,7 @@ export class AdminAdminsController {
   private async mandarInvitacion(req: AdminRequest, a: { id: number; name: string; email: string; role: string; password: string }): Promise<void> {
     const base = baseDelPanel();
     const token = await firmarRestablecimientoAdmin(a.id, a.password, INVITACION_MINUTOS);
-    const correo = correoInvitacionPanel({
+    const correo = await correoInvitacionPanel({
       nombre: a.name,
       invitadoPor: req.adminNombre || req.adminEmail,
       rolNombre: ROLES_ADMIN[rolDeAdmin(a.role)].nombre,
@@ -188,6 +188,9 @@ export class AdminAdminsController {
       };
     });
     if (cursor > 0) and.push({ id: { lt: cursor } });
+    // Las llamadas y WhatsApp anotados (2026-11-09) viven en la misma tabla pero
+    // no son acciones sensibles: se ven en su solicitud, cliente o aliado.
+    and.push({ accion: { not: 'contacto' } });
 
     const filas = await prisma.admin_audit.findMany({
       where: and.length ? { AND: and } : undefined,
@@ -282,7 +285,7 @@ export class AdminAdminsController {
     if (pid !== null && req.adminId !== pid && (id === pid || rolDeAdmin(a.role) === 'direccion')) throw new ForbiddenException(SOLO_PRINCIPAL);
     const base = baseDelPanel();
     const token = await firmarRestablecimientoAdmin(a.id, a.password, ENLACE_CONTRASENA_MINUTOS);
-    const correo = correoRestablecerContrasena({
+    const correo = await correoRestablecerContrasena({
       nombre: a.name, url: `${base}/restablecer?token=${token}`, minutos: ENLACE_CONTRASENA_MINUTOS, desdeElPanel: req.adminNombre || req.adminEmail,
     });
     await this.mailer.enviar({ kind: 'admin_password_reset', to: a.email, toName: a.name, ...correo });

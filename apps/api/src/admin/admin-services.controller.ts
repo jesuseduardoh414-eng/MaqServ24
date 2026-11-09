@@ -12,6 +12,7 @@ import { ServiceService } from '../quotes/service.service';
 import { SUGERIDOS } from '../quoter/quoter-servicio';
 import { ESTADOS, PASOS, esEstado, estadoInicial, siguientes, avance } from '../quotes/service-flow';
 import { equiposDeServicios } from '../quotes/rastreo';
+import { textoUnidadAsignada, unidadApartadaPorFolio } from '../catalog/unidades-equipo';
 
 /**
  * TABLERO DE OPERACIONES (documento institucional, secciones 16 y 17).
@@ -77,6 +78,8 @@ export class AdminServicesController {
     });
     // Qué máquina lleva cada uno (2026-10-26, tarjeta corta): lo mismo que dice el mapa.
     const equipoDe = await equiposDeServicios(rows.map((r) => r.requirements));
+    // Sin elegir unidad, la única que puede ir: lo apartado es una sola unidad identificada (2026-11-09).
+    const unidadApartada = await unidadApartadaPorFolio(rows.map((r) => r.quote_number));
 
     // Los aliados de cada servicio, de un solo viaje: uno por servicio serían
     // tantas consultas como filas tenga el tablero.
@@ -148,6 +151,12 @@ export class AdminServicesController {
         closedAt: q.service_closed_at,
         // Quién maneja la unidad (2026-10-15, ver providers/operador.ts).
         operator: (() => { const o = operadorDe(q.requirements); return o ? { name: o.nombre, phone: o.telefono } : null; })(),
+        // La unidad que eligió el aliado que lo tiene (2026-11-09): la obra pide las placas.
+        unit: (() => {
+          const aceptados = mias.filter((a) => a.state === 'aceptado').map((a) => a.providers.id);
+          const apartada = unidadApartada.get(q.quote_number);
+          return textoUnidadAsignada(q.requirements, aceptados) ?? (apartada && aceptados.includes(apartada.aliadoId) ? apartada.texto : null);
+        })(),
         assignments: mias.map((a) => ({
           id: a.id,
           providerId: a.providers.id,

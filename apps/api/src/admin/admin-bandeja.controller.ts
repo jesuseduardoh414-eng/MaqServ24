@@ -99,7 +99,7 @@ export class AdminBandejaController {
       kind: 'contact_reply',
       to: m.email,
       toName: m.name,
-      ...correoMensajeRespondido({ nombre: m.name.split(/\s+/)[0] ?? null, mensaje: m.message, respuesta }),
+      ...(await correoMensajeRespondido({ nombre: m.name.split(/\s+/)[0] ?? null, mensaje: m.message, respuesta })),
     });
     return { ok: true, correo: estado };
   }

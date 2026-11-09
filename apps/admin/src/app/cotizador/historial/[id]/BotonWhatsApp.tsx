@@ -5,6 +5,7 @@ import { descargarArchivo, documentoPdf, type DatosDocumento } from '@maqserv/ui
 import { Btn } from '@/components/ui';
 import { useBranding } from '@/components/branding';
 import { pestanaParaChat, waDe } from '@/app/proveedores/wa';
+import { anotarSolo } from '@/lib/trato';
 
 /**
  * MANDAR LA COTIZACIÓN POR WHATSAPP (2026-11-04).
@@ -16,12 +17,17 @@ import { pestanaParaChat, waDe } from '@/app/proveedores/wa';
  * adjuntar el PDF y mandar: una página no le puede pasar un archivo a un chat.
  *
  * No cambia el estado a "Enviada": desde aquí no se sabe si de verdad se mandó.
+ * Sí queda en el trato del cliente (2026-11-09): "Se abrió WhatsApp · su
+ * cotización MQ-…", en su ficha y en su solicitud, para ponerle cómo quedó.
  */
 export function BotonWhatsApp({
+  id,
   datos,
   telefono,
   contacto,
 }: {
+  /** El documento: con él el panel sabe de qué cliente y solicitud es. */
+  id: number;
   datos: Omit<DatosDocumento, 'logo'>;
   telefono: string | null;
   /** A quién se saluda: la persona de "Atención" o, si no hay, el cliente. */
@@ -51,6 +57,7 @@ export function BotonWhatsApp({
     }
     const chat = `https://wa.me/${wa}?text=${encodeURIComponent(texto)}`;
     if (ventana) ventana.location.href = chat;
+    void anotarSolo({ documento: id, con: 'cliente', canal: 'whatsapp', nota: `Se le mandó la cotización ${datos.folio}` });
     setResultado({
       tono: conPdf ? 'ok' : 'bad',
       texto: conPdf

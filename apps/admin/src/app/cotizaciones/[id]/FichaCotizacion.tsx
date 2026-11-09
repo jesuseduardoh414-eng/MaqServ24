@@ -6,7 +6,9 @@ import { mostrarResultado } from '@maqserv/ui';
 import {
   alinearATarifa,
   calcularCotizacion,
+  combinar,
   conZonaDeLaObra,
+  trituradosDe,
   equipoDe,
   ponerPrecio,
   productoDe,
@@ -29,6 +31,7 @@ import { AdminSelect } from '@/components/AdminSelect';
 import { AdminDatePicker } from '@/components/AdminFecha';
 import { confirmar } from '@/components/Dialogos';
 import { Btn, Chip, IconBtn, Note, PageHeader, Panel } from '@/components/ui';
+import { Trato } from '@/components/Trato';
 import { QuoteRespond } from '../QuoteRespond';
 
 /**
@@ -115,6 +118,24 @@ const leer = async <T,>(url: string): Promise<T> => {
   return b as T;
 };
 
+/**
+ * El tabulador con que se calcula el documento. El de maquinaria lleva junto
+ * el de triturados (2026-11-09), igual que en el API: una sola cotización puede
+ * llevar los dos, y sin él la arena salía «Partida · no suma nada» y el total
+ * bajaba al volver a cotizarla.
+ */
+async function catalogoDe(kind: string): Promise<CatalogoCotizador> {
+  const c = await leer<CatalogoCotizador>(`/api/admin/quoter/catalog/${kind}`);
+  if (c.tipo !== 'maquinaria') return c;
+  const tri = await leer<CatalogoCotizador>('/api/admin/quoter/catalog/triturados').catch(() => null);
+  return tri && tri.tipo === 'triturados' ? combinar(c, tri) : c;
+}
+/** De qué ficha sale cada renglón; en maquinaria, también los del material. */
+async function fichasDe(kind: string): Promise<FichasDeRenglones> {
+  const una = (k: string) => leer<FichasDeRenglones>(`/api/admin/quoter/catalog/${k}/fichas`).catch(() => ({}) as FichasDeRenglones);
+  return kind === 'maquinaria' ? { ...(await una('triturados')), ...(await una('maquinaria')) } : una(kind);
+}
+
 export function FichaCotizacion({ id }: { id: number }) {
   const router = useRouter();
   const [ficha, setFicha] = useState<Ficha | null>(null);
@@ -135,8 +156,8 @@ export function FichaCotizacion({ id }: { id: number }) {
       setFicha(f);
       if (f.documento) {
         const [c, fx] = await Promise.all([
-          leer<CatalogoCotizador>(`/api/admin/quoter/catalog/${f.documento.kind}`),
-          leer<FichasDeRenglones>(`/api/admin/quoter/catalog/${f.documento.kind}/fichas`).catch(() => ({})),
+          catalogoDe(f.documento.kind),
+          fichasDe(f.documento.kind),
         ]);
         setCat(c);
         setFichas(fx);
@@ -257,7 +278,7 @@ export function FichaCotizacion({ id }: { id: number }) {
     }).catch(() => null);
     const b = await r?.json().catch(() => null);
     if (!r?.ok) { mostrarResultado(b?.message ?? 'No se pudo corregir la tarifa.', 'bad'); return false; }
-    const nuevo = await leer<CatalogoCotizador>(`/api/admin/quoter/catalog/${doc.kind}`);
+    const nuevo = await catalogoDe(doc.kind);
     setCat(nuevo);
     // Esta partida deja su precio especial y lo que traía la tarifa vieja escrita pasa a la nueva.
     const copia = structuredClone(partidas);
@@ -404,6 +425,20 @@ export function FichaCotizacion({ id }: { id: number }) {
           ) : (
             <Note tone="info" icon="ph-info">Llegó sin renglones con precio. Ponle el precio al mandarlo.</Note>
           )}
+
+          {/* El trato con el cliente de esta solicitud (2026-11-09), al final: la
+              ficha es para el precio, pero aquí se le llama para confirmarlo. */}
+          <Panel>
+            <Trato
+              key={s.id}
+              objetivo={{ solicitud: s.id }}
+              con="cliente"
+              telefono={s.telefono}
+              nombre={s.atencion || s.contacto}
+              textoWhatsApp={`Hola${(s.atencion || s.contacto) ? ` ${(s.atencion || s.contacto).split(/\s+/)[0]}` : ''}, te escribo de MAQSER24 por tu cotización ${s.quoteNumber}.`}
+              compacto
+            />
+          </Panel>
         </div>
 
         <aside className="fc-aside" id="fc-aside">
@@ -568,10 +603,13 @@ function nombreDePartida(cat: CatalogoCotizador, p: PartidaCotizador): string {
     if (p.tipo === 'equipo') return equipoDe(cat, p.id)?.nombre ?? 'Equipo que ya no está en el tabulador';
     // Escrito a mano (panel) o pedido a la medida (sitio, 2026-11-06): su propio nombre.
     if (p.tipo === 'servicio') return servicioDe(cat, p.id)?.nombre ?? (p.id === SERVICIO_A_MANO && p.nombre?.trim() ? p.nombre.trim() : 'Servicio que ya no está en el tabulador');
-  } else {
-    if (p.tipo === 'material') return productoDe(cat, p.id)?.nombre ?? p.nombre ?? 'Material';
-    if (p.tipo === 'zona') return `${productoDe(cat, p.producto_id)?.nombre ?? 'Material'} · ${zonaDe(cat, p.zona_id)?.nombre ?? 'zona'}`;
-    if (p.tipo === 'banco') return cat.material_banco.nombre;
+  }
+  // El material puede venir en una de maquinaria que lo lleva junto (2026-11-09).
+  const tri = trituradosDe(cat);
+  if (tri) {
+    if (p.tipo === 'material') return productoDe(tri, p.id)?.nombre ?? p.nombre ?? 'Material';
+    if (p.tipo === 'zona') return `${productoDe(tri, p.producto_id)?.nombre ?? 'Material'} · ${zonaDe(tri, p.zona_id)?.nombre ?? 'zona'}`;
+    if (p.tipo === 'banco') return tri.material_banco.nombre;
   }
   return 'Partida';
 }

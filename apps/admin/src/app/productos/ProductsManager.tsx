@@ -26,6 +26,10 @@ export interface ProductRow {
   isRental: boolean;
   image: string | null;
   categoryName: string | null;
+  /** Máquina de aliado: cada unidad identificada ("Eco. 12 · placas RX-12-345"), 2026-11-09. */
+  units?: string[];
+  /** Económico, placas y serie para el buscador, también sin guiones. */
+  unitsSearch?: string;
 }
 export interface CatOption { id: number; name: string; slug: string }
 
@@ -246,8 +250,11 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
       if (catFilter !== 'todas' && p.categoryName !== catFilter) return false;
       if (filter === 'activos' && p.status !== 1) return false;
       if (filter === 'destacados' && !p.featured) return false;
-      // También por categoría: «andamios» encuentra el «Andamio tubular».
-      if (q && !(p.name.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q) || (p.categoryName ?? '').toLowerCase().includes(q))) return false;
+      // También por categoría: «andamios» encuentra el «Andamio tubular». Y por
+      // número económico o placas de una máquina de aliado (2026-11-09).
+      const qSin = q.replace(/[^a-z0-9]/g, '');
+      const porUnidad = !!p.unitsSearch && (p.unitsSearch.includes(q) || (!!qSin && p.unitsSearch.includes(qSin)));
+      if (q && !(porUnidad || p.name.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q) || (p.categoryName ?? '').toLowerCase().includes(q))) return false;
       return true;
     });
     if (sort === 'asc') list = [...list].sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
@@ -366,7 +373,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
           </>
         }
       >
-        <SearchBox value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar producto o marca…" aria-label="Buscar producto o marca" />
+        <SearchBox value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar producto, marca o placas…" aria-label="Buscar producto, marca, placas o número económico" />
         <AdminSelect
           size="sm"
           className="w-auto min-w-[190px]"
@@ -426,6 +433,12 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
               <div className="pr-name" style={{ minWidth: 0 }}>
                 <div className="adm-cell-title adm-ellipsis">{p.name}</div>
                 <div className="adm-cell-sub adm-ellipsis">{p.brand || '—'}</div>
+                {/* Sus unidades con económico y placas (2026-11-09); completas al pasar el cursor. */}
+                {p.units?.length ? (
+                  <div className="adm-cell-sub adm-ellipsis" title={p.units.join('\n')}>
+                    <i className="ph ph-truck" aria-hidden style={{ marginRight: 4 }} />{p.units.join(' / ')}
+                  </div>
+                ) : null}
               </div>
               {/* Categoría */}
               <div className="pr-cat" style={{ minWidth: 0 }}>

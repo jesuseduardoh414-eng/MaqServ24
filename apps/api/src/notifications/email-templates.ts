@@ -14,8 +14,7 @@
 import { aplicar, disenoDe, disenoSincrono, textosDe, type DisenoCorreo, type Previa } from './textos-correo';
 import { imageUrl } from '../catalog/images';
 
-/** El azul del tema claro (acción sobre blanco, AA); los botones y títulos toman el del diseño. */
-const AZUL = '#0066CC';
+// Los botones, títulos y acentos toman el color del diseño del panel (Correo › Diseño).
 const TINTA = '#11161D';
 const TINTA2 = '#333D48';
 const GRIS = '#6B7683';
@@ -240,13 +239,15 @@ export async function correoServicioAvanzo(d: {
   llegada?: string | null;
   /** El aviso de que un aliado tomó el servicio: se dice "confirmado", no "asignado" (2026-10-15). */
   confirmacion?: boolean;
+  /** Qué unidad va ("Eco. 12 · placas RX-12-345"), si el aliado ya lo dijo (2026-11-09). */
+  unidad?: string | null;
 }, previa?: Previa): Promise<{ subject: string; html: string }> {
   const [t, ds] = await Promise.all([textosDe('service_status', previa), disenoDe(previa)]);
-  const v = { nombre: d.nombre, folio: d.folio, etapa: d.etapa.toLowerCase(), aliados: d.aliados.join(' y '), llegada: d.llegada ?? '', cierre: d.cierre ?? '' };
+  const v = { nombre: d.nombre, folio: d.folio, etapa: d.etapa.toLowerCase(), aliados: d.aliados.join(' y '), llegada: d.llegada ?? '', cierre: d.cierre ?? '', unidad: d.unidad ?? '' };
   const b = (k: string) => negrita(v[k as keyof typeof v], ds.colorTexto);
   const quien =
     d.aliados.length > 0
-      ? `<p style="margin:12px 0 0;">${hueco(t, 'quien', v, { aliados: b('aliados') })}${d.llegada ? ` ${hueco(t, 'llegada', v, { llegada: b('llegada') })}` : ''}</p>`
+      ? `<p style="margin:12px 0 0;">${hueco(t, 'quien', v, { aliados: b('aliados') })}${d.llegada ? ` ${hueco(t, 'llegada', v, { llegada: b('llegada') })}` : ''}${d.unidad ? ` ${hueco(t, 'unidad', v, { unidad: b('unidad') })}` : ''}</p>`
       : '';
   const cierre = d.cierre
     ? `<p style="margin:12px 0 0;">${hueco(t, 'cierre', v, { cierre: b('cierre') })}</p>`
@@ -325,7 +326,7 @@ export async function correoOfertaAAliado(d: {
       ${primero}
       <p style="margin:16px 0 0;">${hueco(t, 'pedir', v)}</p>
       ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}
-      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">${d.url ? hueco(t, 'nota', v) : 'Responde este correo o márcanos. Mientras no contesten, la solicitud sigue abierta para otro aliado.'}</p>`,
+      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">${d.url ? hueco(t, 'nota', v) : 'Responde este correo o márcanos. Mientras no contestes, la solicitud sigue abierta para otro aliado.'}</p>`,
       hueco(t, 'pie', v),
     ),
   };
@@ -374,7 +375,7 @@ export async function correoRecordatorioOferta(d: {
  * al aliado, para que los dos sepan qué viene y a qué hora. El mismo día el
  * aliado recibe además el aviso de hora de salir.
  */
-export function correoRecordatorioServicio(d: {
+export async function correoRecordatorioServicio(d: {
   para: 'cliente' | 'aliado';
   nombre: string | null;
   folio: string;
@@ -386,41 +387,46 @@ export function correoRecordatorioServicio(d: {
   requisitos?: string[];
   /** Cliente: su cuenta. Aliado: su portal. */
   url: string | null;
-}): { subject: string; html: string } {
+  /** Qué unidad va, con sus placas, para que el cliente avise en la caseta (2026-11-09). */
+  unidad?: string | null;
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe(d.para === 'cliente' ? 'service_day_before' : 'provider_day_before', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre ?? '', contacto: d.nombre ?? '', folio: d.folio, llegada: d.llegada };
   const filas: Array<[string, string]> = [['Llegada', d.llegada]];
   if (d.obra) filas.push(['Obra', d.obra]);
   if (d.direccion) filas.push(['Dirección', d.direccion]);
   if (d.para === 'cliente' && d.aliado) filas.push(['Te atiende', d.aliado]);
+  if (d.unidad) filas.push(['Unidad', d.unidad]);
   filas.push(['Folio', d.folio]);
-  const saludo = `<p style="margin:0 0 4px;">${d.nombre ? `Hola ${esc(d.nombre)},` : 'Hola,'}</p>`;
+  const saludo = `<p style="margin:0 0 4px;">${d.nombre ? hueco(t, 'saludo', v) : 'Hola,'}</p>`;
   if (d.para === 'cliente') {
     return {
-      subject: `Mañana llega tu servicio ${d.folio}`,
-      html: marco(
-        `${titulo('Mañana es tu servicio')}
+      subject: asunto(t, 'asunto', v),
+      html: marcoCon(ds,
+        `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
         ${saludo}
-        <p style="margin:0;">Te recordamos que mañana llega la unidad a tu obra.</p>
+        <p style="margin:0;">${hueco(t, 'intro', v)}</p>
         ${datos(filas)}
-        <p style="margin:14px 0 0;">Te avisamos en cuanto salga y la puedes seguir en el mapa desde tu cuenta. Ten listo el acceso a la obra.</p>
-        ${d.url ? boton('Ver mi servicio', d.url) : ''}
-        <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Si algo cambió, contesta este correo hoy mismo.</p>`,
+        <p style="margin:14px 0 0;">${hueco(t, 'aviso', v)}</p>
+        ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}
+        <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'cierre', v)}</p>`,
       ),
     };
   }
   const reqs = d.requisitos?.length
-    ? `<p style="margin:14px 0 0;"><strong style="color:${TINTA};">Esta obra exige:</strong> ${esc(d.requisitos.join(' · '))}</p>`
+    ? `<p style="margin:14px 0 0;"><strong style="color:${esc(ds.colorTexto)};">${hueco(t, 'exige', v)}</strong> ${esc(d.requisitos.join(' · '))}</p>`
     : '';
   return {
-    subject: `Mañana: servicio ${d.folio}, llegada ${d.llegada}`,
-    html: marco(
-      `${titulo('Mañana tienes servicio')}
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
       ${saludo}
-      <p style="margin:0;">Te recordamos el servicio de mañana. Mañana te avisamos a qué hora debe salir la unidad.</p>
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${datos(filas)}
       ${reqs}
-      <p style="margin:14px 0 0;">Cuando la unidad salga, márcalo en tu portal y ve actualizando el estado: llegué, empecé, terminé.</p>
-      ${d.url ? boton('Abrir mi portal', d.url) : ''}`,
-      'Recibes esto porque tu empresa tiene asignado este servicio en la red de aliados MAQSER24.',
+      <p style="margin:14px 0 0;">${hueco(t, 'marcar', v)}</p>
+      ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}`,
+      hueco(t, 'pie', v),
     ),
   };
 }
@@ -452,21 +458,20 @@ export async function correoHoraDeSalir(d: {
   filas.push(['Llegada comprometida', d.llegada]);
   filas.push(['Debe salir a más tardar', d.salida]);
   filas.push(['Folio', d.folio]);
-  const camino = d.minutos ? ` (calculamos unos ${d.minutos} min de camino)` : '';
-  const saludo = `<p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>`;
-  const boton_ = d.url ? boton('Marcar que ya salió', d.url) : '';
+  const fuertes = { llegada: negrita(d.llegada, ds.colorTexto), salida: negrita(d.salida, ds.colorTexto) };
 
+  // El segundo aviso también se edita en el panel desde el 2026-11-09.
   if (d.tarde) {
     return {
-      subject: `¿Ya salió la unidad? Servicio ${d.folio}`,
-      html: marco(
-        `${titulo('¿Ya salió la unidad?')}
-        ${saludo}
-        <p style="margin:0;">La unidad debía salir a las <strong style="color:${TINTA};">${esc(d.salida)}</strong> para llegar a las ${esc(d.llegada)}, y todavía no se marca la salida.</p>
+      subject: asunto(t, 'asuntoTarde', v),
+      html: marcoCon(ds,
+        `${titulo(plano(t, 'tituloTarde', v), ds.colorTexto)}
+        <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
+        <p style="margin:0;">${hueco(t, 'introTarde', v, fuertes)}</p>
         ${datos(filas)}
-        <p style="margin:14px 0 0;">Si ya va en camino, márcalo en tu portal: el cliente lo está esperando. Si hay un retraso, contéstanos este correo o llámanos.</p>
-        ${boton_}`,
-        'Recibes esto porque tu empresa tiene asignado este servicio en la red de aliados MAQSER24.',
+        <p style="margin:14px 0 0;">${hueco(t, 'marcarTarde', v)}</p>
+        ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}`,
+        hueco(t, 'pie', v),
       ),
     };
   }
@@ -475,7 +480,7 @@ export async function correoHoraDeSalir(d: {
     html: marcoCon(ds,
       `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
       <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
-      <p style="margin:0;">${hueco(t, 'intro', v, { llegada: negrita(d.llegada, ds.colorTexto), salida: negrita(d.salida, ds.colorTexto) })}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v, fuertes)}</p>
       ${datos(filas)}
       <p style="margin:14px 0 0;">${hueco(t, 'marcar', v)}</p>
       ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}`,
@@ -533,58 +538,61 @@ export async function correoAsignacionAAliado(d: {
  * SE CANCELÓ UN SERVICIO QUE YA ERA SUYO (2026-10-22). Sin esto el aliado se
  * enteraba al llegar a la obra.
  */
-export function correoServicioCanceladoAliado(d: {
+export async function correoServicioCanceladoAliado(d: {
   contacto: string | null;
   folio: string;
   categoria: string | null;
   direccion: string | null;
   motivo: string | null;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_cancelled', previa), disenoDe(previa)]);
+  const v = { contacto: d.contacto ?? '', folio: d.folio };
   const filas: Array<[string, string]> = [];
   if (d.categoria) filas.push(['Servicio', d.categoria]);
   if (d.direccion) filas.push(['Dirección', d.direccion]);
   filas.push(['Folio', d.folio]);
   if (d.motivo) filas.push(['Motivo', d.motivo]);
   return {
-    subject: `Se canceló el servicio ${d.folio}: no salgan`,
-    html: marco(
-      `${titulo('Se canceló el servicio')}
-      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
-      <p style="margin:0;">Este servicio ya no va: <strong style="color:${TINTA};">no manden la unidad</strong>. Su equipo queda libre para otros trabajos.</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
+      <p style="margin:0 0 12px;padding:10px 12px;border-radius:3px;background:#FFF7E6;color:${esc(ds.colorTexto)};"><strong>${hueco(t, 'aviso', v)}</strong></p>
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${datos(filas)}
-      <p style="margin:16px 0 0;font-size:13px;color:${GRIS};">Si ya habían salido, llámennos para ver los gastos del traslado.</p>`,
-      'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
+      <p style="margin:16px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'cierre', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }
 
-export function correoAccesoAliado(d: {
+export async function correoAccesoAliado(d: {
   aliado: string;
   contacto: string | null;
   url: string;
   dias: number;
   porContestar: number;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_access', previa), disenoDe(previa)]);
+  const solicitudes = `${d.porContestar} solicitud${d.porContestar === 1 ? '' : 'es'}`;
+  const v = { contacto: d.contacto ?? '', aliado: d.aliado, solicitudes, dias: d.dias };
   // Si tiene solicitudes esperando, ESO es el asunto. Un correo que dice
   // "accede a tu panel" se archiva; uno que dice "tienes 2 solicitudes" se abre.
   const pendiente =
     d.porContestar > 0
-      ? `<p style="margin:12px 0 0;"><strong style="color:${TINTA};">Tienes ${d.porContestar} solicitud${d.porContestar === 1 ? '' : 'es'} esperando tu respuesta.</strong></p>`
+      ? `<p style="margin:12px 0 0;"><strong style="color:${esc(ds.colorTexto)};">${hueco(t, 'pendientes', v)}</strong></p>`
       : '';
 
   return {
-    subject:
-      d.porContestar > 0
-        ? `${d.porContestar} solicitud${d.porContestar === 1 ? '' : 'es'} para ${d.aliado}`
-        : `Tu acceso a MAQSER24, ${d.aliado}`,
-    html: marco(
-      `${titulo('Ya puedes contestarnos directo')}
-      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
-      <p style="margin:0;">Desde este enlace ves las solicitudes que te ofrecemos, marcas si una máquina entra a mantenimiento y revisas tus papeles — sin esperar a que te llamemos.</p>
+    subject: d.porContestar > 0 ? asunto(t, 'asuntoPendientes', v) : asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${pendiente}
-      ${boton('Abrir lo mío', d.url)}
-      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">No hace falta contraseña: el enlace es tuyo y sirve ${d.dias} días. Guarda este correo para volver a entrar.</p>`,
-      'Si alguien más de tu equipo debe recibir esto, dinos a qué correo y lo cambiamos.',
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'nota', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }
@@ -594,44 +602,48 @@ export function correoAccesoAliado(d: {
  * el correo: el enlace abre "Regístrate como proveedor" con sus datos ya
  * puestos, y lo que llene llega al panel como solicitud.
  */
-export function correoInvitacionAliado(d: { nombre: string; contacto: string | null; url: string }): { subject: string; html: string } {
+export async function correoInvitacionAliado(d: { nombre: string; contacto: string | null; url: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_invite', previa), disenoDe(previa)]);
+  const v = { contacto: d.contacto ?? '', empresa: d.nombre };
   return {
-    subject: `${d.nombre}: te invitamos a la red de aliados de MAQSER24`,
-    html: marco(
-      `${titulo('Te invitamos a trabajar con MAQSER24')}
-      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
-      <p style="margin:0;">En MAQSER24 recibimos solicitudes de maquinaria, transporte y materiales para obras, y se las pasamos a aliados como tú. Nos gustaría que <strong style="color:${TINTA};">${esc(d.nombre)}</strong> forme parte de la red.</p>
-      <p style="margin:12px 0 0;">Llena tu registro: dónde está tu base, a qué municipios llegas y qué equipos tienes. Toma unos minutos y tus datos ya van puestos.</p>
-      ${boton('Hacer mi registro', d.url)}
-      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">Cuando lo revisemos te llega el enlace a tu portal: ahí contestas las solicitudes y subes tus papeles.</p>`,
-      'Recibes esto porque alguien de MAQSER24 te invitó a su red de aliados. Si no te interesa, ignora este correo.',
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v, { empresa: negrita(d.nombre, ds.colorTexto) })}</p>
+      <p style="margin:12px 0 0;">${hueco(t, 'registro', v)}</p>
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'nota', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }
 
-export function correoRecordatorioAliado(d: {
+export async function correoRecordatorioAliado(d: {
   aliado: string;
   contacto: string | null;
   url: string;
   documentos: Array<{ texto: string; nombre: string }>;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('availability_reminder', previa), disenoDe(previa)]);
+  const v = { contacto: d.contacto ?? '', aliado: d.aliado };
   // Solo papeles (2026-10-26): ya no se le pide confirmar sus equipos cada 14
   // días; la confirmación es cuando acepta o rechaza un servicio.
-  const papeles = `<div style="margin:18px 0 0;padding:12px 14px;border:1px solid ${AZUL};border-radius:3px;background:#F0F7FF;">
-           <div style="font-size:12px;color:${AZUL};font-weight:bold;letter-spacing:1px;margin-bottom:6px;">TUS PAPELES</div>
+  const papeles = `<div style="margin:18px 0 0;padding:12px 14px;border:1px solid ${esc(ds.color)};border-radius:3px;background:#F0F7FF;">
+           <div style="font-size:12px;color:${esc(ds.color)};font-weight:bold;letter-spacing:1px;margin-bottom:6px;">${hueco(t, 'encabezado', v)}</div>
            ${d.documentos.map((x) => `<div style="color:${TINTA};font-size:14px;margin-bottom:3px;">${esc(x.texto)} — ${esc(x.nombre)}</div>`).join('')}
          </div>`;
 
   return {
-    subject: `${d.aliado}: revisa tus papeles`,
-    html: marco(
-      `${titulo('Tus papeles en MAQSER24')}
-      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
-      <p style="margin:0;">Sin tu constancia fiscal y tu póliza vigentes no tienes el sello de verificado y sales después cuando ofrecemos un servicio. Súbelos desde tu portal con el botón de abajo.</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${papeles}
-      ${boton('Abrir mi portal', d.url)}
-      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">No hace falta contraseña: el enlace es tuyo.</p>`,
-      'Recibes esto porque tu empresa forma parte de la red de aliados MAQSER24.',
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:14px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'nota', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }
@@ -655,18 +667,17 @@ const vigencia = (min: number): string =>
  * "Olvidé mi contraseña": el enlace de un solo uso. `desdeElPanel`: lo mandó
  * Dirección desde Equipo del panel (2026-10-28), no la propia persona.
  */
-export function correoRestablecerContrasena(d: { nombre: string; url: string; minutos: number; desdeElPanel?: string }): { subject: string; html: string } {
-  const motivo = d.desdeElPanel
-    ? `${esc(d.desdeElPanel)} te mandó este enlace desde el panel para que cambies tu contraseña. Entra aquí y elige una nueva:`
-    : 'Recibimos una solicitud para restablecer la contraseña de tu cuenta. Si fuiste tú, entra aquí y elige una nueva:';
+export async function correoRestablecerContrasena(d: { nombre: string; url: string; minutos: number; desdeElPanel?: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('password_reset', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, vigencia: vigencia(d.minutos), quien: d.desdeElPanel ?? '' };
   return {
-    subject: d.desdeElPanel ? 'Cambia tu contraseña del panel · MAQSER24' : 'Restablece tu contraseña · MAQSER24',
-    html: marco(
-      `${titulo(`Hola, ${d.nombre}`)}
-      <p style="margin:0;">${motivo}</p>
-      ${boton('Elegir nueva contraseña', d.url)}
-      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">El enlace sirve una sola vez y caduca en ${vigencia(d.minutos)}. Si no pediste esto, ignora este correo: tu contraseña sigue igual.</p>`,
-      'Si el botón no abre, copia esta dirección en tu navegador: ' + esc(d.url),
+    subject: d.desdeElPanel ? asunto(t, 'asuntoPanel', v) : asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, d.desdeElPanel ? 'motivoPanel' : 'motivo', v)}</p>
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">${hueco(t, 'nota', v)}</p>`,
+      `${hueco(t, 'pie', v)} ${esc(d.url)}`,
     ),
   };
 }
@@ -676,15 +687,17 @@ export function correoRestablecerContrasena(d: { nombre: string; url: string; mi
  * correo con la invitación y que ahí genere su contraseña"). La cuenta ya
  * existe con su rol; el botón abre la pantalla de crear contraseña.
  */
-export function correoInvitacionPanel(d: { nombre: string; invitadoPor: string; rolNombre: string; url: string; dias: number }): { subject: string; html: string } {
+export async function correoInvitacionPanel(d: { nombre: string; invitadoPor: string; rolNombre: string; url: string; dias: number }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('admin_invitacion', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, quien: d.invitadoPor, rol: d.rolNombre, dias: d.dias };
   return {
-    subject: 'Te invitaron al panel de MAQSER24',
-    html: marco(
-      `${titulo(`Hola, ${d.nombre}`)}
-      <p style="margin:0;">${esc(d.invitadoPor)} te dio acceso al panel de MAQSER24 como <strong style="color:${TINTA};">${esc(d.rolNombre)}</strong>. Para entrar, crea tu contraseña aquí:</p>
-      ${boton('Crear mi contraseña', d.url)}
-      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">El enlace sirve una sola vez y caduca en ${d.dias} días. Si no esperabas esto, ignora este correo.</p>`,
-      'Si el botón no abre, copia esta dirección en tu navegador: ' + esc(d.url),
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v, { rol: negrita(d.rolNombre, ds.colorTexto) })}</p>
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">${hueco(t, 'nota', v)}</p>`,
+      `${hueco(t, 'pie', v)} ${esc(d.url)}`,
     ),
   };
 }
@@ -697,15 +710,17 @@ export function correoInvitacionPanel(d: { nombre: string; invitadoPor: string; 
  * abrirlo la cuenta queda confirmada Y con sesión iniciada, de vuelta en el
  * punto desde el que se registró (cotizar, por ejemplo).
  */
-export function correoConfirmarCuenta(d: { nombre: string; url: string; horas: number }): { subject: string; html: string } {
+export async function correoConfirmarCuenta(d: { nombre: string; url: string; horas: number }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('email_verification', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, horas: d.horas };
   return {
-    subject: 'Confirma tu cuenta · MAQSER24',
-    html: marco(
-      `${titulo(`Hola, ${d.nombre}`)}
-      <p style="margin:0;">Ya casi está tu cuenta en MAQSER24. Solo falta confirmar que este correo es tuyo:</p>
-      ${boton('Confirmar mi cuenta', d.url)}
-      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">Al confirmar entras directo a tu cuenta. El enlace caduca en ${d.horas} horas; si ya venció, entra con tu correo y pide uno nuevo. Si no creaste esta cuenta, ignora este correo.</p>`,
-      'Si el botón no abre, copia esta dirección en tu navegador: ' + esc(d.url),
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">${hueco(t, 'nota', v)}</p>`,
+      `${hueco(t, 'pie', v)} ${esc(d.url)}`,
     ),
   };
 }
@@ -715,14 +730,16 @@ export function correoConfirmarCuenta(d: { nombre: string; url: string; horas: n
  * que no hay nada que verificar; pero el cliente pidió que la persona se
  * entere de que su cuenta existe y desde dónde la usa.
  */
-export function correoBienvenida(d: { nombre: string; url: string }): { subject: string; html: string } {
+export async function correoBienvenida(d: { nombre: string; url: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('welcome', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre };
   return {
-    subject: 'Tu cuenta en MAQSER24 está lista',
-    html: marco(
-      `${titulo(`Bienvenido, ${d.nombre}`)}
-      <p style="margin:0;">Tu cuenta quedó creada con tu acceso de Google. Desde ella puedes pedir cotizaciones, solicitar servicios y seguirlos paso a paso.</p>
-      ${boton('Ir a mi cuenta', d.url)}
-      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">Si no fuiste tú quien la creó, escríbenos respondiendo este correo.</p>`,
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">${hueco(t, 'nota', v)}</p>`,
     ),
   };
 }
@@ -730,23 +747,32 @@ export function correoBienvenida(d: { nombre: string; url: string }): { subject:
 // ─────────────────── Equipos que ofrece el aliado (2026-09-24) ───────────────────
 
 /** A MAQSER24: un aliado ofreció un equipo desde su portal. */
-export function correoEquipoPropuesto(d: {
+export async function correoEquipoPropuesto(d: {
   aliado: string;
   equipo: string;
   marca: string | null;
   linea: string;
   url: string;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_offer_review', previa), disenoDe(previa)]);
+  const v = { aliado: d.aliado, equipo: d.equipo };
+  // Una categoría nueva se decide en Categorías, no en Inventario.
+  const enCategorias = /\/categorias$/.test(d.url);
   // Solo sale con lo NUEVO (2026-10-28): lo que ya es de un tipo cuenta solo.
   return {
-    subject: `Algo nuevo de ${d.aliado} · ${d.equipo}`,
-    html: marco(
-      `${titulo('Un aliado ofreció algo que MAQSER24 no tiene')}
-      <p style="margin:0;"><strong style="color:${TINTA};">${esc(d.aliado)}</strong> ofreció desde su portal un equipo que no está en la lista de tipos. En Inventario decides si es igual a uno que ya existe o si se vuelve un servicio nuevo de MAQSER24.</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v, { aliado: negrita(d.aliado, ds.colorTexto) })}</p>
       ${datos(filas([['Equipo', d.equipo], ['Marca', d.marca], ['Línea', d.linea]]))}
-      ${d.url ? boton('Verlo en Inventario', d.url) : ''}`,
+      ${d.url ? boton(plano(t, enCategorias ? 'botonCategoria' : 'boton', v), d.url, ds.color) : ''}`,
     ),
   };
+}
+
+/** El texto que escribió una persona, en su caja (mensaje, pregunta, respuesta). */
+function cita(texto: string, color: string, tinta: string = TINTA): string {
+  return `<div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${esc(color)};background:${FONDO};color:${tinta};white-space:pre-wrap;">${esc(texto)}</div>`;
 }
 
 /**
@@ -754,7 +780,7 @@ export function correoEquipoPropuesto(d: {
  * contestar desde el propio correo (Responder va directo al cliente, ver
  * `replyTo` en el envío) y el enlace a Mensajes para marcarlo atendido.
  */
-export function correoContactoInterno(d: {
+export async function correoContactoInterno(d: {
   nombre: string;
   correo: string;
   telefono: string | null;
@@ -762,22 +788,24 @@ export function correoContactoInterno(d: {
   tema: string | null;
   mensaje: string;
   url: string | null;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('contact_internal', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, tema: d.tema ? ` · ${d.tema}` : '' };
   return {
-    subject: `Mensaje del sitio · ${d.nombre}${d.tema ? ` · ${d.tema}` : ''}`,
-    html: marco(
-      `${titulo('Nuevo mensaje desde el sitio')}
-      <p style="margin:0;"><strong style="color:${TINTA};">${esc(d.nombre)}</strong> escribió por el formulario de contacto.</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v, { nombre: negrita(d.nombre, ds.colorTexto) })}</p>
       ${datos(filas([['Correo', d.correo], ['Teléfono', d.telefono], ['Empresa', d.empresa], ['Tema', d.tema]]))}
-      <div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.mensaje)}</div>
-      ${d.url ? boton('Verlo en el panel', d.url) : ''}`,
-      'Para contestar, responde a este correo: la respuesta le llega a quien escribió.',
+      ${cita(d.mensaje, ds.color)}
+      ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}`,
+      hueco(t, 'pie', v),
     ),
   };
 }
 
 /** A MAQSER24: alguien pidió entrar a la red desde /proveedores. */
-export function correoSolicitudProveedorInterno(d: {
+export async function correoSolicitudProveedorInterno(d: {
   nombre: string;
   tipo: string;
   contacto: string | null;
@@ -787,43 +815,49 @@ export function correoSolicitudProveedorInterno(d: {
   ofrece: string;
   mensaje: string;
   url: string | null;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_signup_internal', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre };
   return {
-    subject: `Solicitud de proveedor · ${d.nombre}`,
-    html: marco(
-      `${titulo('Quieren entrar a la red')}
-      <p style="margin:0;"><strong style="color:${TINTA};">${esc(d.nombre)}</strong> se registró como proveedor desde el sitio.</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v, { nombre: negrita(d.nombre, ds.colorTexto) })}</p>
       ${datos(filas([['Tipo', d.tipo], ['Contacto', d.contacto], ['Teléfono', d.telefono], ['Correo', d.correo], ['Ubicación', d.ubicacion], ['Ofrece', d.ofrece]]))}
-      <div style="margin:0 0 6px;padding:14px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.mensaje)}</div>
-      ${d.url ? boton('Revisarla en el panel', d.url) : ''}`,
-      'La solicitud está en Red de aliados → Solicitudes. No entra a ninguna asignación hasta que la aceptes.',
+      ${d.mensaje.trim() ? cita(d.mensaje, ds.color) : ''}
+      ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}`,
+      hueco(t, 'pie', v),
     ),
   };
 }
 
 /** A quien se registró como proveedor: lo recibimos y qué sigue. */
-export function correoAcuseProveedor(d: { nombre: string }): { subject: string; html: string } {
+export async function correoAcuseProveedor(d: { nombre: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_signup_ack', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, dominio: DOMINIO };
   return {
-    subject: 'Recibimos tu registro como proveedor · MAQSER24',
-    html: marco(
-      `${titulo(`Hola, ${d.nombre}`)}
-      <p style="margin:0 0 12px;">Recibimos tu registro para formar parte de la red MAQSER24. Nuestro equipo revisará la información.</p>
-      <p style="margin:0 0 12px;">Si te aceptamos en la red, te llega a este correo el enlace a tu portal de aliado: ahí subes tus papeles, ofreces tus equipos y contestas las solicitudes de obra.</p>
-      <p style="margin:0;">Si quieres agregar algo, responde a este correo.</p>`,
-      `Si no te registraste en ${DOMINIO}, ignora este correo.`,
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 12px;">${hueco(t, 'intro', v)}</p>
+      <p style="margin:0 0 12px;">${hueco(t, 'siguiente', v)}</p>
+      <p style="margin:0;">${hueco(t, 'cierre', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }
 
 /** A quien escribió en /contacto: lo recibimos y qué sigue. */
-export function correoAcuseContacto(d: { nombre: string; mensaje: string; telefono: string | null }): { subject: string; html: string } {
+export async function correoAcuseContacto(d: { nombre: string; mensaje: string; telefono: string | null }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('contact_ack', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, dominio: DOMINIO };
   return {
-    subject: 'Recibimos tu mensaje · MAQSER24',
-    html: marco(
-      `${titulo(`Hola, ${d.nombre}`)}
-      <p style="margin:0 0 12px;">Recibimos tu mensaje. Un asesor de MAQSER24 te contesta en horario de atención, de lunes a sábado de 8:00 a 18:00.</p>
-      ${d.telefono ? '' : `<p style="margin:14px 0 0;">Si nos dejas un teléfono respondiendo a este correo, podemos llamarte.</p>`}`,
-      `Si no escribiste en ${DOMINIO}, ignora este correo.`,
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 12px;">${hueco(t, 'intro', v)}</p>
+      ${d.telefono ? '' : `<p style="margin:14px 0 0;">${hueco(t, 'sinTelefono', v)}</p>`}`,
+      hueco(t, 'pie', v),
     ),
   };
 }
@@ -832,66 +866,73 @@ export function correoAcuseContacto(d: { nombre: string; mensaje: string; telefo
  * A quien preguntó (en el sitio, en un producto o por correo): ya respondimos.
  * La respuesta va completa en el correo; el enlace es para ver las demás.
  */
-export function correoPreguntaRespondida(d: { nombre: string | null; pregunta: string; respuesta: string; url: string }): { subject: string; html: string } {
+export async function correoPreguntaRespondida(d: { nombre: string | null; pregunta: string; respuesta: string; url: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('question_answered', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre ?? '', dominio: DOMINIO };
   return {
-    subject: 'Respondimos tu pregunta · MAQSER24',
-    html: marco(
-      `${titulo(d.nombre ? `Hola, ${d.nombre}` : 'Respondimos tu pregunta')}
-      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Tu pregunta:</p>
-      <div style="margin:0 0 14px;padding:12px 16px;border-left:3px solid ${BORDE};background:${FONDO};color:${TINTA2};white-space:pre-wrap;">${esc(d.pregunta)}</div>
-      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Nuestra respuesta:</p>
-      <div style="margin:0;padding:12px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.respuesta)}</div>
-      ${boton('Ver más preguntas frecuentes', `${SITIO}${d.url}`)}
-      <p style="margin:10px 0 0;">Si te queda alguna duda, responde a este correo.</p>`,
-      `Recibes este correo porque hiciste una pregunta en ${DOMINIO}.`,
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, d.nombre ? 'titulo' : 'tituloSinNombre', v), ds.colorTexto)}
+      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">${hueco(t, 'suPregunta', v)}</p>
+      ${cita(d.pregunta, BORDE, TINTA2)}
+      <p style="margin:8px 0 6px;color:${GRIS};font-size:13px;">${hueco(t, 'respuesta', v)}</p>
+      ${cita(d.respuesta, ds.color)}
+      ${boton(plano(t, 'boton', v), `${SITIO}${d.url}`, ds.color)}
+      <p style="margin:10px 0 0;">${hueco(t, 'cierre', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }
 
 /** A quien escribió por Contacto: la respuesta, contestada desde Mensajes. */
-export function correoMensajeRespondido(d: { nombre: string | null; mensaje: string; respuesta: string }): { subject: string; html: string } {
+export async function correoMensajeRespondido(d: { nombre: string | null; mensaje: string; respuesta: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('contact_reply', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre ?? '', dominio: DOMINIO };
   return {
-    subject: 'Respondimos tu mensaje · MAQSER24',
-    html: marco(
-      `${titulo(d.nombre ? `Hola, ${d.nombre}` : 'Respondimos tu mensaje')}
-      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Nos escribiste:</p>
-      <div style="margin:0 0 14px;padding:12px 16px;border-left:3px solid ${BORDE};background:${FONDO};color:${TINTA2};white-space:pre-wrap;">${esc(d.mensaje)}</div>
-      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">Nuestra respuesta:</p>
-      <div style="margin:0;padding:12px 16px;border-left:3px solid ${AZUL};background:${FONDO};color:${TINTA};white-space:pre-wrap;">${esc(d.respuesta)}</div>
-      <p style="margin:16px 0 0;">Si te queda alguna duda, responde a este correo.</p>`,
-      `Recibes este correo porque nos escribiste desde ${DOMINIO}.`,
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, d.nombre ? 'titulo' : 'tituloSinNombre', v), ds.colorTexto)}
+      <p style="margin:0 0 6px;color:${GRIS};font-size:13px;">${hueco(t, 'suMensaje', v)}</p>
+      ${cita(d.mensaje, BORDE, TINTA2)}
+      <p style="margin:8px 0 6px;color:${GRIS};font-size:13px;">${hueco(t, 'respuesta', v)}</p>
+      ${cita(d.respuesta, ds.color)}
+      <p style="margin:16px 0 0;">${hueco(t, 'cierre', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }
 
-/** Al aliado: su equipo ya está publicado. */
 /**
  * Al aliado: lo nuevo que ofreció ya quedó dado de alta en un tipo de
  * MAQSER24 (2026-10-28). Antes decía "publicado", pero su equipo no sale en
  * el sitio: lo que cambia es que ya le llegan las solicitudes de ese tipo.
  */
-export function correoEquipoPublicado(d: { contacto: string | null; equipo: string; tipo: string }): { subject: string; html: string } {
+export async function correoEquipoPublicado(d: { contacto: string | null; equipo: string; tipo: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_offer_published', previa), disenoDe(previa)]);
+  const v = { contacto: d.contacto ?? '', equipo: d.equipo, tipo: d.tipo };
   return {
-    subject: `Tu equipo ya está dado de alta · ${d.equipo}`,
-    html: marco(
-      `${titulo('Tu equipo ya está en MAQSER24')}
-      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
-      <p style="margin:0;">Revisamos <strong style="color:${TINTA};">${esc(d.equipo)}</strong> y quedó como <strong style="color:${TINTA};">${esc(d.tipo)}</strong>. Desde hoy, cuando un cliente pida ${esc(d.tipo)} en tu zona, te llega la solicitud a tu portal.</p>
-      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">Si entra a mantenimiento, márcalo en tu portal: solo te ofrecemos lo que está libre.</p>`,
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v, { equipo: negrita(d.equipo, ds.colorTexto), tipo: negrita(d.tipo, ds.colorTexto) })}</p>
+      <p style="margin:12px 0 0;color:${GRIS};font-size:13px;">${hueco(t, 'nota', v)}</p>`,
     ),
   };
 }
 
-/** Al aliado: su equipo no se publicó, con el motivo. */
-export function correoEquipoRechazado(d: { contacto: string | null; equipo: string; motivo: string }): { subject: string; html: string } {
+/** Al aliado: lo que ofreció no se dio de alta, con el motivo. */
+export async function correoEquipoRechazado(d: { contacto: string | null; equipo: string; motivo: string }, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('provider_offer_rejected', previa), disenoDe(previa)]);
+  const v = { contacto: d.contacto ?? '', equipo: d.equipo };
   return {
-    subject: `Revisamos tu equipo · ${d.equipo}`,
-    html: marco(
-      `${titulo('Por ahora no lo manejamos')}
-      <p style="margin:0 0 4px;">${d.contacto ? `Hola ${esc(d.contacto)},` : 'Hola,'}</p>
-      <p style="margin:0;">Revisamos <strong style="color:${TINTA};">${esc(d.equipo)}</strong> y por ahora MAQSER24 no lo maneja:</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${d.contacto ? hueco(t, 'saludo', v) : 'Hola,'}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v, { equipo: negrita(d.equipo, ds.colorTexto) })}</p>
       <p style="margin:12px 0 0;padding:12px 14px;border-left:3px solid ${TINTA2};color:${TINTA};">${esc(d.motivo)}</p>
-      <p style="margin:12px 0 0;">Puedes volver a ofrecerlo desde tu portal con los cambios, o contestar este correo si tienes dudas.</p>`,
+      <p style="margin:12px 0 0;">${hueco(t, 'cierre', v)}</p>`,
     ),
   };
 }
@@ -967,42 +1008,6 @@ function filas(pares: Array<[string, string | null | undefined]>): Array<[string
 }
 
 /**
- * AL PROVEEDOR: alguien pidió lo que él publica.
- *
- * Lleva QUÉ le piden y DÓNDE — y a propósito NO lleva el teléfono ni el correo
- * del cliente. MAQSER24 es quien coordina la renta; si el contacto viajara en
- * este correo, el proveedor podría cerrar por fuera y la plataforma se quedaría
- * fuera de su propia operación. Compartirlo es una decisión de una persona,
- * desde el panel.
- */
-export function correoSolicitudAProveedor(d: {
-  contacto: string | null;
-  folio: string;
-  cotizador: string;
-  municipio: string | null;
-  obra: string | null;
-  conceptos: string[];
-}): { subject: string; html: string } {
-  const lista = d.conceptos
-    .map((c) => `<li style="margin:0 0 6px;color:${TINTA};font-size:14px;">${esc(c)}</li>`)
-    .join('');
-
-  return {
-    subject: `Te solicitaron equipo · ${d.folio}`,
-    html: marco(
-      `${titulo('Te solicitaron un servicio')}
-      <p style="margin:0 0 4px;">Hola${d.contacto ? ` ${esc(d.contacto)}` : ''},</p>
-      <p style="margin:0;">Entró una solicitud en el cotizador de ${esc(d.cotizador)} que incluye equipo tuyo. Folio <strong style="color:${TINTA};">${esc(d.folio)}</strong>.</p>
-      <p style="margin:16px 0 8px;font-weight:bold;color:${TINTA};">Lo que te toca:</p>
-      <ul style="margin:0;padding-left:20px;">${lista}</ul>
-      ${datos(filas([['Obra', d.obra], ['Entrega en', d.municipio]]))}
-      <p style="margin:14px 0 0;">Un coordinador de MAQSER24 te contactará para confirmar disponibilidad y fechas. Si ya sabes que <strong style="color:${TINTA};">no</strong> puedes atenderlo, contesta este correo cuanto antes: así se le ofrece a otro aliado sin que el cliente espere.</p>`,
-      'Recibes este aviso porque tienes equipo asignado en el tabulador de MAQSER24. Tu correo lo administras desde tu portal de aliado.',
-    ),
-  };
-}
-
-/**
  * AL EQUIPO DE MAQSER24: entró una solicitud del sitio.
  *
  * Existe porque sin él la promesa del acuse —"un asesor se pondrá en
@@ -1014,7 +1019,7 @@ export function correoSolicitudAProveedor(d: {
  * hay que revisarlo y mandárselo desde Solicitudes. A ningún aliado se le
  * avisa todavía: eso pasa cuando el cliente acepta y MAQSER24 elige a quién.
  */
-export function correoSolicitudInterna(d: {
+export async function correoSolicitudInterna(d: {
   folio: string;
   cotizador: string;
   cliente: string;
@@ -1027,20 +1032,22 @@ export function correoSolicitudInterna(d: {
   /** Solo el flujo viejo de máquinas del catálogo avisaba a aliados al entrar. */
   proveedoresAvisados?: string[];
   url: string;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('quoter_request_internal', previa), disenoDe(previa)]);
+  const v = { folio: d.folio, cliente: d.cliente, cotizador: d.cotizador };
   const lista = d.conceptos
     .map((c) => `<li style="margin:0 0 5px;color:${TINTA2};font-size:13px;">${esc(c)}</li>`)
     .join('');
 
   const avisados = d.proveedoresAvisados?.length
     ? `<p style="margin:14px 0 0;font-size:13px;color:${GRIS};">Ya se le avisó a: ${esc(d.proveedoresAvisados.join(', '))}.</p>`
-    : `<p style="margin:14px 0 0;font-size:13px;color:${GRIS};">El cliente no vio el precio. Revísalo en Solicitudes, corrígelo si hace falta y mándale la cotización; cuando la acepte eliges a qué aliado se le da.</p>`;
+    : `<p style="margin:14px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'nota', v)}</p>`;
 
   return {
-    subject: `Nueva solicitud ${d.folio} · ${d.cliente}`,
-    html: marco(
-      `${titulo('Entró una solicitud del sitio')}
-      <p style="margin:0;">Cotizador de ${esc(d.cotizador)}, folio <strong style="color:${TINTA};">${esc(d.folio)}</strong>.</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v, { folio: negrita(d.folio, ds.colorTexto) })}</p>
       ${datos(
         filas([
           ['Cliente', d.cliente],
@@ -1051,9 +1058,9 @@ export function correoSolicitudInterna(d: {
           ['Precio estimado', money(d.total)],
         ]),
       )}
-      <p style="margin:6px 0 8px;font-weight:bold;color:${TINTA};">Pidió:</p>
+      <p style="margin:6px 0 8px;font-weight:bold;color:${esc(ds.colorTexto)};">${hueco(t, 'pidio', v)}</p>
       <ul style="margin:0;padding-left:20px;">${lista}</ul>
-      ${boton('Abrir en el panel', d.url)}
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
       ${avisados}`,
     ),
   };
@@ -1067,7 +1074,7 @@ export function correoSolicitudInterna(d: {
  * sitio ya no enseña precios): la cotización con precio la revisa y la manda
  * una persona desde el panel, y el cliente la acepta desde su cuenta.
  */
-export function correoAcuseSolicitud(d: {
+export async function correoAcuseSolicitud(d: {
   nombre: string;
   folio: string;
   cotizador: string;
@@ -1077,19 +1084,21 @@ export function correoAcuseSolicitud(d: {
   proveedores?: string[];
   /** Enlace absoluto para seguirla desde su cuenta. */
   url?: string | null;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('quoter_request_ack', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, folio: d.folio, cotizador: d.cotizador };
   const filas: Array<[string, string]> = [['Folio', d.folio]];
 
   return {
-    subject: `Recibimos tu solicitud ${d.folio}`,
-    html: marco(
-      `${titulo('Recibimos tu solicitud')}
-      <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
-      <p style="margin:0;">Ya tenemos lo que armaste en el cotizador de ${esc(d.cotizador)}. Guarda este folio para darle seguimiento:</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${hueco(t, 'saludo', v)}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${datos(filas)}
-      <p style="margin:0;">Un asesor de MAQSER24 la revisa y te mandamos la cotización con precio y vigencia por correo. Si te conviene, la aceptas desde tu cuenta y asignamos al proveedor que te atiende.</p>
-      ${d.url ? boton('Seguir mi solicitud', d.url) : ''}
-      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Si algo cambió —fechas, cantidades, la dirección de la obra— contesta este correo y lo ajustamos antes de que salga la unidad.</p>`,
+      <p style="margin:0;">${hueco(t, 'siguiente', v)}</p>
+      ${d.url ? boton(plano(t, 'boton', v), d.url, ds.color) : ''}
+      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'cierre', v)}</p>`,
     ),
   };
 }
@@ -1176,7 +1185,7 @@ export async function correoPagoAliado(d: {
 }
 
 /** A DIRECCIÓN: el mes que cerró, en un correo (2026-10-22). Sale solo el día 1. */
-export function correoCierreMes(d: {
+export async function correoCierreMes(d: {
   mes: string;
   servicios: number;
   ventas: number;
@@ -1186,26 +1195,28 @@ export function correoCierreMes(d: {
   vencido: number;
   porPagar: number;
   url: string;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('cierre_mes', previa), disenoDe(previa)]);
+  const v = { mes: d.mes, margen: money(d.margen) };
   const pct = d.ventas > 0 ? `${((d.margen / d.ventas) * 100).toFixed(1)}%` : '—';
   return {
-    subject: `Cierre de ${d.mes}: margen ${money(d.margen)}`,
-    html: marco(
-      `${titulo(`Cierre de ${d.mes}`)}
-      <p style="margin:0;">Servicios cerrados en el mes, sin IVA:</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${datos(filas([
         ['Servicios', String(d.servicios)],
         ['Ventas', money(d.ventas)],
         ['Pago a aliados', money(d.pagoAliados)],
         ['Margen', `${money(d.margen)} (${pct})`],
       ]))}
-      <p style="margin:0;">Hoy, con IVA:</p>
+      <p style="margin:0;">${hueco(t, 'hoy', v)}</p>
       ${datos(filas([
         ['Por cobrar', money(d.porCobrar)],
         ['De eso, vencido', money(d.vencido)],
         ['Por pagar a aliados', money(d.porPagar)],
       ]))}
-      ${boton('Ver el margen', d.url)}`,
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}`,
     ),
   };
 }
@@ -1216,31 +1227,33 @@ export function correoCierreMes(d: {
  * Antes solo sonaba su campana: quien no volvía a entrar a su cuenta no sabía
  * si había llegado. Va sin importes, porque todavía no tiene precio.
  */
-export function correoAcuseSolicitudAMedida(d: {
+export async function correoAcuseSolicitudAMedida(d: {
   nombre: string;
   folio: string;
   /** Lo que pidió, en una línea. */
   pidio: string | null;
   url: string;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('quote_request_ack', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, folio: d.folio };
   const filas: Array<[string, string]> = [['Folio', d.folio]];
   if (d.pidio) filas.push(['Lo que pediste', d.pidio]);
   return {
-    subject: `Recibimos tu solicitud ${d.folio}`,
-    html: marco(
-      `${titulo('Recibimos tu solicitud')}
-      <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
-      <p style="margin:0;">Ya la tenemos. Guarda este folio para darle seguimiento:</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${hueco(t, 'saludo', v)}</p>
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${datos(filas)}
-      <p style="margin:0;">Un asesor de MAQSER24 la revisa y te mandamos la cotización con precio y vigencia por correo. Después la aceptas desde tu cuenta y asignamos al proveedor que te atiende.</p>
-      ${boton('Ver mi solicitud', d.url)}
-      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">Si algo cambió —fechas, cantidades, la dirección de la obra— contesta este correo y lo ajustamos.</p>`,
+      <p style="margin:0;">${hueco(t, 'siguiente', v)}</p>
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}
+      <p style="margin:12px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'cierre', v)}</p>`,
     ),
   };
 }
 
 /** A MAQSER24: entró una solicitud a la medida (2026-10-21). Hay que ponerle precio. */
-export function correoSolicitudAMedidaInterna(d: {
+export async function correoSolicitudAMedidaInterna(d: {
   folio: string;
   cliente: string;
   empresa: string | null;
@@ -1251,12 +1264,14 @@ export function correoSolicitudAMedidaInterna(d: {
   fecha: string | null;
   comentarios: string | null;
   url: string;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('quote_request_internal', previa), disenoDe(previa)]);
+  const v = { folio: d.folio, cliente: d.empresa || d.cliente };
   return {
-    subject: `Solicitud a la medida ${d.folio} · ${d.empresa || d.cliente}`,
-    html: marco(
-      `${titulo('Entró una solicitud a la medida')}
-      <p style="margin:0;">Llegó sin precio por el formulario "Cotizar". Hay que responderla en Solicitudes.</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0;">${hueco(t, 'intro', v)}</p>
       ${datos(
         filas([
           ['Folio', d.folio],
@@ -1270,7 +1285,7 @@ export function correoSolicitudAMedidaInterna(d: {
         ]),
       )}
       ${d.comentarios ? `<p style="margin:0;color:${TINTA2};">${esc(d.comentarios)}</p>` : ''}
-      ${boton('Abrir en el panel', d.url)}`,
+      ${boton(plano(t, 'boton', v), d.url, ds.color)}`,
     ),
   };
 }
@@ -1282,7 +1297,7 @@ export function correoSolicitudAMedidaInterna(d: {
  * cotización se captura, se revisa y luego se manda. Automatizar el envío
  * convertiría cualquier error de captura en un correo ya entregado.
  */
-export function correoCotizacionDelPanel(d: {
+export async function correoCotizacionDelPanel(d: {
   nombre: string;
   folio: string;
   cotizador: string;
@@ -1297,10 +1312,12 @@ export function correoCotizacionDelPanel(d: {
   firma: { nombre: string; puesto: string; telefono: string } | null;
   /** Enlace absoluto para aceptarla sin llamar (2026-10-22). Sin él, el correo no trae botón. */
   aceptarUrl?: string | null;
-}): { subject: string; html: string } {
+}, previa?: Previa): Promise<{ subject: string; html: string }> {
+  const [t, ds] = await Promise.all([textosDe('quoter_quote_sent', previa), disenoDe(previa)]);
+  const v = { nombre: d.nombre, folio: d.folio, cotizador: d.cotizador };
   const aceptar = d.aceptarUrl
-    ? `${boton('Acepto la cotización', d.aceptarUrl)}
-      <p style="margin:6px 0 0;font-size:13px;color:${GRIS};">Al aceptarla asignamos al proveedor y te avisamos por correo quién va y cuándo. El botón vale 15 días.</p>`
+    ? `${boton(plano(t, 'botonAceptar', v), d.aceptarUrl, ds.color)}
+      <p style="margin:6px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'notaAceptar', v)}</p>`
     : '';
   const totales = datos(
     filas([
@@ -1312,7 +1329,7 @@ export function correoCotizacionDelPanel(d: {
 
   const condiciones = d.condiciones
     .map(
-      (b) => `<p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:${AZUL};text-transform:uppercase;letter-spacing:1px;">${esc(b.titulo)}</p>
+      (b) => `<p style="margin:18px 0 6px;font-size:12px;font-weight:bold;color:${esc(ds.color)};text-transform:uppercase;letter-spacing:1px;">${esc(b.titulo)}</p>
         <ul style="margin:0;padding-left:20px;">${b.puntos
           .map((p) => `<li style="margin:0 0 4px;color:${TINTA2};font-size:12.5px;line-height:1.5;">${esc(p)}</li>`)
           .join('')}</ul>`,
@@ -1320,7 +1337,7 @@ export function correoCotizacionDelPanel(d: {
     .join('');
 
   const notas = d.notas?.trim()
-    ? `<p style="margin:16px 0 0;padding:10px 14px;background:${FONDO};border-left:3px solid ${AZUL};color:${TINTA2};font-size:13px;"><strong style="color:${TINTA};">Notas:</strong> ${esc(d.notas)}</p>`
+    ? `<p style="margin:16px 0 0;padding:10px 14px;background:${FONDO};border-left:3px solid ${esc(ds.color)};color:${TINTA2};font-size:13px;"><strong style="color:${TINTA};">Notas:</strong> ${esc(d.notas)}</p>`
     : '';
 
   const firma = d.firma?.nombre
@@ -1331,10 +1348,10 @@ export function correoCotizacionDelPanel(d: {
     : '';
 
   return {
-    subject: `Tu cotización ${d.folio} · MAQSER24`,
-    html: marco(
-      `${titulo(`Cotización ${d.folio}`)}
-      <p style="margin:0 0 4px;">Hola ${esc(d.nombre)},</p>
+    subject: asunto(t, 'asunto', v),
+    html: marcoCon(ds,
+      `${titulo(plano(t, 'titulo', v), ds.colorTexto)}
+      <p style="margin:0 0 4px;">${hueco(t, 'saludo', v)}</p>
       <p style="margin:0;">${esc(d.saludo)}</p>
       ${d.obra ? `<p style="margin:10px 0 0;font-size:13px;color:${GRIS};">Obra: ${esc(d.obra)}</p>` : ''}
       ${tablaCotizacion(d.renglones)}
@@ -1343,8 +1360,8 @@ export function correoCotizacionDelPanel(d: {
       ${notas}
       ${condiciones}
       ${firma}
-      <p style="margin:18px 0 0;font-size:13px;color:${GRIS};">¿Algo no cuadra? Contesta este correo y lo ajustamos.</p>`,
-      `Cotización ${esc(d.folio)} del cotizador de ${esc(d.cotizador)}. Los precios son los del tabulador vigente el día en que se emitió.`,
+      <p style="margin:18px 0 0;font-size:13px;color:${GRIS};">${hueco(t, 'cierre', v)}</p>`,
+      hueco(t, 'pie', v),
     ),
   };
 }

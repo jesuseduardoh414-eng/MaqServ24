@@ -6,6 +6,7 @@ import { Btn, Chip, Panel } from '@/components/ui';
 import { MapaCobertura, type PuntoMapa } from './MapaCobertura';
 import { confirmar } from '@/components/Dialogos';
 import { waDe } from './wa';
+import { anotarSolo } from '@/lib/trato';
 
 export interface SolicitudRow {
   id: number;
@@ -199,8 +200,9 @@ function DetalleSolicitud({ s }: { s: SolicitudRow }) {
           {fila('Persona de contacto', s.contactName)}
           {fila('Teléfono', s.phone ? (
             <span style={{ display: 'inline-flex', gap: 12, flexWrap: 'wrap' }}>
-              <a href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} className="adm-link adm-mono">{s.phone}</a>
-              {wa ? <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="adm-link">WhatsApp</a> : null}
+              {/* Llamarle o escribirle se anota solo en su trato (2026-11-09): si entra a la red, ya lo trae. */}
+              <a href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} className="adm-link adm-mono" onClick={() => void anotarSolo({ aliado: s.id, con: 'aliado', canal: 'llamada' }, { avisar: true })}>{s.phone}</a>
+              {wa ? <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" className="adm-link" onClick={() => void anotarSolo({ aliado: s.id, con: 'aliado', canal: 'whatsapp' }, { avisar: true })}>WhatsApp</a> : null}
             </span>
           ) : null)}
           {fila('Correo', s.email ? <a href={`mailto:${s.email}`} className="adm-link">{s.email}</a> : <span style={{ color: 'var(--adm-faint)' }}>No dejó: su enlace al portal se lo mandas por WhatsApp</span>)}

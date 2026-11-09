@@ -304,7 +304,7 @@ export class MoneyService {
     for (const a of destinos) {
       await this.mailer.enviar({
         kind: 'cierre_mes', to: a.email, toName: a.name,
-        ...correoCierreMes({ mes: nombreMes, servicios: r.servicios, ventas: r.ventas, pagoAliados: r.pagoAliados, margen: r.margen, ...p, url: `${PANEL()}/administracion/margen?mes=${mes}` }),
+        ...(await correoCierreMes({ mes: nombreMes, servicios: r.servicios, ventas: r.ventas, pagoAliados: r.pagoAliados, margen: r.margen, ...p, url: `${PANEL()}/administracion/margen?mes=${mes}` })),
       });
     }
     return destinos.length > 0;

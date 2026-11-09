@@ -2,10 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ajustarUnidades, textoUnidad, unidadVacia, type UnidadEquipo } from '@maqserv/config';
 import { ShDatePicker } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
 import { pedirTexto } from '@/components/Dialogos';
 import { OfrecerEquipo } from './OfrecerEquipo';
+import { UnidadesEditor } from './UnidadesEditor';
 import { API, Chip, ESTADO_EQUIPO, Encabezado, Insignia, Vacio, avisar, diaCorto, hace, hoyLocal, llamar } from './comun';
 import type { Oferta } from './oferta';
 import type { DatosPortal, Equipo } from './tipos';
@@ -16,7 +18,18 @@ import type { DatosPortal, Equipo } from './tipos';
  * Libres / ocupados / en mantenimiento / nuevos (los revisa MAQSER24), con el conteo en la
  * pestaña. Aquí mismo dice dónde está cada uno y lo manda a mantenimiento:
  * mientras dure no se le ofrece (2026-10-26, ya no se confirma cada 14 días).
+ *
+ * Y en máquinas y vehículos, cada unidad con su número económico y sus placas
+ * (2026-11-09): "Unidades" abre una fila por unidad; agregar o quitar una fila
+ * es tener una más o una menos.
  */
+
+/** Las filas para editar: las que ya tiene y, si faltan, vacías hasta completar sus unidades. */
+const filasDe = (e: Equipo): UnidadEquipo[] => {
+  const ident = e.identificacion ?? [];
+  const n = Math.max(1, e.unidades ?? 1);
+  return ident.length >= n ? ident : ajustarUnidades(ident, n);
+};
 
 type Filtro = 'todos' | 'libres' | 'ocupados' | 'mantenimiento' | 'revision';
 
@@ -35,6 +48,26 @@ export function VistaEquipos({ datos, oferta }: { datos: DatosPortal; oferta: Of
   const [mantDesde, setMantDesde] = useState('');
   const [mantHasta, setMantHasta] = useState('');
   const [mantNota, setMantNota] = useState('');
+  /** Equipo con sus unidades abiertas para editar (2026-11-09). */
+  const [unAbierto, setUnAbierto] = useState<number | null>(null);
+  const [filasUn, setFilasUn] = useState<UnidadEquipo[]>([]);
+
+  function abrirUnidades(e: Equipo) {
+    setMantAbierto(null);
+    setFilasUn(filasDe(e));
+    setUnAbierto(unAbierto === e.id ? null : e.id);
+  }
+
+  async function guardarUnidades(productId: number) {
+    setOcupado(productId);
+    const ok = await llamar(`${API}/aliado/equipos/${productId}/unidades`, { unidades: filasUn }, 'PUT');
+    setOcupado(null);
+    if (ok) {
+      setUnAbierto(null);
+      avisar(`Listo: ${filasUn.length} ${filasUn.length === 1 ? 'unidad' : 'unidades'} guardadas.`);
+      router.refresh();
+    }
+  }
 
   const cuenta: Record<Filtro, number> = {
     todos: equipos.length,
@@ -166,6 +199,10 @@ export function VistaEquipos({ datos, oferta }: { datos: DatosPortal; oferta: Of
                   : e.state === 'disponible' || e.state === 'limitada'
                     ? 'Libre: se te puede ofrecer'
                     : e.hasta ? `Ocupado hasta el ${diaCorto(e.hasta)}` : 'Ocupado';
+                // Sus unidades: las identificadas con su económico y placas, y cuántas faltan.
+                const n = Math.max(1, e.unidades ?? 1);
+                const identificadas = (e.identificacion ?? []).filter((u) => !unidadVacia(u));
+                const sinId = Math.max(0, n - identificadas.length);
                 return (
                   <div key={e.id} className="ms-row al-equipo" style={{ flexWrap: 'wrap' }}>
                     <div style={{ minWidth: 0 }}>
@@ -176,18 +213,40 @@ export function VistaEquipos({ datos, oferta }: { datos: DatosPortal; oferta: Of
                       <div className="al-equipo-m">
                         <span><Icon name={m ? 'warning' : 'clock'} size={13} />{detalle}</span>
                         <span><Icon name="mapPin" size={13} />{e.location || 'Sin ubicación'}</span>
+                        {e.identificable || n > 1 ? <span><Icon name="truck" size={13} />{n} {n === 1 ? 'unidad' : 'unidades'}</span> : null}
                       </div>
+                      {e.identificable ? (
+                        <div className="al-equipo-u">
+                          {identificadas.map((u, i) => (
+                            <span key={i} className="al-unidad"><Icon name="truck" size={12} />{textoUnidad(u)}</span>
+                          ))}
+                          {sinId > 0 ? (
+                            identificadas.length ? (
+                              <span className="al-unidad-falta">+ {sinId} sin identificar</span>
+                            ) : (
+                              <button type="button" className="ms-link" style={{ fontSize: 13 }} onClick={() => abrirUnidades(e)}>
+                                Agregar placas y número económico
+                              </button>
+                            )
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                     <div className="al-equipo-acts">
                       <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" onClick={() => void moverEquipo(e.id, e.location)} disabled={ocupado === e.id}>
                         <Icon name="mapPin" size={14} />Dónde está
                       </button>
+                      {e.identificable ? (
+                        <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" aria-expanded={unAbierto === e.id} onClick={() => abrirUnidades(e)} disabled={ocupado === e.id}>
+                          <Icon name="truck" size={14} />Unidades
+                        </button>
+                      ) : null}
                       {m ? (
                         <button type="button" className="ms-btn ms-btn-sm" onClick={() => void quitarMantenimiento(e.id, m.id)} disabled={ocupado === e.id}>
                           <Icon name="check" size={14} />Ya está lista
                         </button>
                       ) : (
-                        <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" aria-expanded={mantAbierto === e.id} onClick={() => { setMantAbierto(mantAbierto === e.id ? null : e.id); setMantDesde(hoyLocal()); }} disabled={ocupado === e.id}>
+                        <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" aria-expanded={mantAbierto === e.id} onClick={() => { setUnAbierto(null); setMantAbierto(mantAbierto === e.id ? null : e.id); setMantDesde(hoyLocal()); }} disabled={ocupado === e.id}>
                           <Icon name="warning" size={14} />Mantenimiento
                         </button>
                       )}
@@ -209,6 +268,23 @@ export function VistaEquipos({ datos, oferta }: { datos: DatosPortal; oferta: Of
                         <button type="button" className="ms-btn ms-btn-sm" onClick={() => void ponerMantenimiento(e.id)} disabled={ocupado === e.id}>
                           Guardar
                         </button>
+                      </div>
+                    ) : null}
+                    {unAbierto === e.id ? (
+                      <div className="al-un-edit">
+                        <div>
+                          <span className="ms-label">Cada unidad, con lo que tenga a la mano</span>
+                          <span className="ms-hint" style={{ display: 'block' }}>
+                            Un renglón por unidad: si vendiste una, quítala; si compraste otra igual, agrégala. Las obras suelen pedir las placas para dejar entrar.
+                          </span>
+                        </div>
+                        <UnidadesEditor filas={filasUn} onChange={setFilasUn} idBase={`un-${e.id}`} />
+                        <div className="al-un-acts">
+                          <button type="button" className="ms-btn ms-btn-sec ms-btn-sm" onClick={() => setUnAbierto(null)}>Cancelar</button>
+                          <button type="button" className="ms-btn ms-btn-sm" onClick={() => void guardarUnidades(e.id)} disabled={ocupado === e.id}>
+                            {ocupado === e.id ? 'Guardando…' : 'Guardar'}
+                          </button>
+                        </div>
                       </div>
                     ) : null}
                   </div>

@@ -451,7 +451,9 @@ export class ProductsService {
       scheduleRaw: p.horario ? horarioDe(p.horario) : null,
       attributes: Object.fromEntries(
         Object.entries((p.attributes ?? {}) as Record<string, unknown>)
-          .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+          // Solo la ficha técnica (texto): la lista de unidades con sus placas
+          // (`unidades`, 2026-11-09) es del aliado y no sale al sitio.
+          .filter(([, v]) => v !== null && v !== undefined && typeof v !== 'object' && String(v).trim() !== '')
           .map(([k, v]) => [k, String(v)]),
       ),
     };

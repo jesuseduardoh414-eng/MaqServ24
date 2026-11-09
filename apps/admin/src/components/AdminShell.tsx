@@ -198,7 +198,8 @@ export function AdminShell({
       {/* Aviso de "sí se hizo / no se hizo" tras CADA cambio. Ver Resultados. */}
       <ResultadosHost
         observar={['/api/admin/']}
-        silencio={['/api/admin/auth/', '/api/admin/logout', '/api/admin/avisos/', '/api/admin/mail/previa/']}
+        // trato/solo (2026-11-09): lo que el panel anota solo al llamar o abrir WhatsApp no es un cambio que alguien pidió.
+        silencio={['/api/admin/auth/', '/api/admin/logout', '/api/admin/avisos/', '/api/admin/mail/previa/', '/api/admin/trato/solo']}
         colores={{
           fondo: 'var(--adm-raised)', texto: 'var(--adm-text)', borde: 'var(--adm-border-strong)', tenue: 'var(--adm-faint)',
           ok: 'var(--adm-ok)', mal: 'var(--adm-bad)', alerta: 'var(--adm-warn)', info: 'var(--adm-info)',

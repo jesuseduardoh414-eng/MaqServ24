@@ -38,6 +38,24 @@ export {
   type AtributoProducto,
   type Desajuste,
 } from './product-attributes';
+// Cada máquina de un aliado con su económico, placas, serie y año (2026-11-09).
+export {
+  CLAVE_UNIDADES,
+  MAX_UNIDADES_IDENTIFICADAS,
+  CAMPOS_UNIDAD,
+  LINEAS_CON_UNIDADES,
+  llevaIdentificacion,
+  limpiarUnidad,
+  limpiarUnidades,
+  unidadVacia,
+  identificacionDe,
+  textoUnidad,
+  textosIdentificados,
+  textoParaBuscar,
+  ajustarUnidades,
+  atributosConUnidades,
+  type UnidadEquipo,
+} from './unidades-equipo';
 export {
   horarioSchema,
   HORARIO_DEFAULT,

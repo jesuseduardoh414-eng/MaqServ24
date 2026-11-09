@@ -3,6 +3,7 @@
 import { useState, type CSSProperties } from 'react';
 import { Btn, Chip, FormField, StatusText } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
+import { anotarSolo } from '@/lib/trato';
 
 /**
  * UNA OBRA.
@@ -147,7 +148,16 @@ export function SiteEditor({
             {obra.contactName || obra.contactPhone ? (
               <div className="adm-cell-sub">
                 {obra.contactName ?? ''}{obra.contactName && obra.contactPhone ? ' · ' : ''}
-                {obra.contactPhone ? <a href={`tel:${obra.contactPhone}`} className="adm-link adm-mono">{obra.contactPhone}</a> : null}
+                {/* Llamarle se anota solo en el trato del cliente (2026-11-09). */}
+                {obra.contactPhone ? (
+                  <a
+                    href={`tel:${obra.contactPhone}`}
+                    className="adm-link adm-mono"
+                    onClick={() => void anotarSolo({ cliente: clientId, con: 'cliente', canal: 'llamada', a: `${obra.contactName || 'Contacto'} (obra ${obra.name})` }, { avisar: true })}
+                  >
+                    {obra.contactPhone}
+                  </a>
+                ) : null}
               </div>
             ) : null}
           </div>

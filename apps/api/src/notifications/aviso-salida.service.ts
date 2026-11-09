@@ -7,6 +7,7 @@ import { lista } from '../common/json-list';
 import { avisarPanel } from './panel';
 import { obraDe } from '../quotes/rastreo';
 import { firmarAcceso, urlDeAcceso } from '../providers/provider-access';
+import { unidadParaCorreo } from '../catalog/unidades-equipo';
 
 /** Para estimar el camino: una cama baja con equipo en tráfico de ciudad (la misma del tablero "En camino"). */
 const VELOCIDAD_KMH = 35;
@@ -188,7 +189,7 @@ export class AvisoSalidaService implements OnModuleInit, OnModuleDestroy {
 
   /** El recordatorio de un día antes. Una vez por servicio y destinatario. Devuelve cuántos salieron. */
   private async recordarDiaAntes(
-    a: { committed_at: Date | null; providers: { id: number; name: string; contact_name: string | null; email: string | null; access_version: number | null }; quotes: { id: bigint; quote_number: string; address: string | null; name: string; email: string; client_sites: { requirements: unknown } | null } },
+    a: { committed_at: Date | null; providers: { id: number; name: string; contact_name: string | null; email: string | null; access_version: number | null }; quotes: { id: bigint; quote_number: string; address: string | null; name: string; email: string; requirements: unknown; client_sites: { requirements: unknown } | null } },
     obra: ReturnType<typeof obraDe>,
     llegada: Date,
   ): Promise<number> {
@@ -204,7 +205,7 @@ export class AvisoSalidaService implements OnModuleInit, OnModuleDestroy {
         to: q.email,
         toName: q.name,
         quoteId: Number(q.id),
-        ...correoRecordatorioServicio({ ...comun, para: 'cliente', nombre: q.name, url: `${SITIO}/cuenta/cotizaciones/${encodeURIComponent(q.quote_number)}` }),
+        ...(await correoRecordatorioServicio({ ...comun, para: 'cliente', nombre: q.name, unidad: await unidadParaCorreo(q.quote_number, q.requirements, [p.id]), url: `${SITIO}/cuenta/cotizaciones/${encodeURIComponent(q.quote_number)}` })),
       });
       n += 1;
     }
@@ -218,7 +219,7 @@ export class AvisoSalidaService implements OnModuleInit, OnModuleDestroy {
         toName: p.contact_name ?? p.name,
         quoteId: Number(q.id),
         providerId: p.id,
-        ...correoRecordatorioServicio({ ...comun, para: 'aliado', nombre: p.contact_name, requisitos: lista(q.client_sites?.requirements), url }),
+        ...(await correoRecordatorioServicio({ ...comun, para: 'aliado', nombre: p.contact_name, requisitos: lista(q.client_sites?.requirements), url })),
       });
       n += 1;
     }

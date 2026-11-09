@@ -27,10 +27,28 @@ function leerAtributos(v: string | undefined): object | null {
     return null;
   }
 }
+
+/**
+ * LA FICHA TÉCNICA SIN PERDER LAS UNIDADES (2026-11-09). El económico, las
+ * placas… de cada máquina viven en `attributes.unidades`, pero la ficha del
+ * panel manda solo la ficha técnica: la lista se conserva, y si cambió cuántas
+ * unidades son, se ajusta sin perder las identificadas mientras alcancen.
+ * Undefined = `attributes` no se toca.
+ */
+function atributosAlGuardar(antes: unknown, texto: string | undefined, stock: number | undefined): object | null | undefined {
+  const nuevos = texto !== undefined ? leerAtributos(texto) : undefined;
+  const lista = identificacionDe(antes);
+  if (!lista.length || (nuevos && CLAVE_UNIDADES in nuevos)) return nuevos;
+  const ajustada = stock !== undefined && stock !== lista.length ? ajustarUnidades(lista, stock) : lista;
+  if (nuevos === undefined && ajustada === lista) return undefined;
+  return atributosConUnidades(nuevos === undefined ? antes : nuevos, ajustada);
+}
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { registrarAccion } from './audit';
 import { QuoterService } from '../quoter/quoter.service';
-import { horarioSchema, puedeVerCon, tarifasDe } from '@maqserv/config';
+import {
+  CLAVE_UNIDADES, ajustarUnidades, atributosConUnidades, horarioSchema, identificacionDe, puedeVerCon, tarifasDe, textoParaBuscar, textosIdentificados,
+} from '@maqserv/config';
 import { permisosVigentes } from './permisos';
 import { ESTADO_CATEGORIA_PROPUESTA, ESTADO_ELIMINADO, ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { lista } from '../common/json-list';
@@ -254,6 +272,8 @@ export class AdminCatalogController {
         select: {
           id: true, name: true, cprice: true, stock: true, status: true,
           featured: true, photo: true, is_rental: true, category_id: true, Marca: true,
+          // El económico y las placas de cada unidad de un aliado (2026-11-09).
+          attributes: true,
         },
       }),
       // Categorías dentro del mismo Promise.all: era un RTT regalado.
@@ -276,6 +296,10 @@ export class AdminCatalogController {
         isRental: r.is_rental,
         image: imageUrl(r.photo),
         categoryName: catMap.get(r.category_id) ?? null,
+        // Cada unidad identificada en una línea ("Eco. 12 · placas RX-12-345")
+        // y lo que se busca (sin guiones: "rx12345" la encuentra), 2026-11-09.
+        units: textosIdentificados(r.attributes),
+        unitsSearch: textoParaBuscar(identificacionDe(r.attributes)),
       })),
     };
   }
@@ -483,7 +507,7 @@ export class AdminCatalogController {
     const p = await prisma.providers.findUnique({ where: { id: e.provider_id as number }, select: { email: true, contact_name: true } });
     if (p?.email) {
       void this.mailer
-        .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: e.provider_id, ...correoEquipoRechazado({ contacto: p.contact_name, equipo: e.name, motivo: motivo.data.motivo }) })
+        .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: e.provider_id, ...(await correoEquipoRechazado({ contacto: p.contact_name, equipo: e.name, motivo: motivo.data.motivo })) })
         .catch(() => undefined);
     }
     return { ok: true };
@@ -513,7 +537,7 @@ export class AdminCatalogController {
     const p = m.provider_id ? await prisma.providers.findUnique({ where: { id: m.provider_id }, select: { email: true, contact_name: true } }) : null;
     if (p?.email) {
       void this.mailer
-        .enviar({ kind: 'provider_offer_published', to: p.email, toName: p.contact_name, providerId: m.provider_id, ...correoEquipoPublicado({ contacto: p.contact_name, equipo: m.name, tipo: tipo.name }) })
+        .enviar({ kind: 'provider_offer_published', to: p.email, toName: p.contact_name, providerId: m.provider_id, ...(await correoEquipoPublicado({ contacto: p.contact_name, equipo: m.name, tipo: tipo.name })) })
         .catch(() => undefined);
     }
   }
@@ -607,6 +631,8 @@ export class AdminCatalogController {
     const horario = leerHorario(d.horario);
     // La unidad principal que quedará: la nueva o la que ya tenía.
     const unidadFinal = d.priceUnit !== undefined ? d.priceUnit.trim() || null : exists.price_unit;
+    // La ficha técnica, conservando el económico y las placas de cada unidad (2026-11-09).
+    const atributos = atributosAlGuardar(exists.attributes, d.attributes, d.stock);
     await prisma.products.update({
       where: { id },
       data: {
@@ -629,7 +655,7 @@ export class AdminCatalogController {
         // Se compara con undefined, no con truthy: '' es un valor valido
         // ("por pieza") y con `|| null` no habria forma de quitar la unidad.
         ...(d.priceUnit !== undefined ? { price_unit: d.priceUnit.trim() || null } : {}),
-        ...(d.attributes !== undefined ? { attributes: leerAtributos(d.attributes) as never } : {}),
+        ...(atributos !== undefined ? { attributes: (atributos ?? Prisma.JsonNull) as never } : {}),
         ...(d.rentalFreight !== undefined ? { rental_freight: d.rentalFreight } : {}),
         ...(d.featured !== undefined ? { featured: d.featured ? 1 : 0 } : {}),
         ...(d.status !== undefined ? { status: d.status } : {}),
@@ -809,7 +835,7 @@ export class AdminCatalogController {
     for (const p of aliados) {
       if (!p.email) continue;
       void this.mailer
-        .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: p.id, ...correoEquipoRechazado({ contacto: p.contact_name, equipo: `la categoría «${prop.cat_name}»`, motivo: motivo.data.motivo }) })
+        .enviar({ kind: 'provider_offer_rejected', to: p.email, toName: p.contact_name, providerId: p.id, ...(await correoEquipoRechazado({ contacto: p.contact_name, equipo: `la categoría «${prop.cat_name}»`, motivo: motivo.data.motivo })) })
         .catch(() => undefined);
     }
     return { ok: true };

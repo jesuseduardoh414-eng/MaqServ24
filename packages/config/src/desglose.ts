@@ -1,6 +1,7 @@
 import {
   calcularCotizacion,
   equipoDe,
+  esDeTriturados,
   precioHoraDe,
   porZona,
   precioDeServicio,
@@ -8,6 +9,7 @@ import {
   productoDe,
   servicioDe,
   SERVICIO_A_MANO,
+  trituradosDe,
   zonaDe,
   zonaPrecioDe,
   LEYENDA_NEGOCIAR,
@@ -156,6 +158,14 @@ export function explicarRenglon(cat: CatalogoCotizador, r: RenglonCotizacion, p:
   const deFicha = (id: string, nombre: string) => (fichas[id] ? `Ficha «${fichas[id]!.nombre}»` : `«${nombre}» del tabulador`);
   const especial = (tarifa: string) => `Precio especial solo de esta cotización (la tarifa es ${tarifa})`;
 
+  // Una cotización de maquinaria que lleva triturados (2026-11-03): sus renglones
+  // de material se explican con el tabulador de triturados que trae junto
+  // (2026-11-09: antes caían en «Renglón del documento» y no tenían lápiz).
+  if (cat.tipo === 'maquinaria' && esDeTriturados(p)) {
+    const tri = trituradosDe(cat);
+    return tri ? explicarRenglon(tri, r, p, fichas) : sinTarifa('El tabulador de triturados no está');
+  }
+
   if (cat.tipo === 'maquinaria' && p.tipo === 'equipo') {
     const eq = equipoDe(cat, p.id);
     if (!eq) return sinTarifa('El equipo ya no está en el tabulador');
@@ -254,6 +264,15 @@ export function explicarRenglon(cat: CatalogoCotizador, r: RenglonCotizacion, p:
   return sinTarifa('Renglón del documento');
 }
 
+/**
+ * De qué tabulador es una tarifa (2026-11-09). Desde una cotización de
+ * maquinaria que lleva triturados se puede corregir la tarifa de un material:
+ * esa se escribe en el tabulador de triturados, no en el de maquinaria.
+ */
+export function esTarifaDeTriturados(ref: RefTarifa): boolean {
+  return ref.clase === 'material' || ref.clase === 'flete_zona' || ref.clase === 'banco' || ref.clase === 'zona';
+}
+
 /** "Solo esta cotización": el precio especial va en la partida, como el costo/hora negociado. Cambia la partida en su lugar. */
 export function ponerPrecio(cat: CatalogoCotizador, partidas: PartidaCotizador[], i: number, clase: string, valor: number): void {
   const p = partidas[i];
@@ -296,8 +315,8 @@ export function alinearATarifa(cat: CatalogoCotizador, partidas: PartidaCotizado
     if (ref.clase === 'servicio' && p.tipo === 'servicio' && p.id === ref.id && (!ref.zona || p.zona === ref.zona) && igual(p.precio)) p.precio = 0;
     else if (ref.clase === 'material' && p.tipo === 'material' && p.id === ref.id && igual(p.precio)) delete p.precio;
     else if (ref.clase === 'banco' && p.tipo === 'banco' && igual(p.precio_m3)) p.precio_m3 = 0;
-    else if (ref.clase === 'flete_zona' && p.tipo === 'material' && cat.tipo === 'triturados') {
-      const zona = cat.zonas.find((z) => z.id === ref.zonaId);
+    else if (ref.clase === 'flete_zona' && p.tipo === 'material' && trituradosDe(cat)) {
+      const zona = trituradosDe(cat)!.zonas.find((z) => z.id === ref.zonaId);
       if (zona && (p.flete_zona ?? '').trim() === zona.nombre && igual(p.flete_ton)) p.flete_ton = r2(nuevo);
     }
   }

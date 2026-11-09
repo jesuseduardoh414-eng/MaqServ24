@@ -4,6 +4,7 @@ import { PREFIJO_RESERVA, ocupaUnaUnidad } from '../catalog/availability';
 import { avisarPanel } from '../notifications/panel';
 import { estadoCotizacion } from './quote-validity';
 import { diasQueOcupa } from './recomendador.service';
+import { unidadAsignadaDe } from '../catalog/unidades-equipo';
 
 /**
  * LA DISPONIBILIDAD SIGUE AL SERVICIO, SOLA (2026-09-25; automática de punta a
@@ -231,8 +232,15 @@ function periodoDe(
 
 interface Pieza { productId: number; unidades: number }
 
-/** Qué equipos aparta esta cotización, según lo pedido y quién aceptó. */
-async function piezasDe(q: CotizacionReserva, asignaciones: Asignacion[]): Promise<Pieza[]> {
+/**
+ * Qué equipos aparta esta cotización, según lo pedido y quién aceptó.
+ *
+ * Exportada (2026-11-09): Indicadores la usa para saber qué máquina llevó cada
+ * servicio y medir su uso con la MISMA regla con la que se aparta
+ * (admin/uso-maquinas.ts). Si aquí cambia cómo se elige la máquina, el uso
+ * cambia con ella.
+ */
+export async function piezasDe(q: CotizacionReserva, asignaciones: Asignacion[]): Promise<Pieza[]> {
   const req = (q.requirements ?? {}) as Record<string, unknown>;
   const pedidas: Pieza[] = [];
 
@@ -278,12 +286,24 @@ async function piezasDe(q: CotizacionReserva, asignaciones: Asignacion[]): Promi
     ? await prisma.categories.findUnique({ where: { cat_slug: q.service_category }, select: { id: true } })
     : null;
   const tipos = sinPieza.length ? await tiposDeLaSolicitud(q) : [];
+  const unidad = unidadAsignadaDe(req);
   for (const aliado of sinPieza) {
-    // Lo que trae ese aliado: su máquina del TIPO pedido (2026-10-22); si no,
-    // la suya ligada al renglón del tabulador; si no, su único equipo
-    // publicado en esa línea. Con varios sin tipo no se adivina.
+    // Lo que trae ese aliado: la unidad que él eligió en su portal (2026-11-09);
+    // si no, su máquina del TIPO pedido (2026-10-22); si no, la suya ligada al
+    // renglón del tabulador; si no, su único equipo publicado en esa línea.
+    // Con varios sin tipo no se adivina.
     let elegido: number | null = null;
-    if (tipos.length) {
+    if (unidad?.aliadoId === aliado) {
+      const suya = await prisma.products.findFirst({
+        where: { id: unidad.productId, provider_id: aliado, status: 1 },
+        select: { id: true, provider_id: true, is_rental: true, status: true },
+      });
+      if (suya) {
+        elegido = suya.id;
+        prod.set(suya.id, suya);
+      }
+    }
+    if (!elegido && tipos.length) {
       const delTipo = await prisma.products.findFirst({
         where: { provider_id: aliado, status: 1, tipo_id: { in: tipos } },
         select: { id: true, provider_id: true, is_rental: true, status: true },

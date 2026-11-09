@@ -27,6 +27,10 @@ export interface EquipoRow {
   publicacion: 'publicado' | 'por_revisar' | 'baja';
   /** Cuántas tiene y cómo están HOY: { disponible: 4, reservado: 1 }. */
   unidades: number;
+  /** Cada unidad identificada: "Eco. 12 · placas RX-12-345" (2026-11-09). */
+  identificacion?: string[];
+  /** Económico, placas y serie para el buscador, también sin guiones. */
+  buscarUnidades?: string;
   porEstado: Partial<Record<string, number>>;
   state: string;
   location: string | null;
@@ -179,6 +183,9 @@ export function AvailabilityManager({ initial }: { initial: Disponibilidad }) {
       if (soloAtencion && !necesitaAtencion(e)) return false;
       if (aliado && String(e.providerId) !== aliado) return false;
       if (!q) return true;
+      // También por número económico o placas (2026-11-09): "rx12345" encuentra "RX-12-345".
+      const qSin = q.replace(/[^a-z0-9]/g, '');
+      if (e.buscarUnidades && (e.buscarUnidades.includes(q) || (qSin && e.buscarUnidades.includes(qSin)))) return true;
       return [e.name, e.location ?? '', e.provider ?? '', e.category ?? '', e.tipo ?? ''].some((t) => t.toLowerCase().includes(q));
     });
   }, [equipos, query, soloAtencion, aliado]);
@@ -289,6 +296,9 @@ export function AvailabilityManager({ initial }: { initial: Disponibilidad }) {
         .av-main { display: grid; grid-template-columns: minmax(0, 1fr) 170px auto; gap: 16px; align-items: center; }
         .av-quien { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 3px; font-size: 12.5px; color: var(--adm-text-2); }
         .av-quien > span + span::before { content: '·'; margin-right: 10px; color: var(--adm-faint); }
+        .av-ids { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; font-size: 12px; }
+        .av-id { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--adm-border); background: rgba(var(--adm-ink), 0.03); color: var(--adm-text-2); overflow-wrap: anywhere; }
+        .av-id > i { color: var(--adm-faint); }
         /* En móvil se apila: nombre y datos arriba, estado y botones debajo. */
         @media (max-width: 900px) {
           .av-tipo { grid-template-columns: 1fr; }
@@ -327,7 +337,7 @@ export function AvailabilityManager({ initial }: { initial: Disponibilidad }) {
       </div>
 
       <Toolbar end={<span className="adm-num">{grupos.length} {grupos.length === 1 ? 'tipo' : 'tipos'} · {unidadesDe(filtrados)} unidades</span>}>
-        <SearchBox placeholder="Buscar equipo, aliado, tipo o ubicación…" aria-label="Buscar equipo, aliado, tipo o ubicación" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <SearchBox placeholder="Buscar equipo, aliado, placas o económico…" aria-label="Buscar equipo, aliado, tipo, ubicación, placas o número económico" value={query} onChange={(e) => setQuery(e.target.value)} />
         <AdminSelect size="sm" className="w-auto min-w-[190px] h-9" ariaLabel="Filtrar por tipo" value={tipo} onChange={setTipo} options={tiposDisponibles} />
         <AdminSelect size="sm" className="w-auto min-w-[190px] h-9" ariaLabel="Filtrar por aliado" value={aliado} onChange={setAliado} options={aliados} />
         <Switch on={soloAtencion} onClick={() => setSoloAtencion((v) => !v)} label="Solo los que necesitan atención" />
@@ -439,6 +449,15 @@ export function AvailabilityManager({ initial }: { initial: Disponibilidad }) {
                                 {e.unidades === 1 ? '1 unidad' : `${e.unidades} unidades: ${reparto.map(([s, n]) => contar(s, n ?? 0)).join(', ')}`}
                               </span>
                             </div>
+                            {/* Cada unidad con su económico y placas (2026-11-09): la obra las pide para dejar entrar. */}
+                            {e.identificacion?.length ? (
+                              <div className="av-ids">
+                                {e.identificacion.map((t) => <span key={t} className="av-id"><i className="ph ph-truck" aria-hidden />{t}</span>)}
+                                {e.unidades > e.identificacion.length ? (
+                                  <span style={{ color: 'var(--adm-faint)' }}>+ {e.unidades - e.identificacion.length} sin identificar</span>
+                                ) : null}
+                              </div>
+                            ) : null}
                           </div>
                           <div>
                             {porPublicar(e) ? (

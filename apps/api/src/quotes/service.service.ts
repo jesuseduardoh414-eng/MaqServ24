@@ -18,6 +18,7 @@ import { MatchingService } from './matching.service';
 import { parteDelDocumento, partidasParaAliado } from '../quoter/parte-del-documento';
 import { firmarResena, rutaResena } from '../reviews/resena-link';
 import { cancelarDocumentoSiNadaSigue } from '../quoter/documento-estado';
+import { unidadParaCorreo } from '../catalog/unidades-equipo';
 import {
   PASOS, esEstado, estadoInicial, puedeCerrar, sePuedeMover,
   type EstadoServicio,
@@ -210,7 +211,12 @@ export class ServiceService {
         orderBy: { id: 'asc' },
       });
       const llega = hacia === 'asignado' ? aliados.find((a) => a.committed_at)?.committed_at ?? null : null;
+      // Las placas de la unidad, en cuanto va en camino o ya está en la obra (2026-11-09).
+      const unidad = hacia === 'en_traslado' || hacia === 'en_sitio'
+        ? await unidadParaCorreo(q.quote_number, q.requirements, aliados.map((a) => a.provider_id))
+        : null;
       const plantilla = await correoServicioAvanzo({
+        unidad,
         nombre: q.name,
         folio: q.quote_number,
         etapa: PASOS[hacia].label,
@@ -258,13 +264,13 @@ export class ServiceService {
           toName: a.providers.contact_name,
           quoteId,
           providerId: a.provider_id,
-          ...correoServicioCanceladoAliado({
+          ...(await correoServicioCanceladoAliado({
             contacto: a.providers.contact_name,
             folio: q.quote_number,
             categoria: linea?.cat_name ?? q.service_category,
             direccion: q.address,
             motivo: motivo?.trim() || null,
-          }),
+          })),
         });
       }
     } catch (e) {

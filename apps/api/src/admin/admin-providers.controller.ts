@@ -17,7 +17,8 @@ import {
 import { createReadStream, existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { prisma } from '@maqserv/db';
-import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, fichaDe, renglonesDe, slugify } from '@maqserv/config';
+import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, fichaDe, identificacionDe, llevaIdentificacion, renglonesDe, slugify, textoUnidad, unidadVacia } from '@maqserv/config';
+import { guardarUnidades, listaUnidadesSchema } from '../catalog/unidades-equipo';
 import { coordenadasDe } from '../freight/direccion';
 import { mediaDir } from '../common/media';
 import { borrarPrivado, esPrivado, moverPapelAPrivado, rutaDePrivado, tipoDePapel } from '../common/archivos-privados';
@@ -328,7 +329,7 @@ export class AdminProvidersController {
         kind: 'provider_invite',
         to: datos.correo,
         toName: datos.contacto ?? d.nombre,
-        ...correoInvitacionAliado({ nombre: d.nombre, contacto: datos.contacto, url }),
+        ...(await correoInvitacionAliado({ nombre: d.nombre, contacto: datos.contacto, url })),
       });
     }
     await registrarAccion(req, 'proveedores', ACCION_INVITAR, d.nombre, detalleInvitacion(datos));
@@ -471,6 +472,11 @@ export class AdminProvidersController {
         confirmedAt: e.availability_confirmed_at,
         // Lo ofreció el aliado desde su portal y aún no se publica.
         pending: e.status === ESTADO_POR_REVISAR,
+        // Cuántas iguales y el económico, placas… de cada una (2026-11-09).
+        // Solo máquinas y vehículos se identifican (o lo que ya trae lista).
+        units: Math.max(1, e.stock ?? 1),
+        identificacion: identificacionDe(e.attributes),
+        identificable: llevaIdentificacion(c?.cat_slug) || identificacionDe(e.attributes).length > 0,
       };
       const k = e.provider_id as number;
       equiposPor.set(k, [...(equiposPor.get(k) ?? []), fila]);
@@ -589,7 +595,7 @@ export class AdminProvidersController {
       where: { provider_id: id, state: 'propuesto' },
     });
 
-    const plantilla = correoAccesoAliado({
+    const plantilla = await correoAccesoAliado({
       aliado: p.name,
       contacto: p.contact_name,
       url,
@@ -634,6 +640,28 @@ export class AdminProvidersController {
     });
     await registrarAccion(req, 'proveedores', 'aliado.revocar', p.name, 'Los enlaces anteriores dejan de servir');
     return { ok: true, mensaje: 'Los enlaces que se le hayan mandado antes ya no sirven.' };
+  }
+
+  /**
+   * CORREGIR SUS UNIDADES desde el expediente (2026-11-09): el número
+   * económico, las placas, la serie y el año de cada máquina igual. Los
+   * renglones que llegan son las unidades que tiene (`stock`). Lo normal es que
+   * los capture él en su portal; esto es para cuando llama o manda la tarjeta
+   * de circulación por WhatsApp.
+   */
+  @Patch('equipos/:productId/unidades')
+  async unidadesDeEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({ unidades: listaUnidadesSchema }).safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Revisa los datos de las unidades.');
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { name: true, provider_id: true, stock: true } });
+    if (!e || e.provider_id === null) throw new NotFoundException('Ese equipo no es de un aliado.');
+    const r = await guardarUnidades(productId, p.data.unidades);
+    const ids = r.identificacion.filter((u) => !unidadVacia(u)).map(textoUnidad);
+    await registrarAccion(
+      req, 'proveedores', 'equipo.unidades', e.name,
+      `${Math.max(1, e.stock ?? 1)} → ${r.unidades} unidad(es)${ids.length ? `: ${ids.join(' / ')}` : ''}`.slice(0, 900),
+    );
+    return { ok: true, ...r };
   }
 
   /**

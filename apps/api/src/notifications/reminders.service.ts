@@ -155,7 +155,7 @@ export class RemindersService {
       });
       const url = urlDeAcceso(await firmarAcceso(c.providerId, p?.access_version ?? 1));
 
-      const plantilla = correoRecordatorioAliado({
+      const plantilla = await correoRecordatorioAliado({
         aliado: c.name,
         contacto: c.contactName,
         url,

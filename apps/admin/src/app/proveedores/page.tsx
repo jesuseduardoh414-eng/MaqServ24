@@ -22,7 +22,8 @@ export default async function AdminProveedores({ searchParams }: { searchParams:
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <ProvidersManager initial={provs} abrir={ver} enfocarCorreo={sp.dato === 'correo'} />
+      {/* ?dato=trato (2026-11-09): el recordatorio del Inicio abre su trato. */}
+      <ProvidersManager initial={provs} abrir={ver} enfocarCorreo={sp.dato === 'correo'} abrirEn={sp.dato === 'trato' ? 'trato' : undefined} />
     </AdminShell>
   );
 }

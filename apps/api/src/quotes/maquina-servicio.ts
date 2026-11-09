@@ -379,7 +379,7 @@ export class MaquinaServicio {
           kind: 'quoter_request_internal',
           to: interno,
           quoteId: d.quoteId,
-          ...correoSolicitudInterna({
+          ...(await correoSolicitudInterna({
             folio: d.folio,
             cotizador: 'máquinas del catálogo',
             cliente: d.cliente,
@@ -391,7 +391,7 @@ export class MaquinaServicio {
             conceptos: d.conceptos,
             proveedoresAvisados: d.aliados,
             url: `${panel}/servicios`,
-          }),
+          })),
         });
       }
       const sitio = (process.env.SITE_URL ?? 'https://maqser24.com').replace(/\/+$/, '');
@@ -400,7 +400,7 @@ export class MaquinaServicio {
         to: d.correo,
         toName: d.cliente,
         quoteId: d.quoteId,
-        ...correoAcuseSolicitud({
+        ...(await correoAcuseSolicitud({
           nombre: d.cliente,
           folio: d.folio,
           cotizador: 'máquinas',
@@ -408,7 +408,7 @@ export class MaquinaServicio {
           // El cliente no ve al aliado: MAQSER24 confirma con él.
           proveedores: [],
           url: `${sitio}${d.url}`,
-        }),
+        })),
       });
     } catch (err) {
       this.log.error(`Avisos de ${d.folio}: ${(err as Error).message}`);

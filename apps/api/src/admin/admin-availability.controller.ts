@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
+import { identificacionDe, textoParaBuscar, textosIdentificados } from '@maqserv/config';
 import { z } from 'zod';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { disponibilidadDe, unidadesPorEstado, PREFIJO_RESERVA } from '../catalog/availability';
@@ -70,6 +71,8 @@ export class AdminAvailabilityController {
       select: {
         id: true, name: true, stock: true, location: true, status: true, tipo_id: true,
         category_id: true, provider_id: true,
+        // El económico y las placas de cada unidad (2026-11-09).
+        attributes: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -121,6 +124,9 @@ export class AdminAvailabilityController {
         /** Con qué cotizador del panel se cotiza su tipo (null = no está en un tabulador). */
         cotizador: p.tipo_id !== null ? (cotizadores.get(p.tipo_id) ?? null) : null,
         unidades,
+        /** Cada unidad identificada ("Eco. 12 · placas RX-12-345") y lo que se busca de ellas (2026-11-09). */
+        identificacion: textosIdentificados(p.attributes),
+        buscarUnidades: textoParaBuscar(identificacionDe(p.attributes)),
         /** Sus unidades HOY por estado: "1 reservada, 4 libres". Dado de baja, todas inactivas. */
         porEstado: p.status === 0 ? { inactivo: unidades } : unidadesPorEstado(entrada, hoy),
         providerId: p.provider_id,

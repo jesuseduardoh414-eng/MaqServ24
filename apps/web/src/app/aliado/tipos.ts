@@ -1,3 +1,4 @@
+import type { UnidadEquipo } from '@maqserv/config';
 import type { CobroAliado } from './CobrosAliado';
 
 /**
@@ -51,6 +52,21 @@ export interface Servicio {
   pedido?: Pedido;
   /** Quién maneja la unidad (2026-10-15). */
   operador?: { nombre: string; telefono: string | null } | null;
+  /** Máquina o vehículo: se elige qué unidad va (2026-11-09). */
+  pideUnidad?: boolean;
+  /** La unidad que eligió para este servicio. */
+  unidad?: UnidadElegida | null;
+  /** Sus unidades identificadas de esa línea; la apartada para el servicio, primero. */
+  opcionesUnidad?: Array<UnidadElegida & { apartada: boolean }>;
+}
+
+/** Una de sus unidades, ya en texto ("Eco. 12 · placas RX-12-345"), dentro de su equipo. */
+export interface UnidadElegida {
+  productId: number;
+  /** Su lugar en la lista de ese equipo. */
+  indice: number;
+  texto: string;
+  equipo: string;
 }
 
 export interface Equipo {
@@ -62,6 +78,12 @@ export interface Equipo {
   hasta?: string | null;
   /** Su mantenimiento de hoy o el próximo (2026-10-26). */
   mantenimiento?: { id: number; desde: string; hasta: string | null; nota: string | null } | null;
+  /** Cuántas iguales tiene (2026-11-09). */
+  unidades?: number;
+  /** Económico, placas, serie y año de cada una, en orden. Vacía = sin identificar. */
+  identificacion?: UnidadEquipo[];
+  /** Máquina o vehículo: se identifica una por una (la grava no lleva placas). */
+  identificable?: boolean;
 }
 
 /** Lo nuevo que ofreció (no estaba en la lista de tipos): MAQSER24 lo revisa. */

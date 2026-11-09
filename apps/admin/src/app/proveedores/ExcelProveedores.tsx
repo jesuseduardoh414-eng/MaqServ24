@@ -1,6 +1,6 @@
 'use client';
 
-import { ESTADO_SOLICITUD_PROVEEDOR } from '@maqserv/config';
+import { ESTADO_SOLICITUD_PROVEEDOR, textoUnidad, unidadVacia } from '@maqserv/config';
 import { Btn } from '@/components/ui';
 import type { ProviderRow } from './ProvidersManager';
 
@@ -39,7 +39,11 @@ export function DescargarExcelProveedores({ aliados }: { aliados: ProviderRow[] 
     const filas = aliados.map((p) => [
       p.name, SITUACION[p.status] ?? 'Dado de baja', p.contactName, p.phone, p.email, p.address, p.city, p.state,
       p.coverage.join(', '), p.coverageRadiusKm, (p.categoryLabels ?? p.categories).join(', '),
-      (p.equipment ?? []).filter((e) => !e.pending).map((e) => `${e.name}${e.brand ? ` (${e.brand})` : ''}`).join('; '),
+      // Con el económico y las placas de cada unidad (2026-11-09).
+      (p.equipment ?? []).filter((e) => !e.pending).map((e) => {
+        const ids = (e.identificacion ?? []).filter((u) => !unidadVacia(u)).map(textoUnidad);
+        return `${e.name}${e.brand ? ` (${e.brand})` : ''}${ids.length ? ` [${ids.join(' / ')}]` : ''}`;
+      }).join('; '),
       PAPELES[p.docsStatus], p.verified ? 'Sí' : 'No', p.level === 'preferente' ? 'Sí' : 'No', p.monthsInNetwork,
     ]);
     const csv = [enc, ...filas].map((f) => f.map(celda).join(',')).join('\r\n');

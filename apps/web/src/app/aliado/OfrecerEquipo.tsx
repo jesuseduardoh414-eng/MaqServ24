@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { esLineaServicio } from '@maqserv/config';
+import { MAX_UNIDADES_IDENTIFICADAS, ajustarUnidades, esLineaServicio, limpiarUnidad, llevaIdentificacion, unidadVacia, type UnidadEquipo } from '@maqserv/config';
 import { ShSelectCampo } from '@maqserv/ui';
 import { Icon } from '@/components/Icon';
+import { UnidadesEditor } from './UnidadesEditor';
 
 /**
  * AGREGAR UN EQUIPO, EN UNA SOLA PANTALLA (2026-10-28).
@@ -20,6 +21,10 @@ import { Icon } from '@/components/Icon';
  *
  * Si ni la categoría está (2026-10-28), "Otra: no está en la lista" la propone
  * con su nombre; MAQSER24 la decide en Categorías.
+ *
+ * En máquinas y vehículos, una fila por unidad con su número económico,
+ * placas, serie y año (2026-11-09), opcional: las filas siguen al número de
+ * unidades.
  */
 
 const CSS = `
@@ -75,12 +80,22 @@ export function OfrecerEquipo({
   const [marca, setMarca] = useState('');
   const [modelo, setModelo] = useState('');
   const [ubicacion, setUbicacion] = useState('');
+  /** Económico, placas… de cada unidad (2026-11-09): tantas filas como unidades. */
+  const [ident, setIdent] = useState<UnidadEquipo[]>([{}]);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Sin tipos en la línea (o "Otro"), se escribe qué es.
   const esNuevo = tiposLinea.length === 0 || tipoId === OTRO;
   const tipoNombre = tiposLinea.find((t) => String(t.id) === tipoId)?.nombre ?? null;
+  const conPlacas = llevaIdentificacion(linea);
+
+  /** Las filas siguen al número; con el campo vacío no se quitan (está escribiendo). */
+  function cambiarUnidades(v: string) {
+    const limpio = v.replace(/\D/g, '').slice(0, 3);
+    setUnidades(limpio);
+    if (limpio) setIdent((f) => ajustarUnidades(f, Math.min(Math.max(1, Number(limpio)), MAX_UNIDADES_IDENTIFICADAS)));
+  }
 
   function elegirLinea(slug: string) {
     setLinea(slug);
@@ -109,6 +124,8 @@ export function OfrecerEquipo({
         tipoId: esNuevo ? undefined : Number(tipoId),
         nombre: esNuevo ? nombre.trim() : undefined,
         unidades: Math.max(1, Number(unidades) || 1),
+        // Solo si escribió algo: sin datos, las unidades quedan sin identificar.
+        identificacion: conPlacas && ident.some((u) => !unidadVacia(limpiarUnidad(u))) ? ident : undefined,
         marca: marca.trim() || undefined,
         modelo: modelo.trim() || undefined,
         ubicacion: ubicacion.trim() || undefined,
@@ -181,7 +198,7 @@ export function OfrecerEquipo({
             <div className="of-tres">
               <div className="ms-field">
                 <label htmlFor="of-unidades" className="ms-label">Unidades</label>
-                <input id="of-unidades" className="ms-input" inputMode="numeric" value={unidades} onChange={(e) => setUnidades(e.target.value.replace(/\D/g, '').slice(0, 3))} />
+                <input id="of-unidades" className="ms-input" inputMode="numeric" value={unidades} onChange={(e) => cambiarUnidades(e.target.value)} />
               </div>
               <div className="ms-field">
                 <label htmlFor="of-marca" className="ms-label">Marca <span className="ms-muted">(opcional)</span></label>
@@ -192,6 +209,16 @@ export function OfrecerEquipo({
                 <input id="of-modelo" className="ms-input" value={modelo} maxLength={120} onChange={(e) => setModelo(e.target.value)} placeholder="T800" />
               </div>
             </div>
+            {conPlacas ? (
+              <div className="ms-field">
+                <span className="ms-label">Placas y número económico de cada una <span className="ms-muted">(opcional)</span></span>
+                <UnidadesEditor filas={ident} onChange={setIdent} fijo idBase="of-un" />
+                <span className="ms-hint">
+                  Las obras suelen pedir las placas para dejar entrar: así las tenemos a la mano. Con un dato por unidad basta.
+                  {Number(unidades) > MAX_UNIDADES_IDENTIFICADAS ? ` Aquí caben las primeras ${MAX_UNIDADES_IDENTIFICADAS}.` : ''}
+                </span>
+              </div>
+            ) : null}
             <div className="ms-field">
               <label htmlFor="of-donde" className="ms-label">¿Dónde está? <span className="ms-muted">(opcional)</span></label>
               <input id="of-donde" className="ms-input" value={ubicacion} maxLength={160} onChange={(e) => setUbicacion(e.target.value)} placeholder="Patio en García" />

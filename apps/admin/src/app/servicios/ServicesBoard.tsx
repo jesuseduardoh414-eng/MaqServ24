@@ -12,6 +12,7 @@ import { COLOR_ETAPA, MapaServicios, enCaminoDe, useRastreo, type Rastreo } from
 import { useRouter } from 'next/navigation';
 import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 import { confirmar, pedirTexto } from '@/components/Dialogos';
+import { anotarSolo } from '@/lib/trato';
 
 /**
  * TABLERO DE OPERACIONES.
@@ -58,6 +59,8 @@ export interface ServicioRow {
   closedAt: string | null;
   /** Quién maneja la unidad (2026-10-15): su enlace comparte la ubicación. */
   operator?: { name: string; phone: string | null } | null;
+  /** La unidad que eligió el aliado: "Eco. 12 · placas RX-12-345" (2026-11-09). */
+  unit?: string | null;
   assignments: Array<{
     id: number;
     providerId: number;
@@ -326,7 +329,8 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                 <StatusText tone={e.tono}>{e.texto}</StatusText>
                 {a.reason ? <span style={{ color: 'var(--adm-muted)', fontSize: 12.5 }}>· {a.reason}</span> : null}
                 {a.phone ? (
-                  <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  // Llamarle se anota solo en el trato de la solicitud y del aliado (2026-11-09).
+                  <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5, display: 'inline-flex', alignItems: 'center', gap: 5 }} onClick={() => void anotarSolo({ solicitud: s.id, aliado: a.providerId, con: 'aliado', canal: 'llamada' }, { avisar: true })}>
                     <i className="ph ph-phone" aria-hidden style={{ color: 'var(--adm-muted)' }} />
                     {a.phone}
                   </a>
@@ -521,6 +525,13 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                     <i className="ph-bold ph-tractor" aria-hidden style={{ color: COLOR_ETAPA[s.state] ?? 'var(--adm-muted)' }} />
                     {s.equipo ?? s.categoryName ?? s.category ?? 'Sin equipo'}
                   </div>
+                  {/* Qué unidad va, con sus placas: la obra las pide para dejar entrar (2026-11-09). */}
+                  {s.unit ? (
+                    <div className="adm-cell-sub" style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--adm-text-2)', overflowWrap: 'anywhere' }}>
+                      <i className="ph ph-identification-card" aria-hidden style={{ color: 'var(--adm-muted)', flexShrink: 0 }} />
+                      <span>Va la unidad <strong style={{ fontWeight: 600, color: 'var(--adm-text)' }}>{s.unit}</strong></span>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="srv-precio" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
@@ -536,7 +547,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                   {!s.operator ? aceptado.map((a) => (
                     <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
                       <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{a.provider}</span>
-                      {a.phone ? <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5 }}><i className="ph ph-phone" aria-hidden /> {a.phone}</a> : null}
+                      {a.phone ? <a href={`tel:${a.phone}`} className="adm-link adm-mono" style={{ fontSize: 12.5 }} onClick={() => void anotarSolo({ solicitud: s.id, aliado: a.providerId, con: 'aliado', canal: 'llamada' }, { avisar: true })}><i className="ph ph-phone" aria-hidden /> {a.phone}</a> : null}
                     </span>
                   )) : null}
                 </div>

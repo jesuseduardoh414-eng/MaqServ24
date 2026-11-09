@@ -4,6 +4,7 @@ import { puedeVer, type ModuloAdmin } from '@maqserv/config';
 import { adminFetch, getAdmin } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { Bar, Btn, Chip, EmptyState, GroupLabel, Note, PageHeader, Panel, PanelLink, StatusText, type Tone } from '@/components/ui';
+import { RecordatoriosHoy, type RecordatorioHoy } from '@/components/RecordatoriosHoy';
 
 /**
  * INICIO DEL PANEL (rediseño, 2026-10-08).
@@ -88,7 +89,11 @@ interface Etapa {
 export default async function AdminHome() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
-  const d = await adminFetch<Inicio>('/admin/inicio');
+  // Los recordatorios del trato (2026-11-09) son de cada quien: los de quien entra.
+  const [d, rec] = await Promise.all([
+    adminFetch<Inicio>('/admin/inicio'),
+    adminFetch<{ recordatorios: RecordatorioHoy[] }>('/admin/trato/recordatorios'),
+  ]);
 
   // Mismo criterio que `exigirModulo`: los permisos vigentes si llegaron, si no la tabla del código.
   const puede = (m: ModuloAdmin) => (admin.modulos.length ? admin.modulos.includes(m) : puedeVer(admin.rol, m));
@@ -166,8 +171,11 @@ export default async function AdminHome() {
     ] satisfies Pendiente[]).filter((p) => p.n > 0 && puede(p.modulo))
     : [];
   const urgentes = pendientes.filter((p) => p.nivel === 'urgente').length;
+  const recordatorios = rec?.recordatorios.length ?? 0;
   const resumen = pendientes.length === 0
-    ? 'Todo al día: no hay nada pendiente por atender.'
+    ? recordatorios > 0
+      ? `Hoy te toca volver a buscar a ${recordatorios === 1 ? 'una persona' : `${recordatorios} personas`}; lo demás está al día.`
+      : 'Todo al día: no hay nada pendiente por atender.'
     : urgentes > 0
       ? `${urgentes} ${urgentes === 1 ? 'asunto urgente' : 'asuntos urgentes'} y ${pendientes.length - urgentes} pendientes más.`
       : `Tienes ${pendientes.length} ${pendientes.length === 1 ? 'pendiente' : 'pendientes'} por atender.`;
@@ -290,6 +298,9 @@ export default async function AdminHome() {
       <div className="in-grid" style={verDerecha ? undefined : { gridTemplateColumns: 'minmax(0, 1fr)' }}>
         {/* ── Columna principal ──────────────────────────────────── */}
         <div className="in-col">
+          {/* Lo que quedaste de volver a buscar hoy (2026-11-09). Sin nada, no se pinta. */}
+          <RecordatoriosHoy items={rec?.recordatorios ?? []} />
+
           {/* 2. Por atender */}
           <Panel title="Por atender" icon="ph-list-checks" flush clip action={pendientes.length > 0 ? <span style={{ fontSize: 13, color: 'var(--adm-muted)' }}>Primero lo urgente</span> : undefined}>
             {pendientes.length === 0 ? (
