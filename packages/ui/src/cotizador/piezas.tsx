@@ -36,7 +36,8 @@ export function Campo({
   // la etiqueta y luego no encuentra a qué pertenece.
   const enlazada = typeof children === 'function';
   return (
-    <div className={`cz-field${ancho === 'full' ? ' full' : ''}`}>
+    // `data-req`: «ir a lo que falta» (Cotizador) busca aquí el primer obligatorio vacío.
+    <div className={`cz-field${ancho === 'full' ? ' full' : ''}`} data-req={req ? '1' : undefined}>
       <ShLabel htmlFor={enlazada ? id : undefined}>
         {label}
         {req ? <span className="text-[var(--ui-accent)]"> *</span> : null}

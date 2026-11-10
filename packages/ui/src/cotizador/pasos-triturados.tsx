@@ -356,7 +356,7 @@ function FormaEntrega({ cat, forma, cambiar, titulo }: {
       <div className="cz-cards cz-opciones">
         <Tarjeta icono="banco" titulo="Lo recojo en planta" nota="Mandas tu camión · precio de lista" modo="opcion" n={forma === 'planta' ? 1 : 0} onClick={() => cambiar('planta')} />
         <Tarjeta icono="zona" titulo="Por viaje a mi obra" nota={cat.nota_zona} modo="opcion" n={forma === 'viaje' ? 1 : 0} onClick={() => cambiar('viaje')} />
-        <Tarjeta icono="material" titulo="Pedido grande" nota={`Tolva, full o camión de 7 o 14 m³ · desde ${minimoCamionDe(cat)} ton`} modo="opcion" n={forma === 'grande' ? 1 : 0} onClick={() => cambiar('grande')} />
+        <Tarjeta icono="material" titulo="Pedido grande" nota="Tolva 45-50 ton / full 90-100 ton" modo="opcion" n={forma === 'grande' ? 1 : 0} onClick={() => cambiar('grande')} />
       </div>
     </section>
   );

@@ -437,8 +437,18 @@ export function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
 }) {
   const unitario = num(l.precio);
   const unidad = l.unidad || 'servicio';
-  // La del producto (m², ton…) también se puede elegir.
-  const unidades = UNIDADES_A_MANO.includes(unidad) ? UNIDADES_A_MANO : [unidad, ...UNIDADES_A_MANO];
+  /**
+   * LA UNIDAD SE ESCRIBE (2026-11-10, el dueño: "que la unidad también te la
+   * deje editar"): además de las de siempre, «otra» abre un campo para
+   * escribirla (tonelada, m², litro…). La del producto (m², ton…) nace ahí,
+   * ya escrita y editable. Vacío, se cobra por servicio.
+   */
+  const [escribir, setEscribir] = useState(!UNIDADES_A_MANO.includes(unidad));
+  const [propia, setPropia] = useState(UNIDADES_A_MANO.includes(unidad) ? '' : unidad);
+  const unidadPropia = (texto: string) => {
+    setPropia(texto);
+    actualizar(l.uid, { unidad: texto.trim() || 'servicio' });
+  };
   return (
     <Linea
       icono="personalizado"
@@ -455,11 +465,19 @@ export function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
       <div className="cz-qty wide">
         <span className="cz-lbl">Se cobra por</span>
         <div className="cz-chips">
-          {unidades.map((u) => (
-            <Chip key={u} on={unidad === u} onClick={() => actualizar(l.uid, { unidad: u })}>{u}</Chip>
+          {UNIDADES_A_MANO.map((u) => (
+            <Chip key={u} on={!escribir && unidad === u} onClick={() => { setEscribir(false); actualizar(l.uid, { unidad: u }); }}>{u}</Chip>
           ))}
+          <Chip on={escribir} onClick={() => { setEscribir(true); if (propia.trim()) actualizar(l.uid, { unidad: propia.trim() }); }}>otra</Chip>
         </div>
       </div>
+      {escribir ? (
+        <Campo label="¿Por qué se cobra?">
+          {(id) => (
+            <ShInput id={id} placeholder="Ej. tonelada, m², litro" maxLength={20} autoFocus={!propia} value={propia} onChange={(e) => unidadPropia(e.target.value)} />
+          )}
+        </Campo>
+      ) : null}
       <div className="cz-qty">
         <span className="cz-lbl">Cantidad</span>
         <Contador valor={l.cantidad} min={1} max={100_000} ariaLabel="cantidad" onChange={(v) => actualizar(l.uid, { cantidad: v })} />

@@ -590,9 +590,26 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [paso]);
 
+  /**
+   * IR A LO QUE FALTA (2026-11-10, el dueño: "si hace falta algún campo, que
+   * lo mande directo a ese para que lo llene"): al tocar «Cotización» con algo
+   * pendiente, además del aviso de la barra, la pantalla baja al primer campo
+   * que falta y lo deja listo para escribir. Se busca después de pintar, cuando
+   * los campos ya muestran su rojo.
+   */
+  const raiz = useRef<HTMLDivElement>(null);
+  const [intentos, setIntentos] = useState(0);
+  useEffect(() => {
+    if (!intentos) return;
+    const id = window.requestAnimationFrame(() => irALoQueFalta(raiz.current, faltante));
+    return () => window.cancelAnimationFrame(id);
+    // Solo al intentar avanzar; `faltante` va como dato del momento.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intentos]);
+
   const avanzar = () => {
     setTocado(true);
-    if (!puedeAvanzar) return;
+    if (!puedeAvanzar) { setIntentos((n) => n + 1); return; }
     setTocado(false);
     setPaso((p) => Math.min(pasos.length - 1, p + 1));
   };
@@ -685,7 +702,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   // ---- envío ----
   async function enviar() {
     setTocado(true);
-    if (faltante) return;
+    if (faltante) { setIntentos((n) => n + 1); return; }
     setEnviando(true);
     setError(null);
     try {
@@ -752,7 +769,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const esUltimo = paso === pasos.length - 1;
 
   return (
-    <div className="cz" data-variante={variante}>
+    <div className="cz" data-variante={variante} ref={raiz}>
       <style>{COTIZADOR_CSS}</style>
 
       <div className="cz-grid">
@@ -909,7 +926,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
 
 
           {clave === 'armar' && (masServicios?.opciones.length || (esPanel && tipo === 'maquinaria')) ? (
-            <div className="cz-card">
+            <div className="cz-card" data-opcional="1">
               <h2 className="cz-card-h">¿Necesitas otro servicio?</h2>
               <p className="cz-card-s">
                 {esPanel
@@ -1520,6 +1537,42 @@ function validar(
   }
 
   return null;
+}
+
+/**
+ * Lleva la pantalla a lo primero que falta (2026-11-10) y, si es un campo, lo
+ * deja con el cursor puesto. En orden, de arriba abajo:
+ *  1. un campo marcado en rojo (`.cz-err`, `aria-invalid`);
+ *  2. un campo obligatorio vacío (`data-req` de `Campo`): el nombre o el
+ *     precio del servicio escrito a mano, que no se marcan en rojo;
+ *  3. si el aviso pide elegir algo, la primera sección de opciones sin
+ *     ninguna elegida (no «¿Necesitas otro servicio?», que es opcional).
+ * Si nada cuadra, se queda donde está: el aviso de la barra lo dice.
+ */
+function irALoQueFalta(raiz: HTMLElement | null, aviso: string | null): void {
+  if (!raiz || !aviso) return;
+  const visible = (el: Element) => el.getClientRects().length > 0;
+  const primero = (selector: string, cumple: (el: HTMLElement) => boolean = () => true): HTMLElement | null =>
+    Array.from(raiz.querySelectorAll<HTMLElement>(selector)).find((el) => visible(el) && cumple(el)) ?? null;
+  const vacio = (el: HTMLElement) => !((el as HTMLInputElement).value ?? '').trim();
+
+  const rojo = primero('.cz-err, [aria-invalid="true"]');
+  let destino: HTMLElement | null = rojo ? rojo.closest<HTMLElement>('.cz-field') ?? rojo : null;
+  destino ??= primero('.cz-field[data-req] input, .cz-field[data-req] textarea', vacio)?.closest<HTMLElement>('.cz-field') ?? null;
+  if (!destino && /^elige/i.test(aviso.trim())) {
+    destino = primero('.cz-card:not([data-opcional])', (c) => !!c.querySelector('.cz-pick') && !c.querySelector('.cz-pick[data-on="1"]'));
+  }
+  if (!destino) return;
+
+  destino.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const control = destino.matches('input, textarea, button')
+    ? destino
+    : destino.querySelector<HTMLElement>('input:not([type=hidden]), textarea, [role=combobox], select');
+  control?.focus({ preventScroll: true });
+  // Un buscador (el cliente, el municipio): se abre, ya terminado el desplazamiento, para escribir de una vez.
+  if (control?.getAttribute('role') === 'combobox' && control.getAttribute('aria-expanded') !== 'true') {
+    window.setTimeout(() => control.click(), 450);
+  }
 }
 
 /**

@@ -260,12 +260,12 @@ export const LANDINGS: Landing[] = [
     eyebrow: 'Soluciones asfálticas',
     h1: 'Riego de impregnación y carpeta asfáltica',
     intro: [
-      'Pavimenta caminos, estacionamientos y patios de maniobra con riego de impregnación y carpeta asfáltica normal.',
+      'Pavimenta caminos, estacionamientos y patios de maniobra con riego de impregnación y carpeta asfáltica normal o modificada.',
       `Operamos en ${ZONA}. Nos dices los metros cuadrados y el tipo de trabajo, y coordinamos al proveedor.`,
     ],
     incluye: {
       titulo: 'Servicios de asfalto',
-      items: ['Riego de impregnación', 'Carpeta asfáltica normal'],
+      items: ['Riego de impregnación', 'Carpeta asfáltica normal', 'Carpeta asfáltica modificada'],
     },
     usos: ['Estacionamientos', 'Calles y caminos internos', 'Parques industriales', 'Fraccionamientos'],
     faqs: [
