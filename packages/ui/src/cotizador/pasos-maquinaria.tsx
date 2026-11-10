@@ -4,6 +4,7 @@ import {
   calcularEquipo,
   cobraFlete,
   conUnidad,
+  ENTREGAS_A_MANO,
   minimoHorasDe,
   porZona,
   precioDeServicio,
@@ -449,6 +450,15 @@ export function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
     setPropia(texto);
     actualizar(l.uid, { unidad: texto.trim() || 'servicio' });
   };
+  /**
+   * CÓMO SE ENTREGA (2026-11-10, el dueño: "cómo se va a mandar, si por
+   * camión, tolva, etc."): opcional; sale en el concepto del documento.
+   * Tocar la elegida la quita. «otra» abre un campo para escribirla.
+   */
+  const entrega = l.entrega ?? '';
+  const esDeLista = (ENTREGAS_A_MANO as readonly string[]).includes(entrega);
+  const [entregaOtra, setEntregaOtra] = useState(!!entrega && !esDeLista);
+  const [entregaTexto, setEntregaTexto] = useState(entrega && !esDeLista ? entrega : '');
   return (
     <Linea
       icono="personalizado"
@@ -485,6 +495,44 @@ export function ServicioAMano({ l, actualizar, quitar, mostrarPrecios }: {
       <Campo label={`Precio por ${unidad}`} req>
         <NumeroTexto decimal ariaLabel="precio unitario" placeholder="Ej. 3500" valor={l.precio} onChange={(v) => actualizar(l.uid, { precio: v })} />
       </Campo>
+      <div className="cz-qty wide">
+        <span className="cz-lbl">¿Cómo se entrega? <span style={{ fontWeight: 400, textTransform: 'none' }}>(opcional)</span></span>
+        <div className="cz-chips">
+          {ENTREGAS_A_MANO.map((e) => (
+            <Chip
+              key={e}
+              on={!entregaOtra && entrega === e}
+              onClick={() => { setEntregaOtra(false); actualizar(l.uid, { entrega: !entregaOtra && entrega === e ? '' : e }); }}
+            >
+              {e}
+            </Chip>
+          ))}
+          <Chip
+            on={entregaOtra}
+            onClick={() => {
+              if (entregaOtra) { setEntregaOtra(false); actualizar(l.uid, { entrega: '' }); return; }
+              setEntregaOtra(true);
+              actualizar(l.uid, { entrega: entregaTexto.trim() });
+            }}
+          >
+            otra
+          </Chip>
+        </div>
+      </div>
+      {entregaOtra ? (
+        <Campo label="¿Cómo se entrega?" ancho="full">
+          {(id) => (
+            <ShInput
+              id={id}
+              placeholder="Ej. plataforma, camión con grúa"
+              maxLength={60}
+              autoFocus={!entregaTexto}
+              value={entregaTexto}
+              onChange={(ev) => { setEntregaTexto(ev.target.value); actualizar(l.uid, { entrega: ev.target.value }); }}
+            />
+          )}
+        </Campo>
+      ) : null}
     </Linea>
   );
 }

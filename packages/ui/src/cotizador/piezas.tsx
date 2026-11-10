@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { Check, Minus, Plus, X } from 'lucide-react';
 import { IconoCotizador } from './iconos';
 import { ShInput, ShLabel } from '../shadcn/input';
@@ -77,25 +77,38 @@ export function Contador({
   id?: string;
 }) {
   const acotar = (v: number) => Math.min(max, Math.max(min, v));
+  /**
+   * SE ESCRIBE (2026-11-10, el dueño: "la cantidad no se puede escribir"):
+   * antes, al borrar el número volvía en el acto el mínimo (borrar el 1 dejaba
+   * 1, y escribir 25 daba 125). Mientras se escribe se guarda el texto tal cual
+   * (puede quedar vacío) y cada número válido ya cuenta; al salir del campo
+   * vuelve a mostrar la cantidad real. Al tocarlo se selecciona todo, para
+   * escribir encima.
+   */
+  const [texto, setTexto] = useState<string | null>(null);
   return (
     <div className="cz-stp">
-      <button type="button" aria-label={`Restar ${ariaLabel}`} onClick={() => onChange(acotar(valor - paso))} disabled={valor <= min}>
+      <button type="button" aria-label={`Restar ${ariaLabel}`} onClick={() => { setTexto(null); onChange(acotar(valor - paso)); }} disabled={valor <= min}>
         <Minus className="size-4" />
       </button>
       <input
         id={id}
-        type="number"
+        type="text"
         inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
         aria-label={ariaLabel}
-        value={String(valor)}
-        min={min}
-        max={Number.isFinite(max) ? max : undefined}
+        value={texto ?? String(valor)}
+        onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => {
-          const v = parseInt(e.target.value, 10);
-          onChange(Number.isNaN(v) ? min : acotar(v));
+          const t = e.target.value.replace(/\D/g, '').slice(0, 9);
+          setTexto(t);
+          const v = parseInt(t, 10);
+          if (!Number.isNaN(v)) onChange(acotar(v));
         }}
+        onBlur={() => setTexto(null)}
       />
-      <button type="button" aria-label={`Sumar ${ariaLabel}`} onClick={() => onChange(acotar(valor + paso))} disabled={valor >= max}>
+      <button type="button" aria-label={`Sumar ${ariaLabel}`} onClick={() => { setTexto(null); onChange(acotar(valor + paso)); }} disabled={valor >= max}>
         <Plus className="size-4" />
       </button>
     </div>

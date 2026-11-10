@@ -45,6 +45,8 @@ export interface LineaServicio {
   unidad: string;
   /** Escrito a mano desde una categoría sin precio de lista (carpeta, block, venta; 2026-11-03): su clave del sitio. */
   categoria?: string;
+  /** Escrito a mano (2026-11-10): cómo se entrega (planta, torton, tráiler, a granel u otra). Vacío = no se dice. */
+  entrega?: string;
 }
 
 export interface LineaMaterial {
@@ -212,7 +214,7 @@ export function aPartidas(lineas: LineaCotizador[]): PartidaCotizador[] {
         return {
           tipo: 'servicio', id: l.id, precio: num(l.precio), cantidad: l.cantidad,
           ...(l.zona ? { zona: l.zona } : {}),
-          ...(l.id === SERVICIO_A_MANO ? { nombre: l.nombre.trim(), unidad: l.unidad || 'servicio', ...(l.categoria ? { categoria: l.categoria } : {}) } : {}),
+          ...(l.id === SERVICIO_A_MANO ? { nombre: l.nombre.trim(), unidad: l.unidad || 'servicio', ...(l.categoria ? { categoria: l.categoria } : {}), ...(l.entrega?.trim() ? { entrega: l.entrega.trim() } : {}) } : {}),
         };
       case 'material':
         return {
@@ -246,7 +248,7 @@ export function aLineas(partidas: PartidaCotizador[]): LineaCotizador[] {
           flete: p.flete ?? null,
         };
       case 'servicio':
-        return { uid: nuevoUid(), tipo: 'servicio', id: p.id, precio: p.precio ? String(p.precio) : '', cantidad: p.cantidad ?? 1, zona: p.zona ?? '', nombre: p.nombre ?? '', unidad: p.unidad ?? '', ...(p.categoria ? { categoria: p.categoria } : {}) };
+        return { uid: nuevoUid(), tipo: 'servicio', id: p.id, precio: p.precio ? String(p.precio) : '', cantidad: p.cantidad ?? 1, zona: p.zona ?? '', nombre: p.nombre ?? '', unidad: p.unidad ?? '', ...(p.categoria ? { categoria: p.categoria } : {}), ...(p.entrega ? { entrega: p.entrega } : {}) };
       case 'material':
         return {
           uid: nuevoUid(), tipo: 'material', id: p.id, nombre: p.nombre ?? '',

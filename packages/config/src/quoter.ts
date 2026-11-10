@@ -356,6 +356,8 @@ export const partidaMaquinariaSchema = z.discriminatedUnion('tipo', [
      * saludo del documento y la solicitud saben de qué es.
      */
     categoria: z.string().max(40).optional(),
+    /** Escrito a mano (2026-11-10): cómo se entrega (`ENTREGAS_A_MANO` o escrito); sale en el concepto. */
+    entrega: z.string().max(60).optional(),
     precio: z.number().min(0).max(10_000_000),
     /** Hasta 100 000 (2026-11-02): el block va por pieza y la carpeta por m². */
     cantidad: z.number().int().min(1).max(100_000).default(1),
@@ -643,6 +645,21 @@ function condicionesMaquinaria(cat: CatalogoMaquinaria, partidas: PartidaMaquina
 /** Clave del servicio escrito a mano (panel): no está en el tabulador. */
 export const SERVICIO_A_MANO = 'custom';
 
+/**
+ * CÓMO SE ENTREGA LO ESCRITO A MANO (2026-11-10, el dueño: "cómo se va a
+ * mandar, si por camión, tolva, etc., hace falta más información"): opcional,
+ * en todo renglón escrito a mano (block, materiales, lo que no está en el
+ * tabulador). Además de estas, se puede escribir otra.
+ */
+export const ENTREGAS_A_MANO = ['Recoge en planta', 'Camión torton', 'Tráiler', 'Tolva o pipa a granel'] as const;
+
+/** El concepto del renglón escrito a mano: su nombre y, si se dijo, cómo se entrega. */
+export function conceptoAMano(nombre: string, entrega?: string | null): string {
+  const e = (entrega ?? '').trim();
+  if (!e) return nombre.toUpperCase();
+  return `${nombre} · ${e === 'Recoge en planta' ? e : `entrega en ${e}`}`.toUpperCase();
+}
+
 export function calcularMaquinaria(
   cat: CatalogoMaquinaria,
   partidas: PartidaMaquinaria[],
@@ -712,7 +729,7 @@ export function calcularMaquinaria(
             clase: 'servicio',
             id: SERVICIO_A_MANO,
             nombre,
-            concepto: nombre.toUpperCase(),
+            concepto: conceptoAMano(nombre, p.entrega),
             unidad: (p.unidad || 'servicio').toUpperCase(),
             cantidad,
             pu: 0,
@@ -726,7 +743,7 @@ export function calcularMaquinaria(
           clase: 'servicio',
           id: SERVICIO_A_MANO,
           nombre,
-          concepto: nombre.toUpperCase(),
+          concepto: conceptoAMano(nombre, p.entrega),
           unidad: (p.unidad || 'servicio').toUpperCase(),
           cantidad,
           pu: r2(precio),

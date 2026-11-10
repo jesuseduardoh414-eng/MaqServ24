@@ -222,6 +222,8 @@ export {
   type RenglonCotizacion,
   type CalculoCotizacion,
   SERVICIO_A_MANO,
+  ENTREGAS_A_MANO,
+  conceptoAMano,
   pagoSchema,
 } from './quoter';
 export {
