@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  CAMPOS_UNIDAD, MAX_UNIDADES_IDENTIFICADAS, UNIDADES, ajustarUnidades, presentacionEstado, textoUnidad, unidadVacia, unidadesDe, resumenDetalle, type UnidadEquipo,
+  CAMPOS_UNIDAD, MAX_UNIDADES_IDENTIFICADAS, UNIDADES, ajustarUnidades, presentacionEstado, textoUnidad, unidadVacia, unidadesDe, resumenDetalle, type DetalleServicio, type UnidadEquipo,
 } from '@maqserv/config';
 import { colorVivo } from '@/components/modo';
 import { Btn, Chip, IconBtn, StatusText } from '@/components/ui';
@@ -38,6 +38,8 @@ export interface EquipoConUnidades {
   precio?: Record<string, number>;
   /** Qué incluye ese precio ("con operador y diésel"). */
   precioNota?: string | null;
+  /** Sus condiciones: mínimo, flete, extras, IVA, pago… (2026-11-12). */
+  detalle?: DetalleServicio | null;
 }
 
 const pesos = (n: number) => `$${n.toLocaleString('es-MX', { maximumFractionDigits: 2 })}`;

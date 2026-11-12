@@ -260,7 +260,7 @@ function FacturaRecibida({ quoteId, proveedor }: { quoteId: number; proveedor: s
     const r = await fetch(`/api/admin/dinero/cuentas/${quoteId}/factura-recibida`, { method: 'POST' }).catch(() => null);
     const d = await r?.json().catch(() => null);
     setOcupado(false);
-    if (!r?.ok) { mostrarResultado(d?.message ?? 'No se pudo marcar. Intenta otra vez.', 'error'); return; }
+    if (!r?.ok) { mostrarResultado(d?.message ?? 'No se pudo marcar. Intenta otra vez.', 'bad'); return; }
     mostrarResultado(d?.pagarEl ? `Listo: a ${proveedor} se le paga el ${fechaCorta(d.pagarEl)}.` : `Listo: en cuanto pague el cliente, el pago a ${proveedor} se programa solo.`, 'ok');
     router.refresh();
   }
