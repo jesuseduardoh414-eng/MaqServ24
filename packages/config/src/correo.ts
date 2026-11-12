@@ -39,7 +39,7 @@ export const MODULO_DE_CORREO: Record<string, ModuloAdmin> = {
   provider_offer_rejected: 'proveedores',
   provider_signup_internal: 'proveedores',
   provider_signup_ack: 'proveedores',
-  availability_reminder: 'disponibilidad',
+  availability_reminder: 'proveedores',
   // Mensajes y cuentas del sitio (Mensajes y Cuentas del sitio son 'comunidad').
   contact_internal: 'comunidad',
   contact_ack: 'comunidad',

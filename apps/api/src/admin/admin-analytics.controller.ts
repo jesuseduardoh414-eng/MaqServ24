@@ -1,10 +1,9 @@
-import { Controller, Get, Logger, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { AdminGuard, Modulo } from './admin-auth';
 import { horas, mediana, periodoAnterior } from './analytics';
 import { MatchingService } from '../quotes/matching.service';
-import { diaLocal, masDias } from '../money/cuentas';
-import { META_USO, usoDeLasMaquinas } from './uso-maquinas';
+import { diaLocal } from '../money/cuentas';
 
 /**
  * ¿CÓMO VA EL NEGOCIO? (Indicadores, rediseño del 2026-10-27).
@@ -26,6 +25,10 @@ import { META_USO, usoDeLasMaquinas } from './uso-maquinas';
  * por el sistema (cada máquina de aliado con su tipo y sus unidades, y qué
  * máquina llevó cada servicio y cuándo). La cuenta y sus reglas están en
  * uso-maquinas.ts.
+ *
+ * SIN USO DE LAS MÁQUINAS (2026-11-12): MAQSER24 ya no captura su flota (se quitó
+ * «Mi flota»: el administrador sabe lo que es suyo) y a los proveedores no se les
+ * mide; la tarjeta y su sección ya no salen. La cuenta sigue en uso-maquinas.ts.
  */
 
 /** Metas del semáforo: las de Claude hasta que Dirección diga otras (2026-10-27; uso, 2026-11-09). */
@@ -33,7 +36,6 @@ const METAS = {
   cotizacion: { verde: 4, amarillo: 8, texto: 'Meta: menos de 4 h' }, // horas; menos es mejor
   aceptan: { verde: 30, amarillo: 20, texto: 'Meta: más de 30%' }, // %; más es mejor
   problemas: { verde: 10, amarillo: 20, texto: 'Meta: menos de 10%' }, // %; menos es mejor
-  uso: META_USO, // %; más es mejor
 };
 /** Con menos casos que esto el número no dice nada: va en gris, sin semáforo. */
 const MINIMO = 3;
@@ -57,7 +59,7 @@ function semaforo(valor: number | null, muestra: number, meta: { verde: number; 
 
 /** En qué va una solicitud, en palabras (para la lista de casos). */
 const ETAPA: Record<string, string> = {
-  por_asignar: 'Buscando aliado', asignado: 'Aliado asignado', en_traslado: 'En camino', en_sitio: 'En la obra',
+  por_asignar: 'Por asignar', asignado: 'Asignado', en_traslado: 'En camino', en_sitio: 'En la obra',
   en_curso: 'Trabajando', terminado: 'Terminado', cerrado: 'Cerrado', cancelado: 'Cancelado',
 };
 function enQueVa(q: { status: string | null; service_state: string | null; responded_at: Date | null; accepted_at: Date | null }): string {
@@ -72,7 +74,6 @@ function enQueVa(q: { status: string | null; service_state: string | null; respo
 @Controller('admin/analytics')
 @UseGuards(AdminGuard)
 export class AdminAnalyticsController {
-  private readonly log = new Logger(AdminAnalyticsController.name);
   constructor(private readonly matching: MatchingService) {}
 
   @Get()
@@ -116,19 +117,11 @@ export class AdminAnalyticsController {
     const aceptan = pct(e.aceptadas, e.cotizadas);
     const problemas = pct(prob.afectados, prob.terminados);
 
-    // El uso se cuenta por días: el periodo en días de Monterrey, y el anterior
-    // termina la víspera para que ningún día cuente en los dos.
-    const ventana = { desde: diaLocal(desde), hasta: diaLocal(hasta) };
-    const [faltaRed, porMes, clientes, contexto, uso] = await Promise.all([
+    const [faltaRed, porMes, clientes, contexto] = await Promise.all([
       this.faltaRed(desde, hasta),
       this.porMes(periodo === '365' ? 12 : 6),
       this.clientes(),
       this.contexto(),
-      // Si el uso falla, el resto del tablero sale igual (sin su tarjeta).
-      usoDeLasMaquinas(ventana, { desde: diaLocal(previo.desde), hasta: masDias(ventana.desde, -1) }, ventana.hasta).catch((err: Error) => {
-        this.log.warn(`No se pudo medir el uso de las máquinas: ${err.message}`);
-        return null;
-      }),
     ]);
 
     return {
@@ -145,20 +138,10 @@ export class AdminAnalyticsController {
           cancelados: prob.cancelados, conIncidencia: prob.conIncidencia,
         },
         margen: { valor: margenAhora.valor, servicios: margenAhora.servicios, antes: margenAntes.valor },
-        // La muestra son los servicios que sacaron una máquina: con menos de
-        // MINIMO va en gris, y sin ninguno no hay número (no un 0% engañoso).
-        uso: uso
-          ? {
-              valor: uso.valor, muestra: uso.servicios, antes: uso.antes,
-              semaforo: semaforo(uso.valor, uso.servicios, METAS.uso, false), meta: METAS.uso.texto,
-              ocupados: uso.ocupados, posibles: uso.posibles, maquinas: uso.maquinas, unidades: uso.unidades, aliados: uso.aliados,
-            }
-          : undefined,
       },
       faltaRed,
       porMes,
       clientes,
-      uso: uso ? { porTipo: uso.porTipo, porAliado: uso.porAliado, detalle: uso.detalle, sinMaquina: uso.sinMaquina } : undefined,
     };
   }
 

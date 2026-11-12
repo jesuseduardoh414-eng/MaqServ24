@@ -15,6 +15,7 @@ import { conCandado } from '../common/candado';
 import { sinContacto, zonaAproximada } from '../providers/pedido';
 import { ultimaVersionOperador } from '../providers/operador';
 import { MatchingService } from './matching.service';
+import { esFlotaPropia } from '../providers/flota-propia';
 import { parteDelDocumento, partidasParaAliado } from '../quoter/parte-del-documento';
 import { firmarResena, rutaResena } from '../reviews/resena-link';
 import { cancelarDocumentoSiNadaSigue } from '../quoter/documento-estado';
@@ -221,7 +222,8 @@ export class ServiceService {
         folio: q.quote_number,
         etapa: PASOS[hacia].label,
         mensaje: PASOS[hacia].cliente,
-        aliados: aliados.map((a) => a.providers.name),
+        // La flota propia se presenta como MAQSER24 (2026-11-12), no con su nombre interno.
+        aliados: await Promise.all(aliados.map(async (a) => ((await esFlotaPropia(a.provider_id)) ? 'MAQSER24' : a.providers.name))),
         cierre: hacia === 'cerrado' && cantidad ? formatearCantidad(cantidad, unidad) : null,
         resena,
         llegada: llega ? FECHA_HORA.format(llega) : null,
@@ -583,6 +585,100 @@ export class ServiceService {
     return { ok: true };
   }
 
+  /**
+   * ASIGNAR DIRECTO (2026-11-12, el dueño: "MAQSER24 opera solo; si no maneja
+   * un servicio, el administrador busca un proveedor"). Ya no se le ofrece a
+   * nadie para que acepte en su portal: el administrador decide quién lo hace
+   * —la flota propia de MAQSER24 o un proveedor de la libreta— y queda asignado
+   * en el acto. Por dentro es una propuesta que se acepta en el mismo momento
+   * (`responder`), así aparta el equipo, retira otras ofertas, pasa el servicio
+   * a «asignado» y le avisa al cliente exactamente igual que antes, pero SIN
+   * correo al proveedor: a él se le avisa por WhatsApp con el enlace del operador.
+   *
+   * - `productId`: el equipo que va (de ese proveedor); queda apartado.
+   * - `operador`: nombre y teléfono; se le arma su enlace (rastreo y etapas).
+   * - `costo`: lo acordado con el proveedor, sin IVA (no aplica a la flota
+   *   propia). Al cerrar, es lo que se le paga (ya no la comisión).
+   */
+  async asignarDirecto(
+    quoteId: number,
+    d: {
+      proveedorId: number;
+      productId?: number | null;
+      operador?: { nombre: string; telefono: string | null } | null;
+      costo?: number | null;
+      nota?: string | null;
+      adminId: number;
+      propio: boolean;
+    },
+  ) {
+    const q = await prisma.quotes.findUnique({
+      where: { id: quoteId },
+      select: { id: true, quote_number: true, service_state: true, accepted_at: true, requirements: true },
+    });
+    if (!q || !q.accepted_at) throw new NotFoundException('Ese servicio no existe o el cliente aún no lo acepta.');
+    const estado = this.estadoDe(q);
+    if (['terminado', 'cerrado', 'cancelado'].includes(estado)) throw new BadRequestException('Ese servicio ya terminó.');
+    const yaAceptado = await prisma.service_assignments.findFirst({
+      where: { quote_id: q.id, state: 'aceptado' },
+      include: { providers: { select: { name: true } } },
+    });
+    if (yaAceptado && yaAceptado.provider_id !== d.proveedorId) {
+      throw new BadRequestException(`Ya lo hace ${yaAceptado.providers.name}. Primero «Cambiar quién lo hace».`);
+    }
+    const prov = await prisma.providers.findUnique({ where: { id: d.proveedorId }, select: { id: true, name: true, status: true } });
+    if (!prov || prov.status !== 1) throw new BadRequestException('Ese proveedor no está activo.');
+    let equipo: { id: number; name: string } | null = null;
+    if (d.productId) {
+      const e = await prisma.products.findUnique({ where: { id: d.productId }, select: { id: true, name: true, provider_id: true, status: true } });
+      if (!e || e.provider_id !== d.proveedorId || e.status !== 1) throw new BadRequestException('Ese equipo no es de quien lo va a hacer.');
+      equipo = { id: e.id, name: e.name };
+    }
+
+    // Lo acordado y el equipo elegido, en la solicitud (como el operador y la unidad).
+    const req = (q.requirements ?? {}) as Record<string, unknown>;
+    const { costo_proveedor: _c, equipoAsignado: _e, ...resto } = req;
+    void _c; void _e;
+    const costo = !d.propio && d.costo && d.costo > 0 ? Math.round(d.costo * 100) / 100 : null;
+    await prisma.quotes.update({
+      where: { id: q.id },
+      data: {
+        requirements: {
+          ...resto,
+          asignadoCon: d.propio ? 'propio' : 'proveedor',
+          ...(costo ? { costo_proveedor: costo } : {}),
+          ...(equipo ? { equipoAsignado: { aliadoId: d.proveedorId, productId: equipo.id, equipo: equipo.name } } : {}),
+        } as unknown as Prisma.InputJsonValue,
+        updated_at: new Date(),
+      },
+    });
+
+    // Cuándo llega: el día que pidió el cliente, a las 8 (para los avisos de «mañana llega»).
+    const fecha = typeof req.fecha_inicio === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.fecha_inicio) ? req.fecha_inicio : null;
+    const committedAt = fecha ? new Date(`${fecha}T08:00:00-06:00`) : null;
+
+    if (!yaAceptado) {
+      const viva = await prisma.service_assignments.findFirst({ where: { quote_id: q.id, provider_id: d.proveedorId, state: 'propuesto' }, select: { id: true } });
+      const id = viva?.id ?? (await prisma.service_assignments.create({
+        data: { quote_id: q.id, provider_id: d.proveedorId, state: 'propuesto', scope: 'Asignado directo desde el panel', created_by: d.adminId },
+        select: { id: true },
+      })).id;
+      await this.responder(id, 'aceptado', { adminId: d.adminId, committedAt, sinCorreo: true });
+    } else {
+      // Mismo proveedor: solo cambia el equipo o lo acordado; lo apartado se rehace.
+      await sincronizarReserva(Number(q.id));
+    }
+    await prisma.service_events.create({
+      data: {
+        quote_id: q.id,
+        admin_id: d.adminId,
+        to_state: 'asignado',
+        note: `Lo hace ${d.propio ? 'MAQSER24' : prov.name}${equipo ? ` · ${equipo.name}` : ''}${costo ? ` · acordado $${costo.toLocaleString('es-MX')} sin IVA` : ''}${d.nota?.trim() ? ` · ${d.nota.trim().slice(0, 200)}` : ''}`.slice(0, 900),
+      },
+    });
+    return { ok: true, proveedor: d.propio ? 'MAQSER24' : prov.name, equipo: equipo?.name ?? null, costo };
+  }
+
   async responder(
     assignmentId: number,
     estado: 'aceptado' | 'rechazado' | 'retirado',
@@ -596,6 +692,8 @@ export class ServiceService {
        * algo que nunca prometió.
        */
       committedAt?: Date | null;
+      /** Sin el correo «te asignamos» (asignación directa: al proveedor se le avisa por WhatsApp). */
+      sinCorreo?: boolean;
     } = {},
   ) {
     const a = await prisma.service_assignments.findUnique({
@@ -756,7 +854,7 @@ export class ServiceService {
         where: { id: a.provider_id },
         select: { email: true, contact_name: true },
       });
-      if (contacto?.email && datos) {
+      if (contacto?.email && datos && !opts.sinCorreo) {
         const obra = datos.client_sites;
         const plantilla = await correoAsignacionAAliado({
           aliado: a.providers.name,

@@ -10,7 +10,7 @@ import { ProvidersManager, type ProviderRow } from './ProvidersManager';
  * —y es a propósito— es un botón de "marcar como verificado": el sello se
  * calcula del nivel más la vigencia de los documentos.
  */
-export default async function AdminProveedores({ searchParams }: { searchParams: Promise<{ ver?: string; dato?: string }> }) {
+export default async function AdminProveedores({ searchParams }: { searchParams: Promise<{ ver?: string; dato?: string; buscar?: string; donde?: string }> }) {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
   exigirModulo(admin, 'proveedores');
@@ -18,12 +18,14 @@ export default async function AdminProveedores({ searchParams }: { searchParams:
   // ?ver=148&dato=correo (2026-10-27): abre su expediente en su contacto, p. ej.
   // desde "Agregar su correo" de Cobros y pagos.
   const sp = await searchParams;
+  // La búsqueda por servicio se mudó a Servicios de proveedores (2026-11-12): un enlace viejo llega allá.
+  if (sp.buscar) redirect(`/servicios-proveedores?${new URLSearchParams({ buscar: sp.buscar.slice(0, 80), ...(sp.donde ? { donde: sp.donde.slice(0, 80) } : {}) })}`);
   const ver = Number(sp.ver) || undefined;
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      {/* ?dato=trato (2026-11-09): el recordatorio del Inicio abre su trato. */}
-      <ProvidersManager initial={provs} abrir={ver} enfocarCorreo={sp.dato === 'correo'} abrirEn={sp.dato === 'trato' ? 'trato' : undefined} />
+      {/* ?dato=trato (2026-11-09): el recordatorio del Inicio abre su trato; ?dato=equipos, sus equipos (Servicios de proveedores). */}
+      <ProvidersManager initial={provs} abrir={ver} enfocarCorreo={sp.dato === 'correo'} abrirEn={sp.dato === 'trato' ? 'trato' : sp.dato === 'equipos' ? 'equipos' : undefined} />
     </AdminShell>
   );
 }

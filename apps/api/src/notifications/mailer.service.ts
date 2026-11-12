@@ -101,6 +101,13 @@ export type EstadoEnvio = 'enviado' | 'fallido' | 'omitido' | 'simulado';
 
 const CORREO_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/** Los correos de trabajo que ya no se mandan a proveedores (2026-11-12; ver `enviar`). */
+const CORREOS_DE_TRABAJO_A_PROVEEDORES = new Set([
+  'provider_offer', 'provider_offer_reminder', 'provider_assigned', 'provider_cancelled',
+  'provider_day_before', 'provider_departure', 'provider_departure_late',
+  'factura_aliado_pendiente', 'pago_aliado',
+]);
+
 /**
  * ENLACES PERSONALES, FUERA DEL REGISTRO (2026-10-12).
  *
@@ -164,6 +171,19 @@ export class MailerService {
    */
   async enviar(c: CorreoParaEnviar): Promise<EstadoEnvio> {
     const destino = (c.to ?? '').trim().toLowerCase();
+
+    /**
+     * MAQSER24 OPERA SOLO (2026-11-12): a los proveedores ya no les llegan
+     * correos de trabajo (ofertas, recordatorios, «te asignamos», «mañana
+     * llega», salida, cancelación, «sube tu factura», «te pagamos»): el
+     * administrador les avisa por WhatsApp con el enlace del operador, y su
+     * portal queda solo para sus datos. Siguen los de su acceso, la invitación,
+     * el registro y los papeles. Se anota como omitido, para que se vea por qué.
+     */
+    if (CORREOS_DE_TRABAJO_A_PROVEEDORES.has(c.kind)) {
+      await this.anotar(c, 'omitido', 'Correo de trabajo a un proveedor: desde el 12 de noviembre se le avisa por WhatsApp.');
+      return 'omitido';
+    }
 
     // Un destinatario inválido no es un fallo del servidor: es un dato malo, y
     // conviene que se lea distinto en el registro.

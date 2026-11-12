@@ -24,6 +24,7 @@ import { Trato } from '@/components/Trato';
 import { anotarSolo } from '@/lib/trato';
 import { avisar, confirmar } from '@/components/Dialogos';
 import { mostrarResultado } from '@maqserv/ui';
+import type { DetalleServicio } from '@maqserv/config';
 
 export interface ProviderRow {
   id: number;
@@ -57,9 +58,13 @@ export interface ProviderRow {
   categoryLabels?: string[];
   /** Lo que ofrece: sus máquinas del catálogo. */
   equipment?: EquipoRow[];
+  /** Trabajos que ya nos hizo (aceptó y se cerró), 2026-11-12. */
+  trabajos?: number;
+  /** El proveedor interno de la flota propia de MAQSER24: no sale en la libreta (2026-11-12). */
+  propio?: boolean;
 }
 
-interface EquipoRow {
+export interface EquipoRow {
   id: number;
   name: string;
   brand: string | null;
@@ -80,6 +85,11 @@ interface EquipoRow {
   units?: number;
   identificacion?: UnidadEquipo[];
   identificable?: boolean;
+  /** Lo que cobra el proveedor por unidad y qué incluye (2026-11-12). */
+  precio?: Record<string, number>;
+  precioNota?: string | null;
+  /** Todo lo demás de su servicio: mínimo, flete, extras, IVA, pago… (2026-11-12). */
+  detalle?: DetalleServicio | null;
 }
 
 /** Un renglón del tabulador de un cotizador (ver `renglonesDe`). */
@@ -216,7 +226,8 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirE
   // la lista toma lo nuevo del servidor (lo que se escribe vive aparte y no se pierde).
   useEffect(() => { setProvs(initial); }, [initial]);
   // Las solicitudes del sitio (status 2) van aparte: todavía no son de la red.
-  const provs = useMemo(() => todos.filter((p) => p.status !== ESTADO_SOLICITUD_PROVEEDOR), [todos]);
+  // Sin el proveedor interno de MAQSER24 (2026-11-12): aquí solo van los proveedores.
+  const provs = useMemo(() => todos.filter((p) => p.status !== ESTADO_SOLICITUD_PROVEEDOR && !p.propio), [todos]);
   const solicitudes = useMemo(() => todos.filter((p) => p.status === ESTADO_SOLICITUD_PROVEEDOR), [todos]);
   const [query, setQuery] = useState('');
   const [creando, setCreando] = useState(false);
@@ -383,25 +394,25 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirE
 
       <PageHeader
         eyebrow={['Red y oferta', 'Proveedores']}
-        title="Red de aliados"
+        title="Proveedores"
         subtitle={
           <>
-            Tus aliados, dónde están y hasta dónde llegan. Para sumar a alguien, invítalo: él llena sus datos y te llega como solicitud.
-            El sello de verificado sale solo cuando su constancia fiscal y su póliza están vigentes.
+            Tus proveedores, para lo que MAQSER24 no maneja. Aquí los das de alta y llevas su ficha: datos, equipos con su precio, papeles y trato. Para sumar a alguien, invítalo (él llena sus datos) o dalo de alta tú.
+            El sello de verificado sale solo cuando su constancia fiscal y su póliza están vigentes. Para buscar quién da un servicio, ve a <a className="adm-link" href="/servicios-proveedores">Servicios de proveedores</a>.
           </>
         }
         actions={
           <>
-            <DescargarExcelProveedores aliados={todos} />
+            <DescargarExcelProveedores aliados={todos.filter((p) => !p.propio)} />
             <Btn icon="ph-plus" onClick={() => setCreando(true)}>Darlo de alta yo</Btn>
-            <Btn variant="primary" icon="ph-paper-plane-tilt" onClick={() => setInvitando(true)}>Invitar aliado</Btn>
+            <Btn variant="primary" icon="ph-paper-plane-tilt" onClick={() => setInvitando(true)}>Invitar proveedor</Btn>
           </>
         }
       />
 
       {/* Resumen: lo primero que importa es a quién se le vencieron los papeles. */}
       <Stats>
-        <Stat label="Aliados" icon="ph-handshake" tone="accent" value={provs.length} />
+        <Stat label="Proveedores" icon="ph-handshake" tone="accent" value={provs.length} />
         <Stat label="Con sello" icon="ph-seal-check" tone="ok" value={conSello} hint={`de ${provs.length}`} />
         <Stat label="Por vencer" icon="ph-clock-countdown" tone={porVencer > 0 ? 'warn' : 'muted'} value={porVencer} />
         <Stat
@@ -450,7 +461,7 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirE
       <Modal
         abierto={creando}
         titulo="Darlo de alta yo"
-        subtitulo="Para cuando ya tienes todos sus datos. Si no, mejor «Invitar aliado» y que él los llene. Con correo, al darlo de alta le llega su enlace al portal."
+        subtitulo="Para cuando ya tienes todos sus datos. Si no, mejor «Invitar proveedor» y que él los llene. Con correo, al darlo de alta le llega su enlace al portal."
         onCerrar={() => { setCreando(false); setErrorAlta(null); }}
         ancho={860}
         pie={
@@ -530,8 +541,8 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirE
 
         {filtrados.length === 0 ? (
           provs.length === 0
-            ? <EmptyState icon="ph-handshake" title="Todavía no hay aliados dados de alta" />
-            : <EmptyState icon="ph-handshake" title="No se encontraron aliados" sub="Ajusta la búsqueda." />
+            ? <EmptyState icon="ph-handshake" title="Todavía no hay proveedores dados de alta" />
+            : <EmptyState icon="ph-handshake" title="No se encontraron proveedores" sub="Ajusta la búsqueda." />
         ) : null}
 
         {filtrados.map((p) => {
@@ -577,7 +588,7 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirE
                   on={p.level === 'preferente'}
                   onClick={() => void cambiarPreferente(p)}
                   label="Preferente"
-                  title="Los preferentes salen primero cuando buscas aliado para una solicitud"
+                  title="Los preferentes salen primero cuando buscas proveedor para un servicio"
                 />
               </div>
               <div className="pv-c-act">
@@ -743,8 +754,9 @@ function ExpedienteModal({
           <section>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
               <h3 style={H3}>Equipos</h3>
-              <a href={`/productos/nuevo?proveedor=${p.id}`} className={btnClass('secondary', 'sm')}>
-                <i className="ph ph-plus" aria-hidden />Agregar equipo
+              {/* El formulario del proveedor (2026-11-12): con todo lo que cobra y sus condiciones. */}
+              <a href={`/servicios-proveedores/nuevo?proveedor=${p.id}&volver=ficha`} className={btnClass('secondary', 'sm')}>
+                <i className="ph ph-plus" aria-hidden />Agregar servicio
               </a>
             </div>
             {editandoOferta ? (
@@ -774,7 +786,7 @@ function ExpedienteModal({
             )}
 
             {equipos.length === 0 ? (
-              <p style={VACIO}>Todavía no tiene equipos. Los agrega él desde su portal, o tú con «Agregar equipo».</p>
+              <p style={VACIO}>Todavía no tiene servicios. Los agrega él desde su portal, o tú con «Agregar servicio».</p>
             ) : (
               <Panel flush clip>
                 {/* Cada máquina con sus unidades: económico y placas, y el lápiz para corregirlas (2026-11-09). */}

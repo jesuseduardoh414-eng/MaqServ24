@@ -2,9 +2,9 @@ import { Controller, Get, UseGuards } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
 import { AdminGuard, Modulo } from './admin-auth';
 import { estadoDocumentos } from '../catalog/provider-trust';
-import { disponibilidadDe } from '../catalog/availability';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { PASOS, esEstado } from '../quotes/service-flow';
+import { asegurarFlotaPropia } from '../providers/flota-propia';
 
 const DIA = 24 * 60 * 60 * 1000;
 
@@ -39,13 +39,15 @@ export class AdminInicioController {
     // El mes anterior se compara a la MISMA altura del mes (día 8 contra día 8):
     // contra el mes completo, cualquier mes en curso se vería en caída.
     const mismaAlturaAnterior = new Date(inicioMesAnterior.getTime() + (ahora.getTime() - inicioMes.getTime()));
+    // Los proveedores y sus servicios se cuentan sin el interno de MAQSER24 (2026-11-12).
+    const flotaId = await asegurarFlotaPropia();
 
     const [
       sinResponder, esperandoCliente, mensajes, porEstado,
       propuestas, propuestasViejas, incidencias,
       proximos, recientes,
       solicitudesMes, solicitudesMesAnterior, aceptadasMes, cerradosMes, valorMes,
-      aliados, fichas, fichasLibres, ofertas, estadosDePapeles,
+      aliados, servicios, ofertas, estadosDePapeles,
       resenas, preguntas, categorias,
     ] = await Promise.all([
       prisma.quotes.count({ where: { status: 'pending' } }),
@@ -93,20 +95,12 @@ export class AdminInicioController {
       prisma.quotes.count({ where: { accepted_at: { gte: inicioMes }, OR: [{ service_state: null }, { service_state: { not: 'cancelado' } }] } }),
       prisma.quotes.count({ where: { service_closed_at: { gte: inicioMes } } }),
       prisma.quotes.aggregate({ where: { accepted_at: { gte: inicioMes }, OR: [{ service_state: null }, { service_state: { not: 'cancelado' } }] }, _sum: { total: true } }),
-      prisma.providers.count({ where: { status: 1 } }),
-      // Solo las máquinas de aliados se confirman; la ficha del tipo no (2026-10-22).
-      prisma.products.count({ where: { status: 1, provider_id: { not: null } } }),
-      // Libres hoy (2026-10-26, ya no se confirma cada 14 días): sin reserva que
-      // las ocupe todas ni mantenimiento. Las de aliado son pocas: se calcula aquí.
-      Promise.all([
-        prisma.products.findMany({ where: { status: 1, provider_id: { not: null } }, select: { id: true, stock: true, location: true } }),
-        prisma.availability_blocks.findMany({
-          where: { OR: [{ ends_on: null }, { ends_on: { gte: hoy } }] },
-          select: { product_id: true, state: true, starts_on: true, ends_on: true, note: true },
-        }),
-      ]).then(([equipos, bloques]) =>
-        equipos.filter((p) => disponibilidadDe({ stock: p.stock, location: p.location, blocks: bloques.filter((b) => b.product_id === p.id) }, ahora).state === 'disponible').length,
-      ),
+      prisma.providers.count({ where: { status: 1, id: { not: flotaId } } }),
+      // Los servicios que dan los proveedores (2026-11-12, sin «Mi flota»: lo de
+      // MAQSER24 no se captura). Solo de proveedores activos, sin el interno.
+      prisma.providers
+        .findMany({ where: { status: 1, id: { not: flotaId } }, select: { id: true } })
+        .then((ps) => prisma.products.count({ where: { status: 1, provider_id: { in: ps.map((p) => p.id) } } })),
       // Solo de aliados de la red: lo que declara una solicitud se ve al revisarla (2026-10-26).
       prisma.providers.findMany({ where: { status: 1 }, select: { id: true } }).then((red) => prisma.products.count({ where: { status: ESTADO_POR_REVISAR, provider_id: { in: red.map((p) => p.id) } } })),
       // Se cuentan ALIADOS, no papeles: tres vencidos del mismo son una llamada.
@@ -158,7 +152,7 @@ export class AdminInicioController {
       },
       mes: { solicitudes: solicitudesMes, solicitudesAnterior: solicitudesMesAnterior, aceptadas: aceptadasMes, cerrados: cerradosMes },
       red: {
-        aliados, fichas, fichasLibres, ofertas,
+        aliados, servicios, ofertas,
         papelesVencidos: estadosDePapeles.filter((e) => e === 'vencido').length,
         papelesPorVencer: estadosDePapeles.filter((e) => e === 'por-vencer').length,
         papelesFaltan: estadosDePapeles.filter((e) => e === 'incompleto').length,

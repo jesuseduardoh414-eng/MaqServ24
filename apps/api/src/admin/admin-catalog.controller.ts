@@ -57,6 +57,7 @@ import { correoEquipoPublicado, correoEquipoRechazado } from '../notifications/e
 import { AJUSTE_MARGEN, guardarAjuste, margenAliadoPct } from '../common/platform-settings';
 import { imageUrl } from '../catalog/images';
 import { ordenDeCategorias } from '../catalog/categories.service';
+import { proveedorPropioId } from '../providers/flota-propia';
 
 /**
  * Los tipos que se parecen a lo que escribió el aliado (2026-10-28): cuántas
@@ -544,8 +545,10 @@ export class AdminCatalogController {
 
   @Get('providers')
   async providersForSelect() {
+    // Sin el interno de MAQSER24 (2026-11-12): «Mi flota» se quitó y no se le dan de alta equipos.
+    const propioId = await proveedorPropioId();
     return prisma.providers.findMany({
-      where: { status: 1 },
+      where: { status: 1, ...(propioId ? { id: { not: propioId } } : {}) },
       select: { id: true, name: true, level: true },
       orderBy: { name: 'asc' },
     });

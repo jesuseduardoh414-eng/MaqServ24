@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Prisma, prisma } from '@maqserv/db';
 import { comisionDe, reglasDinero, type ReglasDinero } from './reglas';
+import { esFlotaPropia } from '../providers/flota-propia';
 
 const log = new Logger('Cuentas');
 const ZONA = 'America/Monterrey';
@@ -46,7 +47,7 @@ export async function abrirCuenta(quoteId: number): Promise<boolean> {
       where: { id: quoteId },
       select: {
         id: true, service_state: true, service_category: true, service_closed_at: true, client_id: true,
-        subtotal: true, freight_cost: true, tax: true, total: true,
+        subtotal: true, freight_cost: true, tax: true, total: true, requirements: true,
       },
     });
     if (!q || q.service_state !== 'cerrado') return false;
@@ -56,22 +57,42 @@ export async function abrirCuenta(quoteId: number): Promise<boolean> {
       select: { provider_id: true },
     });
     const cliente = q.client_id ? await prisma.clients.findUnique({ where: { id: q.client_id }, select: { credito_dias: true } }) : null;
-    const reglas = await reglasDinero();
-    const pct = comisionDe(reglas, q.service_category);
     const subtotal = r2(Number(q.subtotal ?? 0) + Number(q.freight_cost ?? 0));
     const iva = r2(Number(q.tax ?? 0));
     const total = r2(Number(q.total ?? 0)) || r2(subtotal + iva);
     const cerrado = diaLocal(q.service_closed_at ?? new Date());
+    /**
+     * A QUIÉN SE LE PAGA Y CUÁNTO (2026-11-12, MAQSER24 opera solo):
+     * - Con la flota propia (o sin nadie): a nadie. Todo es de MAQSER24.
+     * - Con un proveedor asignado directo: lo acordado con él (sin IVA), no una comisión.
+     * - Servicios viejos, de cuando se le ofrecía al aliado: como antes, lo cotizado menos la comisión.
+     */
+    const propio = !aliado || (await esFlotaPropia(aliado.provider_id));
+    const acordado = Number((q.requirements as { costo_proveedor?: unknown } | null)?.costo_proveedor ?? 0);
+    let proveedorId: number | null = null;
+    let pago = 0;
+    let pct = 0;
+    if (!propio && aliado) {
+      proveedorId = aliado.provider_id;
+      if (acordado > 0) {
+        pago = r2(acordado);
+        pct = subtotal > 0 ? r2(Math.max(0, (1 - pago / subtotal) * 100)) : 0;
+      } else {
+        const reglas = await reglasDinero();
+        pct = comisionDe(reglas, q.service_category);
+        pago = r2(subtotal * (1 - pct / 100));
+      }
+    }
     await prisma.service_money.create({
       data: {
         quote_id: q.id,
         client_id: q.client_id,
-        provider_id: aliado?.provider_id ?? null,
+        provider_id: proveedorId,
         subtotal: new Prisma.Decimal(subtotal),
         iva: new Prisma.Decimal(iva),
         total: new Prisma.Decimal(total),
         comision_pct: new Prisma.Decimal(pct),
-        pago_aliado: new Prisma.Decimal(r2(subtotal * (1 - pct / 100))),
+        pago_aliado: new Prisma.Decimal(pago),
         vence: comoFecha(masDias(cerrado, Math.max(0, cliente?.credito_dias ?? 0))),
       },
     });

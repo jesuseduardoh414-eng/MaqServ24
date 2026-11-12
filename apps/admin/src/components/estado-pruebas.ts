@@ -47,7 +47,8 @@ const RONDA: Record<string, number | 'diseno' | 'probado' | 'probando'> = {
   '/catalogo': 'probado', // revisión por módulos, 2026-10-28 (Inventario con servicios y productos)
   '/productos': 'probado', // (redirige a /catalogo/servicios)
   '/proveedores': 'probado', // revisión por módulos, 2026-10-28 (invitar, mapa, nada se publica)
-  '/disponibilidad': 'probado', // revisión por módulos, 2026-10-26
+  // '/disponibilidad' (Mi flota) se quitó el 2026-11-12; en su lugar, lo que dan los proveedores.
+  '/servicios-proveedores': 'probando', // nuevo 2026-11-12
   // 3 · Cotizar
   '/cotizador': 'probado', // revisión por módulos, 2026-10-26
   '/cotizador/maquinaria': 'probado', // revisión por módulos, 2026-10-26

@@ -17,7 +17,7 @@ import {
 import { createReadStream, existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { prisma } from '@maqserv/db';
-import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, fichaDe, identificacionDe, llevaIdentificacion, renglonesDe, slugify, textoUnidad, unidadVacia } from '@maqserv/config';
+import { COTIZADOR_TIPOS, ESTADO_SOLICITUD_PROVEEDOR, UNIDADES, atributosDe, detalleServicioDe, detalleServicioSchema, type DetalleServicio, fichaDe, identificacionDe, llevaIdentificacion, renglonesDe, slugify, tarifasDe, tarifasSchema, textoUnidad, unidadVacia } from '@maqserv/config';
 import { guardarUnidades, listaUnidadesSchema } from '../catalog/unidades-equipo';
 import { coordenadasDe } from '../freight/direccion';
 import { mediaDir } from '../common/media';
@@ -38,6 +38,7 @@ import { correoAccesoAliado, correoInvitacionAliado } from '../notifications/ema
 import { ESTADO_CATEGORIA_PROPUESTA, ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { FreightService } from '../freight/freight.service';
 import { ubicarAliado } from '../providers/cobertura-aliado';
+import { proveedorPropioId } from '../providers/flota-propia';
 import { CATALOGO, resumenPuntualidad, textoPuntualidad } from '../quotes/incidents';
 import { imageUrl } from '../catalog/images';
 
@@ -55,6 +56,12 @@ import { imageUrl } from '../catalog/images';
 // Desde 2026-10-27 el panel solo pone 'preferente' o 'registrado'; los otros
 // dos se aceptan por los aliados que ya los tienen guardados.
 const NIVELES = ['registrado', 'validado', 'activo', 'preferente'] as const;
+
+/** Qué incluye el precio del proveedor ("con operador y diésel"), guardado junto a la ficha técnica (2026-11-12). */
+function notaDePrecio(attrs: unknown): string | null {
+  const v = (attrs as Record<string, unknown> | null)?.precio_nota;
+  return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
 
 /**
  * INVITAR A LA RED (2026-10-27). La oficina escribe el nombre y el correo o
@@ -427,6 +434,8 @@ export class AdminProvidersController {
           id: true, name: true, Marca: true, category_id: true, attributes: true, photo: true, status: true,
           stock: true, location: true, availability_confirmed_at: true, provider_id: true,
           is_rental: true, price_unit: true, tipo_id: true,
+          // Su precio (2026-11-12, la libreta de proveedores): lo que cobra él por unidad.
+          costo_aliado: true,
         },
         orderBy: { name: 'asc' },
       }),
@@ -477,10 +486,27 @@ export class AdminProvidersController {
         units: Math.max(1, e.stock ?? 1),
         identificacion: identificacionDe(e.attributes),
         identificable: llevaIdentificacion(c?.cat_slug) || identificacionDe(e.attributes).length > 0,
+        // LO QUE COBRA EL PROVEEDOR (2026-11-12): { hora: 850, dia: 6500 } y qué incluye.
+        // Nunca sale al cliente; es para que MAQSER24 cotice con su margen.
+        precio: tarifasDe(e.costo_aliado),
+        precioNota: notaDePrecio(e.attributes),
+        // Todo lo demás de su servicio: mínimo, flete, extras, IVA, pago… (2026-11-12).
+        detalle: detalleServicioDe(e.attributes),
       };
       const k = e.provider_id as number;
       equiposPor.set(k, [...(equiposPor.get(k) ?? []), fila]);
     }
+
+    // Cuántos trabajos ya nos hizo cada uno (aceptó y el servicio se cerró): la
+    // libreta de proveedores lo pone primero entre iguales (2026-11-12).
+    const hechos = await prisma.service_assignments.findMany({
+      where: { state: 'aceptado', quotes: { service_state: 'cerrado' } },
+      select: { provider_id: true },
+    });
+    // La flota propia de MAQSER24 (2026-11-12) es un proveedor interno: el panel no la pone en la libreta.
+    const propioId = await proveedorPropioId();
+    const trabajosPor = new Map<number, number>();
+    for (const h of hechos) trabajosPor.set(h.provider_id, (trabajosPor.get(h.provider_id) ?? 0) + 1);
 
     return provs.map((p) => {
       const docs = estadoDocumentos(p.provider_documents);
@@ -515,8 +541,253 @@ export class AdminProvidersController {
         // Nombres legibles de sus líneas ("Renta de maquinaria pesada", no el slug).
         categoryLabels: lista(p.categories).map((s) => nombreDeSlug.get(s) ?? s),
         equipment: suyos,
+        trabajos: trabajosPor.get(p.id) ?? 0,
+        propio: p.id === propioId,
       };
     });
+  }
+
+  /**
+   * EL PRECIO DEL PROVEEDOR POR SU EQUIPO (2026-11-12, la libreta de
+   * proveedores): lo que cobra él por unidad ({ hora: 850, dia: 6500 }) y una
+   * nota corta de qué incluye ("con operador y diésel, flete aparte"). Lo
+   * captura MAQSER24 cuando le pide precio; nunca sale al cliente. Con todo en
+   * cero queda «sin precio».
+   */
+  @Patch('equipos/:productId/precio')
+  async precioDeEquipo(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({
+      precio: z.record(z.string(), z.number().min(0).max(100_000_000)),
+      nota: z.string().max(160).optional(),
+    }).safeParse(body);
+    if (!p.success) throw new BadRequestException('Revisa el precio: solo números.');
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { name: true, provider_id: true, attributes: true } });
+    if (!e || e.provider_id === null) throw new NotFoundException('Ese equipo no es de un proveedor.');
+    const precio = tarifasSchema.parse(p.data.precio);
+    const nota = (p.data.nota ?? '').trim();
+    const attrs = { ...((e.attributes ?? {}) as Record<string, unknown>) };
+    if (nota) attrs.precio_nota = nota;
+    else delete attrs.precio_nota;
+    await prisma.products.update({
+      where: { id: productId },
+      data: { costo_aliado: precio as never, attributes: attrs as never },
+    });
+    const texto = Object.entries(precio).map(([u, v]) => `$${v} / ${UNIDADES[u]?.singular ?? u}`).join(' · ') || 'sin precio';
+    await registrarAccion(req, 'proveedores', 'equipo.precio', e.name, `${texto}${nota ? ` (${nota})` : ''}`.slice(0, 900));
+    return { ok: true, precio, precioNota: nota || null };
+  }
+
+  /**
+   * EL SERVICIO DE UN PROVEEDOR, COMPLETO (2026-11-12, el dueño: "cuando sea un
+   * servicio diferente, que tenga la opción de poner todo completo, sus costos,
+   * todo"). El formulario del catálogo es para las fichas de MAQSER24 y a un
+   * equipo de aliado le decía «no lleva precio propio»; este es el del
+   * proveedor: qué es (en una línea que ya existe o en una NUEVA, que nace
+   * apagada y no sale en el sitio), lo que cobra por unidad, qué incluye y
+   * todas sus condiciones (`attributes.servicio`, ver @maqserv/config
+   * servicio-proveedor). Nunca se publica.
+   */
+  @Get('servicios/opciones')
+  async opcionesDeServicio() {
+    const propioId = await proveedorPropioId();
+    const [cats, fichas, provs] = await Promise.all([
+      prisma.categories.findMany({ where: { status: { not: ESTADO_CATEGORIA_PROPUESTA } }, select: { id: true, cat_name: true, cat_slug: true, status: true }, orderBy: { cat_name: 'asc' } }),
+      prisma.products.findMany({ where: { provider_id: null, status: { in: [0, 1] } }, select: { id: true, name: true, category_id: true }, orderBy: { name: 'asc' } }),
+      prisma.providers.findMany({ where: { status: 1, ...(propioId ? { id: { not: propioId } } : {}) }, select: { id: true, name: true, categories: true, city: true }, orderBy: { name: 'asc' } }),
+    ]);
+    return {
+      categorias: cats.map((c) => ({
+        id: c.id,
+        name: c.cat_name,
+        slug: c.cat_slug,
+        status: c.status,
+        tipos: fichas.filter((f) => f.category_id === c.id).map((f) => ({ id: f.id, name: f.name })),
+      })),
+      proveedores: provs.map((p) => ({ id: p.id, name: p.name, city: p.city, categories: lista(p.categories) })),
+    };
+  }
+
+  @Get('servicios/:productId')
+  async servicio(@Param('productId', ParseIntPipe) productId: number) {
+    const e = await prisma.products.findUnique({
+      where: { id: productId },
+      select: {
+        id: true, name: true, description: true, category_id: true, tipo_id: true, provider_id: true, stock: true,
+        location: true, is_rental: true, costo_aliado: true, attributes: true, Marca: true,
+      },
+    });
+    if (!e || e.provider_id === null) throw new NotFoundException('Ese servicio no es de un proveedor.');
+    const [prov, cat] = await Promise.all([
+      prisma.providers.findUnique({ where: { id: e.provider_id }, select: { id: true, name: true } }),
+      prisma.categories.findUnique({ where: { id: e.category_id }, select: { cat_slug: true } }),
+    ]);
+    const attrs = (e.attributes ?? {}) as Record<string, unknown>;
+    const atributos = Object.fromEntries(
+      atributosDe(cat?.cat_slug).filter((a) => attrs[a.clave] != null && String(attrs[a.clave]).trim() !== '').map((a) => [a.clave, String(attrs[a.clave])]),
+    );
+    return {
+      id: e.id,
+      proveedorId: e.provider_id,
+      proveedor: prov?.name ?? null,
+      categoryId: e.category_id,
+      tipoId: e.tipo_id,
+      name: e.name,
+      brand: e.Marca?.trim() || null,
+      description: e.description === e.name ? '' : e.description,
+      stock: e.stock,
+      location: e.location,
+      rental: e.is_rental,
+      precio: tarifasDe(e.costo_aliado),
+      precioNota: notaDePrecio(e.attributes),
+      detalle: detalleServicioDe(e.attributes) ?? {},
+      atributos,
+    };
+  }
+
+  @Post(':id/servicios')
+  async altaDeServicio(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const d = this.leerServicio(body);
+    const prov = await prisma.providers.findUnique({ where: { id }, select: { id: true, name: true, status: true, categories: true } });
+    if (!prov || prov.status !== 1 || id === (await proveedorPropioId())) throw new BadRequestException('Ese proveedor no existe o está dado de baja.');
+    const cat = await this.lineaDelServicio(d, prov);
+    const tipoId = await this.tipoDelServicio(d.tipoId, cat.id);
+    const creado = await prisma.products.create({
+      data: {
+        user_id: 0,
+        provider_id: prov.id,
+        tipo_id: tipoId,
+        category_id: cat.id,
+        name: d.name,
+        description: d.description || d.name,
+        cprice: 0,
+        stock: d.stock ?? 1,
+        location: d.location || null,
+        Marca: d.brand || null,
+        is_rental: d.rental ?? true,
+        costo_aliado: d.precio as never,
+        attributes: this.atributosDelServicio({}, cat.slug, d) as never,
+        status: 1,
+        featured: 0,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+      select: { id: true },
+    });
+    await registrarAccion(req, 'proveedores', 'servicio.alta', prov.name, `${d.name} · ${this.textoDelPrecio(d.precio)}`.slice(0, 900));
+    return { ok: true, id: creado.id, categoriaNueva: cat.nueva ? cat.nombre : null };
+  }
+
+  @Patch('servicios/:productId')
+  async corregirServicio(@Param('productId', ParseIntPipe) productId: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const d = this.leerServicio(body);
+    const e = await prisma.products.findUnique({ where: { id: productId }, select: { provider_id: true, attributes: true } });
+    if (!e || e.provider_id === null) throw new NotFoundException('Ese servicio no es de un proveedor.');
+    const prov = await prisma.providers.findUnique({ where: { id: e.provider_id }, select: { id: true, name: true, status: true, categories: true } });
+    if (!prov) throw new NotFoundException('No se encontró el proveedor.');
+    const cat = await this.lineaDelServicio(d, prov);
+    const tipoId = await this.tipoDelServicio(d.tipoId, cat.id);
+    await prisma.products.update({
+      where: { id: productId },
+      data: {
+        tipo_id: tipoId,
+        category_id: cat.id,
+        name: d.name,
+        description: d.description || d.name,
+        stock: d.stock ?? 1,
+        location: d.location || null,
+        Marca: d.brand || null,
+        is_rental: d.rental ?? true,
+        costo_aliado: d.precio as never,
+        attributes: this.atributosDelServicio((e.attributes ?? {}) as Record<string, unknown>, cat.slug, d) as never,
+        updated_at: new Date(),
+      },
+    });
+    await registrarAccion(req, 'proveedores', 'servicio.corregir', prov.name, `${d.name} · ${this.textoDelPrecio(d.precio)}`.slice(0, 900));
+    return { ok: true, id: productId, categoriaNueva: cat.nueva ? cat.nombre : null };
+  }
+
+  private leerServicio(body: unknown) {
+    const p = z
+      .object({
+        name: z.string().trim().min(2, 'Escribe cómo se llama el servicio.').max(200),
+        categoryId: z.number().int().positive().nullable().optional(),
+        /** Una línea que no existe: nace apagada (solo para equipos de proveedores, no sale en el sitio). */
+        categoriaNueva: z.string().trim().max(100).nullable().optional(),
+        tipoId: z.number().int().positive().nullable().optional(),
+        brand: z.string().trim().max(190).optional(),
+        description: z.string().trim().max(5000).optional(),
+        stock: z.number().int().min(1).max(100_000).nullable().optional(),
+        location: z.string().trim().max(160).optional(),
+        rental: z.boolean().optional(),
+        precio: z.record(z.string(), z.number().min(0).max(100_000_000)),
+        precioNota: z.string().trim().max(300).optional(),
+        detalle: detalleServicioSchema,
+        atributos: z.record(z.string(), z.string().max(160)).optional(),
+      })
+      .safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Revisa los datos del servicio.');
+    if (!p.data.categoryId && !p.data.categoriaNueva) throw new BadRequestException('Elige qué tipo de servicio es, o escribe uno nuevo.');
+    return { ...p.data, precio: tarifasSchema.parse(p.data.precio) };
+  }
+
+  /** La línea del servicio: la elegida, o una nueva (apagada) si no existe. Se suma a las líneas del proveedor. */
+  private async lineaDelServicio(
+    d: { categoryId?: number | null; categoriaNueva?: string | null },
+    prov: { id: number; categories: unknown },
+  ): Promise<{ id: number; slug: string; nombre: string; nueva: boolean }> {
+    let cat: { id: number; cat_slug: string; cat_name: string } | null = null;
+    let nueva = false;
+    if (d.categoriaNueva?.trim()) {
+      const nombre = d.categoriaNueva.trim();
+      const slug = slugify(nombre);
+      if (!slug) throw new BadRequestException('Escribe el nombre del tipo de servicio nuevo.');
+      cat = await prisma.categories.findUnique({ where: { cat_slug: slug }, select: { id: true, cat_slug: true, cat_name: true } });
+      if (!cat) {
+        const ultima = await prisma.categories.aggregate({ _max: { sort_order: true } });
+        cat = await prisma.categories.create({
+          data: { cat_name: nombre, cat_slug: slug, status: 0, sort_order: (ultima._max.sort_order ?? 0) + 1 },
+          select: { id: true, cat_slug: true, cat_name: true },
+        });
+        nueva = true;
+      }
+    } else {
+      cat = await prisma.categories.findUnique({ where: { id: d.categoryId as number }, select: { id: true, cat_slug: true, cat_name: true } });
+      if (!cat) throw new BadRequestException('Ese tipo de servicio ya no existe.');
+    }
+    const suyas = lista(prov.categories);
+    if (!suyas.includes(cat.cat_slug)) {
+      await prisma.providers.update({ where: { id: prov.id }, data: { categories: [...suyas, cat.cat_slug] } });
+    }
+    return { id: cat.id, slug: cat.cat_slug, nombre: cat.cat_name, nueva };
+  }
+
+  /** El tipo (ficha de MAQSER24) tiene que ser de la misma línea; si no, sin tipo. */
+  private async tipoDelServicio(tipoId: number | null | undefined, categoriaId: number): Promise<number | null> {
+    if (!tipoId) return null;
+    const f = await prisma.products.findFirst({ where: { id: tipoId, provider_id: null, category_id: categoriaId }, select: { id: true } });
+    return f?.id ?? null;
+  }
+
+  /** Lo de antes se conserva (sus unidades con económico y placas); lo del formulario se reescribe. */
+  private atributosDelServicio(
+    antes: Record<string, unknown>,
+    slug: string,
+    d: { precioNota?: string; detalle: DetalleServicio; atributos?: Record<string, string> },
+  ): Record<string, unknown> {
+    const attrs: Record<string, unknown> = { ...antes };
+    for (const a of atributosDe(slug)) {
+      const v = d.atributos?.[a.clave]?.trim();
+      if (v) attrs[a.clave] = a.tipo === 'numero' && Number.isFinite(Number(v)) ? Number(v) : v;
+      else delete attrs[a.clave];
+    }
+    if (d.precioNota?.trim()) attrs.precio_nota = d.precioNota.trim();
+    else delete attrs.precio_nota;
+    attrs.servicio = d.detalle;
+    return attrs;
+  }
+
+  private textoDelPrecio(precio: Record<string, number>): string {
+    return Object.entries(precio).map(([u, v]) => `$${v} / ${UNIDADES[u]?.singular ?? u}`).join(' · ') || 'sin precio';
   }
 
   /**

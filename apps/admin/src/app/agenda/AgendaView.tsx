@@ -130,7 +130,6 @@ const ENCABEZADO = (
     eyebrow={['3 · Ejecutar', 'Operaciones']}
     title="Agenda"
     subtitle="Qué viene y qué unidad está comprometida. El tablero de Servicios dice qué está pasando; esto sirve para no prometer dos veces la misma máquina."
-    actions={<Btn href="/disponibilidad" icon="ph-calendar-plus">Bloquear un equipo</Btn>}
   />
 );
 

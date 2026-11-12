@@ -7,6 +7,7 @@ import {
   Bar, Btn, Chip, EmptyState, FormField, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toolbar, type Tone,
 } from '@/components/ui';
 import { Incidencias, VentanaFormulario } from './Incidencias';
+import { AsignarServicio } from './AsignarServicio';
 import { OperadorServicio } from './OperadorServicio';
 import { COLOR_ETAPA, MapaServicios, enCaminoDe, useRastreo, type Rastreo } from './UnidadesEnCamino';
 import { useRouter } from 'next/navigation';
@@ -121,9 +122,10 @@ function resumenOferta(s: ServicioRow): { mandada: string; estado: string; detal
   const retirados = s.assignments.filter((a) => a.state === 'tomado');
   const mandada = `Se mandó a ${aliados(n)}`;
 
-  if (n === 0) return { mandada: '', estado: 'Sin mandar', detalle: '', corto: 'sin mandar: búscale aliado', tono: 'warn' };
+  // Desde el 2026-11-12 se asigna directo (MAQSER24 o un proveedor): sin nadie, «por asignar».
+  if (n === 0) return { mandada: '', estado: 'Por asignar', detalle: '', corto: 'por asignar', tono: 'warn' };
   if (tomaron.length) {
-    const quien = `${tomaron.length === 1 ? 'la tomó' : 'la tomaron'} ${nombres(tomaron)}`;
+    const quien = `lo hace ${nombres(tomaron).replace('MAQSER24 · flota propia', 'MAQSER24')}`;
     const otros = retirados.length === 0
       ? ''
       : retirados.length === 1
@@ -162,7 +164,7 @@ function EncabezadoCotizacion({ folio, servicios }: { folio: string; servicios: 
         <i className="ph ph-files" aria-hidden />
         <span>Cotización <span className="adm-mono" style={{ color: 'var(--adm-text)' }}>{folio}</span></span>
         <span>· {servicios[0].client}</span>
-        <span>· {servicios.length} servicios, cada uno con sus aliados</span>
+        <span>· {servicios.length} servicios, cada uno con quien lo hace</span>
       </div>
       <ul>
         {servicios.map((s) => {
@@ -206,6 +208,8 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
   const [cerrando, setCerrando] = useState<ServicioRow | null>(null);
   /** Servicio al que se le está buscando aliado. */
   const [asignando, setAsignando] = useState<ServicioRow | null>(null);
+  /** Asignar directo (2026-11-12): lo hace MAQSER24 o un proveedor, sin ofrecérselo a nadie. */
+  const [asignandoDirecto, setAsignandoDirecto] = useState<ServicioRow | null>(null);
   /** Servicio cuyas incidencias se están viendo. */
   const [incidencias, setIncidencias] = useState<ServicioRow | null>(null);
   /**
@@ -379,7 +383,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
       return;
     }
     router.refresh();
-    setAsignando({
+    setAsignandoDirecto({
       ...s,
       state: 'por_asignar',
       assignments: s.assignments.map((a) => (a.state === 'aceptado' ? { ...a, state: 'retirado', reason: MOTIVO_SE_BAJO } : a)),
@@ -561,12 +565,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
               {/* Sin aliado todavía: a quién se le mandó y en qué va (aquí sí hay que actuar). */}
               {aceptado.length === 0 && s.assignments.length > 0 ? aliadosDe(s, oferta) : null}
 
-              {/* Sugeridos (2026-10-05): quién tiene publicado el equipo pedido. */}
-              {s.suggested && s.assignments.length === 0 ? (
-                <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
-                  Sugeridos (tienen el equipo publicado): <span style={{ color: 'var(--adm-text)', fontWeight: 600 }}>{s.suggested}</span>
-                </div>
-              ) : null}
+              {/* «Sugeridos» (aliados con el equipo publicado) se quitó el 2026-11-12: ahora se asigna con «Asignar». */}
 
               {s.closed ? (
                 <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--adm-muted)' }}>
@@ -615,9 +614,10 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
               <div className="srv-acciones">
                 {/* Buscar aliado solo mientras nadie lo atiende (2026-10-26): ya con aliado no
                     se suma otro; si el que tenía se bajó, vuelve a salir como "Buscar otro aliado". */}
+                {/* ASIGNAR (2026-11-12, MAQSER24 opera solo): lo hace MAQSER24 o un proveedor, directo. */}
                 {aceptado.length === 0 && !['terminado', 'cerrado', 'cancelado'].includes(s.state) ? (
-                  <Btn size="sm" icon="ph-magnifying-glass" onClick={() => setAsignando(s)}>
-                    {s.assignments.some((a) => a.reason === MOTIVO_SE_BAJO) ? 'Buscar otro aliado' : 'Buscar aliado'}
+                  <Btn size="sm" variant="primary" icon="ph-user-plus" onClick={() => setAsignandoDirecto(s)}>
+                    {s.assignments.some((a) => a.reason === MOTIVO_SE_BAJO) ? 'Asignar a otro' : 'Asignar'}
                   </Btn>
                 ) : null}
 
@@ -651,7 +651,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                       {siguiente ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--adm-muted)' }}>
                           <i className="ph ph-device-mobile" aria-hidden />
-                          {siguiente.label}: lo reporta el aliado
+                          {siguiente.label}: lo reporta el operador
                         </span>
                       ) : null}
                       {corregir.length ? (
@@ -670,7 +670,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                             if (destino.state === 'cerrado') { setCerrando(s); return; }
                             const ok = await confirmar({
                               titulo: `¿Pasar ${s.quoteNumber} a «${destino.label}»?`,
-                              mensaje: 'Normalmente lo reporta el aliado o su operador. Al cliente le llega el aviso igual que si lo hubiera marcado él.',
+                              mensaje: 'Normalmente lo reporta el operador desde su enlace. Al cliente le llega el aviso igual que si lo hubiera marcado él.',
                               confirmar: 'Corregir etapa',
                             });
                             if (ok) mover(s, destino.state);
@@ -699,7 +699,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                           valor: 'cliente',
                           opciones: [
                             { valor: 'cliente', texto: 'El cliente lo canceló' },
-                            { valor: 'aliado', texto: 'El aliado se bajó: buscar otro (el servicio sigue)' },
+                            { valor: 'aliado', texto: 'Quien lo hacía ya no puede: asignar a otro (el servicio sigue)' },
                             { valor: 'plataforma', texto: 'Lo cancelamos nosotros (MAQSER24)' },
                           ],
                           confirmar: 'Siguiente',
@@ -710,11 +710,11 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                       }
                       if (causa === 'aliado') {
                         const motivo = await pedirTexto({
-                          titulo: '¿Por qué se bajó?',
-                          mensaje: 'Queda en el historial del servicio y en el del aliado. Puedes dejarlo en blanco.',
+                          titulo: '¿Por qué ya no puede?',
+                          mensaje: 'Queda en el historial del servicio y en el de quien lo hacía. Puedes dejarlo en blanco.',
                           etiqueta: 'Motivo',
                           multilinea: true,
-                          confirmar: 'Buscar otro aliado',
+                          confirmar: 'Asignar a otro',
                           cancelar: 'Volver',
                         });
                         if (motivo === null) return;
@@ -749,6 +749,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
       {cerrando ? <ModalCierre servicio={cerrando} onCerrar={() => setCerrando(null)} onGuardar={mover} ocupado={ocupado === cerrando.id} /> : null}
       {/* Se queda abierta al ofrecer (2026-10-23): se le puede ofrecer a varios, uno por uno, sin volver a buscar. */}
       {asignando ? <ModalAsignar servicio={asignando} onCerrar={() => setAsignando(null)} onCambio={() => router.refresh()} /> : null}
+      {asignandoDirecto ? <AsignarServicio servicio={asignandoDirecto} onCerrar={() => setAsignandoDirecto(null)} onCambio={() => router.refresh()} /> : null}
       {incidencias ? <Incidencias quoteId={incidencias.id} quoteNumber={incidencias.quoteNumber} onCerrar={() => setIncidencias(null)} /> : null}
     </div>
   );

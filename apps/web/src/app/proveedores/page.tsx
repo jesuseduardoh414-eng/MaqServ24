@@ -24,7 +24,7 @@ const PASOS: Array<{ icono: IconName; titulo: string; texto: string }> = [
   // Los papeles NO se piden en el registro: se suben en el portal ya aceptado
   // (un archivo de alguien que aún no conocemos es spam o riesgo, y alarga el
   // formulario). Aquí solo se avisa cuáles para que los tenga a la mano.
-  { icono: 'link', titulo: 'Te damos acceso', texto: 'Si te aceptamos, te llega por correo el enlace a tu portal: ahí ofreces tus equipos, contestas solicitudes y subes tus papeles (póliza de seguro, constancia de situación fiscal y DC-3 de tus operadores).' },
+  { icono: 'link', titulo: 'Te damos acceso', texto: 'Si te aceptamos, te llega por correo el enlace a tu portal: ahí mantienes al día tus equipos y tus papeles (póliza de seguro, constancia de situación fiscal y DC-3 de tus operadores). Cuando MAQSER24 necesite lo que ofreces, te contactamos directo.' },
 ];
 
 const CSS = `
@@ -71,7 +71,7 @@ export default async function ProveedoresPage({ searchParams }: { searchParams: 
             <h1 className="ms-hero-title">Regístrate como proveedor</h1>
             <p className="ms-hero-desc">
               {invitado
-                ? `${inicial?.nombre ? `${inicial.nombre}, te` : 'Te'} invitamos a la red de aliados de MAQSER24. Ya pusimos tus datos: completa dónde está tu base, a qué municipios llegas y qué equipos tienes.`
+                ? `${inicial?.nombre ? `${inicial.nombre}, te` : 'Te'} invitamos a ser proveedor de MAQSER24. Ya pusimos tus datos: completa dónde está tu base, a qué municipios llegas y qué equipos tienes.`
                 : 'Registra tu empresa, maquinaria o servicios. Nuestro equipo revisará la información y se pondrá en contacto contigo para continuar el proceso.'}
             </p>
           </header>

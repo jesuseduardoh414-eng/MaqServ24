@@ -9,7 +9,6 @@ import {
 } from '@/components/ui';
 import { QuoteRespond } from './QuoteRespond';
 import { AvisosRevision, useRevision } from './QuoteRevision';
-import { QuoteMatches } from './QuoteMatches';
 
 export interface QuoteItem {
   id: number;
@@ -598,7 +597,7 @@ function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; to
           {e === 'por_cotizar' ? (
             <>
               {/* «Ya le hablé» pasó al trato con el cliente, arriba (2026-11-09). */}
-              <QuoteMatches quoteId={q.id} />
+              {/* «Ver aliados» (QuoteMatches) se quitó el 2026-11-12: lo reemplaza «Buscar proveedor», abajo. */}
               <CotizarConTabulador q={q} />
               {/* Aquí sí es la acción principal: el panel es de una sola solicitud. */}
               <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} totalDocumento={totalDocumento} cotizarHref={cotizarHref(q)} principal />
@@ -614,6 +613,17 @@ function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; to
             </>
           ) : null}
           {quoterId ? <Btn size="sm" href={`/cotizador/historial/${quoterId}`} icon="ph-file-text">Documento {folioDoc ?? ''}</Btn> : null}
+          {/* LA LIBRETA (2026-11-12): si MAQSER24 no lo maneja, buscar quién lo da, con el servicio y el municipio ya escritos. */}
+          {necesidad(q) ? (
+            <Btn
+              size="sm"
+              variant="ghost"
+              icon="ph-address-book"
+              href={`/servicios-proveedores?buscar=${encodeURIComponent((necesidad(q) ?? '').replace(/-/g, ' '))}${q.region ? `&donde=${encodeURIComponent(q.region)}` : ''}`}
+            >
+              Buscar proveedor
+            </Btn>
+          ) : null}
         </div>
       </div>
     </div>

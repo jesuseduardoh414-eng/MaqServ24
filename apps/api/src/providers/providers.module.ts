@@ -5,6 +5,7 @@ import { ServiceService } from '../quotes/service.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PapelesPrivados } from './papeles-privados';
 import { EquiposConTipo } from './equipos-con-tipo';
+import { FlotaPropia } from './flota-propia';
 
 /**
  * EL PORTAL DEL ALIADO (documento institucional, sección 20).
@@ -19,6 +20,7 @@ import { EquiposConTipo } from './equipos-con-tipo';
   controllers: [ProviderPortalController, OperadorController],
   // PapelesPrivados: al arrancar, muda a la carpeta privada los papeles viejos (2026-10-23).
   // EquiposConTipo: al arrancar, da de alta lo que tenía tipo y esperaba "Publicar" (2026-10-28).
-  providers: [ServiceService, PapelesPrivados, EquiposConTipo],
+  // FlotaPropia: al arrancar, que exista el proveedor interno «MAQSER24 · flota propia» (2026-11-12).
+  providers: [ServiceService, PapelesPrivados, EquiposConTipo, FlotaPropia],
 })
 export class ProvidersModule {}

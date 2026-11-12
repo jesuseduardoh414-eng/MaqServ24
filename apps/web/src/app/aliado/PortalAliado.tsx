@@ -89,7 +89,7 @@ export function PortalAliado({ datos, contacto, rutaInicial }: { datos: DatosPor
   const docs = estadoDocs(documentos.estado);
   const sinFactura = (datos.cobros ?? []).filter((c) => c.estado === 'falta-factura').length;
 
-  const nav: Array<{ v: Vista; label: string; icono: IconName; insignia?: number; tono?: 'info' | 'warn' | 'muted'; punto?: string | null }> = [
+  const todoElMenu: Array<{ v: Vista; label: string; icono: IconName; insignia?: number; tono?: 'info' | 'warn' | 'muted'; punto?: string | null }> = [
     { v: 'inicio', label: 'Inicio', icono: 'home' },
     { v: 'solicitudes', label: 'Solicitudes', icono: 'bell', insignia: porContestar.length, tono: 'info' },
     { v: 'equipos', label: oferta.ofertaCorta, icono: 'box', insignia: (datos.propuestas ?? []).length, tono: 'muted' },
@@ -97,6 +97,8 @@ export function PortalAliado({ datos, contacto, rutaInicial }: { datos: DatosPor
     { v: 'papeles', label: 'Papeles', icono: 'shield', punto: docs.tono === 'ok' ? null : docs.color },
     { v: 'cuenta', label: 'Mi cuenta', icono: 'user' },
   ];
+  // Solo sus datos (2026-11-12): sin Solicitudes ni Cobros; MAQSER24 le habla por WhatsApp.
+  const nav = todoElMenu.filter((n) => n.v !== 'solicitudes' && n.v !== 'cobros');
 
   // Enlaces de verdad (abren en otra pestaña con el botón central) que, al
   // clic normal, cambian de pantalla sin recargar.
@@ -157,10 +159,11 @@ export function PortalAliado({ datos, contacto, rutaInicial }: { datos: DatosPor
           <nav className="al-tabs-mob" aria-label="Pantallas del panel">{enlaces}</nav>
           {/* `key` por pantalla: al cambiar, los formularios a medias no se arrastran. */}
           <div className="al-vista" key={ruta.vista}>
-            {ruta.vista === 'inicio' ? <VistaInicio datos={datos} oferta={oferta} ir={ir} /> : null}
-            {ruta.vista === 'solicitudes' ? <VistaSolicitudes datos={datos} ruta={ruta} ir={ir} oferta={oferta} /> : null}
+            {/* Un enlace viejo a Solicitudes o Cobros abre el Inicio (2026-11-12: solo sus datos). */}
+            {ruta.vista === 'inicio' || ruta.vista === 'solicitudes' || ruta.vista === 'cobros' ? <VistaInicio datos={datos} oferta={oferta} ir={ir} /> : null}
+            {false ? <VistaSolicitudes datos={datos} ruta={ruta} ir={ir} oferta={oferta} /> : null}
             {ruta.vista === 'equipos' ? <VistaEquipos datos={datos} oferta={oferta} /> : null}
-            {ruta.vista === 'cobros' ? <VistaCobros datos={datos} /> : null}
+            {false ? <VistaCobros datos={datos} /> : null}
             {ruta.vista === 'papeles' ? <VistaPapeles datos={datos} /> : null}
             {ruta.vista === 'cuenta' ? <VistaCuenta datos={datos} oferta={oferta} contacto={contacto} /> : null}
           </div>

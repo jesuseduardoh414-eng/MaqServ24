@@ -38,6 +38,10 @@ export const UNIDADES: Record<string, UnidadServicio> = {
   pieza: { clave: 'pieza', singular: 'pieza', plural: 'piezas', decimales: 0 },
   bulto: { clave: 'bulto', singular: 'bulto', plural: 'bultos', decimales: 0 },
   m2: { clave: 'm2', singular: 'metro cuadrado', plural: 'metros cuadrados', decimales: 2 },
+  // Servicios de proveedores que no se miden por tiempo ni por material (2026-11-12):
+  // un estudio de suelos se cobra por servicio; unas pruebas de compactación, por visita.
+  servicio: { clave: 'servicio', singular: 'servicio', plural: 'servicios', decimales: 0 },
+  visita: { clave: 'visita', singular: 'visita', plural: 'visitas', decimales: 0 },
 };
 
 /**

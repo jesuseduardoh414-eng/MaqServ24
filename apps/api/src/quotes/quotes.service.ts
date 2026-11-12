@@ -20,6 +20,7 @@ import { operadorDe } from '../providers/operador';
 import { pedidoDe } from '../providers/pedido';
 import { cantidadDelFormulario, estimarDelTabulador } from './estimado-formulario';
 import { datosDePago } from '../quoter/datos-de-pago';
+import { esFlotaPropia } from '../providers/flota-propia';
 
 /**
  * EL PRECIO EN PREPARACIÓN NO SE ENSEÑA (2026-10-15). Mientras MAQSER24 no
@@ -945,7 +946,8 @@ export class QuotesService {
       label: PASOS[estado].label,
       message: PASOS[estado].cliente,
       progress: avance(estado),
-      providers: asignaciones.map((a) => a.providers.name),
+      // La flota propia se presenta como MAQSER24 (2026-11-12), no con su nombre interno.
+      providers: await Promise.all(asignaciones.map(async (a) => ((await esFlotaPropia(a.provider_id)) ? 'MAQSER24' : a.providers.name))),
       arrival: asignaciones.find((a) => a.committed_at)?.committed_at?.toISOString() ?? null,
       operator: operadorDe(q.requirements)?.nombre ?? null,
       startedAt: q.service_started_at ? q.service_started_at.toISOString() : null,

@@ -1,25 +1,10 @@
 import { redirect } from 'next/navigation';
-import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
-import { AdminShell } from '@/components/AdminShell';
-import { AvailabilityManager, type Disponibilidad } from './AvailabilityManager';
 
 /**
- * DISPONIBILIDAD (documento institucional, 21).
- *
- * Es la pantalla donde se ejerce el control que pide el documento contra el dato
- * viejo: confirmar periódicamente, ubicar el equipo y bloquearlo cuando no se
- * puede asignar. Mientras no exista el acceso del proveedor, esto lo hace
- * operaciones.
+ * «MI FLOTA» SE QUITÓ (2026-11-12, el dueño: "el administrador ya sabe lo que es
+ * de él"). Lo de MAQSER24 no se captura; en su lugar del menú están los
+ * Servicios de proveedores. Un enlace viejo a /disponibilidad llega ahí.
  */
-export default async function AdminDisponibilidad() {
-  const admin = await getAdmin();
-  if (!admin) redirect('/login');
-  exigirModulo(admin, 'disponibilidad');
-  const datos = (await adminFetch<Disponibilidad>('/admin/availability')) ?? { equipos: [], sinServicios: [], categorias: [] };
-
-  return (
-    <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
-      <AvailabilityManager initial={datos} />
-    </AdminShell>
-  );
+export default function AdminDisponibilidad() {
+  redirect('/servicios-proveedores');
 }

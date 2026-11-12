@@ -4,6 +4,7 @@ import { horarioDe, LINEA_MAQUINARIA, LINEA_TRANSPORTE } from '@maqserv/config';
 import { ocupaUnaUnidad } from '../catalog/availability';
 import { piezasDe } from '../quotes/reservas';
 import { comoFecha, diaLocal, masDias } from '../money/cuentas';
+import { asegurarFlotaPropia } from '../providers/flota-propia';
 
 /**
  * USO DE LAS MÁQUINAS (Indicadores, 2026-11-09).
@@ -241,11 +242,14 @@ export async function usoDeLasMaquinas(ventana: Ventana, anterior: Ventana, hoy:
     prisma.providers.findMany({ select: { id: true, name: true, status: true, joined_at: true } }),
   ]);
   const aliadoDe = new Map(aliados.map((a) => [a.id, a]));
+  // MAQSER24 OPERA SOLO (2026-11-12): el uso que importa es el de SU flota; lo de
+  // los proveedores se renta cuando hace falta y no se mide aquí.
+  const flotaId = await asegurarFlotaPropia();
   const productos = lineas.length
     ? await prisma.products.findMany({
         where: {
           status: 1,
-          provider_id: { in: aliados.filter((a) => a.status === 1).map((a) => a.id) },
+          provider_id: flotaId,
           category_id: { in: lineas.map((l) => l.id) },
         },
         select: { id: true, name: true, provider_id: true, tipo_id: true, stock: true, horario: true, created_at: true },

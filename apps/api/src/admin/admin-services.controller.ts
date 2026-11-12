@@ -2,6 +2,7 @@ import {
   BadRequestException, Body, Controller, Get, NotFoundException, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { asignarOperador, operadorDe } from '../providers/operador';
+import { asegurarFlotaPropia, guardarOperadoresPropios, operadorPropioSchema, operadoresPropios, recordarOperadorPropio } from '../providers/flota-propia';
 import { zTelefono } from '../common/campos';
 import { registrarAccion } from './audit';
 import { prisma } from '@maqserv/db';
@@ -25,6 +26,19 @@ import { textoUnidadAsignada, unidadApartadaPorFolio } from '../catalog/unidades
  * desde varios lados, el historial dejaría de ser confiable — y el historial es
  * el punto.
  */
+
+/**
+ * Lo pedido cuando no hay documento del cotizador que lo diga: el último pedazo
+ * de «Línea · cotizador de maquinaria · MQ-2610-0002» que NO sea el folio ni
+ * «cotizador de …» (2026-11-12: «Asignar» buscaba proveedores por el folio).
+ */
+function pedidoDe(productInterested: string | null): string | null {
+  const partes = (productInterested ?? '')
+    .split(/ [·—] /)
+    .map((x) => x.trim())
+    .filter((x) => x && !/^cotizador de /i.test(x) && !/^[A-Z]{2,4}-\d{4}-\d{3,}$/.test(x));
+  return partes.length ? partes[partes.length - 1] : null;
+}
 
 const moverSchema = z.object({
   state: z.enum(ESTADOS),
@@ -131,7 +145,7 @@ export class AdminServicesController {
         /** La obra, para la tarjeta corta (2026-10-26). */
         obra: q.client_sites ? [q.client_sites.name, q.client_sites.municipality].filter(Boolean).join(' · ') : null,
         /** La máquina o el material: de la cotización, o lo que pidió por el formulario. */
-        equipo: equipoDe(q.requirements) ?? q.product_interested?.split(/ [·—] /).pop() ?? null,
+        equipo: equipoDe(q.requirements) ?? pedidoDe(q.product_interested),
         state: st,
         stateLabel: PASOS[st].label,
         stateHint: PASOS[st].hint,
@@ -219,6 +233,86 @@ export class AdminServicesController {
     const r = await asignarOperador(id, { nombre: p.data.nombre, telefono: p.data.telefono ?? null });
     await registrarAccion(req, 'servicios', 'servicio.operador', q.quote_number, `${r.operador.nombre}${r.operador.telefono ? ` · ${r.operador.telefono}` : ''}`);
     return r;
+  }
+
+  /**
+   * ASIGNAR DIRECTO (2026-11-12): lo hace MAQSER24 (sin elegir máquina: «Mi
+   * flota» se quitó) o un proveedor de la libreta, sin ofrecérselo a nadie. Con operador, le arma su
+   * enlace; con proveedor, además el WhatsApp para avisarle (lo acordado y el
+   * enlace del operador ya escritos). Ver ServiceService.asignarDirecto.
+   */
+  @Post(':id/asignar')
+  async asignar(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({
+      con: z.enum(['propio', 'proveedor']),
+      proveedorId: z.number().int().positive().optional().nullable(),
+      productId: z.number().int().positive().optional().nullable(),
+      operador: z.object({ nombre: z.string().trim().min(2, 'Escribe el nombre del operador').max(120), telefono: zTelefono().optional().nullable() }).optional().nullable(),
+      costo: z.number().min(0).max(100_000_000).optional().nullable(),
+      nota: z.string().max(500).optional().nullable(),
+    }).safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Revisa los datos.');
+    const d = p.data;
+    const propio = d.con === 'propio';
+    if (!propio && !d.proveedorId) throw new BadRequestException('Elige el proveedor.');
+    if (!propio && !(d.costo && d.costo > 0)) throw new BadRequestException('Escribe lo acordado con el proveedor (sin IVA): es lo que se le paga al cerrar.');
+    const proveedorId = propio ? await asegurarFlotaPropia() : (d.proveedorId as number);
+    const r = await this.services.asignarDirecto(id, {
+      proveedorId,
+      productId: d.productId ?? null,
+      costo: d.costo ?? null,
+      nota: d.nota ?? null,
+      adminId: req.adminId,
+      propio,
+    });
+    const q = await prisma.quotes.findUnique({
+      where: { id },
+      select: {
+        quote_number: true, address: true, product_interested: true, requirements: true,
+        client_sites: { select: { address: true, municipality: true } },
+      },
+    });
+    let operador: Awaited<ReturnType<typeof asignarOperador>> | null = null;
+    if (d.operador) {
+      operador = await asignarOperador(id, { nombre: d.operador.nombre, telefono: d.operador.telefono ?? null });
+      if (propio) await recordarOperadorPropio({ nombre: d.operador.nombre, telefono: d.operador.telefono ?? '' }, req.adminNombre ?? 'panel');
+    }
+    // El aviso al proveedor, listo para mandar por WhatsApp (decisión del dueño: WhatsApp y enlace del operador).
+    let whatsappProveedor: string | null = null;
+    if (!propio && q) {
+      const prov = await prisma.providers.findUnique({ where: { id: proveedorId }, select: { phone: true, contact_name: true } });
+      const reqs = (q.requirements ?? {}) as Record<string, unknown>;
+      const fecha = typeof reqs.fecha_inicio === 'string' ? reqs.fecha_inicio : null;
+      const dondeObra = [q.client_sites?.address ?? q.address, q.client_sites?.municipality].filter(Boolean).join(', ');
+      const texto = [
+        `Hola${prov?.contact_name ? ` ${prov.contact_name.split(' ')[0]}` : ''}, te confirmo el servicio ${q.quote_number} de MAQSER24.`,
+        `${r.equipo ?? q.product_interested ?? 'Servicio'}${dondeObra ? ` · ${dondeObra}` : ''}${fecha ? ` · ${fecha}` : ''}.`,
+        r.costo ? `Lo acordado: $${r.costo.toLocaleString('es-MX')} más IVA.` : null,
+        operador ? `Enlace del operador (${operador.operador.nombre}), para avisar cuando salga y llegue: ${operador.url}` : null,
+      ].filter(Boolean).join('\n');
+      const tel = (prov?.phone ?? '').replace(/\D/g, '');
+      const n = tel.length === 10 ? `52${tel}` : tel.startsWith('521') && tel.length === 13 ? `52${tel.slice(3)}` : tel;
+      whatsappProveedor = n.length >= 12 ? `https://wa.me/${n}?text=${encodeURIComponent(texto)}` : null;
+    }
+    await registrarAccion(req, 'servicios', 'servicio.asignar', q?.quote_number ?? String(id),
+      `${r.proveedor}${r.equipo ? ` · ${r.equipo}` : ''}${r.costo ? ` · $${r.costo}` : ''}${operador ? ` · operador ${operador.operador.nombre}` : ''}`.slice(0, 900));
+    return { ...r, operador, whatsappProveedor };
+  }
+
+  /** La flota propia: el proveedor interno y los operadores de MAQSER24 (2026-11-12). */
+  @Get('flota')
+  async flota() {
+    const id = await asegurarFlotaPropia();
+    return { proveedorId: id, operadores: await operadoresPropios() };
+  }
+
+  @Put('flota/operadores')
+  async operadores(@Body() body: unknown, @Req() req: AdminRequest) {
+    const p = z.object({ operadores: z.array(operadorPropioSchema).max(200) }).safeParse(body);
+    if (!p.success) throw new BadRequestException(p.error.issues[0]?.message ?? 'Revisa los operadores.');
+    const lista = await guardarOperadoresPropios(p.data.operadores, req.adminNombre ?? 'panel');
+    await registrarAccion(req, 'servicios', 'flota.operadores', 'Operadores de MAQSER24', lista.map((o) => o.nombre).join(', ').slice(0, 900));
+    return { operadores: lista };
   }
 
   @Post(':id/ofrecer')

@@ -56,7 +56,8 @@ const SECCIONES: ReadonlyArray<{ titulo: string | null; grupos: readonly string[
   // 2. Se busca quién puede, si está libre, si llega, y se arma el precio.
   // Sin "Matching" (2026-10-15): los aliados sugeridos ya viven en cada
   // solicitud y en "Buscar aliado" de Servicios; una pantalla aparte repetía eso.
-  { titulo: '2 · Cotizar', grupos: ['Disponibilidad', 'Cotización'] },
+  // «Mi flota» se quitó el 2026-11-12: en su lugar, lo que dan los proveedores.
+  { titulo: '2 · Cotizar', grupos: ['Servicios de proveedores', 'Cotización'] },
   // 3. Se asigna, se da seguimiento y se cierra con evidencias.
   // Sin "Documentos" (2026-10-15): los papeles de cada aliado y sus
   // vencimientos ya se ven en Proveedores.
@@ -126,9 +127,11 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
     ],
   },
   {
-    title: 'Disponibilidad', icon: 'ph-calendar-check',
+    // Lo que dan los proveedores, para lo que MAQSER24 no maneja (2026-11-12).
+    // Los proveedores en sí (alta, ficha, papeles) siguen en Proveedores.
+    title: 'Servicios de proveedores', icon: 'ph-address-book',
     items: [
-      { modulo: 'disponibilidad', href: '/disponibilidad', label: 'Disponibilidad', icon: 'ph-calendar-check' },
+      { modulo: 'proveedores', href: '/servicios-proveedores', label: 'Servicios de proveedores', icon: 'ph-address-book' },
     ],
   },
   {

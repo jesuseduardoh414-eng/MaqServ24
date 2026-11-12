@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { registrarAccion } from './audit';
 import { MoneyService } from '../money/money.service';
-import { aFacturarPorAliado, comoFecha, diaLocal, masDias } from '../money/cuentas';
+import { aFacturarPorAliado, comoFecha, diaLocal, masDias, programarPago } from '../money/cuentas';
 import { pendientesHoy, resumenDelMes } from '../money/margen';
 import { CREDITOS, guardarReglasDinero, reglasDinero } from '../money/reglas';
 import { rutaPrivada } from '../common/archivos-privados';
@@ -115,6 +115,8 @@ export class AdminMoneyController {
         pagoAliado: aFacturarPorAliado(m),
         facturaPdf: !!m.factura_aliado,
         facturaXml: !!m.factura_aliado_xml,
+        // Marcada en el panel sin archivo (2026-11-12: el proveedor se la manda a Administración).
+        facturaRecibida: !!m.factura_aliado_at,
         pagarEl: m.pagar_el ? m.pagar_el.toISOString().slice(0, 10) : null,
         pagadoAt: m.pagado_at,
         pagoRef: m.pago_ref,
@@ -186,6 +188,24 @@ export class AdminMoneyController {
     const r = await this.money.pagarServicio(quoteId, typeof body?.referencia === 'string' ? body.referencia.slice(0, 120) : null, req.adminId ?? null);
     await registrarAccion(req, 'administracion', 'pago.aliado', r.folio, `${r.aliado} · ${r.total}`);
     return r;
+  }
+
+  /**
+   * «YA LLEGÓ SU FACTURA» (2026-11-12, MAQSER24 opera solo): el proveedor ya no
+   * sube su factura en su portal (queda solo para sus datos); se la manda a
+   * Administración, que la marca aquí. Con el cliente ya pagado, el pago al
+   * proveedor se programa solo para el siguiente día de pago.
+   */
+  @Post('cuentas/:quoteId/factura-recibida')
+  async facturaRecibida(@Param('quoteId', ParseIntPipe) quoteId: number, @Req() req: AdminRequest) {
+    const m = await prisma.service_money.findUnique({ where: { quote_id: BigInt(quoteId) }, select: { quote_id: true, provider_id: true, pagado_at: true } });
+    if (!m || !m.provider_id) throw new NotFoundException('Ese servicio no tiene pago a proveedor.');
+    if (m.pagado_at) throw new BadRequestException('A ese proveedor ya se le pagó.');
+    await prisma.service_money.update({ where: { quote_id: m.quote_id }, data: { factura_aliado_at: new Date(), updated_at: new Date() } });
+    const pagarEl = await programarPago(quoteId);
+    const q = await prisma.quotes.findUnique({ where: { id: quoteId }, select: { quote_number: true } });
+    await registrarAccion(req, 'administracion', 'factura.proveedor', q?.quote_number ?? String(quoteId), pagarEl ? `se paga el ${pagarEl}` : 'falta que pague el cliente');
+    return { ok: true, pagarEl };
   }
 
   /** "Recordarle" (2026-10-27): le llega ya el correo con lo que le falta facturar. */

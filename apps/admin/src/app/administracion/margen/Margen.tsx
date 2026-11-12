@@ -95,7 +95,7 @@ export function Margen({ d }: { d: DatosMargen }) {
             </div>
           ) : null}
         </div>
-        <Stat label="Pago a aliados" icon="ph-hand-coins" tone="muted" value={dinero(d.pagoAliados)} />
+        <Stat label="Pago a proveedores" icon="ph-hand-coins" tone="muted" value={dinero(d.pagoAliados)} />
       </Stats>
 
       {/* En rejilla los paneles no llevan el margen de "uno debajo del otro". */}
@@ -149,13 +149,13 @@ export function Margen({ d }: { d: DatosMargen }) {
           <div style={{ display: 'grid', gap: 8, fontSize: 13.5 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/cobros?f=cobrar">Por cobrar</a><span className="adm-num">{dinero(d.porCobrar)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>De eso, vencido</span><span className="adm-num" style={{ color: d.vencido > 0 ? 'var(--adm-bad)' : undefined }}>{dinero(d.vencido)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/cobros?f=pagar">Por pagar a aliados</a><span className="adm-num">{dinero(d.porPagar)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}><a className="adm-link" href="/administracion/cobros?f=pagar">Por pagar a proveedores</a><span className="adm-num">{dinero(d.porPagar)}</span></div>
           </div>
         </Panel>
       </div>
 
       <details style={{ marginTop: 18 }}>
-        <summary style={{ cursor: 'pointer', fontSize: 13.5, color: 'var(--adm-muted)' }}>Reglas: comisión {pct(d.reglas.comisionPct)}, se paga a aliados los {DIAS_SEMANA[d.reglas.diaDePago]}</summary>
+        <summary style={{ cursor: 'pointer', fontSize: 13.5, color: 'var(--adm-muted)' }}>Reglas: se paga a proveedores los {DIAS_SEMANA[d.reglas.diaDePago]} · comisión de servicios viejos {pct(d.reglas.comisionPct)}</summary>
         <Reglas d={d} />
       </details>
     </div>
@@ -194,8 +194,8 @@ function Reglas({ d }: { d: DatosMargen }) {
       <div style={{ display: 'grid', gap: 16 }}>
         {error ? <Note tone="bad">{error}</Note> : null}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
-          <FormField label="Comisión de MAQSER24 (%)" help="Del precio sin IVA. Lo demás es del aliado."><input className="adm-input" inputMode="decimal" value={general} onChange={(e) => setGeneral(e.target.value)} aria-label="Comisión general" /></FormField>
-          <FormField label="Día de pago a aliados"><select className="adm-input" value={dia} onChange={(e) => setDia(Number(e.target.value))} aria-label="Día de pago">{DIAS_SEMANA.map((n, i) => <option key={i} value={i}>{n.charAt(0).toUpperCase() + n.slice(1)}</option>)}</select></FormField>
+          <FormField label="Comisión de servicios viejos (%)" help="Solo para los que se le ofrecieron a un aliado antes del 12 de noviembre. Ahora a un proveedor se le paga lo acordado al asignarlo, y lo que hace MAQSER24 no le paga a nadie."><input className="adm-input" inputMode="decimal" value={general} onChange={(e) => setGeneral(e.target.value)} aria-label="Comisión general" /></FormField>
+          <FormField label="Día de pago a proveedores"><select className="adm-input" value={dia} onChange={(e) => setDia(Number(e.target.value))} aria-label="Día de pago">{DIAS_SEMANA.map((n, i) => <option key={i} value={i}>{n.charAt(0).toUpperCase() + n.slice(1)}</option>)}</select></FormField>
         </div>
         <FormField label="Comisión distinta por línea" help="Vacío = la general.">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8 }}>

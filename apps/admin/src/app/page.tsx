@@ -3,7 +3,7 @@ import Link from '@/components/Enlace';
 import { puedeVer, type ModuloAdmin } from '@maqserv/config';
 import { adminFetch, getAdmin } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
-import { Bar, Btn, Chip, EmptyState, GroupLabel, Note, PageHeader, Panel, PanelLink, StatusText, type Tone } from '@/components/ui';
+import { Btn, Chip, EmptyState, GroupLabel, Note, PageHeader, Panel, PanelLink, StatusText, type Tone } from '@/components/ui';
 import { RecordatoriosHoy, type RecordatorioHoy } from '@/components/RecordatoriosHoy';
 
 /**
@@ -16,7 +16,7 @@ import { RecordatoriosHoy, type RecordatorioHoy } from '@/components/Recordatori
  *     asignar, Ejecutar, Cobrar y medir) con su número y lo que está trabado.
  *  2. ¿Qué tengo que hacer? "Por atender", ordenado por urgencia.
  *  3. ¿Qué viene? Llegadas comprometidas de los próximos 7 días.
- *  4. ¿Cómo está la red? Aliados, fichas y qué tan fresca es la disponibilidad.
+ *  4. ¿Cómo está la red? Proveedores, sus servicios y lo que hay por revisar.
  *  5. ¿Qué llegó? Las últimas solicitudes.
  *
  * Sin "Actividad reciente" ni "Nueva ficha" (2026-10-08): la actividad ya la
@@ -38,7 +38,7 @@ interface Inicio {
     medir: { cerradosMes: number; valorMes: number; conversionMes: number | null };
   };
   mes: { solicitudes: number; solicitudesAnterior: number; aceptadas: number; cerrados: number };
-  red: { aliados: number; fichas: number; fichasLibres: number; ofertas: number; papelesVencidos: number; papelesPorVencer: number; papelesFaltan?: number };
+  red: { aliados: number; servicios: number; ofertas: number; papelesVencidos: number; papelesPorVencer: number; papelesFaltan?: number };
   /** Dinero que pide una acción hoy (2026-10-22). */
   dinero?: { cobrosVencidos: number; pagosHoy: number };
   sitio: { resenas: number; preguntas: number };
@@ -120,15 +120,15 @@ export default async function AdminHome() {
       etapas.push({
         paso: '2', titulo: 'Cotizar y asignar', href: '/servicios',
         valor: String(f.asignar.porAsignar), etiqueta: 'por asignar',
-        tono: f.asignar.propuestasViejas > 0 ? 'bad' : f.asignar.porAsignar > 0 ? 'accent' : 'muted',
+        tono: f.asignar.porAsignar > 0 ? 'accent' : 'muted',
+        // Ya no se ofrece a aliados (2026-11-12): se asigna directo, MAQSER24 o un proveedor.
         lineas: [
-          { texto: 'Ofrecidos, esperando al aliado', n: String(f.asignar.propuestas) },
-          { texto: 'Sin respuesta en más de 24 h', n: String(f.asignar.propuestasViejas), tono: f.asignar.propuestasViejas > 0 ? 'bad' : undefined },
+          { texto: 'El cliente aceptó; falta decir quién lo hace', n: String(f.asignar.porAsignar) },
         ],
       });
       etapas.push({
         paso: '3', titulo: 'Ejecutar', href: '/servicios',
-        valor: String(f.ejecutar.enCurso), etiqueta: 'en marcha con aliado',
+        valor: String(f.ejecutar.enCurso), etiqueta: 'en marcha',
         tono: f.ejecutar.incidencias > 0 ? 'bad' : f.ejecutar.enCurso > 0 ? 'ok' : 'muted',
         lineas: [
           { texto: 'En traslado', n: String(f.ejecutar.enTraslado) },
@@ -156,16 +156,15 @@ export default async function AdminHome() {
   const pendientes: Pendiente[] = d
     ? ([
       { n: d.flujo.ejecutar.incidencias, nivel: 'urgente', label: 'Incidencias abiertas', sub: 'Servicios con un problema en obra', href: '/servicios', icon: 'ph-warning-octagon', modulo: 'servicios' },
-      { n: d.flujo.asignar.propuestasViejas, nivel: 'urgente', label: 'Aliados sin contestar', sub: 'Ofrecidos hace más de 24 h; el cliente ya aceptó', href: '/servicios', icon: 'ph-hourglass-high', modulo: 'servicios' },
-      { n: d.red.papelesVencidos, nivel: 'urgente', label: 'Aliados con papeles vencidos', sub: 'Perdieron el sello de verificado', href: '/proveedores', icon: 'ph-warning-circle', modulo: 'proveedores' },
+      { n: d.red.papelesVencidos, nivel: 'urgente', label: 'Proveedores con papeles vencidos', sub: 'Perdieron el sello de verificado', href: '/proveedores', icon: 'ph-warning-circle', modulo: 'proveedores' },
       { n: d.dinero?.cobrosVencidos ?? 0, nivel: 'urgente', label: 'Cobros vencidos', sub: 'Clientes que no han pagado; ya se les recordó por correo', href: '/administracion/cobros?f=cobrar', icon: 'ph-invoice', modulo: 'administracion' },
-      { n: d.dinero?.pagosHoy ?? 0, nivel: 'pendiente', label: 'Aliados por pagar hoy', sub: 'El cliente pagó y el aliado subió su factura', href: '/administracion/cobros?f=pagar', icon: 'ph-hand-coins', modulo: 'administracion' },
+      { n: d.dinero?.pagosHoy ?? 0, nivel: 'pendiente', label: 'Proveedores por pagar hoy', sub: 'El cliente pagó y ya está su factura', href: '/administracion/cobros?f=pagar', icon: 'ph-hand-coins', modulo: 'administracion' },
       { n: d.flujo.recibir.sinResponder, nivel: 'pendiente', label: 'Solicitudes por cotizar', sub: 'Llegaron sin precio; el cliente espera respuesta', href: '/cotizaciones', icon: 'ph-tray', modulo: 'cotizaciones' },
-      { n: d.flujo.asignar.porAsignar, nivel: 'pendiente', label: 'Servicios por asignar', sub: 'El cliente aceptó; falta el aliado', href: '/servicios', icon: 'ph-user-switch', modulo: 'servicios' },
+      { n: d.flujo.asignar.porAsignar, nivel: 'pendiente', label: 'Servicios por asignar', sub: 'El cliente aceptó; falta asignarlo (MAQSER24 o un proveedor)', href: '/servicios', icon: 'ph-user-switch', modulo: 'servicios' },
       { n: d.flujo.ejecutar.terminados, nivel: 'pendiente', label: 'Terminados sin cerrar', sub: 'Falta registrar cantidades y cierre', href: '/servicios', icon: 'ph-flag-checkered', modulo: 'servicios' },
       { n: d.flujo.recibir.mensajes, nivel: 'pendiente', label: 'Mensajes sin responder', sub: 'Dudas de clientes: Contacto, Preguntas frecuentes y productos', href: '/mensajes', icon: 'ph-chat-centered-text', modulo: 'comunidad' },
-      { n: d.red.ofertas, nivel: 'pendiente', label: 'Equipos por revisar', sub: 'Los ofrecieron aliados desde su portal', href: '/proveedores', icon: 'ph-package', modulo: 'proveedores' },
-      { n: d.red.papelesFaltan ?? 0, nivel: 'pendiente', label: 'Aliados sin constancia fiscal o póliza', sub: 'No tienen sello hasta subirlas; su portal les dice qué falta', href: '/proveedores', icon: 'ph-file-x', modulo: 'proveedores' },
+      { n: d.red.ofertas, nivel: 'pendiente', label: 'Equipos por revisar', sub: 'Los agregaron proveedores desde su portal', href: '/proveedores', icon: 'ph-package', modulo: 'proveedores' },
+      { n: d.red.papelesFaltan ?? 0, nivel: 'pendiente', label: 'Proveedores sin constancia fiscal o póliza', sub: 'No tienen sello hasta subirlas; su portal les dice qué falta', href: '/proveedores', icon: 'ph-file-x', modulo: 'proveedores' },
       { n: d.red.papelesPorVencer, nivel: 'aviso', label: 'Papeles por vencer', sub: 'Dentro de los próximos 30 días', href: '/proveedores', icon: 'ph-clock-countdown', modulo: 'proveedores' },
       { n: d.sitio.resenas, nivel: 'aviso', label: 'Reseñas por moderar', sub: 'Esperan aprobación para publicarse', href: '/resenas', icon: 'ph-star', modulo: 'comunidad' },
     ] satisfies Pendiente[]).filter((p) => p.n > 0 && puede(p.modulo))
@@ -196,8 +195,6 @@ export default async function AdminHome() {
       : new Intl.DateTimeFormat('es-MX', { weekday: 'long', day: 'numeric', month: 'short', timeZone: TZ }).format(new Date(iso));
 
   // Libres hoy (2026-10-26): ocupados no es malo, es trabajo; el tono solo avisa cuando queda poco libre.
-  const libresPct = d && d.red.fichas > 0 ? Math.round((d.red.fichasLibres / d.red.fichas) * 100) : 0;
-  const tonoLibres: Tone = libresPct >= 30 ? 'ok' : 'warn';
   const TONO: Record<Inicio['recientes'][number]['tono'], Tone> = { atiende: 'warn', bien: 'ok', mal: 'bad', neutro: 'info' };
 
   const verDerecha = (puede('agenda') || puede('proveedores') || puede('catalogo')) && Boolean(d);
@@ -387,22 +384,12 @@ export default async function AdminHome() {
 
             {/* 4. Red y oferta */}
             {(puede('proveedores') || puede('catalogo')) && d ? (
-              <Panel title="Red y oferta" icon="ph-handshake" action={<PanelLink href={puede('proveedores') ? '/proveedores' : '/catalogo/servicios'}>Ver red</PanelLink>}>
+              <Panel title="Red y oferta" icon="ph-handshake" action={<PanelLink href={puede('proveedores') ? '/servicios-proveedores' : '/catalogo/servicios'}>Ver servicios</PanelLink>}>
                 <div style={{ display: 'grid', gap: 18 }}>
                   <div className="in-red">
-                    <div><b>{d.red.aliados}</b><span>Aliados activos</span></div>
-                    <div><b>{d.red.fichas}</b><span>Equipos de aliados</span></div>
+                    <div><b>{d.red.aliados}</b><span>Proveedores</span></div>
+                    <div><b>{d.red.servicios}</b><span>Servicios de proveedores</span></div>
                     <div><b style={d.red.ofertas > 0 ? { color: 'var(--adm-accent)' } : { color: 'var(--adm-faint)' }}>{d.red.ofertas}</b><span>Por revisar</span></div>
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--adm-text-2)', marginBottom: 8 }}>
-                      <span>Libres hoy</span>
-                      <span className={`adm-num adm-tone t-${tonoLibres}`} style={{ fontWeight: 600 }}>{libresPct}%</span>
-                    </div>
-                    <Bar pct={libresPct} tone={tonoLibres} label={`${libresPct}% de los equipos de aliados libres hoy`} />
-                    <div style={{ fontSize: 12, color: 'var(--adm-faint)', marginTop: 8 }}>
-                      {d.red.fichasLibres} de {d.red.fichas} sin reserva ni mantenimiento hoy · <a href="/disponibilidad" style={{ color: 'inherit' }}>Disponibilidad</a>
-                    </div>
                   </div>
                   {d.red.papelesVencidos + d.red.papelesPorVencer > 0 ? (
                     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--adm-muted)', borderTop: '1px solid var(--adm-border)', paddingTop: 14 }}>

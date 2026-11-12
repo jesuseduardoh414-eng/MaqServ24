@@ -26,6 +26,13 @@ type Aviso = {
 
 const plural = (n: number, uno: string, varios: string) => (n === 1 ? uno : varios);
 
+/**
+ * SOLO SUS DATOS (2026-11-12, MAQSER24 opera solo): el portal ya no recibe
+ * ofertas de trabajo ni cobros; MAQSER24 le habla por WhatsApp cuando lo
+ * necesita. Aquí solo mantiene al día sus datos, equipos, precios y papeles.
+ */
+const SOLO_DATOS = true;
+
 export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta: Oferta; ir: Ir }) {
   const { aliado, porContestar, enCurso, equipos, documentos, cumplimiento } = datos;
   const cobros = datos.cobros ?? [];
@@ -46,7 +53,7 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
   const conPaso = enCurso.filter((s) => SIGUIENTE[s.state ?? 'asignado']);
 
   const avisos: Aviso[] = [];
-  if (porContestar.length) {
+  if (!SOLO_DATOS && porContestar.length) {
     avisos.push({
       tono: 'info',
       icono: 'bell',
@@ -58,7 +65,7 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
       ir: () => ir({ vista: 'solicitudes', filtro: 'pendientes' }),
     });
   }
-  if (conPaso.length) {
+  if (!SOLO_DATOS && conPaso.length) {
     const s = conPaso[0]!;
     const sig = SIGUIENTE[s.state ?? 'asignado']!;
     avisos.push({
@@ -70,7 +77,7 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
       ir: () => ir({ vista: 'solicitudes', filtro: 'curso', seleccion: s.quoteNumber }),
     });
   }
-  if (sinFactura.length) {
+  if (!SOLO_DATOS && sinFactura.length) {
     avisos.push({
       tono: 'warn',
       icono: 'calculator',
@@ -95,7 +102,7 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
       ir: () => ir({ vista: 'papeles' }),
     });
   }
-  if (programados.length) {
+  if (!SOLO_DATOS && programados.length) {
     const proximo = [...programados].sort((a, b) => (a.pagarEl ?? '').localeCompare(b.pagarEl ?? ''))[0]!;
     avisos.push({
       tono: '',
@@ -122,16 +129,18 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
     { hecho: Boolean(aliado.phone && aliado.email && aliado.coverage.length), texto: 'Tus datos y tu cobertura', ayuda: 'Teléfono, correo y los municipios a los que llegas.', vista: () => ir({ vista: 'cuenta' }) },
     { hecho: documentos.lista.length > 0 && !(documentos.faltan?.length), texto: 'Entregar tus papeles', ayuda: documentos.faltan?.length ? `Te falta: ${documentos.faltan.join(' y ')}.` : 'Póliza de seguro, constancia fiscal y DC-3 de tus operadores.', vista: () => ir({ vista: 'papeles' }) },
     { hecho: aliado.verified, texto: 'Sello de verificado', ayuda: 'Sale solo en cuanto tu constancia fiscal y tu póliza de seguro están vigentes.' },
-    { hecho: equipos.length > 0, texto: `Ofrecer tus ${oferta.queOfrece}`, ayuda: propuestas.length ? 'Ya enviaste lo que tienes: MAQSER24 revisa lo nuevo.' : `Toca "${oferta.botonOfrecer}" y elige qué tienes de la lista: te empiezan a llegar sus solicitudes.`, vista: () => ir({ vista: 'equipos' }) },
+    { hecho: equipos.length > 0, texto: `Ofrecer tus ${oferta.queOfrece}`, ayuda: propuestas.length ? 'Ya enviaste lo que tienes: MAQSER24 revisa lo nuevo.' : `Toca "${oferta.botonOfrecer}" y elige qué tienes de la lista: así MAQSER24 sabe qué tienes.`, vista: () => ir({ vista: 'equipos' }) },
   ];
   const listos = pasos.filter((p) => p.hecho).length;
 
-  const kpis: Array<{ n: number | string; label: string; color: string; icono: IconName; ir: () => void }> = [
+  const todasLasCifras: Array<{ n: number | string; label: string; color: string; icono: IconName; ir: () => void }> = [
     { n: porContestar.length, label: 'Por contestar', color: porContestar.length ? AZUL : GRIS, icono: 'bell', ir: () => ir({ vista: 'solicitudes', filtro: 'pendientes' }) },
     { n: enCurso.length, label: 'En curso', color: enCurso.length ? VERDE : GRIS, icono: 'truck', ir: () => ir({ vista: 'solicitudes', filtro: 'curso' }) },
     { n: sinFactura.length ? dinero(sumar(sinFactura)) ?? '0' : programados.length ? dinero(sumar(programados)) ?? '0' : 0, label: sinFactura.length ? 'Por facturar' : programados.length ? 'Pago programado' : 'Por cobrar', color: sinFactura.length ? AMBAR : programados.length ? VERDE : GRIS, icono: 'calculator', ir: () => ir({ vista: 'cobros' }) },
     { n: docs.label, label: 'Papeles', color: docs.color, icono: 'shield', ir: () => ir({ vista: 'papeles' }) },
   ];
+  const kpis = todasLasCifras.filter((k) => !SOLO_DATOS || k.label === 'Papeles');
+  if (SOLO_DATOS) kpis.unshift({ n: equipos.length, label: oferta.ofertaCorta, color: equipos.length ? VERDE : GRIS, icono: 'box', ir: () => ir({ vista: 'equipos' }) });
 
   return (
     <>
@@ -174,7 +183,7 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
           <div className="ms-empty al-vacio">
             <span className="ms-ico ms-ico-ok" aria-hidden><Icon name="check" size={19} /></span>
             <p className="ms-h3" style={{ marginTop: 10 }}>Nada pendiente por ahora</p>
-            <p className="ms-empty-p">Cuando un cliente pida algo de tus {oferta.oferta}, aparece aquí y te avisamos por correo al instante.</p>
+            <p className="ms-empty-p">Cuando MAQSER24 necesite tus {oferta.oferta}, te busca por WhatsApp. Aquí mantén al día tus datos, tus equipos con su precio y tus papeles.</p>
           </div>
         )}
       </section>
@@ -183,7 +192,7 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
       {listos < pasos.length ? (
         <section className="ms-panel">
           <div className="al-card-top" style={{ alignItems: 'center', marginBottom: 12 }}>
-            <h2 className="ms-h3">Para empezar a recibir trabajo</h2>
+            <h2 className="ms-h3">Para estar completo en la libreta de MAQSER24</h2>
             <span className="ms-small ms-muted ms-num">{listos} de {pasos.length}</span>
           </div>
           <Barra valor={listos / pasos.length} color={VERDE} />
@@ -209,7 +218,7 @@ export function VistaInicio({ datos, oferta, ir }: { datos: DatosPortal; oferta:
       ) : null}
 
       {/* ── Lo que trae ahora, en corto ── */}
-      {enCurso.length ? (
+      {!SOLO_DATOS && enCurso.length ? (
         <section>
           <Titulo desc="Toca uno para ver la obra, el contacto y reportar el avance.">Lo que traes ahora</Titulo>
           <div className="al-hoy">

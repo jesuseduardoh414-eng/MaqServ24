@@ -17,6 +17,8 @@ export interface CuentaFila extends CuentaCobro {
   /** Lo que se le paga al aliado, con IVA (lo que factura). */
   pagoAliado: number;
   facturaPdf: boolean;
+  /** Administración marcó que ya llegó su factura (2026-11-12). */
+  facturaRecibida?: boolean;
   facturaXml: boolean;
   pagarEl: string | null;
   pagadoAt: string | null;
@@ -34,7 +36,7 @@ export type Filtro = 'todos' | 'cobrar' | 'pagar';
 
 const faltaCobrar = (c: CuentaFila) => !c.cobradoAt;
 const faltaPagar = (c: CuentaFila) => !!c.aliado && !c.pagadoAt;
-const conFactura = (c: CuentaFila) => c.facturaPdf || c.facturaXml;
+const conFactura = (c: CuentaFila) => c.facturaPdf || c.facturaXml || !!c.facturaRecibida;
 /** Lo que pide algo va arriba: vencidos, listos para pagar, por cobrar, esperando factura; lo terminado al final. */
 const peso = (c: CuentaFila) =>
   faltaCobrar(c) && c.diasVencida > 0 ? 0 : c.pagarEl && !c.pagadoAt ? 1 : faltaCobrar(c) ? 2 : faltaPagar(c) ? 3 : 4;
@@ -80,13 +82,13 @@ export function Cobros({ datos, filtroInicial, puedeProveedores }: { datos: Dato
       <PageHeader
         eyebrow={['4 · Cobrar y medir', 'Administración']}
         title="Cobros y pagos"
-        subtitle="Cada servicio terminado: lo que paga el cliente y si ya pagó, la factura del aliado y si ya se le pagó. Montos con IVA."
+        subtitle="Cada servicio terminado: lo que paga el cliente y si ya pagó; si lo hizo un proveedor, su factura y si ya se le pagó lo acordado. Montos con IVA."
       />
 
       <Stats>
         <Stat label="Por cobrar" icon="ph-hourglass-medium" tone="info" value={dinero(datos.porCobrar)}
           hint={datos.vencido > 0 ? `${dinero(datos.vencido)} vencido` : 'nadie atrasado'} hintTone={datos.vencido > 0 ? 'bad' : undefined} />
-        <Stat label="Por pagar a aliados" icon="ph-hand-coins" tone="accent" value={dinero(datos.porPagar)}
+        <Stat label="Por pagar a proveedores" icon="ph-hand-coins" tone="accent" value={dinero(datos.porPagar)}
           hint={datos.listoParaPagar > 0 ? `${dinero(datos.listoParaPagar)} ya se puede pagar` : 'nada listo todavía'} hintTone={datos.listoParaPagar > 0 ? 'ok' : undefined} />
       </Stats>
 
@@ -98,18 +100,18 @@ export function Cobros({ datos, filtroInicial, puedeProveedores }: { datos: Dato
           items={[
             { key: 'todos', label: 'Todos', count: todas.length },
             { key: 'cobrar', label: 'Falta cobrar', count: nCobrar },
-            { key: 'pagar', label: 'Falta pagar al aliado', count: nPagar },
+            { key: 'pagar', label: 'Falta pagar al proveedor', count: nPagar },
           ]}
         />
       </div>
 
       <Panel flush clip>
         <div className="adm-thead cy-row cy-thead">
-          <div>Servicio</div><div>Cliente</div><div className="cy-num">Total</div><div>¿Pagó?</div><div>Factura del aliado</div><div>Aliado</div>
+          <div>Servicio</div><div>Cliente</div><div className="cy-num">Total</div><div>¿Pagó?</div><div>Factura del proveedor</div><div>Proveedor</div>
         </div>
         {visibles.length === 0 ? (
           <EmptyState icon="ph-check-circle"
-            title={filtro === 'cobrar' ? 'Nadie debe nada' : filtro === 'pagar' ? 'No se le debe nada a ningún aliado' : 'Todavía no hay servicios cerrados'}
+            title={filtro === 'cobrar' ? 'Nadie debe nada' : filtro === 'pagar' ? 'No se le debe nada a ningún proveedor' : 'Todavía no hay servicios cerrados'}
             sub={filtro === 'todos' ? 'Cuando se cierre un servicio, aparece aquí solo.' : undefined} />
         ) : visibles.map((c) => {
           const vencida = faltaCobrar(c) && c.diasVencida > 0;
@@ -157,8 +159,8 @@ export function Cobros({ datos, filtroInicial, puedeProveedores }: { datos: Dato
                 )}
               </div>
 
-              {/* Factura del aliado */}
-              <div className="cy-cel" data-l="Factura del aliado">
+              {/* Factura del proveedor */}
+              <div className="cy-cel" data-l="Factura del proveedor">
                 {!c.aliado ? <span className="adm-cell-sub">—</span> : conFactura(c) ? (
                   <>
                     <StatusText tone="ok">Sí</StatusText>
@@ -170,19 +172,15 @@ export function Cobros({ datos, filtroInicial, puedeProveedores }: { datos: Dato
                 ) : c.pagadoAt ? <span className="adm-cell-sub">—</span> : (
                   <>
                     <StatusText tone="warn">Falta</StatusText>
-                    <Recordarle
-                      url={`/api/admin/dinero/pagos/${c.aliado.id}/recordar`}
-                      aviso={`A ${c.aliado.nombre} le llegó el correo para subir su factura.`}
-                      correo={c.aliado.correo} telefono={c.aliado.telefono} recordadoEl={c.aliado.recordadoEl}
-                      sinCorreo={puedeProveedores ? <a className="adm-link" href={`/proveedores?ver=${c.aliado.id}&dato=correo`}>Agregar su correo</a> : null}
-                    />
+                    {/* Ya no la sube él en su portal (2026-11-12): te la manda y aquí se marca. */}
+                    <FacturaRecibida quoteId={c.quoteId} proveedor={c.aliado.nombre} />
                   </>
                 )}
               </div>
 
-              {/* Aliado */}
-              <div className="cy-cel" data-l="Aliado">
-                {!c.aliado ? <span className="adm-cell-sub">Sin aliado</span> : (
+              {/* Proveedor */}
+              <div className="cy-cel" data-l="Proveedor">
+                {!c.aliado ? <span className="adm-cell-sub">Lo hizo MAQSER24</span> : (
                   <>
                     <span className="adm-ellipsis" style={{ fontSize: 13, color: 'var(--adm-text-2)', maxWidth: '100%' }}>{c.aliado.nombre}</span>
                     {c.pagadoAt ? (
@@ -247,4 +245,24 @@ function PagarAliado({ c, onCerrar }: { c: CuentaFila; onCerrar: () => void }) {
       </div>
     </Modal>
   );
+}
+
+/**
+ * «YA LLEGÓ SU FACTURA» (2026-11-12): el proveedor ya no la sube en su portal;
+ * se la manda a Administración y aquí se marca. Con el cliente ya pagado, su
+ * pago se programa solo para el siguiente día de pago.
+ */
+function FacturaRecibida({ quoteId, proveedor }: { quoteId: number; proveedor: string }) {
+  const router = useRouter();
+  const [ocupado, setOcupado] = useState(false);
+  async function marcar() {
+    setOcupado(true);
+    const r = await fetch(`/api/admin/dinero/cuentas/${quoteId}/factura-recibida`, { method: 'POST' }).catch(() => null);
+    const d = await r?.json().catch(() => null);
+    setOcupado(false);
+    if (!r?.ok) { mostrarResultado(d?.message ?? 'No se pudo marcar. Intenta otra vez.', 'error'); return; }
+    mostrarResultado(d?.pagarEl ? `Listo: a ${proveedor} se le paga el ${fechaCorta(d.pagarEl)}.` : `Listo: en cuanto pague el cliente, el pago a ${proveedor} se programa solo.`, 'ok');
+    router.refresh();
+  }
+  return <Btn size="sm" variant="ghost" icon="ph-receipt" onClick={() => void marcar()} disabled={ocupado}>{ocupado ? 'Marcando…' : 'Ya llegó su factura'}</Btn>;
 }

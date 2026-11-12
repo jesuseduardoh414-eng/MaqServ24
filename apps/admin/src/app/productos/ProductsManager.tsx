@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { avisarNavegacion } from '@/components/Enlace';
 import { unidadesDe, atributosDe, tipoDeCatalogo, type TipoCatalogo } from '@maqserv/config';
 import { Pagination } from '@/components/Pagination';
-import { NuevosDeAliados } from './NuevosDeAliados';
 import { MargenProductos } from './MargenProductos';
 import { Modal } from '@/components/Modal';
 import {
@@ -347,7 +346,7 @@ export function ProductsManager({ initial, categories, tipo }: { initial: Produc
       </Stats>
 
       {/* Lo que ofrecen los aliados y MAQSER24 no tiene (2026-10-28): se decide aquí. */}
-      <NuevosDeAliados tipo={tipo} categorias={categories} onCambio={() => void reload()} />
+      {/* «Nuevos que ofrecen los aliados» se quitó el 2026-11-12 (MAQSER24 opera solo): lo que ofrece un proveedor vive en su ficha de la libreta. */}
 
       {/* El margen de los productos a precio fijo (antes en Tarifas): solo con alguna categoría de productos. */}
       {hayProductos ? <MargenProductos /> : null}

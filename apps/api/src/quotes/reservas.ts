@@ -303,6 +303,19 @@ export async function piezasDe(q: CotizacionReserva, asignaciones: Asignacion[])
         prod.set(suya.id, suya);
       }
     }
+    // Asignación directa desde el panel (2026-11-12, MAQSER24 opera solo): el
+    // equipo que se eligió ahí, aunque su unidad no tenga económico ni placas.
+    const directo = (req as { equipoAsignado?: { aliadoId?: unknown; productId?: unknown } } | null)?.equipoAsignado;
+    if (!elegido && directo && Number(directo.aliadoId) === aliado && Number.isInteger(Number(directo.productId))) {
+      const suya = await prisma.products.findFirst({
+        where: { id: Number(directo.productId), provider_id: aliado, status: 1 },
+        select: { id: true, provider_id: true, is_rental: true, status: true },
+      });
+      if (suya) {
+        elegido = suya.id;
+        prod.set(suya.id, suya);
+      }
+    }
     if (!elegido && tipos.length) {
       const delTipo = await prisma.products.findFirst({
         where: { provider_id: aliado, status: 1, tipo_id: { in: tipos } },
@@ -447,11 +460,11 @@ async function avisarSiChoca(
       const ocupadas = otros.filter(ocupaUnaUnidad).length + mias.length;
       if (!paradoEntero && ocupadas <= Math.max(1, equipo?.stock ?? 1)) continue;
       await avisarPanel({
-        modulo: 'disponibilidad',
+        modulo: 'servicios',
         evento: 'choque_reserva',
         titulo: `${equipo?.name ?? `Equipo #${id}`} ya estaba ocupado esas fechas (${folio})`,
         cuerpo: `Del ${desde.toISOString().slice(0, 10)} al ${hasta.toISOString().slice(0, 10)}. Revisa si el aliado tiene otra unidad o ajusta la fecha.`,
-        link: '/disponibilidad',
+        link: '/servicios',
       });
     }
   } catch (err) {

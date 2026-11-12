@@ -38,6 +38,8 @@ export {
   type AtributoProducto,
   type Desajuste,
 } from './product-attributes';
+// El servicio de un proveedor, completo: costos y condiciones (2026-11-12).
+export { detalleServicioSchema, detalleServicioDe, resumenDetalle, type DetalleServicio } from './servicio-proveedor';
 // Cada máquina de un aliado con su económico, placas, serie y año (2026-11-09).
 export {
   CLAVE_UNIDADES,

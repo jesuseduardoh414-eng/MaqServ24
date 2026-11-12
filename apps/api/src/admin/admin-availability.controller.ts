@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { prisma } from '@maqserv/db';
+import { asegurarFlotaPropia } from '../providers/flota-propia';
 import { identificacionDe, textoParaBuscar, textosIdentificados } from '@maqserv/config';
 import { z } from 'zod';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
@@ -65,7 +66,10 @@ export class AdminAvailabilityController {
     // ocupa patio ni fechas. Todos sus servicios: también lo que ofreció desde
     // su portal y sigue por revisar, y lo dado de baja (sale inactivo).
     const provs = await prisma.providers.findMany({ select: { id: true, name: true, status: true, categories: true } });
-    const red = provs.filter((p) => p.status === 1).map((p) => p.id);
+    // MI FLOTA (2026-11-12, MAQSER24 opera solo): solo los equipos de la flota propia.
+    // Los de los proveedores se ven en su libreta (Proveedores), con su precio.
+    const flotaId = await asegurarFlotaPropia();
+    const red = [flotaId];
     const productos = await prisma.products.findMany({
       where: { status: { in: [1, ESTADO_POR_REVISAR, 0] }, provider_id: { in: red } },
       select: {
@@ -159,7 +163,7 @@ export class AdminAvailabilityController {
     const conAlgo = new Set(productos.map((p) => p.provider_id));
     const porSlug = new Map(cats.map((c) => [c.cat_slug, c]));
     const sinServicios = provs
-      .filter((p) => p.status === 1 && !conAlgo.has(p.id))
+      .filter((p) => p.status === 1 && !conAlgo.has(p.id) && red.includes(p.id))
       .map((p) => {
         const lineas = lista(p.categories).map((s) => porSlug.get(s)).filter((c): c is (typeof cats)[number] => Boolean(c));
         return { id: p.id, name: p.name, categoryIds: lineas.map((c) => c.id), lineas: lineas.map((c) => c.cat_name) };
@@ -175,7 +179,7 @@ export class AdminAvailabilityController {
       .sort((a, b) => orden(a.sort_order) - orden(b.sort_order) || a.cat_name.localeCompare(b.cat_name, 'es'))
       .map((c) => ({ id: c.id, name: c.cat_name }));
 
-    return { equipos, sinServicios, categorias };
+    return { equipos, sinServicios: [] as typeof sinServicios, categorias, flotaId };
   }
 
   /**

@@ -70,11 +70,12 @@ export const MODULOS_ADMIN = [
 export type ModuloAdmin = (typeof MODULOS_ADMIN)[number];
 
 /**
- * Los módulos que ven las personas. Hoy son todos: el único apagado era el
- * marketplace heredado y se retiró del código (2026-10-15). Se queda el nombre
- * porque Permisos y la API lo usan para listar lo que se puede repartir.
+ * Los módulos que ven las personas. Permisos y la API lo usan para listar lo
+ * que se puede repartir. Apagado: 'disponibilidad' (2026-11-12, se quitó «Mi
+ * flota»: el administrador sabe lo que es de MAQSER24 y no se captura). La
+ * clave se queda para que un permiso guardado no truene; ya no se concede.
  */
-export const MODULOS_VISIBLES: readonly ModuloAdmin[] = MODULOS_ADMIN;
+export const MODULOS_VISIBLES: readonly ModuloAdmin[] = MODULOS_ADMIN.filter((m) => m !== 'disponibilidad');
 
 /**
  * Cómo se llama cada módulo en pantalla. La clave es para el código; esto es
@@ -85,7 +86,7 @@ export const MODULOS_META: Record<ModuloAdmin, { nombre: string; detalle: string
   inicio: { nombre: 'Inicio', detalle: 'Tablero de lo que hay que atender. No se le puede quitar a nadie.' },
   indicadores: { nombre: 'Indicadores', detalle: 'Ventas, cotizaciones y desempeño.' },
   catalogo: { nombre: 'Catálogo', detalle: 'Inventario y categorías.' },
-  disponibilidad: { nombre: 'Disponibilidad', detalle: 'Qué equipo está libre y cuándo.' },
+  disponibilidad: { nombre: 'Disponibilidad', detalle: 'Retirado el 2026-11-12 junto con «Mi flota».' },
   cotizaciones: { nombre: 'Cotizaciones', detalle: 'La bandeja de lo que pide el cliente.' },
   cotizador: { nombre: 'Cotizador', detalle: 'Armar cotizaciones con el tabulador (sin cambiar precios).' },
   tarifas: { nombre: 'Tarifas', detalle: 'Cambiar los precios: el tabulador y el precio de cada ficha. De fábrica, solo Dirección.' },
@@ -93,7 +94,7 @@ export const MODULOS_META: Record<ModuloAdmin, { nombre: string; detalle: string
   agenda: { nombre: 'Agenda', detalle: 'Lo que viene en los próximos días.' },
   clientes: { nombre: 'Clientes y obras', detalle: 'Las empresas que contratan y sus frentes abiertos.' },
   administracion: { nombre: 'Administración', detalle: 'Cobranza a clientes, pagos a aliados, margen y conciliación.' },
-  proveedores: { nombre: 'Proveedores', detalle: 'La red de aliados, sus papeles y su desempeño.' },
+  proveedores: { nombre: 'Proveedores', detalle: 'Los proveedores y sus servicios: su ficha, precios, papeles y trato.' },
   comunidad: { nombre: 'Comunidad', detalle: 'Cuentas, reseñas, preguntas y mensajes.' },
   diseno: { nombre: 'Diseño del sitio', detalle: 'Secciones del home, textos, colores, blog y marca.' },
   configuracion: { nombre: 'Configuración', detalle: 'Correo y ajustes generales.' },
@@ -125,7 +126,7 @@ export const ROLES_ADMIN: Record<RolAdmin, DefinicionRol> = {
     // Incluye lo que hacían Red de Aliados (proveedores, inventario,
     // disponibilidad) y Comercial (clientes, mensajes, reseñas, preguntas).
     modulos: [
-      'inicio', 'indicadores', 'catalogo', 'disponibilidad', 'cotizaciones', 'cotizador', 'servicios',
+      'inicio', 'indicadores', 'catalogo', 'cotizaciones', 'cotizador', 'servicios',
       'agenda', 'clientes', 'proveedores', 'comunidad',
     ],
   },
