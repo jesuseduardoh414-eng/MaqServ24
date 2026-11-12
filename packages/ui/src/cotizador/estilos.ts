@@ -150,17 +150,6 @@ export const COTIZADOR_CSS = `
 .cz-ctrl{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:14px 12px; align-items:start; }
 .cz-qty{ min-width:0; display:grid; gap:6px; align-content:start; }
 .cz-qty.wide{ grid-column:1/-1; }
-.cz-stp{ display:flex; align-items:center; border:1px solid var(--cz-border);
-  border-radius:var(--cz-radius); overflow:hidden; background:var(--cz-surface); }
-.cz-stp:focus-within{ border-color:var(--cz-accent); }
-.cz-stp button{ width:38px; height:42px; border:none; background:transparent; color:var(--cz-text);
-  display:grid; place-items:center; cursor:pointer; flex-shrink:0; }
-.cz-stp button:hover:not(:disabled){ background:var(--cz-accent-soft); color:var(--cz-accent); }
-.cz-stp button:disabled{ opacity:.35; cursor:not-allowed; }
-.cz-stp input{ flex:1; min-width:0; width:100%; height:42px; border:none; background:transparent;
-  color:var(--cz-text); text-align:center; font-size:14px; font-weight:700; font-family:inherit; outline:none;
-  -moz-appearance:textfield; }
-.cz-stp input::-webkit-outer-spin-button, .cz-stp input::-webkit-inner-spin-button{ appearance:none; margin:0; }
 .cz-chips{ display:flex; flex-wrap:wrap; gap:6px; }
 .cz-chip{ border:1px solid var(--cz-border); background:var(--cz-surface); color:var(--cz-muted);
   border-radius:999px; padding:6px 11px; font-size:12px; font-weight:600; cursor:pointer; }
@@ -248,7 +237,6 @@ export const COTIZADOR_CSS = `
      uno debajo de otro eran pantallas enteras. «Horas en total» va completo. */
   .cz-ctrl{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:12px 10px; }
   .cz-ctrl > .cz-field:first-child{ grid-column:1 / -1; }
-  .cz-stp button{ width:36px; }
   /* En el documento, «Editar» y el otro botón (pedir, guardar o nueva) del mismo ancho. */
   .cz-barra-fila[data-final] > button{ flex:1 1 0; min-width:0; }
   /* Los botones punteados («+ Otro material…»): el texto largo baja de línea en vez de salirse del borde. */

@@ -144,10 +144,22 @@ details.faq summary::-webkit-details-marker { display: none; }
 details.faq .faq-plus { transition: transform .3s ease; }
 details.faq[open] .faq-plus { transform: rotate(45deg); }
 
-/* Hero: en pantallas angostas se apila y se oculta el visual decorativo. */
+/* Hero: en pantallas angostas se apila.
+   EL VISUAL TAMBIÉN EN EL CELULAR (2026-11-12, el dueño: "que el hero aparezca
+   en móvil"): antes se ocultaba. Orden (el dueño: "primero título, después
+   hero, después descripción"): la columna del texto se deshace con
+   `display: contents` y el visual se mete entre el título y la descripción.
+   Sin las cifras flotantes, que en el celular taparían el video, y sin el
+   círculo solo cuando no hay video ni imagen. */
 @media (max-width: 900px) {
-  .hero-grid { grid-template-columns: 1fr !important; }
-  .hero-visual { display: none !important; }
+  .hero-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
+  .hero-grid > .hero-texto { display: contents; }
+  .hero-grid .hero-sub, .hero-grid .ms-hero-acts, .hero-grid .hero-trust { order: 2; }
+  .hero-visual { order: 1; margin-top: 22px; min-height: 300px !important; }
+  .hero-visual[data-video] { min-height: 0 !important; }
+  .hero-visual[data-vacio] { display: none !important; }
+  .hero-visual .hero-img { width: min(320px, 86%) !important; }
+  .hero-visual .hero-stat { display: none !important; }
 }
 
 /* ============================================================

@@ -53,7 +53,7 @@ export const DOCUMENTO_CSS = `
 .czdoc .czdoc-hd{ display:flex; align-items:flex-start; justify-content:space-between; gap:24px;
   border-bottom:2px solid var(--czdoc-accent); padding-bottom:16px; margin-bottom:18px; }
 .czdoc .czdoc-logo img{ height:44px; width:auto; max-width:230px; object-fit:contain; display:block; }
-.czdoc .czdoc-logo b{ font-size:22px; letter-spacing:-0.02em; }
+.czdoc .czdoc-logo b{ display:block; font-size:22px; letter-spacing:-0.02em; }
 .czdoc .czdoc-co{ text-align:right; font-size:10.5px; color:#5a626b; line-height:1.5; }
 .czdoc .czdoc-co b{ display:block; font-size:12.5px; color:#15181c; margin-bottom:3px; }
 .czdoc .czdoc-kind{ display:inline-block; margin-top:6px; padding:3px 9px; border-radius:4px;

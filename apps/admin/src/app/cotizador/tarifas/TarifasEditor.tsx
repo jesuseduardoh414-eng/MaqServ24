@@ -618,7 +618,7 @@ function PedidoGrande({ cat, set }: { cat: CatalogoTriturados; set: (p: Partial<
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '12px 16px', borderTop: '1px solid var(--adm-border)' }}>
           {camiones.map((c) => (
-            <Chip key={c.id} tone="info">{c.nombre}{c.detalle && c.detalle !== c.nombre.replace(/^Camión de /, '') ? ` · ${c.detalle}` : ''}</Chip>
+            <Chip key={c.id} tone="info">{c.nombre}{c.detalle && !c.nombre.includes(c.detalle) ? ` · ${c.detalle}` : ''}</Chip>
           ))}
         </div>
       </div>

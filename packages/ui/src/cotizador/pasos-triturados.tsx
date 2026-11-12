@@ -181,13 +181,17 @@ export function PasoPedido({
   /**
    * LO QUE VA YA PUESTO EN OBRA (la cal de patio, 2026-11-06, el dueño: "no va
    * en cómo lo quieres, va como opción de triturado, donde está la grava"): una
-   * tarjeta más junto a los demás materiales en las tres formas, pero su renglón
-   * se cobra puesto en obra, sin flete aparte ni camión, y con su mínimo.
+   * tarjeta más junto a los demás materiales, pero su renglón se cobra puesto
+   * en obra, sin flete aparte, y con su mínimo. SOLO en «Pedido grande»
+   * (2026-11-12, el dueño: "la cal solo se puede entregar por tolva"): en
+   * planta y por viaje no aparece. Ahí elige camión y lugar como los demás
+   * (2026-11-12, el dueño: "deben de salir las 4 opciones, independientemente
+   * de qué escoja"), pero no paga flete ni cuenta para las 100 toneladas.
    */
   const esEnObra = (id: string) => !!cat.productos.find((p) => p.id === id)?.en_obra;
   const enObra = cat.productos.filter((p) => p.en_obra && !p.oculto);
   const deTabulador = cat.productos.filter((p) => !p.en_obra);
-  /** Los renglones por tonelada que sí llevan la entrega de la forma (sin la cal). */
+  /** Los renglones por tonelada que pagan flete y cuentan para el mínimo (sin la cal). */
   const conEntrega = materiales.filter((l) => !esEnObra(l.id));
   const notaEnObra = (p: (typeof enObra)[number]) =>
     mostrarPrecios && p.precio_ton > 0 ? `${money(p.precio_ton)} / ton · puesta en obra` : 'por tonelada · puesta en obra';
@@ -195,7 +199,7 @@ export function PasoPedido({
     alternarMaterial ? (
       <Tarjeta key={p.id} icono="material" titulo={p.nombre} nota={notaEnObra(p)} n={materiales.filter((l) => l.id === p.id).length} onClick={() => alternarMaterial(p.id)} />
     ) : null;
-  const tarjetasPorTon = alternarMaterial ? (
+  const tarjetasPorTon = (conCal: boolean) => alternarMaterial ? (
     <div className="cz-cards" style={{ marginBottom: materiales.length ? 14 : 0 }}>
       {deTabulador.map((p) => (
         <Tarjeta
@@ -207,7 +211,7 @@ export function PasoPedido({
           onClick={() => alternarMaterial(p.id)}
         />
       ))}
-      {enObra.map(tarjetaEnObra)}
+      {conCal ? enObra.map(tarjetaEnObra) : null}
     </div>
   ) : undefined;
   const fila = (l: LineaMaterial) => (
@@ -240,7 +244,7 @@ export function PasoPedido({
           textoAgregar={textoOtro}
           onAgregar={agregarMaterial}
           vacio={materiales.length === 0}
-          tarjetas={tarjetasPorTon}
+          tarjetas={tarjetasPorTon(false)}
           pie={fleteViejo ? (
             <FleteTonelada
               cat={cat} materiales={conEntrega} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
@@ -276,8 +280,7 @@ export function PasoPedido({
                     />
                   );
                 })}
-                {/* La cal no va por viaje: se cobra por tonelada puesta en obra. */}
-                {enObra.map(tarjetaEnObra)}
+                {/* La cal no va por viaje: solo en «Pedido grande» (en tolva). */}
               </div>
             }
           >
@@ -293,16 +296,17 @@ export function PasoPedido({
       {forma === 'grande' ? (
         <Bloque
           icono="zona"
-          titulo="Pedido grande: tolva, full o camión"
+          titulo="Pedido grande: volteo, tolva o full"
           desc={`Desde ${minimoCamionDe(cat)} toneladas. El material va a precio de lista por tonelada; el flete por tonelada se cotiza según el camión y la ubicación de tu obra.`}
           textoAgregar={textoOtro}
           onAgregar={agregarMaterial}
           vacio={materiales.length === 0}
-          tarjetas={tarjetasPorTon}
-          // El camión y el lugar son de lo que va por tonelada; la cal llega puesta en obra.
-          pie={conEntrega.length > 0 ? (
+          tarjetas={tarjetasPorTon(true)}
+          // Camión y lugar para todo el pedido, la cal también (2026-11-12: los cuatro
+          // camiones siempre); el flete y el mínimo, solo de lo que no es cal.
+          pie={materiales.length > 0 ? (
             <EntregaCamion
-              cat={cat} materiales={conEntrega} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
+              cat={cat} materiales={materiales} porTon={conEntrega} actualizar={actualizar} mostrarPrecios={mostrarPrecios} editarPrecios={editarPrecios}
               tocado={tocado} municipio={municipio} ubicacion={ubicacionCampo}
             />
           ) : null}
@@ -369,12 +373,18 @@ function FormaEntrega({ cat, forma, cambiar, titulo }: {
  * opciones de las zonas, ya que ahí el flete cambia"): el lugar se escribe
  * libre y, en el panel y el enlace, el flete por tonelada también; sin él, se
  * dice que se confirma aparte.
+ *
+ * LA CAL TAMBIÉN (2026-11-12): los cuatro camiones y el lugar salen siempre,
+ * aunque el pedido sea solo cal; la cal dice en qué camión llega, pero su
+ * flete va en su precio y no cuenta para el mínimo. `materiales` son todos
+ * (el camión y el lugar se ponen a todos); `porTon`, los que pagan flete.
  */
 function EntregaCamion({
-  cat, materiales, actualizar, mostrarPrecios, editarPrecios, tocado, municipio, ubicacion,
+  cat, materiales, porTon, actualizar, mostrarPrecios, editarPrecios, tocado, municipio, ubicacion,
 }: {
   cat: CatalogoTriturados;
   materiales: LineaMaterial[];
+  porTon: LineaMaterial[];
   actualizar: (uid: number, patch: Partial<LineaMaterial>) => void;
   mostrarPrecios: boolean;
   editarPrecios: boolean;
@@ -382,10 +392,11 @@ function EntregaCamion({
   municipio?: string;
   ubicacion?: ReactNode;
 }) {
-  const primero = materiales[0];
+  const primero = porTon[0] ?? materiales[0];
   const aTodos = (patch: Partial<LineaMaterial>) => materiales.forEach((l) => actualizar(l.uid, patch));
   const camion = camionDe(cat, primero.camion);
-  const ton = materiales.reduce((s, l) => s + num(l.toneladas), 0);
+  const conFlete = porTon.length > 0;
+  const ton = porTon.reduce((s, l) => s + num(l.toneladas), 0);
   const minimo = minimoCamionDe(cat);
   const fleteTon = primero.fleteTon;
   /** El lugar de la obra, escrito libre. */
@@ -394,7 +405,7 @@ function EntregaCamion({
     <div className="cz-flete">
       <div className="cz-flete-h">
         <b>¿En qué camión y a dónde?</b>
-        <span>El flete por tonelada depende del camión y del lugar de la obra.</span>
+        <span>{conFlete ? 'El flete por tonelada depende del camión y del lugar de la obra.' : 'La cal de patio llega puesta en tu obra: el flete ya va en su precio.'}</span>
       </div>
       <div className="cz-cards cz-cards-2 cz-opciones">
         {camionesDe(cat).map((c) => (
@@ -402,7 +413,8 @@ function EntregaCamion({
             key={c.id}
             icono="zona"
             titulo={c.nombre}
-            nota={c.detalle && !c.nombre.includes(c.detalle) ? c.detalle : 'Puesto en obra'}
+            // m³ y toneladas de cada camión (2026-11-12: ya no «Puesto en obra»).
+            nota={c.detalle && !c.nombre.includes(c.detalle) ? c.detalle : undefined}
             modo="opcion"
             n={primero.camion === c.id ? 1 : 0}
             onClick={() => aTodos({ camion: c.id, fleteTon: 0 })}
@@ -423,15 +435,18 @@ function EntregaCamion({
         />
         {tocado && !lugar ? <p className="cz-err">Escribe a dónde va: el lugar de la obra.</p> : null}
       </div>
-      <p className={tocado && ton < minimo ? 'cz-err' : 'cz-help'} style={{ margin: 0 }}>
-        {ton < minimo ? `Llevas ${ton.toLocaleString('es-MX')} ton: el pedido en tolva o full es desde ${minimo}.` : `${ton.toLocaleString('es-MX')} ton en total.`}
-      </p>
-      {editarPrecios ? (
+      {/* El mínimo y el flete son de lo que no es cal (la cal lleva su propio mínimo y su flete en el precio). */}
+      {conFlete ? (
+        <p className={tocado && ton < minimo ? 'cz-err' : 'cz-help'} style={{ margin: 0 }}>
+          {ton < minimo ? `Llevas ${ton.toLocaleString('es-MX')} ton: el pedido grande es desde ${minimo}.` : `${ton.toLocaleString('es-MX')} ton en total.`}
+        </p>
+      ) : null}
+      {editarPrecios && conFlete ? (
         <Campo label="Flete por tonelada" help="Escríbelo si ya lo sabes; si no, se confirma aparte.">
           <NumeroTexto ariaLabel="flete por tonelada" placeholder="Ej. 150" valor={primero.fleteTon ? String(primero.fleteTon) : ''} onChange={(v) => aTodos({ fleteTon: num(v) })} />
         </Campo>
       ) : null}
-      {camion && lugar ? (
+      {conFlete && camion && lugar ? (
         fleteTon > 0 ? (
           mostrarPrecios ? <Importe texto={`Flete en ${camion.nombre.toLowerCase()} · ${ton.toLocaleString('es-MX')} ton × ${money(fleteTon)}`} valor={money(fleteTon * ton)} /> : null
         ) : (
@@ -509,7 +524,8 @@ function FilaMaterial({
     const p = cat.productos.find((x) => x.id === id);
     actualizar(l.uid, id === OTRO
       ? { id, nombre: '', precio: '' }
-      : { id, nombre: p?.nombre ?? '', precio: p ? String(p.precio_ton) : '', ...(p?.en_obra ? { fleteTon: 0, fleteZona: RECOGE_EN_PLANTA, camion: '' } : {}) });
+      // La cal conserva el camión y el lugar del pedido grande (2026-11-12): ya no se le quitan.
+      : { id, nombre: p?.nombre ?? '', precio: p ? String(p.precio_ton) : '' });
   }
 
   return (

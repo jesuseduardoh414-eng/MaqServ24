@@ -859,12 +859,19 @@ export function precioZona(cat: CatalogoTriturados, z: ZonaTriturado | null, pro
  * Los camiones del pedido grande: tolva y full (2026-11-03) y los camiones de
  * 7 y 14 m³ (2026-11-06, el dueño: "tolva, full, camión de 7 metros cúbicos,
  * camión de 14 metros cúbicos"). Su flete se escribe en cada cotización.
+ *
+ * 2026-11-12, el dueño: "volteo 7 metros cúbicos / 10 toneladas, volteo 14
+ * metros cúbicos / 20 toneladas, tolva 30 metros cúbicos / 50 t, full 60
+ * metros cúbicos / 100 toneladas", en ese orden y sin «Puesto en obra». Los
+ * camiones de 7 y 14 m³ pasan a llamarse volteo; las claves no cambian, así
+ * las cotizaciones guardadas siguen leyendo su camión.
  */
 export const CAMIONES_DE_FABRICA: CamionTriturado[] = [
-  { id: 'tolva', nombre: 'Tolva', detalle: '30 m³ · 50 ton', precios_ton: {} },
-  { id: 'full', nombre: 'Full', detalle: '90 ton', precios_ton: {} },
-  { id: 'camion7', nombre: 'Camión de 7 m³', detalle: '7 m³', precios_ton: {} },
-  { id: 'camion14', nombre: 'Camión de 14 m³', detalle: '14 m³', precios_ton: {} },
+  { id: 'camion7', nombre: 'Volteo de 7 m³', detalle: '7 m³ / 10 ton', precios_ton: {} },
+  // 14 toneladas, no 20 (2026-11-12, el dueño lo confirmó: "volteo 14 metros cúbicos / 14 toneladas").
+  { id: 'camion14', nombre: 'Volteo de 14 m³', detalle: '14 m³ / 14 ton', precios_ton: {} },
+  { id: 'tolva', nombre: 'Tolva', detalle: '30 m³ / 50 ton', precios_ton: {} },
+  { id: 'full', nombre: 'Full', detalle: '60 m³ / 100 ton', precios_ton: {} },
 ];
 export const MINIMO_CAMION_TON = 100;
 
@@ -889,17 +896,20 @@ export function fleteCamion(cat: CatalogoTriturados, camionId: string | null | u
 /**
  * EL MÍNIMO DEL PEDIDO GRANDE (2026-11-03, "sí, mínimo 100 ton"): suman todas
  * las toneladas que van en tolva o full. Null si cumple o si no hay pedido grande.
+ * La cal de patio (puesta en obra) no cuenta: lleva su propio mínimo, aunque
+ * también diga en qué camión llega (2026-11-12).
  */
 export function faltaMinimoCamion(cat: CatalogoCotizador, partidas: PartidaCotizador[]): string | null {
   const tri = trituradosDe(cat);
   if (!tri) return null;
-  const grandes = partidas.filter((p): p is Extract<PartidaTriturados, { tipo: 'material' }> => p.tipo === 'material' && !!(p as { camion?: string }).camion);
+  const grandes = partidas.filter((p): p is Extract<PartidaTriturados, { tipo: 'material' }> =>
+    p.tipo === 'material' && !!(p as { camion?: string }).camion && !productoDe(tri, p.id)?.en_obra);
   if (!grandes.length) return null;
   const ton = grandes.reduce((s, p) => s + Number(p.toneladas ?? 0), 0);
   const minimo = minimoCamionDe(tri);
   return ton >= minimo
     ? null
-    : `El pedido en tolva o full es desde ${minimo} toneladas (llevas ${ton.toLocaleString('es-MX')}). Para menos, elige «Por viaje a mi obra».`;
+    : `El pedido grande (volteo, tolva o full) es desde ${minimo} toneladas (llevas ${ton.toLocaleString('es-MX')}). Para menos, elige «Por viaje a mi obra».`;
 }
 
 function condicionesTriturados(
@@ -933,7 +943,8 @@ function condicionesTriturados(
   // La cal de patio, puesta en obra (2026-11-06): su pedido mínimo, la tolva y el ajuste al llegar.
   if (partidas.some(enObra) && cat.condiciones.cal) bloques.push(cat.condiciones.cal);
   // El pedido grande lo dice el cálculo, no el tabulador: el camión y si el flete ya tiene precio.
-  const grandes = partidas.filter((p): p is Extract<PartidaTriturados, { tipo: 'material' }> => p.tipo === 'material' && !!p.camion);
+  // La cal tiene sus propias condiciones (y su flete va en su precio): no entra aquí.
+  const grandes = partidas.filter((p): p is Extract<PartidaTriturados, { tipo: 'material' }> => p.tipo === 'material' && !!p.camion && !enObra(p));
   if (grandes.length) {
     const camiones = [...new Set(grandes.map((p) => (camionDe(cat, p.camion)?.nombre ?? p.camion ?? '').toLowerCase()))].join(' y ');
     // El flete de tolva y full no sale de las zonas (2026-11-06): se escribe en cada cotización.
@@ -980,11 +991,13 @@ export function calcularTriturados(
       const ton = enObra ? Math.max(pedidas, Number(prod?.minimo_ton ?? 0)) : pedidas;
       const importe = precioTon * ton;
       materiales += importe;
+      // La cal dice en qué camión llega (2026-11-12: los cuatro del pedido grande); el flete sigue en su precio.
+      const camionCal = enObra ? camionDe(cat, p.camion) : null;
       renglones.push({
         clase: 'material',
         id: p.id,
         nombre,
-        concepto: enObra ? `${nombre.toUpperCase()} · PUESTA EN OBRA` : nombre.toUpperCase(),
+        concepto: enObra ? `${nombre.toUpperCase()} · PUESTA EN OBRA${camionCal ? ` EN ${camionCal.nombre.toUpperCase()}` : ''}` : nombre.toUpperCase(),
         unidad: 'TON',
         cantidad: ton,
         pu: r2(precioTon),

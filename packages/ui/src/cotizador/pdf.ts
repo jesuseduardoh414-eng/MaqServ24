@@ -33,8 +33,54 @@ function mismaFuente(src: string): string {
   }
 }
 
+/** Una imagen como `data:` URL, con tope de tiempo; null si no llegó o no es imagen. */
+async function comoDataUrl(src: string, ms: number): Promise<string | null> {
+  const ctrl = new AbortController();
+  const tope = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(src, { signal: ctrl.signal, mode: 'cors', credentials: 'same-origin' });
+    if (!r.ok || !(r.headers.get('content-type') ?? '').startsWith('image/')) return null;
+    const blob = await r.blob();
+    return await new Promise<string | null>((listo) => {
+      const lector = new FileReader();
+      lector.onload = () => listo(typeof lector.result === 'string' ? lector.result : null);
+      lector.onerror = () => listo(null);
+      lector.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(tope);
+  }
+}
+
+/**
+ * EL LOGO DEL PDF, SIEMPRE (2026-11-12, el dueño: "en pruebas no salía el logo
+ * en el documento final de la cotización"). Antes la foto del PDF usaba el
+ * logo tal cual por el optimizador de imágenes; si ese tardaba o fallaba (el
+ * hosting cargado, la primera vez de cada tamaño), el PDF salía SIN logo y sin
+ * nada en su lugar. Ahora se trae antes de armar la hoja y se mete dentro del
+ * documento como `data:`: primero por el optimizador (mismo dominio), luego
+ * directo (sirve si el servidor de la foto lo permite), con dos intentos cada
+ * uno. Si de plano no llega, el documento lleva el nombre de la empresa en su
+ * lugar, como cuando no hay logo, en vez de un hueco.
+ */
+async function logoParaPdf(src: string | null | undefined): Promise<string | null> {
+  if (!src) return null;
+  if (src.startsWith('data:')) return src;
+  const rutas = [...new Set([mismaFuente(src), src])];
+  for (let vuelta = 0; vuelta < 2; vuelta++) {
+    for (const ruta of rutas) {
+      const dato = await comoDataUrl(ruta, vuelta === 0 ? 8000 : 15000);
+      if (dato) return dato;
+    }
+  }
+  return null;
+}
+
 export async function documentoPdf(d: DatosDocumento): Promise<Blob> {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([import('html2canvas-pro'), import('jspdf')]);
+  const [{ default: html2canvas }, { jsPDF }, logo] = await Promise.all([import('html2canvas-pro'), import('jspdf'), logoParaPdf(d.logo)]);
+  d = { ...d, logo };
 
   const caja = document.createElement('div');
   caja.className = 'czdoc-hoja';
@@ -43,6 +89,7 @@ export async function documentoPdf(d: DatosDocumento): Promise<Blob> {
   // El relleno de la hoja, aunque la pantalla sea de celular (DOCUMENTO_CSS lo achica ahí), y viñetas
   // propias: las del navegador salían pegadas al texto en la foto.
   caja.innerHTML = `<style>${DOCUMENTO_CSS}.czdoc-hoja .czdoc{padding:34px 38px}.czdoc-hoja .czdoc-cond ul{list-style:none;padding-left:16px}.czdoc-hoja .czdoc-cond li{position:relative}.czdoc-hoja .czdoc-cond li::before{content:"•";position:absolute;left:-12px;color:#5a626b}</style>${documentoCuerpo(d)}`;
+  // El logo ya va como `data:`; cualquier otra foto de otro dominio, por el optimizador.
   caja.querySelectorAll('img').forEach((img) => img.setAttribute('src', mismaFuente(img.getAttribute('src') ?? '')));
   document.body.appendChild(caja);
 

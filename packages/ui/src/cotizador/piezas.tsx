@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState, type ReactNode } from 'react';
-import { Check, Minus, Plus, X } from 'lucide-react';
+import { Check, Plus, X } from 'lucide-react';
 import { IconoCotizador } from './iconos';
 import { ShInput, ShLabel } from '../shadcn/input';
 
@@ -53,18 +53,18 @@ export function Campo({
 }
 
 /**
- * Contador con −/+ y campo escribible.
+ * Cantidad entera que se escribe (viajes, días, horas, equipos, piezas…).
  *
- * El campo del medio se deja editar a mano aunque existan los botones: subir a
- * 30 días a golpe de "+" son 30 clics, y el primer usuario que lo intente va a
- * teclear.
+ * SIN − NI + (2026-11-12, el dueño: "quitar lo de + −, solo anotar el total,
+ * en todos los campos; mejor que el usuario lo escriba"). Es un campo como el
+ * de las toneladas: se escribe el número y ya. Conserva el nombre y las props
+ * de cuando tenía botones para no tocar a quien lo usa.
  */
 export function Contador({
   valor,
   onChange,
   min = 0,
   max = Number.MAX_SAFE_INTEGER,
-  paso = 1,
   ariaLabel,
   id,
 }: {
@@ -72,6 +72,7 @@ export function Contador({
   onChange: (v: number) => void;
   min?: number;
   max?: number;
+  /** Sin uso desde 2026-11-12 (era el salto de los botones − y +). */
   paso?: number;
   ariaLabel: string;
   id?: string;
@@ -87,31 +88,23 @@ export function Contador({
    */
   const [texto, setTexto] = useState<string | null>(null);
   return (
-    <div className="cz-stp">
-      <button type="button" aria-label={`Restar ${ariaLabel}`} onClick={() => { setTexto(null); onChange(acotar(valor - paso)); }} disabled={valor <= min}>
-        <Minus className="size-4" />
-      </button>
-      <input
-        id={id}
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        autoComplete="off"
-        aria-label={ariaLabel}
-        value={texto ?? String(valor)}
-        onFocus={(e) => e.currentTarget.select()}
-        onChange={(e) => {
-          const t = e.target.value.replace(/\D/g, '').slice(0, 9);
-          setTexto(t);
-          const v = parseInt(t, 10);
-          if (!Number.isNaN(v)) onChange(acotar(v));
-        }}
-        onBlur={() => setTexto(null)}
-      />
-      <button type="button" aria-label={`Sumar ${ariaLabel}`} onClick={() => { setTexto(null); onChange(acotar(valor + paso)); }} disabled={valor >= max}>
-        <Plus className="size-4" />
-      </button>
-    </div>
+    <ShInput
+      id={id}
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      autoComplete="off"
+      aria-label={ariaLabel}
+      value={texto ?? String(valor)}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => {
+        const t = e.target.value.replace(/\D/g, '').slice(0, 9);
+        setTexto(t);
+        const v = parseInt(t, 10);
+        if (!Number.isNaN(v)) onChange(acotar(v));
+      }}
+      onBlur={() => setTexto(null)}
+    />
   );
 }
 

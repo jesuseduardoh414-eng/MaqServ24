@@ -327,7 +327,8 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
    */
   /**
    * Lo que ya va puesto en obra (la cal de patio, 2026-11-06): una tarjeta más
-   * entre los materiales de cualquier forma, pero sin flete ni camión.
+   * entre los materiales, sin flete ni camión. Solo en «Pedido grande»: la cal
+   * se entrega únicamente en tolva (2026-11-12).
    */
   const esEnObra = (id: string) => !!catTrit?.productos.find((p) => p.id === id)?.en_obra;
   const [forma, setForma] = useState<FormaTriturados | null>(() => formaDe(lineasIniciales ?? [], esEnObra));
@@ -362,8 +363,9 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
       const todos = prev.filter((l): l is LineaMaterial => l.tipo === 'material');
       const viajes = prev.filter((l): l is LineaZona => l.tipo === 'zona');
       const resto = prev.filter((l) => l.tipo !== 'material' && l.tipo !== 'zona');
-      // La cal de patio (2026-11-06) se queda igual en cualquier forma: ya va puesta en obra.
-      const cal = todos.filter((l) => esEnObra(l.id));
+      // La cal de patio (2026-11-06) va puesta en obra y SOLO en tolva (2026-11-12):
+      // se queda en «Pedido grande» y se quita al pasar a planta o por viaje.
+      const cal = f === 'grande' ? todos.filter((l) => esEnObra(l.id)) : [];
       const materiales = todos.filter((l) => !esEnObra(l.id));
       // Lo ya elegido se pasa a la forma nueva: mismo material, otra entrega.
       if (f === 'viaje') {
@@ -381,10 +383,19 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
    * Triturados: un material por tonelada nace sin elegir (su selector se abre
    * solo) y hereda el flete que ya tenga la sección, que es uno por obra.
    */
+  /**
+   * De quién hereda un material nuevo el camión y el lugar: de otro material o,
+   * si solo hay cal, de la cal (2026-11-12: la cal también elige camión y lugar
+   * en el pedido grande, así todo el pedido va igual).
+   */
+  const entregaPrevia = (prev: LineaCotizador[]): LineaMaterial | undefined =>
+    prev.find((l): l is LineaMaterial => l.tipo === 'material' && !esEnObra(l.id))
+    ?? prev.find((l): l is LineaMaterial => l.tipo === 'material' && esEnObra(l.id) && !!l.camion);
+
   const agregarMaterial = () => {
     const uid = nuevoUid();
     setLineas((prev) => {
-      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material' && !esEnObra(l.id));
+      const otro = entregaPrevia(prev);
       // Los materiales del tabulador se eligen en sus tarjetas; este botón es el de
       // "Otro material (nombre y precio a mano)": nace escrito a mano, sin lista
       // para elegir (2026-10-30, pedido del dueño).
@@ -407,10 +418,9 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
     setLineas((prev) => {
       if (prev.some((l) => l.tipo === 'material' && l.id === id)) return prev.filter((l) => !(l.tipo === 'material' && l.id === id));
       const base = lineaDeMaterial(catTrit as CatalogoTriturados, id);
-      // La cal llega puesta en obra: sin flete ni camión, en cualquier forma (2026-11-06).
-      if (esEnObra(id)) return [...prev, { ...base, uid, fleteTon: 0, fleteZona: RECOGE_EN_PLANTA, camion: '' }];
-      const otro = prev.find((l): l is LineaMaterial => l.tipo === 'material' && !esEnObra(l.id));
-      return [...prev, { ...base, uid, ...entregaDe(forma, otro) }];
+      // La cal (solo en el pedido grande) toma el camión y el lugar del pedido como
+      // los demás (2026-11-12); su flete va en su precio, eso lo resuelve el cálculo.
+      return [...prev, { ...base, uid, ...entregaDe(forma, entregaPrevia(prev)) }];
     });
     setNuevo(uid);
   };
@@ -1515,7 +1525,7 @@ function validar(
     if (lineas.some((l) => l.tipo === 'material' && num(l.toneladas) <= 0)) return 'Captura las toneladas de cada material.';
     // Pedido grande (2026-11-03): zona y camión, y desde 100 toneladas.
     const grande = lineas.filter((l): l is LineaMaterial => l.tipo === 'material' && !!l.camion);
-    if (grande.some((l) => !l.fleteZona.trim() || l.fleteZona.trim() === RECOGE_EN_PLANTA)) return 'Escribe la zona o el lugar de la obra para el pedido en tolva o full.';
+    if (grande.some((l) => !l.fleteZona.trim() || l.fleteZona.trim() === RECOGE_EN_PLANTA)) return 'Escribe la zona o el lugar de la obra para el pedido grande.';
     if (d.minimoCamion) return d.minimoCamion;
     // Sin esto el flete se quedaba en cero sin que nadie lo decidiera (2026-10-21).
     const material = lineas.find((l) => l.tipo === 'material');

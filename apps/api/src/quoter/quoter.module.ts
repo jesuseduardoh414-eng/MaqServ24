@@ -15,6 +15,8 @@ import { BlockPresentaciones20261106 } from './block-presentaciones-2026-11-06';
 import { Camiones20261106 } from './camiones-2026-11-06';
 import { CalDePatio20261106 } from './cal-de-patio-2026-11-06';
 import { CarpetaModificada20261110 } from './carpeta-modificada-2026-11-10';
+import { Camiones20261112 } from './camiones-2026-11-12';
+import { SinPreciosEnElSitio20261112 } from './sin-precios-en-el-sitio-2026-11-12';
 import { QuoterController } from './quoter.controller';
 import { QuoterService } from './quoter.service';
 import { QuoterServicio } from './quoter-servicio';
@@ -38,9 +40,9 @@ import { Recotizar } from './recotizar';
   imports: [NotificationsModule],
   controllers: [QuoterController],
   // CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030,
-  // Mixtos20261030, CondicionesPorLinea20261102, Precios20261103, PreciosAsfalto20261106, BlockPresentaciones20261106, Camiones20261106, CalDePatio20261106 y
-  // CarpetaModificada20261110: ponen al día los tabuladores una sola vez, al arrancar.
-  providers: [QuoterService, ServiceService, QuoterServicio, Recotizar, CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030, Mixtos20261030, CondicionesPorLinea20261102, Precios20261103, PreciosAsfalto20261106, BlockPresentaciones20261106, Camiones20261106, CalDePatio20261106, CarpetaModificada20261110],
+  // Mixtos20261030, CondicionesPorLinea20261102, Precios20261103, PreciosAsfalto20261106, BlockPresentaciones20261106, Camiones20261106, CalDePatio20261106,
+  // CarpetaModificada20261110, Camiones20261112 y SinPreciosEnElSitio20261112: ponen al día los tabuladores una sola vez, al arrancar.
+  providers: [QuoterService, ServiceService, QuoterServicio, Recotizar, CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030, Mixtos20261030, CondicionesPorLinea20261102, Precios20261103, PreciosAsfalto20261106, BlockPresentaciones20261106, Camiones20261106, CalDePatio20261106, CarpetaModificada20261110, Camiones20261112, SinPreciosEnElSitio20261112],
   // QuoterServicio también: al marcar "Aceptada" en el panel se abre el servicio.
   // Recotizar: el desglose y el lápiz de Solicitudes, y "Volver a cotizar" (2026-10-23).
   exports: [QuoterService, QuoterServicio, Recotizar],

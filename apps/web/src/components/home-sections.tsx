@@ -103,7 +103,9 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           + menos aire arriba = el mismo texto en menos renglones y un hero que
           ya no se come la pantalla de entrada. */}
       <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0 clamp(16px, 3vw, 26px)', position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0,1.08fr) minmax(0,.92fr)', gap: 44, alignItems: 'center', paddingTop: 34, paddingBottom: 26 }} className="hero-grid">
-        <div>
+        {/* En el celular esta columna se deshace (`display: contents`) para que el
+            visual quede entre el título y la descripción (2026-11-12); ver globals.css. */}
+        <div className="hero-texto">
           {showBadge ? (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${h.accentColor} 35%, transparent)`, borderRadius: 8, padding: '6px 12px', fontSize: '13px', fontWeight: 600, color: h.accentColor }}>
               <Icon name="star" size={13} fill /> {badge}
@@ -123,7 +125,7 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           {/* `pre-line`: el texto del hero trae dos párrafos separados por una
               línea en blanco (lo que se ofrece / qué decirnos). Sin esto se
               pintaban pegados en un solo bloque. */}
-          <p style={{ color: h.subtitleColor, fontSize: '16.5px', lineHeight: 1.6, maxWidth: 540, margin: '20px 0 0', whiteSpace: 'pre-line', textWrap: 'pretty' }}>
+          <p className="hero-sub" style={{ color: h.subtitleColor, fontSize: '16.5px', lineHeight: 1.6, maxWidth: 540, margin: '20px 0 0', whiteSpace: 'pre-line', textWrap: 'pretty' }}>
             {subtitle}
           </p>
           {/* Botones del sistema (`ms-btn`): colores y enlaces siguen saliendo
@@ -148,7 +150,7 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           </div>
 
           {h.showTrust ? (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 18, marginTop: 32 }}>
+            <div className="hero-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 18, marginTop: 32 }}>
               {trust.map((it) => (
                 <div key={it.title} style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
                   <span className="ms-ico" aria-hidden style={{ color: h.accentColor, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, borderColor: `color-mix(in srgb, ${h.accentColor} 28%, transparent)` }}>
@@ -165,7 +167,9 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
         </div>
 
         {/* visual */}
-        <div style={{ position: 'relative', minHeight: 380, ...(h.video ? { display: 'grid', alignItems: 'center' } : {}) }} className="hero-visual">
+        {/* En el celular también se ve (2026-11-12): entre el título y la descripción; ver
+            `.hero-visual` en globals.css. Sin video ni imagen (solo el círculo) no sale ahí. */}
+        <div style={{ position: 'relative', minHeight: 380, ...(h.video ? { display: 'grid', alignItems: 'center' } : {}) }} className="hero-visual" data-video={h.video ? '' : undefined} data-vacio={!h.video && !hero?.image ? '' : undefined}>
           {h.video ? (
             // Video en movimiento en lugar de la imagen (Diseño → Hero). Trae su
             // propio fondo, así que no lleva el círculo: va entero, en su
@@ -181,7 +185,7 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           )}
           {/* imagen del producto (PNG transparente): más grande que el círculo, puede salirse de él */}
           {h.video ? null : hero?.image ? (
-            <span style={{ position: 'absolute', top: '50%', left: '52%', transform: 'translate(-50%, -50%)', width: 'min(560px, 118%)', aspectRatio: '1', zIndex: 1, display: 'block' }}>
+            <span className="hero-img" style={{ position: 'absolute', top: '50%', left: '52%', transform: 'translate(-50%, -50%)', width: 'min(560px, 118%)', aspectRatio: '1', zIndex: 1, display: 'block' }}>
               {/* La caja (span) queda IGUAL; solo la imagen escala → no altera el resto. */}
               <Image src={hero.image} alt={`${title} ${accent}`.trim()} fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', transform: 'scale(1.45)', transformOrigin: 'center' }} />
             </span>
@@ -194,11 +198,11 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           {h.showStats ? (
             <>
               {/* Cifras flotantes: tarjeta del sistema (radio 12, borde 1 px), quietas. */}
-              <div style={{ position: 'absolute', zIndex: 2, left: -12, top: 36, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '14px 18px', boxShadow: 'var(--shadow)' }}>
+              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, left: -12, top: 36, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '14px 18px', boxShadow: 'var(--shadow)' }}>
                 <CountUp value={t(theme, 'home.hero.stat1.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '28px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
                 <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.hero.stat1.label')}</div>
               </div>
-              <div style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11 }}>
                 <div style={{ color: h.accentColor }}><Stars value={5} size={13} /></div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--color-text)' }}>{t(theme, 'home.hero.stat2.num')}</div>

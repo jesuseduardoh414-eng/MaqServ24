@@ -6,16 +6,10 @@ import { CALCULADORAS_ENLACE, COTIZADORES_SITIO, calculadoraDelEnlace, cotizador
 import { IconoCotizador } from '@maqserv/ui';
 import { useBranding } from '@/components/branding';
 
-/** El evento que Chrome/Edge en Android disparan cuando la página se puede instalar. */
-interface EventoInstalar extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
-}
-
 /**
  * El marco del acceso directo (2026-10-29): sin menú lateral, con el cambio
- * entre cotizadores, el historial y "Instalar en este celular". No lleva al
- * resto del panel: el enlace es solo para cotizar.
+ * entre cotizadores y el historial. No lleva al resto del panel: el enlace es
+ * solo para cotizar.
  *
  * MENÚ CON LOS SIETE COTIZADORES (2026-11-06, pedido del dueño: "como aparece
  * en la web, que tenga los 6 o 7 disponibles y ya no solo triturados y
@@ -27,9 +21,12 @@ interface EventoInstalar extends Event {
  * CALCULADORAS DE MATERIAL (2026-11-09): debajo de los cotizadores, el mismo
  * menú lista «Calculadoras» (pavimento y m³ ↔ toneladas). Solo existen aquí.
  *
- * En Android el botón abre la instalación del navegador; en iPhone eso no
- * existe y se explica el camino de Safari (Compartir → Agregar a inicio). Ya
- * instalada (se abre sola, sin barra del navegador), el aviso no sale.
+ * SIN AVISO DE «AGREGAR AL INICIO» (2026-11-12, pedido del dueño: "quitar el
+ * mensaje de agregar al inicio"). Ya no sale el recuadro «Ponlo en el inicio
+ * de tu celular» con su botón Instalar. Se sigue pudiendo instalar desde el
+ * menú del navegador (Chrome: ⋮ → Agregar a la pantalla principal; Safari:
+ * Compartir → Agregar a inicio): el manifiesto y el service worker se quedan.
+ * Tampoco sale la barrita propia de Chrome, que se apaga aquí.
  */
 export function AppCotizador({ clave, llave, nombre, children }: {
   /** El cotizador abierto (maquinaria, agua, acarreos…) o la calculadora. */
@@ -45,27 +42,17 @@ export function AppCotizador({ clave, llave, nombre, children }: {
   const actual = cotizadorDelSitio(clave) ?? COTIZADORES_SITIO[0];
   // Lo que dice el botón del menú: el cotizador o la calculadora abierta.
   const boton = calc ? { icono: calc.icono, grupo: 'Calculadora', titulo: calc.titulo } : { icono: actual.icono, grupo: 'Cotizador', titulo: actual.titulo };
-  const [instalar, setInstalar] = useState<EventoInstalar | null>(null);
-  const [esIphone, setEsIphone] = useState(false);
-  const [instalada, setInstalada] = useState(true);
   const [abierto, setAbierto] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Un service worker que solo pasa todo a la red (y avisa sin conexión): lo
-    // piden los navegadores para ofrecer "Instalar".
+    // piden los navegadores para poder instalarlo desde su menú.
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw-cotizar.js').catch(() => undefined);
-    const nav = navigator as Navigator & { standalone?: boolean };
-    setInstalada(window.matchMedia('(display-mode: standalone)').matches || nav.standalone === true);
-    setEsIphone(/iphone|ipad|ipod/i.test(navigator.userAgent));
-    const alPoder = (e: Event) => { e.preventDefault(); setInstalar(e as EventoInstalar); };
-    const alInstalar = () => { setInstalar(null); setInstalada(true); };
-    window.addEventListener('beforeinstallprompt', alPoder);
-    window.addEventListener('appinstalled', alInstalar);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', alPoder);
-      window.removeEventListener('appinstalled', alInstalar);
-    };
+    // Sin aviso de instalar (2026-11-12): tampoco la barrita propia de Chrome en Android.
+    const sinAviso = (e: Event) => e.preventDefault();
+    window.addEventListener('beforeinstallprompt', sinAviso);
+    return () => window.removeEventListener('beforeinstallprompt', sinAviso);
   }, []);
 
   // Al cambiar de cotizador el menú se cierra solo.
@@ -150,30 +137,6 @@ export function AppCotizador({ clave, llave, nombre, children }: {
         </div>
       </header>
 
-      {/* En una calculadora no: se instala desde un cotizador (la calculadora no tiene ícono propio). */}
-      {!calc && !instalada && (instalar || esIphone) ? (
-        <div className="cza-instalar">
-          <span>
-            <b>Ponlo en el inicio de tu celular.</b>{' '}
-            {instalar
-              ? `Se abre directo en el cotizador de ${actual.titulo.toLowerCase()}, como una app.`
-              : 'En Safari toca Compartir (el cuadro con la flecha) y luego «Agregar a inicio».'}
-          </span>
-          {instalar ? (
-            <button
-              type="button"
-              onClick={async () => {
-                await instalar.prompt();
-                await instalar.userChoice.catch(() => undefined);
-                setInstalar(null);
-              }}
-            >
-              Instalar
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
       <main className="cza-main">
         {nombre ? <p className="cza-quien">Cotizando como {nombre}</p> : null}
         {children}
@@ -214,10 +177,6 @@ const CSS = `
 .cza-acc{ margin-left:auto; display:flex; gap:14px; flex:none; }
 .cza-acc a{ font-size:13.5px; color:var(--adm-muted); text-decoration:none; }
 .cza-acc a:hover{ color:var(--adm-text); }
-.cza-instalar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:12px 16px 0; padding:12px 14px; border-radius:10px;
-  border:1px solid color-mix(in srgb, var(--adm-accent, #008CFF) 45%, var(--adm-border)); font-size:13.5px; line-height:1.5; }
-.cza-instalar span{ flex:1 1 240px; }
-.cza-instalar button{ height:36px; padding:0 16px; border-radius:8px; border:0; background:var(--adm-accent, #008CFF); color:#fff; font-weight:600; font-size:13.5px; cursor:pointer; }
 .cza-main{ max-width:1240px; margin:0 auto; padding:14px 16px calc(env(safe-area-inset-bottom, 0px) + 40px); }
 .cza-quien{ margin:0 0 10px; font-size:12.5px; color:var(--adm-muted); }
 @media (max-width:640px){

@@ -94,13 +94,16 @@ export type FormaTriturados = 'planta' | 'viaje' | 'grande';
 
 /**
  * La forma que ya traen las partidas (al volver a una cotización); null si no
- * hay nada. Lo que va puesto en obra (la cal de patio, 2026-11-06) cabe en
- * cualquier forma y no la decide: sola, se abre en planta.
+ * hay nada. Lo que va puesto en obra (la cal de patio, 2026-11-06) solo va en
+ * tolva (2026-11-12): sola, se abre en «Pedido grande». (Una cotización vieja
+ * con cal y material en planta o por viaje se abre en esa forma, con la cal a
+ * la vista para poder quitarla.)
  */
 export function formaDe(lineas: LineaCotizador[], enObra: (id: string) => boolean = () => false): FormaTriturados | null {
   if (lineas.some((l) => l.tipo === 'zona')) return 'viaje';
   if (lineas.some((l) => l.tipo === 'material' && !enObra(l.id) && l.camion)) return 'grande';
-  if (lineas.some((l) => l.tipo === 'material')) return 'planta';
+  if (lineas.some((l) => l.tipo === 'material' && !enObra(l.id))) return 'planta';
+  if (lineas.some((l) => l.tipo === 'material')) return 'grande';
   return null;
 }
 
