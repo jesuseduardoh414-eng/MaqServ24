@@ -10,6 +10,8 @@ export interface AuthUser {
   zip: string | null;
   /** Estado/región (columna legacy `residency`). Ayuda a cotizar el traslado. */
   residency: string | null;
+  /** Empresa del cliente (columna legacy `Nempresa`), 2026-11-16: opcional, en Mi perfil. */
+  company: string | null;
   /** Alta del cliente, para "Miembro desde". */
   createdAt: string | null;
 }

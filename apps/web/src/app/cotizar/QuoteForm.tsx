@@ -162,6 +162,8 @@ export function QuoteForm({
         setEmpresas(lista);
         // La primera empresa ya va elegida; la obra no: a qué obra va lo decide él.
         if (lista[0]) setDestino((x) => (x.empresa ? x : { ...x, empresa: String(lista[0].id), nueva: lista[0].sites.length === 0 }));
+        // Sin empresas todavía: la nueva ya trae la de Mi perfil (2026-11-16), se puede cambiar.
+        else if (user?.company?.trim()) setDestino((x) => (x.empresaNueva ? x : { ...x, empresaNueva: user.company ?? '' }));
       })
       .catch(() => { if (vivo) setEmpresas([]); });
     return () => { vivo = false; };

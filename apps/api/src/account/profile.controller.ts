@@ -15,6 +15,8 @@ const profileSchema = z.object({
   zip: zCp().optional(),
   /** Estado/región: columna legacy `residency`, hasta ahora sin usar. */
   residency: z.string().max(100).optional(),
+  /** Empresa (2026-11-16): columna legacy `Nempresa`. Vacía = sin empresa. */
+  company: z.string().max(250).optional(),
 });
 
 const passwordSchema = z.object({
@@ -29,14 +31,15 @@ export class ProfileController {
   async update(@Req() req: AuthedRequest, @Body() body: unknown) {
     const parsed = profileSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
+    const { company, ...resto } = parsed.data;
     const u = await prisma.users.update({
       where: { id: req.userId },
-      data: { ...parsed.data, updated_at: new Date() },
+      data: { ...resto, ...(company !== undefined ? { Nempresa: company.trim() || null } : {}), updated_at: new Date() },
     });
     return {
       id: u.id, name: u.name, email: u.email, phone: u.phone,
       address: u.address, city: u.city, zip: u.zip,
-      residency: u.residency, createdAt: u.created_at ? u.created_at.toISOString() : null,
+      residency: u.residency, company: u.Nempresa ?? null, createdAt: u.created_at ? u.created_at.toISOString() : null,
     };
   }
 

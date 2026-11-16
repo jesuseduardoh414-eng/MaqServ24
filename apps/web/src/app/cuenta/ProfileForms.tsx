@@ -77,6 +77,7 @@ export function ProfileForms({
 
   // El perfil se refleja al vuelo para que el medidor no espere a recargar.
   const inicial = {
+    company: user.company ?? '',
     name: user.name ?? '',
     phone: user.phone ?? '',
     address: user.address ?? '',
@@ -202,6 +203,12 @@ export function ProfileForms({
       <form onSubmit={saveProfile} className="pf-form">
         <Seccion titulo="Datos de contacto" descripcion="Así te identificamos y te buscamos cuando hay novedades de tu servicio.">
           <div className="pf-grid">
+            {/* Empresa arriba del nombre (2026-11-16, el dueño). Opcional: no cuenta para el pago. */}
+            <div className="pf-span">
+              <Campo id="pf-company" label="Empresa" hint="Opcional. El nombre de tu empresa o razón social.">
+                <input id="pf-company" className="pf-input" value={form.company} onChange={(e) => set('company', e.target.value)} placeholder="Constructora del Norte" maxLength={250} autoComplete="organization" />
+              </Campo>
+            </div>
             <div className="pf-span">
               <Campo id="pf-name" label={labels.name} error={errores.name}>
                 <input id="pf-name" className="pf-input" value={form.name} onChange={(e) => set('name', e.target.value)} required minLength={2} maxLength={100} autoComplete="name" {...invalido('name')} />

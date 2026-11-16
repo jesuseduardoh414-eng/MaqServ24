@@ -14,6 +14,7 @@ import { mapaHref } from '@/lib/direccion';
 import { fotoLigera } from '@/lib/foto';
 import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 import { TrazosLuz } from '@/components/BandaLuz';
+import { BotonRegresar } from '@/components/BotonRegresar';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
 //
@@ -218,6 +219,8 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
           />
         </div>
       </header>
+      {/* «Regresar» debajo del menú en todas las páginas menos el inicio (2026-11-16). */}
+      <BotonRegresar />
     </>
   );
 }

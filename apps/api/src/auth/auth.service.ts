@@ -47,6 +47,7 @@ export class AuthService {
     city: string | null;
     zip: string | null;
     residency?: string | null;
+    Nempresa?: string | null;
     created_at?: Date | null;
   }): AuthUser {
     return {
@@ -58,6 +59,7 @@ export class AuthService {
       city: u.city,
       zip: u.zip,
       residency: u.residency ?? null,
+      company: u.Nempresa ?? null,
       createdAt: u.created_at ? u.created_at.toISOString() : null,
     };
   }
