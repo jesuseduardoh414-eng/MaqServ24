@@ -485,7 +485,10 @@ export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; raz
       <div className="why-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 56, alignItems: 'center' }}>
         <div style={{ position: 'relative', minHeight: 420 }} className="why-visual">
           <div style={{ position: 'absolute', inset: 0, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--color-border)', background: 'var(--surface-2)' }}>
-            {image ? (
+            {/* Video en bucle si hay (2026-11-16), con la imagen de portada; si no, la imagen. */}
+            {cfg?.video ? (
+              <VideoCategoria src={cfg.video} poster={image} boton />
+            ) : image ? (
               <Image src={image} alt={t(theme, 'home.whyChooseUs.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
             ) : (
               <span className="ph" style={{ position: 'absolute', inset: 0 }} />

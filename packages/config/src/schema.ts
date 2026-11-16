@@ -201,6 +201,7 @@ export const whyChooseUsSchema = z
   .object({
     show: z.boolean().default(true),
     image: z.string().nullable().default(null), // imagen principal; null ⇒ foto de la 1ª razón
+    video: z.string().nullable().default(null), // video en bucle en lugar de la imagen (2026-11-16); la imagen queda de portada
     showYearsBadge: z.boolean().default(true), // tarjeta flotante "12+ años"
     showStats: z.boolean().default(true), // barra de 3 estadísticas
     eyebrowColor: z.string().nullable().default(null), // null ⇒ var(--color-accent)

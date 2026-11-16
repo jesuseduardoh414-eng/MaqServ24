@@ -250,6 +250,7 @@ export const defaultTheme: Theme = {
     whyChooseUs: {
       show: true,
       image: null,
+      video: null,
       showYearsBadge: true,
       showStats: true,
       eyebrowColor: null,
