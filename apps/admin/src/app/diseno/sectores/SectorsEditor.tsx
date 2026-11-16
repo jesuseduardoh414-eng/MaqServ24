@@ -565,7 +565,7 @@ function SectorEditRow({ id, busy, onClose, onSaved, onBorrador }: {
                 ) : <span style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 12.5 }}><i className="ph ph-image" style={{ fontSize: 20, display: 'block', marginBottom: 4 }} />Imagen</span>}
                 <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); e.target.value = ''; }} style={{ display: 'none' }} />
               </label>
-              {/* Video (opcional): va en lugar de la imagen en la tarjeta y en la página del sector. */}
+              {/* Video (opcional): va en lugar de la imagen solo en la tarjeta del inicio; la página del sector usa la imagen. */}
               <label
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { e.preventDefault(); if (subiendo === null) void elegirVideo(e.dataTransfer.files?.[0] ?? null); }}
@@ -594,7 +594,7 @@ function SectorEditRow({ id, busy, onClose, onSaved, onBorrador }: {
                 <textarea value={frase} onChange={(e) => setFrase(e.target.value)} rows={2} maxLength={300} placeholder="Ej. Conectamos maquinaria, equipos y servicios especializados con los proyectos que construyen el futuro." style={{ ...areaStyle, minHeight: 60 }} />
               </Field>
               <span style={ayuda}>
-                Sin frase, la tarjeta toma el principio de «Sobre este sector». Si subes video, se ve en lugar de la imagen, en bucle y sin sonido; MP4 o WebM, hasta {VIDEO_MAX_MB} MB (mejor de 5 a 15 s y menos de 10 MB). El video se guarda al elegirlo.
+                Sin frase, la tarjeta toma el principio de «Sobre este sector». Si subes video, se ve en la tarjeta del inicio en lugar de la imagen, en bucle y sin sonido (la página del sector sigue con la imagen); MP4 o WebM, hasta {VIDEO_MAX_MB} MB (mejor de 5 a 15 s y menos de 10 MB). El video se guarda al elegirlo.
               </span>
             </div>
           </div>

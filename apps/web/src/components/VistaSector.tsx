@@ -5,7 +5,6 @@ import { BLOQUES_SECTOR, recortarSector, textoPlanoSector, type Theme } from '@m
 import type { BloqueSectorDTO, ParteListaSectorDTO, StrategicSectorDetail } from '@maqserv/types';
 import { t } from '@/lib/theme';
 import { Icon } from '@/components/Icon';
-import { VideoCategoria } from '@/components/VideoCategoria';
 
 /**
  * Página de un sector (encabezado + apartados + Servicios incluidos), sin el
@@ -107,11 +106,11 @@ export function VistaSector({ theme, sector, catalogo }: { theme: Theme; sector:
     <>
       <style>{CSS}</style>
       <div className="ms-page">
-        {/* ===== ENCABEZADO (foto o video a sangre + degradado) ===== */}
+        {/* ===== ENCABEZADO (foto a sangre + degradado) =====
+            Siempre la imagen (2026-11-16, el dueño): el video va solo en la
+            tarjeta del inicio, donde salen todos los sectores. */}
         <section className="sc-hero">
-          {sector.video ? (
-            <VideoCategoria src={sector.video} poster={sector.image} boton />
-          ) : sector.image ? (
+          {sector.image ? (
             <Image src={sector.image} alt={sector.title} fill priority sizes="100vw" style={{ objectFit: 'cover' }} />
           ) : (
             <span className="ph" aria-hidden style={{ position: 'absolute', inset: 0, opacity: 0.5 }} />
