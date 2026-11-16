@@ -24,7 +24,7 @@ export function EstilosSistema() {
 
 const CSS = `
 /* ── Página ─────────────────────────────────────────────── */
-.ms-page{ background:var(--color-bg); color:var(--color-text); }
+.ms-page{ background:transparent; color:var(--color-text); }
 .ms-wrap{ max-width:1180px; margin:0 auto; padding:40px 32px 80px; }
 .ms-wrap-narrow{ max-width:760px; margin:0 auto; padding:40px 32px 80px; }
 

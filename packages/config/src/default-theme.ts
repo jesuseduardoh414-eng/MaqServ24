@@ -315,6 +315,8 @@ export const defaultTheme: Theme = {
       eyebrow: 'Equipo de marcas reconocidas dentro de la red',
       list: ['CAT', 'Komatsu', 'Volvo CE', 'JCB', 'Yale', 'Bobcat'],
     },
+    // Fondo animado de todas las páginas (2026-11-16): la nebulosa azul del dueño.
+    fondo: { activo: true, video: '/fondo/nebulosa.mp4', imagen: '/fondo/nebulosa.jpg', oscuridad: 55, girar: true },
     // Sección 6 · Oferta / Promoción (home). Colores null ⇒ heredan del tema.
     offer: {
       show: true,

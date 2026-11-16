@@ -52,12 +52,12 @@ const BL_CSS = `
   background:
     radial-gradient(900px 420px at 92% -8%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 62%),
     radial-gradient(700px 360px at 4% 108%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 75%, var(--color-bg)), var(--color-bg)); }
+    linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--surface-2) 75%, var(--color-bg)) 55%, var(--fondo-capa)), var(--fondo-capa)); }
 .bl-banda.bl-izq{
   background:
     radial-gradient(900px 420px at 8% -8%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 62%),
     radial-gradient(700px 360px at 96% 108%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 75%, var(--color-bg)), var(--color-bg)); }
+    linear-gradient(180deg, color-mix(in srgb, color-mix(in srgb, var(--surface-2) 75%, var(--color-bg)) 55%, var(--fondo-capa)), var(--fondo-capa)); }
 /* Rejilla de plano tenue junto a la esquina del trazo (2026-11-16), como la portada. */
 .bl-banda::before{ content:''; position:absolute; inset:0; z-index:0; pointer-events:none;
   background-image: linear-gradient(color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--color-text) 5%, transparent) 1px, transparent 1px);

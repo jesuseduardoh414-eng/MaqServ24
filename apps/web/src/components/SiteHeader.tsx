@@ -72,7 +72,7 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
       {/* Barra superior. En móvil se queda solo el teléfono (lo demás vive en el
           drawer): con todo visible se apilaba en 4 renglones y se comía media
           pantalla. */}
-      <div style={{ background: 'var(--band)', color: 'rgba(255,255,255,.66)', fontSize: '12.5px', fontWeight: 300, borderBottom: '1px solid var(--color-border)' }}>
+      <div style={{ background: 'var(--band-capa)', color: 'rgba(255,255,255,.66)', fontSize: '12.5px', fontWeight: 300, borderBottom: '1px solid var(--color-border)' }}>
         <div className="tb-row" style={{ ...CONTAINER, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', paddingTop: 9, paddingBottom: 9 }}>
           <div className="tb-left" style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
             {cPhone ? (
@@ -239,7 +239,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
   // de 14 px con peso normal y piezas de radio 8. Hover/foco en `.sf-*`.
 
   return (
-    <footer className="sf-pie" style={{ background: 'var(--band)', color: 'rgba(255,255,255,.7)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
+    <footer className="sf-pie" style={{ background: 'var(--band-capa)', color: 'rgba(255,255,255,.7)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
       {/* Rediseño 2026-11-16: trazo de luz en la esquina y línea azul arriba, como el resto del sitio. */}
       <TrazosLuz partes="arriba" />
       <style>{`
@@ -398,7 +398,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
 const SH_CSS = `
 .sh-hdr{ --color-text:#F5F7FA; --color-text-muted: rgba(245,247,250,.68); --color-border: rgba(255,255,255,.14); --color-surface:#11161C;
   color: var(--color-text);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--band) 97%, transparent), color-mix(in srgb, var(--band) 90%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--band) 90%, transparent), color-mix(in srgb, var(--band) 80%, transparent));
   backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%); }
 .sh-hdr .brand-swap .brand-logo-light{ display:none !important; }
 .sh-hdr .brand-swap .brand-logo-dark{ display:block !important; }

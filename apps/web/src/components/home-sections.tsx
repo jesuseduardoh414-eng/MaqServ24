@@ -111,7 +111,7 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
     // titular y del visual, rejilla de plano de obra que se desvanece, trazos de
     // luz en las esquinas, titular en la letra gruesa, botón con resplandor,
     // casillas con borde azul y tarjetas semitransparentes sobre el video.
-    <section className="hx" style={{ background: 'var(--band)' }}>
+    <section className="hx" style={{ background: 'var(--band-capa)' }}>
       <style>{HERO_CSS}</style>
       <div aria-hidden className="hx-rejilla" />
       <div aria-hidden className="hx-brillo hx-brillo-a" />
@@ -923,7 +923,7 @@ export async function BrandsSection({ theme }: { theme: Theme }) {
 
 const MC_CSS = `
 .mc{ position:relative; overflow:hidden; padding: 46px 0 50px; border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border);
-  background: radial-gradient(900px 180px at 50% 0%, color-mix(in srgb, var(--color-primary) 11%, transparent), transparent 70%), var(--color-bg); }
+  background: radial-gradient(900px 180px at 50% 0%, color-mix(in srgb, var(--color-primary) 11%, transparent), transparent 70%), var(--fondo-capa); }
 .mc::before{ content:''; position:absolute; top:-1px; left:50%; width:min(620px, 72vw); height:1px; transform:translateX(-50%);
   background: linear-gradient(90deg, transparent, var(--color-primary), transparent); box-shadow: 0 0 14px var(--color-primary); }
 .mc-cab{ display:flex; align-items:center; justify-content:center; gap:16px; margin:0 auto 26px; padding:0 16px; }

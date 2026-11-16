@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from 'react';
+import { FondoAnimado } from '@/components/FondoAnimado';
 import type { Metadata, Viewport } from 'next';
 import { Analitica } from '@/components/Analitica';
 import { AvisoCookies } from '@/components/AvisoCookies';
@@ -105,6 +106,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         />
       </head>
       <body>
+        {/* Fondo animado de todas las páginas (2026-11-16); se cambia en el panel: Sitio web › Fondo animado. */}
+        {theme.tokens.fondo?.activo !== false && (theme.tokens.fondo?.video || theme.tokens.fondo?.imagen) ? (
+          <FondoAnimado video={theme.tokens.fondo.video} imagen={theme.tokens.fondo.imagen} oscuridad={theme.tokens.fondo.oscuridad} girar={theme.tokens.fondo.girar} />
+        ) : null}
         {/* Qué entra en cada campo: filtra por tipo (una letra no entra en un teléfono) y recorta espacios. */}
         <FiltroDeCampos />
         <CartProvider>{children}</CartProvider>

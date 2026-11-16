@@ -176,7 +176,7 @@ export function EstadoVacio({
  * azul solo en lo que se puede pulsar o en datos.
  */
 const CSS = `
-.ac-page{ background:var(--color-bg); color:var(--color-text); }
+.ac-page{ background:transparent; color:var(--color-text); }
 .ac-grid{ max-width:1180px; margin:0 auto; padding:40px 32px 80px; display:grid; grid-template-columns:260px minmax(0,1fr); gap:48px; align-items:start; }
 .ac-side{ position:sticky; top:104px; display:grid; gap:22px; min-width:0; }
 .ac-me{ min-width:0; }

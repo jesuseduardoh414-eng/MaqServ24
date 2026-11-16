@@ -38,10 +38,13 @@
   --radius-btn: var(--radius-button);
 }
 
-/* Base del sitio: SOLO variables de tokens (valores desde la BD vía SSR). */
+/* Base del sitio: SOLO variables de tokens (valores desde la BD vía SSR).
+   El color de fondo va en <html> y el body es transparente (2026-11-16): así el
+   fondo animado (FondoAnimado, z-index -1) se ve detrás de todo el contenido. */
+html { background: var(--color-bg); }
 body {
   margin: 0;
-  background: var(--color-bg);
+  background: transparent;
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: var(--text-base);
@@ -106,6 +109,28 @@ h1, h2, h3, h4 {
 @media (prefers-color-scheme: dark) { :root { --band: var(--color-bg); } }
 :root[data-theme="light"] { --band: var(--color-secondary); }
 :root[data-theme="dark"] { --band: var(--color-bg); }
+
+/*
+ * CAPAS SOBRE EL FONDO ANIMADO (2026-11-16). En modo oscuro las bandas grandes
+ * (portada, barra de contacto, pie, bandas de luz) son semitransparentes para
+ * que se vea el movimiento detrás; en modo claro casi sólidas (el video oscuro
+ * apenas se asoma). Las tarjetas no cambian: siguen sólidas para leerse bien.
+ */
+:root { --band-capa: color-mix(in srgb, var(--band) 94%, transparent); --fondo-capa: color-mix(in srgb, var(--color-bg) 90%, transparent); }
+@media (prefers-color-scheme: dark) { :root { --band-capa: color-mix(in srgb, var(--band) 38%, transparent); --fondo-capa: color-mix(in srgb, var(--color-bg) 28%, transparent); } }
+:root[data-theme="light"] { --band-capa: color-mix(in srgb, var(--band) 94%, transparent); --fondo-capa: color-mix(in srgb, var(--color-bg) 90%, transparent); }
+:root[data-theme="dark"] { --band-capa: color-mix(in srgb, var(--band) 38%, transparent); --fondo-capa: color-mix(in srgb, var(--color-bg) 28%, transparent); }
+
+/* Fondo animado: capa fija detrás de todo (ver FondoAnimado.tsx). */
+.fa-capa { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: var(--color-bg); }
+.fa-medio { position: absolute; top: 50%; left: 50%; width: 100vw; height: 100lvh; max-width: none; object-fit: cover; transform: translate(-50%, -50%); }
+/* Video vertical en pantalla ancha: girado 90° cubre la pantalla con la mitad de escala. */
+@media (min-aspect-ratio: 1/1) {
+  .fa-capa[data-girar] .fa-medio { width: 100lvh; height: 100vw; transform: translate(-50%, -50%) rotate(90deg); }
+}
+.fa-velo { position: absolute; inset: 0; background: color-mix(in srgb, var(--color-bg) var(--fa-velo, 55%), transparent); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .fa-velo { background: color-mix(in srgb, var(--color-bg) 88%, transparent); } }
+:root[data-theme="light"] .fa-velo { background: color-mix(in srgb, var(--color-bg) 88%, transparent); }
 
 @keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
 @keyframes floatY2 { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(9px); } }

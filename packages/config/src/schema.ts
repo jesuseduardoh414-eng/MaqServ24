@@ -314,6 +314,23 @@ export const brandsSchema = z
   })
   .default({});
 
+/**
+ * FONDO ANIMADO DEL SITIO (2026-11-16, el dueño: «el fondo se va cambiar de
+ * nuevo… además quieren movimiento, eso en todas las pantallas»). Un video en
+ * bucle, fijo detrás de todas las páginas, con un velo oscuro encima para que
+ * el texto se lea. Por defecto, la nebulosa azul que mandó el dueño (va en el
+ * propio sitio, /fondo/); se cambia en el panel: Sitio web › Fondo animado.
+ */
+export const fondoSchema = z
+  .object({
+    activo: z.boolean().default(true),
+    video: z.string().nullable().default('/fondo/nebulosa.mp4'), // null ⇒ solo la imagen
+    imagen: z.string().nullable().default('/fondo/nebulosa.jpg'), // portada mientras carga (y lo que se ve con «reducir movimiento»)
+    oscuridad: z.number().min(0).max(95).default(55), // % del velo oscuro encima del video
+    girar: z.boolean().default(true), // video vertical en pantalla ancha: girarlo 90° para cubrirla con más nitidez
+  })
+  .default({});
+
 export const offerSchema = z
   .object({
     show: z.boolean().default(true),
@@ -594,6 +611,8 @@ export const themeTokensSchema = z.object({
   blog: blogSchema,
   /** Ajustes de la Sección 6 · Oferta / Promoción (home). */
   offer: offerSchema,
+  /** Fondo animado detrás de todas las páginas del sitio (2026-11-16). */
+  fondo: fondoSchema,
   /** Sección «Promociones del mes» (home): tarjetas con video. */
   promotions: promotionsSchema,
   /** Ajustes de la Sección 7 · Reseñas (home). */
@@ -644,6 +663,7 @@ export type WhyChooseUs = z.infer<typeof whyChooseUsSchema>;
 export type QuienesSomos = z.infer<typeof quienesSomosSchema>;
 export type Sectors = z.infer<typeof sectorsSchema>;
 export type Offer = z.infer<typeof offerSchema>;
+export type Fondo = z.infer<typeof fondoSchema>;
 export type Promotions = z.infer<typeof promotionsSchema>;
 export type PromoItem = z.infer<typeof promoItemSchema>;
 export type Brands = z.infer<typeof brandsSchema>;
