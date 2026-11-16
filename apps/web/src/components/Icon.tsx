@@ -101,6 +101,7 @@ const PATHS = {
   chat: <path d="M20.5 5.5A2.5 2.5 0 0 0 18 3H6a2.5 2.5 0 0 0-2.5 2.5v8A2.5 2.5 0 0 0 6 16h2.5v4l5-4H18a2.5 2.5 0 0 0 2.5-2.5z" />,
   volume: <><path d="M11 5 6 9H2.5v6H6l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9.5 9.5 0 0 1 0 13" /></>,
   volumeOff: <><path d="M11 5 6 9H2.5v6H6l5 4z" /><path d="m21.5 9.5-5 5" /><path d="m16.5 9.5 5 5" /></>,
+  play: <path d="M8 5.5v13l10.5-6.5z" />,
 } as const;
 
 export type IconName = keyof typeof PATHS;

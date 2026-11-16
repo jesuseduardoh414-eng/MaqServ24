@@ -60,6 +60,7 @@ export function VistaPreviaCliente({ pintar }: { pintar: typeof pintarVistaPrevi
         const mio = ++turno.current;
         const borrador = { vista: d.vista, modo: d.modo, tokens: d.tokens, copys: d.copys, datos: d.datos };
         // Dos intentos: el servidor puede estar reiniciando (al subir cambios) o saturado un momento.
+        let motivo = '';
         for (let intento = 1; intento <= 2; intento++) {
           try {
             const r = await pintar(borrador);
@@ -70,8 +71,9 @@ export function VistaPreviaCliente({ pintar }: { pintar: typeof pintarVistaPrevi
             } else setError(r.error);
             try { sessionStorage.removeItem(RECARGA); } catch { /* sin almacenamiento */ }
             return;
-          } catch {
+          } catch (e) {
             if (mio !== turno.current) return;
+            motivo = e instanceof Error ? e.message : String(e);
             if (intento === 1) await new Promise((r) => setTimeout(r, 1500));
           }
         }
@@ -79,7 +81,8 @@ export function VistaPreviaCliente({ pintar }: { pintar: typeof pintarVistaPrevi
         // sitio que ya no existe y ningún reintento la arregla: se recarga una
         // vez y el panel vuelve a mandar el borrador al oír «lista».
         if (recargarUnaVez()) return;
-        setError('El sitio no pudo pintar la vista previa. Reintenta en unos segundos.');
+        // El motivo se enseña: sin él no hay forma de saber qué pasó en el navegador de quien lo ve.
+        setError(`El sitio no pudo pintar la vista previa. Reintenta en unos segundos.${motivo ? ` (Motivo: ${motivo.slice(0, 160)})` : ''}`);
       }, 220);
     };
     window.addEventListener('message', alRecibir);

@@ -110,7 +110,7 @@ export function VistaSector({ theme, sector, catalogo }: { theme: Theme; sector:
         {/* ===== ENCABEZADO (foto o video a sangre + degradado) ===== */}
         <section className="sc-hero">
           {sector.video ? (
-            <VideoCategoria src={sector.video} poster={sector.image} />
+            <VideoCategoria src={sector.video} poster={sector.image} boton />
           ) : sector.image ? (
             <Image src={sector.image} alt={sector.title} fill priority sizes="100vw" style={{ objectFit: 'cover' }} />
           ) : (
