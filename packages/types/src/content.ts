@@ -18,6 +18,8 @@ export interface StrategicSector {
   title: string;
   description: string | null;
   image: string | null;
+  /** Video en bucle (2026-11-16): si hay, va en lugar de la imagen, que queda de portada. */
+  video: string | null;
 }
 
 export interface StrategicSectorDetail extends StrategicSector {

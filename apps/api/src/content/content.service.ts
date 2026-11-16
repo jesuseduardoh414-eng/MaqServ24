@@ -21,6 +21,7 @@ import { PerfexService } from '../integrations/integrations.module';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseContacto, correoAcuseProveedor, correoContactoInterno, correoSolicitudProveedorInterno } from '../notifications/email-templates';
 import { ubicarAliado } from '../providers/cobertura-aliado';
+import { videosDeSectores } from './videos-sectores';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -81,21 +82,22 @@ export class ContentService {
   }
 
   async sectors(): Promise<StrategicSector[]> {
-    const rows = await prisma.strategic_sectors.findMany({
-      where: { status: 1 },
-      orderBy: { id: 'asc' },
-    });
+    const [rows, videos] = await Promise.all([
+      prisma.strategic_sectors.findMany({ where: { status: 1 }, orderBy: { id: 'asc' } }),
+      videosDeSectores(),
+    ]);
     return rows.map((s) => ({
       id: Number(s.id), // BigInt legacy → number
       slug: productSlug(s.title, Number(s.id)),
       title: s.title,
       description: s.description ? stripHtml(s.description).slice(0, 200) : null,
       image: imageUrl(s.image),
+      video: imageUrl(videos[String(s.id)] ?? null),
     }));
   }
 
   async sectorById(id: number): Promise<StrategicSectorDetail> {
-    const s = await prisma.strategic_sectors.findFirst({ where: { id, status: 1 } });
+    const [s, videos] = await Promise.all([prisma.strategic_sectors.findFirst({ where: { id, status: 1 } }), videosDeSectores()]);
     if (!s) throw new NotFoundException(`Sector ${id} no encontrado`);
     let serviciosLista: string[] = [];
     if (s.servicios_lista) {
@@ -115,6 +117,7 @@ export class ContentService {
       // 2026-10-23), así cubre también lo guardado antes.
       description: sanitizeRichHtml(s.description),
       image: imageUrl(s.image),
+      video: imageUrl(videos[String(id)] ?? null),
       trayectoria: sanitizeRichHtml(s.trayectoria),
       esencia: sanitizeRichHtml(s.esencia),
       servicios: sanitizeRichHtml(s.servicios),

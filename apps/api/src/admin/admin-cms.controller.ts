@@ -1,6 +1,6 @@
 import {
   BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, UploadedFile, UseGuards, UseInterceptors,
+  ParseIntPipe, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ICON_TYPES, mediaStorage, videoStorage } from '../common/media-multer';
@@ -13,8 +13,9 @@ import { sanitizeRichHtml } from '../common/sanitize';
 import { zTelefono } from '../common/campos';
 import { prisma } from '@maqserv/db';
 import { productSlug, themeTokensSchema } from '@maqserv/config';
-import { AdminGuard, Modulo } from './admin-auth';
+import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { imageUrl, normLegacyText } from '../catalog/images';
+import { ponerVideoDeSector, videosDeSectores } from '../content/videos-sectores';
 
 const photoStorage = mediaStorage();
 /** "https://media…/uploads/x.mp4" → "uploads/x.mp4" (lo que entiende borrarSubidas). */
@@ -389,18 +390,19 @@ export class AdminCmsController {
 
   @Get('sectors')
   async sectors() {
-    const rows = await prisma.strategic_sectors.findMany({ orderBy: { id: 'asc' } });
+    const [rows, videos] = await Promise.all([prisma.strategic_sectors.findMany({ orderBy: { id: 'asc' } }), videosDeSectores()]);
     return rows.map((s) => ({
       id: Number(s.id),
       title: s.title,
       status: s.status,
       image: imageUrl(s.image),
+      video: imageUrl(videos[String(s.id)] ?? null),
     }));
   }
 
   @Get('sectors/:id')
   async sectorById(@Param('id', ParseIntPipe) id: number) {
-    const s = await prisma.strategic_sectors.findUnique({ where: { id } });
+    const [s, videos] = await Promise.all([prisma.strategic_sectors.findUnique({ where: { id } }), videosDeSectores()]);
     if (!s) throw new NotFoundException();
     return {
       id: Number(s.id),
@@ -413,6 +415,7 @@ export class AdminCmsController {
       serviciosLista: s.servicios_lista,
       status: s.status,
       image: imageUrl(s.image),
+      video: imageUrl(videos[String(id)] ?? null),
     };
   }
 
@@ -465,9 +468,41 @@ export class AdminCmsController {
     return { ok: true };
   }
 
+  /**
+   * Video en bucle de la tarjeta del sector (2026-11-16): va en lugar de la
+   * imagen, que queda de portada. Aparte del PATCH, como en las categorías,
+   * para que un archivo de varios MB no viaje al corregir un texto. Se aplica
+   * al instante y el anterior se borra del disco.
+   */
+  @Post('sectors/:id/video')
+  @UseInterceptors(FileInterceptor('video', { storage: videoStorage(), limits: { fileSize: 30 * 1024 * 1024 } }))
+  async uploadSectorVideo(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest, @UploadedFile() video?: Express.Multer.File) {
+    if (!video) throw new BadRequestException('Falta el video');
+    const ruta = `uploads/${video.filename}`;
+    const existe = await prisma.strategic_sectors.findUnique({ where: { id }, select: { id: true } });
+    if (!existe) {
+      await borrarSubidas([ruta]);
+      throw new NotFoundException();
+    }
+    const anterior = await ponerVideoDeSector(id, ruta, req.adminEmail);
+    if (anterior) void borrarSubidas([anterior]);
+    await revalidarSitio();
+    return { ok: true, video: imageUrl(ruta) };
+  }
+
+  @Delete('sectors/:id/video')
+  async deleteSectorVideo(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
+    const anterior = await ponerVideoDeSector(id, null, req.adminEmail);
+    if (anterior) void borrarSubidas([anterior]);
+    await revalidarSitio();
+    return { ok: true };
+  }
+
   @Delete('sectors/:id')
-  async deleteSector(@Param('id', ParseIntPipe) id: number) {
+  async deleteSector(@Param('id', ParseIntPipe) id: number, @Req() req: AdminRequest) {
     await prisma.strategic_sectors.delete({ where: { id } });
+    const video = await ponerVideoDeSector(id, null, req.adminEmail).catch(() => null);
+    if (video) void borrarSubidas([video]);
     return { ok: true };
   }
 

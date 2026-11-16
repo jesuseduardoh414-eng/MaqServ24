@@ -1,20 +1,48 @@
 'use client';
 
 import { Modal } from '@/components/Modal';
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Sectors, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
-import { Btn, EmptyState, IconBtn, Note, PageHeader, Panel, Segmented, StatusText, Thumb, Toast } from '@/components/ui';
+import { Bar, Btn, EmptyState, IconBtn, Note, PageHeader, Panel, Segmented, StatusText, Thumb, Toast } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
 
 type Copys = Record<string, Record<string, string>>;
-interface SectorRow { id: number; title: string; status: number; image: string | null }
+interface SectorRow { id: number; title: string; status: number; image: string | null; video?: string | null }
 interface SectorFull {
   id: number; title: string; description: string | null;
   trayectoria: string | null; esencia: string | null; servicios: string | null; excelencia: string | null; serviciosLista: string | null;
   status: number; image: string | null;
+  /** Video en bucle de la tarjeta; si hay, va en lugar de la imagen. */
+  video: string | null;
+}
+
+/** Igual que el tope de `POST admin/cms/sectors/:id/video` en la API. */
+const VIDEO_MAX_MB = 30;
+
+/**
+ * Sube el video con XHR y no con fetch: fetch no informa el avance de la
+ * subida, y 20 MB por el celular sin barra parecen colgados.
+ */
+function subirVideo(id: number, archivo: File, onAvance: (pct: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/admin/cms/sectors/${id}/video`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onAvance(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let d: { message?: string; video?: string } | null = null;
+      try { d = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300 && d?.video) resolve(d.video);
+      else if (xhr.status === 413) reject(new Error(`El video pesa más de ${VIDEO_MAX_MB} MB`));
+      else reject(new Error(d?.message ?? 'No se pudo subir el video'));
+    };
+    xhr.onerror = () => reject(new Error('Se cortó la conexión al subir el video'));
+    const fd = new FormData();
+    fd.append('video', archivo);
+    xhr.send(fd);
+  });
 }
 
 const SEC_DEFAULTS: Sectors = { show: true, limit: 4, cardHeight: 340, eyebrowColor: null, titleColor: null, ctaColor: null };
@@ -81,7 +109,7 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
         title="Sección 6 · Sectores estratégicos"
-        subtitle={<>La banda «Sectores estratégicos» del home: tarjetas overlay con imagen. Aquí defines los textos y el estilo (arriba), y gestionas los <b>sectores</b> (pestaña Sectores).</>}
+        subtitle={<>La banda «Sectores estratégicos» del home: tarjetas overlay con imagen o video. Aquí defines los textos y el estilo (arriba), y gestionas los <b>sectores</b> (pestaña Sectores).</>}
         actions={
           <>
             <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
@@ -203,7 +231,7 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
       <Modal
         abierto={nuevoAbierto}
         titulo="Nuevo sector"
-        subtitulo="Crea el sector y luego edita sus datos e imagen. Se aplica al instante."
+        subtitulo="Crea el sector y luego edita sus datos, imagen o video. Se aplica al instante."
         onCerrar={() => setNuevoAbierto(false)}
         ancho={560}
         pie={
@@ -236,7 +264,10 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
               <Thumb src={sec.image} size={44} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="adm-cell-title adm-ellipsis">{sec.title}</div>
-                <div style={{ marginTop: 2 }}><StatusText tone={sec.status === 1 ? 'ok' : 'muted'}>{sec.status === 1 ? 'Visible' : 'Oculto'}</StatusText></div>
+                <div style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <StatusText tone={sec.status === 1 ? 'ok' : 'muted'}>{sec.status === 1 ? 'Visible' : 'Oculto'}</StatusText>
+                  {sec.video ? <span className="adm-cell-sub" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><i className="ph ph-video-camera" /> Con video</span> : null}
+                </div>
               </div>
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 <IconBtn icon="ph-pencil-simple" label="Editar" onClick={() => setEditing(sec.id)} />
@@ -265,6 +296,12 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
   const [preview, setPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const router = useRouter();
+  const [video, setVideo] = useState<string | null>(null);
+  /** Avance de la subida del video (0–100), o null si no se está subiendo. */
+  const [subiendo, setSubiendo] = useState<number | null>(null);
+  const [avisoVideo, setAvisoVideo] = useState<string | null>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let alive = true;
@@ -277,12 +314,37 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
         setTitle(d.title ?? ''); setDescription(d.description ?? '');
         setTrayectoria(d.trayectoria ?? ''); setEsencia(d.esencia ?? ''); setServicios(d.servicios ?? '');
         setExcelencia(d.excelencia ?? ''); setServiciosLista(d.serviciosLista ?? ''); setPreview(d.image);
+        setVideo(d.video ?? null);
       })
       .catch(() => alive && setLoadErr(true));
     return () => { alive = false; };
   }, [id]);
 
   function pick(f: File) { if (f.type.startsWith('image/')) { setFile(f); setPreview(URL.createObjectURL(f)); } }
+
+  /** El video se guarda al elegirlo (no espera a «Guardar sector»): es la parte lenta. */
+  async function elegirVideo(archivo: File | null) {
+    if (videoRef.current) videoRef.current.value = '';
+    if (!archivo) return;
+    setErr(null); setAvisoVideo(null);
+    if (archivo.size > VIDEO_MAX_MB * 1024 * 1024) { setErr(`El video pesa más de ${VIDEO_MAX_MB} MB`); return; }
+    setSubiendo(0);
+    try {
+      const url = await subirVideo(id, archivo, setSubiendo);
+      setVideo(url);
+      setAvisoVideo('Video guardado: ya se ve en el sitio.');
+      router.refresh();
+    } catch (e) { setErr((e as Error).message); } finally { setSubiendo(null); }
+  }
+
+  async function quitarVideo() {
+    setErr(null); setAvisoVideo(null);
+    const r = await fetch(`/api/admin/cms/sectors/${id}/video`, { method: 'DELETE' });
+    if (!r.ok) { setErr('No se pudo quitar el video'); return; }
+    setVideo(null);
+    setAvisoVideo('Video quitado: se vuelve a ver la imagen.');
+    router.refresh();
+  }
   async function save() {
     if (title.trim().length < 2) { setErr('El título es obligatorio'); return; }
     setSaving(true); setErr(null);
@@ -313,23 +375,51 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
             <h3 style={h3Style}>Editar sector</h3>
-            <Btn size="sm" variant="ghost" onClick={onClose}>Cerrar</Btn>
+            <Btn size="sm" variant="ghost" onClick={onClose} disabled={subiendo !== null}>Cerrar</Btn>
           </div>
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
-            <label
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) pick(f); }}
-              style={{ position: 'relative', width: 150, height: 100, flexShrink: 0, border: '1.5px dashed var(--adm-border-strong)', borderRadius: 12, background: preview ? 'var(--adm-page)' : D.inputBg, cursor: 'pointer', overflow: 'hidden', display: 'grid', placeItems: 'center' }}
-            >
-              {preview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : <span style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 12.5 }}><i className="ph ph-image" style={{ fontSize: 20, display: 'block', marginBottom: 4 }} />Imagen</span>}
-              <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); e.target.value = ''; }} style={{ display: 'none' }} />
-            </label>
+            <div style={{ display: 'grid', gap: 10, alignContent: 'start', flexShrink: 0 }}>
+              <label
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) pick(f); }}
+                style={{ position: 'relative', width: 150, height: 100, flexShrink: 0, border: '1.5px dashed var(--adm-border-strong)', borderRadius: 12, background: preview ? 'var(--adm-page)' : D.inputBg, cursor: 'pointer', overflow: 'hidden', display: 'grid', placeItems: 'center' }}
+              >
+                {preview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : <span style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 12.5 }}><i className="ph ph-image" style={{ fontSize: 20, display: 'block', marginBottom: 4 }} />Imagen</span>}
+                <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); e.target.value = ''; }} style={{ display: 'none' }} />
+              </label>
+              {/* Video (opcional): va en lugar de la imagen en la tarjeta y en la página del sector. */}
+              <label
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); if (subiendo === null) void elegirVideo(e.dataTransfer.files?.[0] ?? null); }}
+                style={{ position: 'relative', width: 150, height: 100, flexShrink: 0, border: '1.5px dashed var(--adm-border-strong)', borderRadius: 12, background: video ? '#000' : D.inputBg, cursor: subiendo === null ? 'pointer' : 'progress', overflow: 'hidden', display: 'grid', placeItems: 'center' }}
+              >
+                {video ? (
+                  <video src={video} poster={preview ?? undefined} muted loop autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : subiendo === null ? (
+                  <span style={{ textAlign: 'center', color: 'var(--adm-muted)', fontSize: 12.5 }}><i className="ph ph-video-camera" style={{ fontSize: 20, display: 'block', marginBottom: 4 }} />Video (opcional)</span>
+                ) : null}
+                {subiendo !== null ? (
+                  <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', alignContent: 'center', gap: 8, background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 12.5 }}>
+                    Subiendo… {subiendo}%
+                    <Bar pct={subiendo} width={110} />
+                  </span>
+                ) : null}
+                <input ref={videoRef} type="file" accept="video/mp4,video/webm" disabled={subiendo !== null} onChange={(e) => void elegirVideo(e.target.files?.[0] ?? null)} style={{ display: 'none' }} />
+              </label>
+              {video && subiendo === null ? (
+                <Btn size="sm" variant="ghost" icon="ph-trash" onClick={quitarVideo}>Quitar video</Btn>
+              ) : null}
+            </div>
             <div style={{ flex: 1, minWidth: 220, display: 'grid', gap: 12 }}>
               <Field label="Título"><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre del sector" style={inputStyle} /></Field>
               {areaField('Descripción (tarjeta del home y encabezado de la página)', description, setDescription, 3, 'Descripción breve…')}
+              <span className="adm-help">
+                Si subes video, se ve en lugar de la imagen: en bucle y sin sonido, y la imagen queda de portada mientras carga. Se recorta para llenar la tarjeta. MP4 o WebM, hasta {VIDEO_MAX_MB} MB; mejor de 5 a 15 s y menos de 10 MB. El video se guarda al elegirlo.
+              </span>
+              {avisoVideo ? <span style={{ fontSize: 12.5, color: 'var(--adm-ok)' }}>{avisoVideo}</span> : null}
             </div>
           </div>
 
@@ -346,8 +436,8 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
 
           {err ? <span style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>{err}</span> : null}
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn icon="ph-check" onClick={save} disabled={saving || busy}>{saving ? 'Guardando…' : 'Guardar sector'}</Btn>
-            <Btn variant="ghost" onClick={onClose} disabled={saving}>Cancelar</Btn>
+            <Btn icon="ph-check" onClick={save} disabled={saving || busy || subiendo !== null}>{saving ? 'Guardando…' : 'Guardar sector'}</Btn>
+            <Btn variant="ghost" onClick={onClose} disabled={saving || subiendo !== null}>Cancelar</Btn>
           </div>
         </>
       )}

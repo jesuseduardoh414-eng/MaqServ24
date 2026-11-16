@@ -10,6 +10,7 @@ import { getTheme, t } from '@/lib/theme';
 import { getSector, rutaCatalogo } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { Icon } from '@/components/Icon';
+import { VideoCategoria } from '@/components/VideoCategoria';
 
 type Params = { slug: string };
 
@@ -96,7 +97,9 @@ export default async function SectorPage({ params }: { params: Promise<Params> }
       <div className="ms-page">
         {/* ===== ENCABEZADO (foto a sangre + degradado) ===== */}
         <section className="sc-hero">
-          {sector.image ? (
+          {sector.video ? (
+            <VideoCategoria src={sector.video} poster={sector.image} />
+          ) : sector.image ? (
             <Image src={sector.image} alt={sector.title} fill priority sizes="100vw" style={{ objectFit: 'cover' }} />
           ) : (
             <span className="ph" aria-hidden style={{ position: 'absolute', inset: 0, opacity: 0.5 }} />

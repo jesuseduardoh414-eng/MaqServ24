@@ -6,7 +6,7 @@ import { SectorsEditor } from './SectorsEditor';
 
 interface ThemeRow { id: number; active: boolean }
 interface ThemeDetail { id: number; copys: Record<string, Record<string, string>>; tokens: unknown }
-interface SectorRow { id: number; title: string; status: number; image: string | null }
+interface SectorRow { id: number; title: string; status: number; image: string | null; video: string | null }
 
 /** Sección 6 · Sectores estratégicos: presentación de la banda del home + gestión de sectores. */
 export default async function SectorsDesignPage() {

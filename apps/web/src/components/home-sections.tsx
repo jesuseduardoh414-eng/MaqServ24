@@ -593,7 +593,10 @@ export async function SectorsSection({ theme }: { theme: Theme }) {
               className="lift"
               style={{ position: 'relative', height: cardH, borderRadius: CARD_RADIUS, overflow: 'hidden', border: '1px solid var(--color-border)', textDecoration: 'none', display: 'block' }}
             >
-              {s.image ? (
+              {/* Video en bucle si el sector tiene (la foto queda de portada); si no, la foto. */}
+              {s.video ? (
+                <VideoCategoria src={s.video} poster={s.image} className="zoom" />
+              ) : s.image ? (
                 <Image src={s.image} alt={s.title} fill sizes="(max-width:640px) 100vw, 25vw" className="zoom" style={{ objectFit: 'cover' }} />
               ) : (
                 <span className="ph zoom" style={{ position: 'absolute', inset: 0 }} />
