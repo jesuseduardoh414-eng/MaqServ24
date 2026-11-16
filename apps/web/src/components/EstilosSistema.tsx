@@ -31,7 +31,7 @@ const CSS = `
 /* Encabezado de página (pantallas de trabajo: cuenta, carrito, pedido…) */
 .ms-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:28px; }
 .ms-head-txt{ min-width:0; }
-.ms-kicker{ margin:0 0 8px; font-size:13px; font-weight:600; color:var(--color-primary); }
+.ms-kicker{ margin:0 0 12px; font-size:13px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--color-primary); }
 .ms-title{ margin:0; font-family:var(--font-display); font-size:30px; font-weight:700; letter-spacing:-.025em; line-height:1.15; text-wrap:balance; }
 .ms-desc{ margin:8px 0 0; font-size:14.5px; line-height:1.55; color:var(--color-text-muted); max-width:62ch; text-wrap:pretty; }
 

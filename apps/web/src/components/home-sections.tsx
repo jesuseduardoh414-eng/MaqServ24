@@ -37,8 +37,13 @@ const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', paddi
  * Título de sección del home (sistema de diseño 2026-09-30): tipo oración,
  * sin MAYÚSCULAS forzadas, hasta 34 px. Solo el hero lleva un titular grande.
  */
-const H2: React.CSSProperties = { fontFamily: 'var(--font-display)', fontSize: 'clamp(26px, 3.2vw, 34px)', fontWeight: 700, letterSpacing: '-.015em', lineHeight: 1.15, margin: 0, textWrap: 'balance' };
-const SUB: React.CSSProperties = { color: 'var(--color-text-muted)', fontSize: '15.5px', lineHeight: 1.6, margin: 0, textWrap: 'pretty' };
+/**
+ * Rediseño 2026-11-16 (parte 2, el estilo de «¿Por qué MAQSER24?» que mandó el
+ * dueño): titular grande y grueso, etiqueta en MAYÚSCULAS espaciadas (`.ms-kicker`)
+ * y subtítulo más legible.
+ */
+const H2: React.CSSProperties = { fontFamily: 'var(--font-display)', fontSize: 'clamp(30px, 3.6vw, 46px)', fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1.06, margin: 0, textWrap: 'balance' };
+const SUB: React.CSSProperties = { color: 'color-mix(in srgb, var(--color-text) 82%, transparent)', fontSize: 'clamp(15.5px, 1.25vw, 18px)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' };
 const CARD_RADIUS = 12;
 
 /** Encabezado centrado (kicker + título + subtítulo opcional). */
@@ -47,7 +52,7 @@ function CenterHead({ eyebrow, title, subtitle, eyebrowColor, titleColor }: { ey
     <div style={{ textAlign: 'center', display: 'grid', justifyItems: 'center' }}>
       <Eyebrow color={eyebrowColor}>{eyebrow}</Eyebrow>
       <h2 style={{ ...H2, maxWidth: '24ch', ...(titleColor ? { color: titleColor } : {}) }}>{title}</h2>
-      {subtitle ? <p style={{ ...SUB, maxWidth: 560, marginTop: 10 }}>{subtitle}</p> : null}
+      {subtitle ? <p style={{ ...SUB, maxWidth: 620, marginTop: 14 }}>{subtitle}</p> : null}
     </div>
   );
 }
