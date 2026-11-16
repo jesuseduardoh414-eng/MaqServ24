@@ -516,21 +516,23 @@ export const defaultTheme: Theme = {
       'home.sectors.eyebrow': 'Industrias que servimos',
       'home.sectors.title': 'Sectores estratégicos',
       'home.sectors.cta': 'Explorar equipos',
-      'home.whyChooseUs.eyebrow': 'Posicionamiento',
-      // 02 / POSICIONAMIENTO del manual, textual.
-      'home.whyChooseUs.title': 'No somos una rentadora digital.',
+      'home.whyChooseUs.eyebrow': '¿Por qué MAQSER24?',
+      // 2026-11-16: el diseño y los textos que mandó el dueño («¿Por qué MAQSER24?»).
+      'home.whyChooseUs.title': 'Tu obra necesita soluciones, no más llamadas.',
       'home.whyChooseUs.subtitle':
-        'Somos la infraestructura digital que conecta maquinaria y servicios de construcción con proyectos que necesitan respuesta rápida, trazabilidad y confianza.',
+        'Conectamos maquinaria, materiales y servicios de construcción en un solo lugar, para ayudarte a resolver tu proyecto con rapidez, claridad y seguimiento.',
       // Mismo caso que el hero: "12+ años", "500+ equipos", "5,000+ proyectos"
       // y "98% clientes satisfechos" no correspondían a ningún dato real.
       'home.whyChooseUs.years.num': '6',
       'home.whyChooseUs.years.label': 'Categorías de servicio',
       'home.whyChooseUs.stat1.num': 'Red',
-      'home.whyChooseUs.stat1.label': 'Capacidad propia y de aliados',
+      'home.whyChooseUs.stat1.label': 'Capacidad propia y proveedores aliados',
       'home.whyChooseUs.stat2.num': 'MTY',
-      'home.whyChooseUs.stat2.label': 'Monterrey y zona metro',
+      'home.whyChooseUs.stat2.label': 'Monterrey y zona metropolitana',
       'home.whyChooseUs.stat3.num': '',
       'home.whyChooseUs.stat3.label': '',
+      // Frase al pie de la sección, después de una línea (2026-11-16).
+      'home.whyChooseUs.tagline': 'Conectamos la capacidad que mueve la construcción.',
       // Promoción vigente (2026-10-05, pedida por el cliente).
       'home.offer.badge': 'Oferta de temporada',
       'home.offer.title': 'Flete gratis al rentar 1 mes',

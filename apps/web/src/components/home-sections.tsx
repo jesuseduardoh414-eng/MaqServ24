@@ -477,101 +477,136 @@ export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; raz
     // `t()` devuelve la propia clave cuando el copy no existe; eso también es
     // "vacío" y no debe acabar impreso en la página.
     .filter((s) => s.num.trim() && !s.num.startsWith('home.whyChooseUs.'));
+  const tagline = t(theme, 'home.whyChooseUs.tagline');
+  const marca = t(theme, 'site.name');
   return (
-    <section style={{ ...CONTAINER, paddingTop: 88, paddingBottom: 88 }}>
-      {/* `minmax(300px,…)` mantenía 2 columnas hasta muy abajo: en tablet daba
-          dos columnas de ~356px y el texto (4 razones + 3 cifras) no respiraba.
-          `.why-grid` lo apila a partir de 900px. */}
-      <div className="why-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 56, alignItems: 'center' }}>
-        <div style={{ position: 'relative', minHeight: 420 }} className="why-visual">
-          <div style={{ position: 'absolute', inset: 0, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--color-border)', background: 'var(--surface-2)' }}>
-            {/* Video en bucle si hay (2026-11-16), con la imagen de portada; si no, la imagen. */}
-            {cfg?.video ? (
-              <VideoCategoria src={cfg.video} poster={image} boton />
-            ) : image ? (
-              <Image src={image} alt={t(theme, 'home.whyChooseUs.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
-            ) : (
-              <span className="ph" style={{ position: 'absolute', inset: 0 }} />
-            )}
-          </div>
-          {cfg?.showYearsBadge !== false ? (
-            // `right: -18` la saca del marco a propósito (diseño). En móvil eso
-            // la dejaba fuera de la pantalla: `.why-badge` la mete al borde.
-            <div className="why-badge" style={{ position: 'absolute', right: -18, top: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '16px 20px', boxShadow: 'var(--shadow)' }}>
-              <CountUp value={t(theme, 'home.whyChooseUs.years.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '30px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
-              <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.whyChooseUs.years.label')}</div>
+    // «¿POR QUÉ MAQSER24?» (2026-11-16, diseño que mandó el dueño): banda con
+    // fondo degradado y trazos de luz en las esquinas, titular grande, razones
+    // con casilla marcada, cifras en tarjetas con borde y una frase al pie.
+    <section className="pq-banda">
+      <style>{PQ_CSS}</style>
+      <svg aria-hidden className="pq-trazo pq-trazo-a" viewBox="0 0 520 90" preserveAspectRatio="none">
+        <polygon points="0,0 64,64 520,64 520,0" className="pq-trazo-panel" />
+        <polyline points="0,0 64,64 520,64" className="pq-trazo-linea" />
+      </svg>
+      <svg aria-hidden className="pq-trazo pq-trazo-b" viewBox="0 0 520 90" preserveAspectRatio="none">
+        <polygon points="0,90 64,26 520,26 520,90" className="pq-trazo-panel" />
+        <polyline points="0,90 64,26 520,26" className="pq-trazo-linea" />
+      </svg>
+      <div style={{ ...CONTAINER, paddingTop: 96, paddingBottom: 96, position: 'relative' }}>
+        {/* `minmax(300px,…)` mantenía 2 columnas hasta muy abajo: en tablet daba
+            dos columnas de ~356px y el texto (4 razones + 2 cifras) no respiraba.
+            `.why-grid` lo apila a partir de 900px. */}
+        <div className="why-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, .82fr) minmax(0, 1.18fr)', gap: 'clamp(36px, 4vw, 64px)', alignItems: 'center' }}>
+          <div style={{ position: 'relative', minHeight: 'clamp(420px, 40vw, 600px)' }} className="why-visual">
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 16, overflow: 'hidden', border: '1px solid var(--color-border)', background: 'var(--surface-2)' }}>
+              {/* Video en bucle si hay (2026-11-16), con la imagen de portada; si no, la imagen. */}
+              {cfg?.video ? (
+                <VideoCategoria src={cfg.video} poster={image} boton />
+              ) : image ? (
+                <Image src={image} alt={t(theme, 'home.whyChooseUs.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
+              ) : (
+                <span className="ph" style={{ position: 'absolute', inset: 0 }} />
+              )}
             </div>
-          ) : null}
-        </div>
-
-        <div style={{ minWidth: 0 }}>
-          <Eyebrow color={cfg?.eyebrowColor ?? undefined}>{t(theme, 'home.whyChooseUs.eyebrow')}</Eyebrow>
-          <h2 style={{ ...H2, ...(cfg?.titleColor ? { color: cfg.titleColor } : {}) }}>{t(theme, 'home.whyChooseUs.title')}</h2>
-          <p style={{ ...SUB, maxWidth: 480, margin: '12px 0 28px' }}>
-            {t(theme, 'home.whyChooseUs.subtitle')}
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '20px 28px', marginBottom: 30 }}>
-            {items.map((w) => (
-              <div key={w.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 0 }}>
-                <span className="ms-ico" aria-hidden style={{ width: 32, height: 32, borderRadius: 8, color: accent }}>
-                  <Icon name="check" size={16} />
-                </span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '15.5px', marginBottom: 4, color: 'var(--color-text)' }}>{w.title}</div>
-                  <div style={{ color: 'var(--color-text-muted)', fontSize: '14px', lineHeight: 1.55 }}>{w.description}</div>
-                </div>
+            {cfg?.showYearsBadge !== false ? (
+              // `right: -18` la saca del marco a propósito (diseño). En móvil eso
+              // la dejaba fuera de la pantalla: `.why-badge` la mete al borde.
+              <div className="why-badge" style={{ position: 'absolute', right: -18, top: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '16px 20px', boxShadow: 'var(--shadow)' }}>
+                <CountUp value={t(theme, 'home.whyChooseUs.years.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '30px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
+                <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.whyChooseUs.years.label')}</div>
               </div>
-            ))}
+            ) : null}
           </div>
-          {cfg?.showStats !== false && stats.length > 0 ? (
-            /*
-              Cada cifra es su propia tarjeta, no una franja partida en tres.
-              Dos motivos:
 
-              1. EL MANUAL. El azul eléctrico significa ACCIÓN y datos, y no
-                 rellena superficies (11-12 / COLOR FUNCIONAL). La banda entera
-                 en azul con letra negra era justo lo contrario: el color como
-                 fondo y el dato apagado encima. Ahora manda la superficie
-                 oscura y el azul se queda en la cifra, que es el dato.
-              2. Con tarjetas sueltas, la rejilla puede envolver a una o dos
-                 columnas sin que queden bordes internos colgando ni celdas a
-                 medias — que era lo que obligaba a la media query a
-                 estirar la primera a todo el ancho.
-
-              `statsBg`/`statsFg` siguen mandando si el cliente los configura
-              desde Diseño → Sección 4; esto solo cambia a qué caen por defecto.
-            */
-            <div
-              className="why-stats"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(auto-fit, minmax(${stats.length > 1 ? '150px' : '100%'}, 1fr))`,
-                gap: 12,
-              }}
-            >
-              {stats.map((s) => (
-                <div
-                  key={s.label || s.num}
-                  style={{
-                    padding: '20px 16px',
-                    textAlign: 'center',
-                    background: statsBg,
-                    color: statsFg,
-                    border: '1px solid var(--color-border)',
-                    borderRadius: CARD_RADIUS,
-                  }}
-                >
-                  <CountUp value={s.num} style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '28px', display: 'block', color: numColor, letterSpacing: '-.025em', lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }} />
-                  {s.label ? <div style={{ fontSize: '13px', marginTop: 4, lineHeight: 1.4 }}>{s.label}</div> : null}
+          <div style={{ minWidth: 0 }}>
+            <p className="pq-eyebrow" style={cfg?.eyebrowColor ? { color: cfg.eyebrowColor } : undefined}>{t(theme, 'home.whyChooseUs.eyebrow')}</p>
+            <h2 className="pq-titulo" style={cfg?.titleColor ? { color: cfg.titleColor } : undefined}>{t(theme, 'home.whyChooseUs.title')}</h2>
+            <p className="pq-sub">{t(theme, 'home.whyChooseUs.subtitle')}</p>
+            <div className="pq-razones">
+              {items.map((w) => (
+                <div key={w.id} className="pq-razon">
+                  <span className="pq-check" aria-hidden style={{ color: accent }}>
+                    <Icon name="check" size={18} />
+                  </span>
+                  <div style={{ minWidth: 0 }}>
+                    <h3 className="pq-razon-t">{w.title}</h3>
+                    <p className="pq-razon-d">{w.description}</p>
+                  </div>
                 </div>
               ))}
             </div>
-          ) : null}
+            {cfg?.showStats !== false && stats.length > 0 ? (
+              // Cada cifra es su propia tarjeta con borde; el azul queda en la
+              // cifra, que es el dato. `statsBg`/`statsFg` siguen mandando si el
+              // cliente los configura en Diseño → Quiénes somos.
+              <div className="pq-cifras">
+                {stats.map((s) => (
+                  <div key={s.label || s.num} className="pq-cifra" style={cfg?.statsBg ? { background: statsBg, color: statsFg } : undefined}>
+                    <CountUp value={s.num} style={cfg?.statsBg ? { ...CIFRA, color: numColor, background: 'none', WebkitTextFillColor: 'currentColor' } : CIFRA} />
+                    {s.label ? <div className="pq-cifra-l">{s.label}</div> : null}
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {tagline.trim() && tagline !== 'home.whyChooseUs.tagline' ? (
+              <p className="pq-pie"><b>{marca}</b> · {tagline}</p>
+            ) : null}
+          </div>
         </div>
       </div>
     </section>
   );
 }
+
+/** La cifra («Red», «MTY»): grande y en azul con un brillo de arriba abajo, como el diseño. */
+const CIFRA: React.CSSProperties = {
+  display: 'block',
+  fontFamily: 'var(--font-display)',
+  fontWeight: 800,
+  fontSize: 'clamp(40px, 4vw, 56px)',
+  lineHeight: 1,
+  letterSpacing: '-.03em',
+  fontVariantNumeric: 'tabular-nums',
+  background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 55%, #fff), var(--color-primary) 70%)',
+  WebkitBackgroundClip: 'text',
+  backgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  color: 'var(--color-primary)',
+};
+
+const PQ_CSS = `
+.pq-banda{ position:relative; overflow:hidden; border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border);
+  background:
+    radial-gradient(900px 420px at 92% -8%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 62%),
+    radial-gradient(700px 360px at 4% 108%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 75%, var(--color-bg)), var(--color-bg)); }
+.pq-trazo{ position:absolute; right:0; width:min(520px, 46vw); height:90px; pointer-events:none; overflow:visible; }
+.pq-trazo-a{ top:0; }
+.pq-trazo-b{ bottom:0; }
+.pq-trazo-panel{ fill: color-mix(in srgb, var(--color-text) 3.5%, transparent); }
+.pq-trazo-linea{ fill:none; stroke: var(--color-primary); stroke-width:1.6; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 6px var(--color-primary)); }
+.pq-eyebrow{ margin:0 0 14px; font-size:14px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color: var(--color-primary); }
+.pq-titulo{ margin:0; font-family: var(--font-display); font-weight:800; font-size: clamp(32px, 4.1vw, 54px); line-height:1.04; letter-spacing:-.03em; color: var(--color-text); text-wrap: balance; }
+.pq-sub{ margin:18px 0 36px; max-width: 640px; font-size: clamp(16px, 1.35vw, 19.5px); line-height:1.5; color: color-mix(in srgb, var(--color-text) 84%, transparent); text-wrap: pretty; }
+.pq-razones{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 40px; margin-bottom: 38px; }
+.pq-razon{ display:flex; gap:16px; align-items:flex-start; min-width:0; }
+.pq-check{ flex-shrink:0; width:38px; height:38px; border-radius:9px; border:2px solid currentColor; display:grid; place-items:center;
+  background: color-mix(in srgb, currentColor 12%, transparent); box-shadow: 0 0 18px color-mix(in srgb, currentColor 22%, transparent); }
+.pq-check svg{ stroke-width: 2.6; }
+.pq-razon-t{ margin:3px 0 7px; font-family: var(--font-display); font-size: 18.5px; font-weight: 800; line-height:1.25; letter-spacing:-.01em; color: var(--color-text); }
+.pq-razon-d{ margin:0; font-size:15.5px; line-height:1.5; color: color-mix(in srgb, var(--color-text) 80%, transparent); }
+.pq-cifras{ display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap:16px; }
+.pq-cifra{ text-align:center; padding: 26px 18px; border-radius: 16px; border: 1.5px solid color-mix(in srgb, var(--color-text) 32%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-text) 4.5%, transparent), color-mix(in srgb, var(--color-text) 1.5%, transparent)); }
+.pq-cifra-l{ margin-top:10px; font-size:15.5px; line-height:1.4; color: color-mix(in srgb, var(--color-text) 90%, transparent); }
+.pq-pie{ margin: 36px 0 0; padding-top: 22px; border-top: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent); font-size: 15.5px; color: color-mix(in srgb, var(--color-text) 86%, transparent); }
+.pq-pie b{ font-family: var(--font-display); font-weight: 800; letter-spacing: .06em; color: var(--color-text); margin-right: 4px; }
+@media (max-width: 640px){
+  .pq-razones{ grid-template-columns: 1fr; gap: 22px; }
+  .pq-trazo{ width: 62vw; height: 60px; }
+}
+`;
 
 /* ======================= SECTORES ESTRATÉGICOS ======================= */
 

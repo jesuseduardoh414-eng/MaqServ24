@@ -48,6 +48,8 @@ const WCU_DEFAULTS: WhyChooseUs = {
 interface Stat { num: string; label: string }
 interface Config {
   eyebrow: string; title: string; subtitle: string;
+  /** Frase al pie de la sección (2026-11-16). */
+  tagline: string;
   yearsNum: string; yearsLabel: string;
   stats: [Stat, Stat, Stat];
   wcu: WhyChooseUs;
@@ -71,6 +73,7 @@ function copysDeBanda(c: Config): Record<string, string> {
     'home.whyChooseUs.eyebrow': c.eyebrow,
     'home.whyChooseUs.title': c.title,
     'home.whyChooseUs.subtitle': c.subtitle,
+    'home.whyChooseUs.tagline': c.tagline,
     'home.whyChooseUs.years.num': c.yearsNum,
     'home.whyChooseUs.years.label': c.yearsLabel,
   };
@@ -91,6 +94,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
       eyebrow: cv(es, 'home.whyChooseUs.eyebrow', 'Nuestro compromiso'),
       title: cv(es, 'home.whyChooseUs.title', '¿Por qué elegirnos?'),
       subtitle: cv(es, 'home.whyChooseUs.subtitle', ''),
+      tagline: cv(es, 'home.whyChooseUs.tagline', 'Conectamos la capacidad que mueve la construcción.'),
       yearsNum: cv(es, 'home.whyChooseUs.years.num', '12+'),
       yearsLabel: cv(es, 'home.whyChooseUs.years.label', 'Años de experiencia'),
       stats: [
@@ -245,6 +249,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
                 <Field label="Eyebrow (línea pequeña arriba)"><input value={config.eyebrow} onChange={(e) => set('eyebrow', e.target.value)} placeholder="Nuestro compromiso" style={inputStyle} /></Field>
                 <Field label="Título"><input value={config.title} onChange={(e) => set('title', e.target.value)} placeholder="¿Por qué elegirnos?" style={inputStyle} /></Field>
                 <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={2} placeholder="Más que un proveedor de maquinaria…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+                <Field label="Frase al pie (después de la línea; vacía = no sale)"><input value={config.tagline} onChange={(e) => set('tagline', e.target.value)} placeholder="Conectamos la capacidad que mueve la construcción." style={inputStyle} /></Field>
               </div>
 
               <div style={{ ...cardStyle, display: 'grid', gap: 16 }}>
