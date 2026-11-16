@@ -194,7 +194,7 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
  * borde 1 px, sin sombra; al pasar el cursor solo se aclara el borde.
  */
 const CSS = `
-.pc{ position:relative; display:flex; flex-direction:column; background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; overflow:hidden; min-width:0; transition:border-color .18s ease; }
+.pc{ position:relative; display:flex; flex-direction:column; background:var(--color-surface); border:1px solid color-mix(in srgb, var(--color-text) 18%, var(--color-border)); border-radius:12px; overflow:hidden; min-width:0; transition:border-color .18s ease; }
 .pc:hover{ border-color:color-mix(in srgb, var(--color-text) 30%, var(--color-border)); }
 .pc-media{ position:relative; display:block; height:200px; overflow:hidden; background:${PANEL}; border-bottom:1px solid var(--color-border); }
 .pc-img{ transition:transform .3s ease; }

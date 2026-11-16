@@ -17,6 +17,7 @@ import {
 } from '@/lib/api';
 import { categoryHref, categoryCountLabel } from '@/lib/category-link';
 import { VideoCategoria } from './VideoCategoria';
+import { BandaLuz } from './BandaLuz';
 import { Carousel, Eyebrow } from '@/components/Carousel';
 import { Icon, Stars, type IconName } from '@/components/Icon';
 import { CategoryStrip } from '@/components/CategoryStrip';
@@ -45,6 +46,8 @@ const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', paddi
 const H2: React.CSSProperties = { fontFamily: 'var(--font-display)', fontSize: 'clamp(30px, 3.6vw, 46px)', fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1.06, margin: 0, textWrap: 'balance' };
 const SUB: React.CSSProperties = { color: 'color-mix(in srgb, var(--color-text) 82%, transparent)', fontSize: 'clamp(15.5px, 1.25vw, 18px)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' };
 const CARD_RADIUS = 12;
+/** Borde de las tarjetas del inicio (rediseño parte 3): más visible que el del tema, como las de «Red» y «MTY». */
+const BORDE_TARJETA = '1px solid color-mix(in srgb, var(--color-text) 20%, transparent)';
 
 /** Encabezado centrado (kicker + título + subtítulo opcional). */
 function CenterHead({ eyebrow, title, subtitle, eyebrowColor, titleColor }: { eyebrow: string; title: string; subtitle?: string; eyebrowColor?: string; titleColor?: string }) {
@@ -182,7 +185,7 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
             <VideoCategoria
               src={h.video}
               poster={null}
-              style={{ position: 'relative', inset: 'auto', height: 'auto', maxHeight: 560, objectFit: 'contain', borderRadius: CARD_RADIUS, border: '1px solid var(--color-border)', boxShadow: 'var(--shadow)', background: '#000' }}
+              style={{ position: 'relative', inset: 'auto', height: 'auto', maxHeight: 560, objectFit: 'contain', borderRadius: CARD_RADIUS, border: BORDE_TARJETA, boxShadow: 'var(--shadow)', background: '#000' }}
             />
           ) : (
             /* círculo de acento: SOLO adorno, detrás y más pequeño que la imagen */
@@ -203,11 +206,11 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           {h.showStats ? (
             <>
               {/* Cifras flotantes: tarjeta del sistema (radio 12, borde 1 px), quietas. */}
-              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, left: -12, top: 36, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '14px 18px', boxShadow: 'var(--shadow)' }}>
+              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, left: -12, top: 36, background: 'var(--color-surface)', border: BORDE_TARJETA, borderRadius: CARD_RADIUS, padding: '14px 18px', boxShadow: 'var(--shadow)' }}>
                 <CountUp value={t(theme, 'home.hero.stat1.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '28px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
                 <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.hero.stat1.label')}</div>
               </div>
-              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', border: BORDE_TARJETA, borderRadius: CARD_RADIUS, padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11 }}>
                 <div style={{ color: h.accentColor }}><Stars value={5} size={13} /></div>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--color-text)' }}>{t(theme, 'home.hero.stat2.num')}</div>
@@ -244,7 +247,8 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
   // video perdía casi la mitad de arriba y de abajo.
   const vertical = categories.some((c) => c.video);
   return (
-    <section style={{ ...CONTAINER, paddingTop: 82, paddingBottom: 40 }}>
+    <BandaLuz lado="izquierda">
+    <section style={{ ...CONTAINER, paddingTop: 82, paddingBottom: 72 }}>
       <CategoryStrip
         eyebrow={t(theme, 'home.categories.eyebrow')}
         title={t(theme, 'home.categories.title')}
@@ -262,7 +266,7 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             href={categoryHref(c)}
             data-cat-card
             className="lift cat-card"
-            style={{ scrollSnapAlign: 'start', position: 'relative', display: 'block', ...(vertical ? { aspectRatio: '9 / 16' } : { height: cs.imageHeight }), borderRadius: cs.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)', background: 'var(--surface-2)', border: '1px solid var(--color-border)' }}
+            style={{ scrollSnapAlign: 'start', position: 'relative', display: 'block', ...(vertical ? { aspectRatio: '9 / 16' } : { height: cs.imageHeight }), borderRadius: cs.cardRadius, overflow: 'hidden', textDecoration: 'none', color: 'var(--color-text)', background: 'var(--surface-2)', border: BORDE_TARJETA }}
           >
             {/* Video en bucle si la categoría tiene (la foto queda de portada); si no, imagen a sangre (cover) */}
             {c.video ? (
@@ -287,6 +291,7 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
         ))}
       </CategoryStrip>
     </section>
+    </BandaLuz>
   );
 }
 
@@ -352,7 +357,7 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
               overflow: 'hidden',
               isolation: 'isolate',
               background: vertical ? 'var(--surface-2)' : 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
+              border: BORDE_TARJETA,
             }}
           >
             <div style={vertical ? { position: 'absolute', inset: 0 } : { position: 'relative', aspectRatio: '16 / 9', background: 'var(--surface-2)' }}>
@@ -488,23 +493,16 @@ export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; raz
     // «¿POR QUÉ MAQSER24?» (2026-11-16, diseño que mandó el dueño): banda con
     // fondo degradado y trazos de luz en las esquinas, titular grande, razones
     // con casilla marcada, cifras en tarjetas con borde y una frase al pie.
+    <BandaLuz>
     <section className="pq-banda">
       <style>{PQ_CSS}</style>
-      <svg aria-hidden className="pq-trazo pq-trazo-a" viewBox="0 0 520 90" preserveAspectRatio="none">
-        <polygon points="0,0 64,64 520,64 520,0" className="pq-trazo-panel" />
-        <polyline points="0,0 64,64 520,64" className="pq-trazo-linea" />
-      </svg>
-      <svg aria-hidden className="pq-trazo pq-trazo-b" viewBox="0 0 520 90" preserveAspectRatio="none">
-        <polygon points="0,90 64,26 520,26 520,90" className="pq-trazo-panel" />
-        <polyline points="0,90 64,26 520,26" className="pq-trazo-linea" />
-      </svg>
       <div style={{ ...CONTAINER, paddingTop: 96, paddingBottom: 96, position: 'relative' }}>
         {/* `minmax(300px,…)` mantenía 2 columnas hasta muy abajo: en tablet daba
             dos columnas de ~356px y el texto (4 razones + 2 cifras) no respiraba.
             `.why-grid` lo apila a partir de 900px. */}
         <div className="why-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, .82fr) minmax(0, 1.18fr)', gap: 'clamp(36px, 4vw, 64px)', alignItems: 'center' }}>
           <div style={{ position: 'relative', minHeight: 'clamp(420px, 40vw, 600px)' }} className="why-visual">
-            <div style={{ position: 'absolute', inset: 0, borderRadius: 16, overflow: 'hidden', border: '1px solid var(--color-border)', background: 'var(--surface-2)' }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 16, overflow: 'hidden', border: BORDE_TARJETA, background: 'var(--surface-2)' }}>
               {/* Video en bucle si hay (2026-11-16), con la imagen de portada; si no, la imagen. */}
               {cfg?.video ? (
                 <VideoCategoria src={cfg.video} poster={image} boton />
@@ -517,7 +515,7 @@ export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; raz
             {cfg?.showYearsBadge !== false ? (
               // `right: -18` la saca del marco a propósito (diseño). En móvil eso
               // la dejaba fuera de la pantalla: `.why-badge` la mete al borde.
-              <div className="why-badge" style={{ position: 'absolute', right: -18, top: 44, background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: '16px 20px', boxShadow: 'var(--shadow)' }}>
+              <div className="why-badge" style={{ position: 'absolute', right: -18, top: 44, background: 'var(--color-surface)', border: BORDE_TARJETA, borderRadius: CARD_RADIUS, padding: '16px 20px', boxShadow: 'var(--shadow)' }}>
                 <CountUp value={t(theme, 'home.whyChooseUs.years.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '30px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
                 <div style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.whyChooseUs.years.label')}</div>
               </div>
@@ -561,6 +559,7 @@ export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; raz
         </div>
       </div>
     </section>
+    </BandaLuz>
   );
 }
 
@@ -581,16 +580,6 @@ const CIFRA: React.CSSProperties = {
 };
 
 const PQ_CSS = `
-.pq-banda{ position:relative; overflow:hidden; border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border);
-  background:
-    radial-gradient(900px 420px at 92% -8%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 62%),
-    radial-gradient(700px 360px at 4% 108%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 60%),
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-2) 75%, var(--color-bg)), var(--color-bg)); }
-.pq-trazo{ position:absolute; right:0; width:min(520px, 46vw); height:90px; pointer-events:none; overflow:visible; }
-.pq-trazo-a{ top:0; }
-.pq-trazo-b{ bottom:0; }
-.pq-trazo-panel{ fill: color-mix(in srgb, var(--color-text) 3.5%, transparent); }
-.pq-trazo-linea{ fill:none; stroke: var(--color-primary); stroke-width:1.6; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 6px var(--color-primary)); }
 .pq-eyebrow{ margin:0 0 14px; font-size:14px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color: var(--color-primary); }
 .pq-titulo{ margin:0; font-family: var(--font-display); font-weight:800; font-size: clamp(32px, 4.1vw, 54px); line-height:1.04; letter-spacing:-.03em; color: var(--color-text); text-wrap: balance; }
 .pq-sub{ margin:18px 0 36px; max-width: 640px; font-size: clamp(16px, 1.35vw, 19.5px); line-height:1.5; color: color-mix(in srgb, var(--color-text) 84%, transparent); text-wrap: pretty; }
@@ -609,7 +598,6 @@ const PQ_CSS = `
 .pq-pie b{ font-family: var(--font-display); font-weight: 800; letter-spacing: .06em; color: var(--color-text); margin-right: 4px; }
 @media (max-width: 640px){
   .pq-razones{ grid-template-columns: 1fr; gap: 22px; }
-  .pq-trazo{ width: 62vw; height: 60px; }
 }
 `;
 
@@ -641,7 +629,7 @@ export async function SectorsSection({ theme, borrador }: { theme: Theme; borrad
               key={s.id}
               href={`/sectores/${s.slug}`}
               className="lift"
-              style={{ position: 'relative', height: cardH, borderRadius: CARD_RADIUS, overflow: 'hidden', border: '1px solid var(--color-border)', textDecoration: 'none', display: 'block' }}
+              style={{ position: 'relative', height: cardH, borderRadius: CARD_RADIUS, overflow: 'hidden', border: BORDE_TARJETA, textDecoration: 'none', display: 'block' }}
             >
               {/* Video en bucle si el sector tiene (la foto queda de portada); si no, la foto. */}
               {s.video ? (
@@ -684,7 +672,7 @@ export async function OfferSection({ theme }: { theme: Theme }) {
     <section style={{ ...CONTAINER, paddingTop: 80, paddingBottom: 80 }}>
       {/* Borde gunmetal: en oscuro la banda es negra como la página, y sin él
           la tarjeta perdería su silueta. El gris va aquí, en el elemento. */}
-      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 14, background: bg, border: '1px solid var(--color-border)' }}>
+      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 14, background: bg, border: BORDE_TARJETA }}>
         <div aria-hidden style={{ position: 'absolute', right: '-4%', top: '-30%', width: 440, height: 440, background: `radial-gradient(circle, color-mix(in srgb, ${accent} 24%, transparent), transparent 62%)`, borderRadius: '50%' }} />
         <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 30, alignItems: 'center', padding: 'clamp(24px, 5vw, 48px)' }}>
           <div style={{ minWidth: 0 }}>
@@ -729,7 +717,7 @@ export async function ReviewsSection({ theme }: { theme: Theme }) {
         {reviews.map((r) => (
           <figure
             key={r.id}
-            style={{ margin: 0, scrollSnapAlign: 'start', flex: '0 0 min(400px, 84vw)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, padding: 24, display: 'flex', flexDirection: 'column' }}
+            style={{ margin: 0, scrollSnapAlign: 'start', flex: '0 0 min(400px, 84vw)', background: 'var(--color-surface)', border: BORDE_TARJETA, borderRadius: CARD_RADIUS, padding: 24, display: 'flex', flexDirection: 'column' }}
           >
             <div style={{ color: accent, marginBottom: 14 }}>
               <Stars value={r.rating} size={15} />
@@ -768,7 +756,7 @@ export async function BrandsSection({ theme }: { theme: Theme }) {
       <div className="marquee-mask" style={{ WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)', maskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)' }}>
         <div className="marquee-track" style={{ display: 'flex', gap: 26, whiteSpace: 'nowrap', alignItems: 'center' }}>
           {loop.map((b, i) => (
-            <div key={`${b}-${i}`} aria-hidden={i >= list.length} style={{ flex: '0 0 auto', height: 52, minWidth: 140, padding: '0 18px', border: '1px solid var(--color-border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px', color: 'var(--color-text-muted)', background: 'var(--color-surface)' }}>
+            <div key={`${b}-${i}`} aria-hidden={i >= list.length} style={{ flex: '0 0 auto', height: 52, minWidth: 140, padding: '0 18px', border: BORDE_TARJETA, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px', color: 'var(--color-text-muted)', background: 'var(--color-surface)' }}>
               {b}
             </div>
           ))}
@@ -793,13 +781,14 @@ export async function FaqSection({ theme }: { theme: Theme }) {
   const accent = cfg?.accentColor ?? 'var(--color-primary)';
   return (
     // `id` para poder enlazar aquí desde Ayuda (/#faq). La lista completa vive en /preguntas-frecuentes.
-    <section id="faq" style={{ maxWidth: 840, margin: '0 auto', padding: '80px clamp(16px, 4vw, 26px) 40px', scrollMarginTop: 90 }}>
+    <BandaLuz lado="izquierda">
+    <section id="faq" style={{ maxWidth: 840, margin: '0 auto', padding: '80px clamp(16px, 4vw, 26px) 80px', scrollMarginTop: 90 }}>
       <div style={{ marginBottom: 32 }}>
         <CenterHead eyebrow={t(theme, 'home.faq.eyebrow')} title={t(theme, 'home.faq.title')} eyebrowColor={cfg?.eyebrowColor ?? undefined} titleColor={cfg?.titleColor ?? undefined} />
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {faqs.map((f) => (
-          <details key={f.id} name="home-faq" className="faq" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: CARD_RADIUS, overflow: 'hidden' }}>
+          <details key={f.id} name="home-faq" className="faq" style={{ background: 'var(--color-surface)', border: BORDE_TARJETA, borderRadius: CARD_RADIUS, overflow: 'hidden' }}>
             <summary style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '18px 22px', cursor: 'pointer', fontWeight: 600, fontSize: '15.5px', color: 'var(--color-text)' }}>
               {f.question}
               <span className="faq-plus" aria-hidden style={{ fontSize: '22px', lineHeight: 1, color: accent, flexShrink: 0 }}>+</span>
@@ -824,6 +813,7 @@ export async function FaqSection({ theme }: { theme: Theme }) {
         </div>
       </div>
     </section>
+    </BandaLuz>
   );
 }
 
