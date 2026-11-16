@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { avisarPanel } from '../notifications/panel';
 import { prisma } from '@maqserv/db';
-import { CRM_ACTIVO, productSlug, slugify, problemaEmail, problemaTelefono, ESTADO_SOLICITUD_PROVEEDOR, TIPOS_PROVEEDOR, type LineaRegistro } from '@maqserv/config';
+import { CRM_ACTIVO, contenidoSector, recortarSector, textoPlanoSector, textoSectorAHtml, productSlug, slugify, problemaEmail, problemaTelefono, ESTADO_SOLICITUD_PROVEEDOR, TIPOS_PROVEEDOR, type LineaRegistro } from '@maqserv/config';
 import { ESTADO_POR_REVISAR } from '../catalog/ofertas';
 import { categoriaPropuesta } from '../catalog/categorias-propuestas';
 import type {
@@ -21,7 +21,7 @@ import { PerfexService } from '../integrations/integrations.module';
 import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseContacto, correoAcuseProveedor, correoContactoInterno, correoSolicitudProveedorInterno } from '../notifications/email-templates';
 import { ubicarAliado } from '../providers/cobertura-aliado';
-import { videosDeSectores } from './videos-sectores';
+import { textosDe, textosDeSectores, videosDeSectores } from './videos-sectores';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -82,47 +82,53 @@ export class ContentService {
   }
 
   async sectors(): Promise<StrategicSector[]> {
-    const [rows, videos] = await Promise.all([
+    const [rows, videos, textos] = await Promise.all([
       prisma.strategic_sectors.findMany({ where: { status: 1 }, orderBy: { id: 'asc' } }),
       videosDeSectores(),
+      textosDeSectores(),
     ]);
-    return rows.map((s) => ({
-      id: Number(s.id), // BigInt legacy → number
-      slug: productSlug(s.title, Number(s.id)),
-      title: s.title,
-      description: s.description ? stripHtml(s.description).slice(0, 200) : null,
-      image: imageUrl(s.image),
-      video: imageUrl(videos[String(s.id)] ?? null),
-    }));
+    return rows.map((s) => {
+      // La tarjeta lleva la frase corta; sin ella, el principio de «Sobre este sector».
+      const frase = textosDe(textos, s.id).frase;
+      const sobre = textoPlanoSector(s.description);
+      return {
+        id: Number(s.id), // BigInt legacy → number
+        slug: productSlug(s.title, Number(s.id)),
+        title: s.title,
+        description: frase ?? (sobre ? recortarSector(sobre, 200) : null),
+        image: imageUrl(s.image),
+        video: imageUrl(videos[String(s.id)] ?? null),
+      };
+    });
   }
 
   async sectorById(id: number): Promise<StrategicSectorDetail> {
-    const [s, videos] = await Promise.all([prisma.strategic_sectors.findFirst({ where: { id, status: 1 } }), videosDeSectores()]);
+    const [s, videos, textos] = await Promise.all([
+      prisma.strategic_sectors.findFirst({ where: { id, status: 1 } }),
+      videosDeSectores(),
+      textosDeSectores(),
+    ]);
     if (!s) throw new NotFoundException(`Sector ${id} no encontrado`);
-    let serviciosLista: string[] = [];
-    if (s.servicios_lista) {
-      // legacy: JSON array o texto separado por saltos de línea
-      try {
-        const parsed = JSON.parse(s.servicios_lista);
-        if (Array.isArray(parsed)) serviciosLista = parsed.map(String);
-      } catch {
-        serviciosLista = s.servicios_lista.split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-      }
-    }
+    // El sitio pinta el HTML: se limpia al servir (auditoría 2026-10-23), así
+    // cubre lo guardado antes. Lo nuevo es texto normal y se convierte primero.
+    const limpiar = (html: string | null) => (html ? sanitizeRichHtml(html) || null : null);
+    const contenido = contenidoSector(s, textosDe(textos, id), limpiar);
+    const html = (c: keyof typeof s) => limpiar(textoSectorAHtml(s[c] as string | null));
     return {
       id: Number(s.id),
       slug: productSlug(s.title, Number(s.id)),
       title: s.title,
-      // El sitio pinta estos campos como HTML: se limpian al servir (auditoría
-      // 2026-10-23), así cubre también lo guardado antes.
-      description: sanitizeRichHtml(s.description),
+      description: html('description'),
       image: imageUrl(s.image),
       video: imageUrl(videos[String(id)] ?? null),
-      trayectoria: sanitizeRichHtml(s.trayectoria),
-      esencia: sanitizeRichHtml(s.esencia),
-      servicios: sanitizeRichHtml(s.servicios),
-      excelencia: sanitizeRichHtml(s.excelencia),
-      serviciosLista,
+      trayectoria: html('trayectoria'),
+      esencia: html('esencia'),
+      servicios: html('servicios'),
+      excelencia: html('excelencia'),
+      serviciosLista: contenido.lista.partes.flatMap((p) => (p.tipo === 'item' ? [p.nombre] : [])),
+      frase: contenido.frase,
+      bloques: contenido.bloques,
+      lista: contenido.lista,
     };
   }
 

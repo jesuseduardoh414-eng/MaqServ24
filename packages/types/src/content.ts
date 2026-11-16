@@ -22,12 +22,33 @@ export interface StrategicSector {
   video: string | null;
 }
 
+/** Un renglón de «Servicios incluidos» (igual que ParteListaSector de @maqserv/config). */
+export type ParteListaSectorDTO =
+  | { tipo: 'grupo'; texto: string }
+  | { tipo: 'nota'; texto: string }
+  | { tipo: 'item'; nombre: string; detalle: string | null };
+
+/** Un apartado de la página del sector (igual que BloqueSector de @maqserv/config). */
+export interface BloqueSectorDTO {
+  clave: 'sobre' | 'trayectoria' | 'esencia' | 'servicios' | 'excelencia';
+  /** null = el título de siempre. */
+  titulo: string | null;
+  destacado: string | null;
+  html: string | null;
+}
+
 export interface StrategicSectorDetail extends StrategicSector {
   trayectoria: string | null;
   esencia: string | null;
   servicios: string | null;
   excelencia: string | null;
   serviciosLista: string[];
+  /** Frase corta de la tarjeta y del encabezado (2026-11-16). */
+  frase: string | null;
+  /** Los cinco apartados de texto, en orden, ya en HTML limpio. */
+  bloques: BloqueSectorDTO[];
+  /** «Servicios incluidos»: título, frase destacada y sus renglones. */
+  lista: { titulo: string | null; destacado: string | null; partes: ParteListaSectorDTO[] };
 }
 
 export interface WhyChooseUsItem {

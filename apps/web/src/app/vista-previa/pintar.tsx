@@ -2,9 +2,23 @@
 
 import type { ReactNode } from 'react';
 import sanitizeHtml from 'sanitize-html';
-import { themeSchema, themeToCss, VISTAS_PREVIA, type BorradorVistaPrevia, type Theme } from '@maqserv/config';
+import {
+  CLAVES_BLOQUE_SECTOR,
+  contenidoSector,
+  productSlug,
+  textoSectorAHtml,
+  themeSchema,
+  themeToCss,
+  VISTAS_PREVIA,
+  type BorradorVistaPrevia,
+  type ClaveBloqueSector,
+  type SectorVistaPrevia,
+  type Theme,
+} from '@maqserv/config';
+import type { StrategicSectorDetail } from '@maqserv/types';
 import { getTheme } from '@/lib/theme';
-import { getCategories } from '@/lib/api';
+import { getCategories, rutaCatalogo } from '@/lib/api';
+import { VistaSector } from '@/components/VistaSector';
 import {
   BrandsSection,
   CategoriesSection,
@@ -21,6 +35,34 @@ import { SiteFooter } from '@/components/SiteHeader';
 import { VistaCategorias } from '../categorias/vista';
 import { VistaQuienesSomos } from '../quienes-somos/vista';
 import { PaginaCatalogo } from '../productos/catalogo';
+
+/**
+ * El sector que manda el panel llega por postMessage: se toma solo lo que
+ * tiene la forma esperada (textos con tope, URLs http) y se descarta lo demás.
+ */
+function sectorDelBorrador(v: unknown): SectorVistaPrevia | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  const txt = (x: unknown, max: number) => (typeof x === 'string' ? x.slice(0, max) : null);
+  const url = (x: unknown) => (typeof x === 'string' && /^https?:\/\//.test(x) ? x : null);
+  const mapa = (x: unknown, max: number) => {
+    const r: Partial<Record<ClaveBloqueSector, string>> = {};
+    if (x && typeof x === 'object') for (const k of CLAVES_BLOQUE_SECTOR) { const t = txt((x as Record<string, unknown>)[k], max); if (t !== null) r[k] = t; }
+    return r;
+  };
+  const id = Number(o.id);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  return {
+    id,
+    title: txt(o.title, 190) ?? '',
+    image: url(o.image),
+    video: url(o.video),
+    frase: txt(o.frase, 300),
+    textos: mapa(o.textos, 20000),
+    titulos: mapa(o.titulos, 80),
+    destacados: mapa(o.destacados, 300),
+  };
+}
 
 export type ResultadoVistaPrevia = { ok: true; nodo: ReactNode } | { ok: false; error: string };
 
@@ -94,7 +136,7 @@ export async function pintarVistaPrevia(b: BorradorVistaPrevia): Promise<Resulta
       contenido = <WhyChooseUsSection theme={theme} razones={datos.razones} />;
       break;
     case 'home.strategic-sectors':
-      contenido = <SectorsSection theme={theme} />;
+      contenido = <SectorsSection theme={theme} borrador={sectorDelBorrador(datos.sector)} />;
       break;
     case 'home.offer':
       contenido = <OfferSection theme={theme} />;
@@ -126,6 +168,40 @@ export async function pintarVistaPrevia(b: BorradorVistaPrevia): Promise<Resulta
         />
       );
       break;
+    case 'pagina.sector': {
+      // La página del sector que se edita, con lo escrito aunque no se haya guardado.
+      const d = sectorDelBorrador(datos.sector);
+      if (!d) return { ok: false, error: 'Abre un sector para ver su página.' };
+      const limpiar = (html: string | null) => (html ? limpio(html) || null : null);
+      const columnas = {
+        description: d.textos.sobre ?? null,
+        trayectoria: d.textos.trayectoria ?? null,
+        esencia: d.textos.esencia ?? null,
+        servicios: d.textos.servicios ?? null,
+        excelencia: d.textos.excelencia ?? null,
+        servicios_lista: d.textos.lista ?? null,
+      };
+      const c = contenidoSector(columnas, { frase: d.frase, titulos: d.titulos, destacados: d.destacados }, limpiar);
+      const titulo = d.title.trim() || 'Sector sin nombre';
+      const sector: StrategicSectorDetail = {
+        id: d.id,
+        slug: productSlug(titulo, d.id),
+        title: titulo,
+        description: limpiar(textoSectorAHtml(columnas.description)),
+        image: d.image,
+        video: d.video,
+        trayectoria: null,
+        esencia: null,
+        servicios: null,
+        excelencia: null,
+        serviciosLista: [],
+        frase: c.frase,
+        bloques: c.bloques,
+        lista: c.lista,
+      };
+      contenido = <VistaSector theme={theme} sector={sector} catalogo={await rutaCatalogo()} />;
+      break;
+    }
     case 'sitio.footer':
       contenido = <SiteFooter theme={theme} />;
       break;

@@ -1,4 +1,5 @@
 import type { ThemeTokens } from './schema';
+import type { ClaveBloqueSector } from './sector-contenido';
 
 /**
  * VISTA PREVIA REAL DEL PANEL (2026-10-05).
@@ -28,6 +29,7 @@ export const VISTAS_PREVIA = [
   'pagina.categorias',
   'pagina.catalogo',
   'pagina.quienes-somos',
+  'pagina.sector',
   'sitio.footer',
 ] as const;
 export type VistaPrevia = (typeof VISTAS_PREVIA)[number];
@@ -61,6 +63,23 @@ export interface InfSitioVistaPrevia {
   imagenes: string[];
 }
 
+/**
+ * Un sector mientras se edita (2026-11-16): sus textos tal como están en el
+ * panel, sin guardar. La imagen y el video son los ya guardados: una imagen
+ * recién elegida vive solo en el navegador del panel y el sitio no la ve.
+ */
+export interface SectorVistaPrevia {
+  id: number;
+  title: string;
+  image: string | null;
+  video: string | null;
+  /** Texto de cada apartado (`lista` = Servicios incluidos), como se escribe en el panel. */
+  textos: Partial<Record<ClaveBloqueSector, string>>;
+  frase: string | null;
+  titulos: Partial<Record<ClaveBloqueSector, string>>;
+  destacados: Partial<Record<ClaveBloqueSector, string>>;
+}
+
 /** Cambios sin publicar que el panel manda al sitio. */
 export interface BorradorVistaPrevia {
   vista: VistaPrevia;
@@ -75,6 +94,10 @@ export interface BorradorVistaPrevia {
     hero?: HeroVistaPrevia | null;
     razones?: RazonVistaPrevia[];
     infSitio?: InfSitioVistaPrevia | null;
+    /** La página de un sector (`pagina.sector`), o su tarjeta en el home. */
+    sector?: SectorVistaPrevia | null;
+    /** Cambia al guardar algo que el sitio lee de la base: obliga a volver a pintar. */
+    version?: number;
   };
 }
 

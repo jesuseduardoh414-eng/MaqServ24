@@ -27,7 +27,7 @@ const ANCHO: Record<Dispositivo, number> = { escritorio: 1280, movil: 390 };
  * de leer una variable: en producción el panel no tiene una fiable (el ejemplo
  * del .env todavía apunta al dominio viejo). En local, el sitio corre en :3000.
  */
-function urlDelSitio(): string {
+export function urlDelSitio(): string {
   const { protocol, hostname } = window.location;
   if (hostname === 'localhost' || hostname === '127.0.0.1') return `${protocol}//${hostname}:3000`;
   return `${protocol}//${hostname.replace(/^admin\./, '')}`;
@@ -53,7 +53,9 @@ export function VistaPreviaSitio({
   const [modo, setModo] = useState<Modo>(modoInicial);
   const [dispositivo, setDispositivo] = useState<Dispositivo>('escritorio');
   const [grande, setGrande] = useState(false);
-  const [lista, setLista] = useState(false);
+  /** Cuántas veces avisó el sitio que está listo: si se recarga solo, se le vuelve a mandar el borrador. */
+  const [listas, setListas] = useState(0);
+  const lista = listas > 0;
   const [alto, setAlto] = useState(0);
   const [pintado, setPintado] = useState(false);
   const [sinRespuesta, setSinRespuesta] = useState(false);
@@ -70,7 +72,7 @@ export function VistaPreviaSitio({
     const alRecibir = (e: MessageEvent) => {
       if (e.origin !== origen || e.source !== marco.current?.contentWindow) return;
       const d = e.data as { tipo?: string; alto?: number; pintado?: boolean } | null;
-      if (d?.tipo === MENSAJE_VISTA_PREVIA.lista) setLista(true);
+      if (d?.tipo === MENSAJE_VISTA_PREVIA.lista) setListas((n) => n + 1);
       if (d?.tipo === MENSAJE_VISTA_PREVIA.alto && typeof d.alto === 'number') {
         setAlto(d.alto);
         setPintado(Boolean(d.pintado));
@@ -95,7 +97,7 @@ export function VistaPreviaSitio({
     marco.current?.contentWindow?.postMessage(mensaje, origen);
     // `clave` resume `borrador`: así no se reenvía por cada render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lista, origen, vista, modo, clave]);
+  }, [listas, origen, vista, modo, clave]);
 
   // Ancho disponible, para calcular la escala.
   useEffect(() => {

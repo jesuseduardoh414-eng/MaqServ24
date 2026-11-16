@@ -1,6 +1,6 @@
 import Link from '@/components/Enlace';
 import Image from 'next/image';
-import { defaultTheme, type Theme } from '@maqserv/config';
+import { defaultTheme, recortarSector, textoPlanoSector, type SectorVistaPrevia, type Theme } from '@maqserv/config';
 import { IconoRed } from '@/components/RedesSociales';
 import { whatsappHref } from '@/lib/telefono';
 import type { HomeHero, WhyChooseUsItem } from '@maqserv/types';
@@ -572,10 +572,17 @@ export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; raz
 
 /* ======================= SECTORES ESTRATÉGICOS ======================= */
 
-export async function SectorsSection({ theme }: { theme: Theme }) {
+export async function SectorsSection({ theme, borrador }: { theme: Theme; borrador?: SectorVistaPrevia | null }) {
   const cfg = theme.tokens.sectors;
   if (cfg && cfg.show === false) return null;
-  const sectors = (await getSectors()).slice(0, cfg?.limit ?? 4);
+  // En la vista previa del panel, la tarjeta del sector que se edita sale con lo
+  // escrito aunque no se haya guardado (título y frase corta).
+  const sobre = borrador ? textoPlanoSector(borrador.textos.sobre) : '';
+  const sectors = (await getSectors())
+    .map((s) => (borrador && s.id === borrador.id
+      ? { ...s, title: borrador.title.trim() || s.title, description: borrador.frase?.trim() || (sobre ? recortarSector(sobre, 200) : null) }
+      : s))
+    .slice(0, cfg?.limit ?? 4);
   if (sectors.length === 0) return null;
   const cardH = cfg?.cardHeight ?? 340;
   const ctaColor = cfg?.ctaColor ?? 'var(--color-primary)';

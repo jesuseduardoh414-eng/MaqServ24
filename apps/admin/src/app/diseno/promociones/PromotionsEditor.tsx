@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import type { PromoItem, Promotions, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
 import { Btn, IconBtn, PageHeader, StatusText, Toast } from '@/components/ui';
+import { portadaDeVideo, subirPortada } from '@/lib/portada-video';
 
 type Copys = Record<string, Record<string, string>>;
 type Formato = Promotions['format'];
@@ -88,6 +89,8 @@ export function PromotionsEditor({ themeId, copys, tokens, promotions }: {
   /** Avance de cada subida de video (id → 0-100). */
   const [subiendo, setSubiendo] = useState<Record<string, number>>({});
   const [subiendoFoto, setSubiendoFoto] = useState<string | null>(null);
+  /** Promociones a las que se les está sacando la portada del video. */
+  const [haciendoPortada, setHaciendoPortada] = useState<Record<string, true>>({});
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
 
   const p = config.promo;
@@ -109,7 +112,44 @@ export function PromotionsEditor({ themeId, copys, tokens, promotions }: {
   const agregar = () => setConfig((c) => ({ ...c, promo: { ...c.promo, items: [...c.promo.items, nuevaPromo()] } }));
 
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
-  const haySubidas = Object.keys(subiendo).length > 0 || subiendoFoto !== null;
+  const haySubidas = Object.keys(subiendo).length > 0 || subiendoFoto !== null || Object.keys(haciendoPortada).length > 0;
+
+  /**
+   * Portada sacada del video (2026-11-16): sin portada, la tarjeta se ve negra
+   * mientras el video carga. Solo se pone si la promoción sigue sin una (no
+   * pisa la que se haya elegido mientras tanto). Devuelve si se pudo sacar.
+   */
+  async function hacerPortada(id: string, fuente: File | string): Promise<boolean> {
+    setHaciendoPortada((h) => ({ ...h, [id]: true }));
+    try {
+      const f = await portadaDeVideo(fuente);
+      const url = f ? await subirPortada(f) : null;
+      if (!url) return false;
+      setConfig((c) => ({
+        ...c,
+        promo: { ...c.promo, items: c.promo.items.map((it) => (it.id === id && !it.image ? { ...it, image: url } : it)) },
+      }));
+      return true;
+    } finally {
+      setHaciendoPortada((h) => { const r = { ...h }; delete r[id]; return r; });
+    }
+  }
+
+  // Al abrir: las promociones que ya tienen video pero no portada reciben una.
+  const revisadas = useRef(false);
+  useEffect(() => {
+    if (revisadas.current) return;
+    revisadas.current = true;
+    const faltan = initial.promo.items.filter((it) => it.video && !it.image);
+    if (!faltan.length) return;
+    void (async () => {
+      let hechas = 0;
+      for (const it of faltan) if (await hacerPortada(it.id, it.video!)) hechas++;
+      if (hechas) setToast({ ok: true, text: `Se ${hechas === 1 ? 'creó la portada de 1 video' : `crearon las portadas de ${hechas} videos`} (para que no se vea negro mientras carga). Da «Guardar y publicar» para que salgan en el sitio.` });
+    })();
+    // Solo una vez, con lo que se cargó.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const visibles = p.items.filter((it) => it.enabled && (it.video || it.image || it.title.trim()) && !(it.until && it.until < hoy));
   const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
   // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
@@ -128,6 +168,8 @@ export function PromotionsEditor({ themeId, copys, tokens, promotions }: {
       const url = await subirVideo(f, (pct) => setSubiendo((s) => ({ ...s, [id]: pct })));
       setItem(id, { video: url });
       if (forma && esElPrimero) setP('format', forma);
+      // Sin portada elegida, se saca del mismo video (del archivo, sin volver a bajarlo).
+      if (!config.promo.items.find((it) => it.id === id)?.image) void hacerPortada(id, f);
       setToast(
         forma && !esElPrimero && forma !== formaActual
           ? { ok: false, text: `Video listo, pero es ${forma} y las tarjetas están en ${formaActual}: se verá recortado. Puedes cambiarlo en "Forma de las tarjetas".` }
@@ -189,7 +231,7 @@ export function PromotionsEditor({ themeId, copys, tokens, promotions }: {
         subtitle="Tarjetas con video de las promociones vigentes, debajo de Categorías. Sube el video, escribe el texto y, si quieres, la fecha en que termina: ese día se quita sola."
         actions={
           <>
-            <StatusText tone={haySubidas ? 'info' : dirty ? 'warn' : 'ok'}>{haySubidas ? 'Subiendo video…' : dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
+            <StatusText tone={haySubidas ? 'info' : dirty ? 'warn' : 'ok'}>{Object.keys(subiendo).length || subiendoFoto ? 'Subiendo…' : Object.keys(haciendoPortada).length ? 'Creando portadas…' : dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
             <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
             <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy || haySubidas} title={haySubidas ? 'Espera a que termine de subir el video' : undefined}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
           </>
@@ -273,12 +315,12 @@ export function PromotionsEditor({ themeId, copys, tokens, promotions }: {
                       <input type="file" accept="video/mp4,video/webm" disabled={pct !== undefined} onChange={(e) => { const f = e.target.files?.[0]; if (f) void onVideo(it.id, f); e.target.value = ''; }} style={{ display: 'none' }} />
                     </label>
                     {it.video && pct === undefined ? <Btn size="sm" variant="ghost" icon="ph-trash" onClick={() => setItem(it.id, { video: null })}>Quitar video</Btn> : null}
-                    <label className="adm-btn adm-btn-ghost adm-btn-sm" style={{ justifyContent: 'center', cursor: 'pointer' }} title="Se ve mientras carga el video, o en lugar del video si no subes uno">
-                      <i className="ph ph-image" aria-hidden /> {subiendoFoto === it.id ? 'Subiendo…' : it.image ? 'Cambiar portada' : 'Portada (opcional)'}
+                    <label className="adm-btn adm-btn-ghost adm-btn-sm" style={{ justifyContent: 'center', cursor: 'pointer' }} title="Se ve mientras carga el video, o en lugar del video si no subes uno. Si no eliges una, se saca sola del video.">
+                      <i className="ph ph-image" aria-hidden /> {subiendoFoto === it.id ? 'Subiendo…' : haciendoPortada[it.id] ? 'Creando portada…' : it.image ? 'Cambiar portada' : 'Portada (opcional)'}
                       <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) void onFoto(it.id, f); e.target.value = ''; }} style={{ display: 'none' }} />
                     </label>
                     {it.image ? <Btn size="sm" variant="ghost" icon="ph-x" onClick={() => setItem(it.id, { image: null })}>Quitar portada</Btn> : null}
-                    <span style={{ fontSize: 11.5, color: 'var(--adm-muted)', lineHeight: 1.4 }}>MP4 o WebM, hasta {VIDEO_MAX_MB} MB. En el sitio arranca sin sonido; el visitante lo activa con un botón.</span>
+                    <span style={{ fontSize: 11.5, color: 'var(--adm-muted)', lineHeight: 1.4 }}>MP4 o WebM, hasta {VIDEO_MAX_MB} MB. En el sitio arranca sin sonido; el visitante lo activa con un botón. Si no eliges portada, se toma un cuadro del video.</span>
                   </div>
 
                   <div style={{ display: 'grid', gap: 14, minWidth: 0 }}>

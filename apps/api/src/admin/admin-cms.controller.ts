@@ -1,13 +1,13 @@
 import {
   BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, Req, UploadedFile, UseGuards, UseInterceptors,
+  ParseIntPipe, Patch, Post, Query, Req, StreamableFile, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ICON_TYPES, mediaStorage, videoStorage } from '../common/media-multer';
-import { borrarSubidas } from '../common/media';
+import { borrarSubidas, mediaDir } from '../common/media';
 import { revalidarSitio } from '../common/revalidar-sitio';
-import { join } from 'path';
-import { mkdirSync } from 'fs';
+import { basename, join } from 'path';
+import { createReadStream, existsSync, mkdirSync } from 'fs';
 import { z } from 'zod';
 import { sanitizeRichHtml } from '../common/sanitize';
 import { zTelefono } from '../common/campos';
@@ -15,7 +15,14 @@ import { prisma } from '@maqserv/db';
 import { productSlug, themeTokensSchema } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { imageUrl, normLegacyText } from '../catalog/images';
-import { ponerVideoDeSector, videosDeSectores } from '../content/videos-sectores';
+import { ponerTextosDeSector, ponerVideoDeSector, textosDe, textosDeSectores, videosDeSectores } from '../content/videos-sectores';
+
+/** Frase corta, títulos y frases destacadas de un sector (ver sector-contenido en @maqserv/config). */
+const textosSectorSchema = z.object({
+  frase: z.string().max(300).nullable().optional(),
+  titulos: z.record(z.string().max(80)).optional(),
+  destacados: z.record(z.string().max(300)).optional(),
+});
 
 const photoStorage = mediaStorage();
 /** "https://media…/uploads/x.mp4" → "uploads/x.mp4" (lo que entiende borrarSubidas). */
@@ -277,6 +284,20 @@ export class AdminCmsController {
     return { video: imageUrl(`uploads/${video.filename}`) };
   }
 
+  /**
+   * Un video ya subido, servido por la API (2026-11-16). El panel saca de él un
+   * cuadro para la portada de una promoción; el dominio de los archivos no
+   * deja leerlos desde otra página (sin CORS), así que va por aquí.
+   */
+  @Get('video-guardado')
+  videoGuardado(@Query('ruta') ruta?: string) {
+    const nombre = basename(String(ruta ?? ''));
+    if (!String(ruta ?? '').startsWith('uploads/') || !/^[\w.-]+\.(mp4|webm)$/.test(nombre)) throw new BadRequestException('Ruta inválida');
+    const abs = join(mediaDir(), 'uploads', nombre);
+    if (!existsSync(abs)) throw new NotFoundException('Ese video ya no está.');
+    return new StreamableFile(createReadStream(abs), { type: nombre.endsWith('.webm') ? 'video/webm' : 'video/mp4' });
+  }
+
   // ---- Subida genérica de imágenes (bloques del constructor: hero/promo, etc.) ----
 
   @Post('upload')
@@ -402,7 +423,7 @@ export class AdminCmsController {
 
   @Get('sectors/:id')
   async sectorById(@Param('id', ParseIntPipe) id: number) {
-    const [s, videos] = await Promise.all([prisma.strategic_sectors.findUnique({ where: { id } }), videosDeSectores()]);
+    const [s, videos, textos] = await Promise.all([prisma.strategic_sectors.findUnique({ where: { id } }), videosDeSectores(), textosDeSectores()]);
     if (!s) throw new NotFoundException();
     return {
       id: Number(s.id),
@@ -416,6 +437,8 @@ export class AdminCmsController {
       status: s.status,
       image: imageUrl(s.image),
       video: imageUrl(videos[String(id)] ?? null),
+      /** Frase corta, títulos y frases destacadas de su página (ver sector-contenido). */
+      textos: textosDe(textos, id),
     };
   }
 
@@ -426,6 +449,7 @@ export class AdminCmsController {
     const s = await prisma.strategic_sectors.create({
       data: { title, status: 1, created_at: new Date(), updated_at: new Date() },
     });
+    await revalidarSitio();
     return { id: Number(s.id) };
   }
 
@@ -434,6 +458,7 @@ export class AdminCmsController {
   async updateSector(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: unknown,
+    @Req() req: AdminRequest,
     @UploadedFile() image?: Express.Multer.File,
   ) {
     const schema = z.object({
@@ -443,12 +468,23 @@ export class AdminCmsController {
       esencia: z.string().max(20000).optional(),
       servicios: z.string().max(20000).optional(),
       excelencia: z.string().max(20000).optional(),
-      serviciosLista: z.string().max(5000).optional(), // una línea por servicio
+      serviciosLista: z.string().max(20000).optional(), // un servicio por renglón (ver partesListaSector)
       status: z.coerce.number().int().min(0).max(1).optional(),
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
     photoOk(image);
+    // Frase corta, títulos y frases destacadas (2026-11-16): viajan en JSON en
+    // un solo campo del formulario y se guardan fuera de la tabla.
+    const crudo = (body as { textos?: unknown } | null)?.textos;
+    let textos: z.infer<typeof textosSectorSchema> | undefined;
+    if (typeof crudo === 'string' && crudo.trim()) {
+      let json: unknown;
+      try { json = JSON.parse(crudo); } catch { throw new BadRequestException('Textos inválidos'); }
+      const t = textosSectorSchema.safeParse(json);
+      if (!t.success) throw new BadRequestException('Algún texto es demasiado largo');
+      textos = t.data;
+    }
     const d = parsed.data;
     await prisma.strategic_sectors.update({
       where: { id },
@@ -465,6 +501,9 @@ export class AdminCmsController {
         updated_at: new Date(),
       },
     });
+    if (textos !== undefined) await ponerTextosDeSector(id, textos, req.adminEmail);
+    // Que el sitio lo enseñe ya y no al minuto (caché de las páginas).
+    await revalidarSitio();
     return { ok: true };
   }
 
@@ -503,6 +542,8 @@ export class AdminCmsController {
     await prisma.strategic_sectors.delete({ where: { id } });
     const video = await ponerVideoDeSector(id, null, req.adminEmail).catch(() => null);
     if (video) void borrarSubidas([video]);
+    await ponerTextosDeSector(id, null, req.adminEmail).catch(() => undefined);
+    await revalidarSitio();
     return { ok: true };
   }
 

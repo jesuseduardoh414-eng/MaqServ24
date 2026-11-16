@@ -291,7 +291,9 @@ export {
   type HeroVistaPrevia,
   type RazonVistaPrevia,
   type InfSitioVistaPrevia,
+  type SectorVistaPrevia,
 } from './vista-previa';
+export * from './sector-contenido';
 export {
   ESTADO_SOLICITUD_PROVEEDOR,
   TIPOS_PROVEEDOR,

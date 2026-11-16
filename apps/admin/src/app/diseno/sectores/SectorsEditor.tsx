@@ -3,8 +3,19 @@
 import { Modal } from '@/components/Modal';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Sectors, ThemeTokens } from '@maqserv/config';
-import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
+import {
+  BLOQUES_SECTOR,
+  CLAVES_BLOQUE_SECTOR,
+  htmlATexto,
+  productSlug,
+  separarTextoSector,
+  type ClaveBloqueSector,
+  type SectorVistaPrevia,
+  type Sectors,
+  type TextosSector,
+  type ThemeTokens,
+} from '@maqserv/config';
+import { urlDelSitio, VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
 import { Bar, Btn, EmptyState, IconBtn, Note, PageHeader, Panel, Segmented, StatusText, Thumb, Toast } from '@/components/ui';
 import { confirmar } from '@/components/Dialogos';
@@ -17,6 +28,8 @@ interface SectorFull {
   status: number; image: string | null;
   /** Video en bucle de la tarjeta; si hay, va en lugar de la imagen. */
   video: string | null;
+  /** Frase corta, títulos y frases destacadas (guardados fuera de la tabla). */
+  textos?: TextosSector;
 }
 
 /** Igual que el tope de `POST admin/cms/sectors/:id/video` en la API. */
@@ -73,6 +86,11 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
   const [tab, setTab] = useState<'contenido' | 'sectores'>('contenido');
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
+  /** El sector abierto, tal como está escrito (sin guardar): lo pinta la vista previa. */
+  const [borradorSector, setBorradorSector] = useState<SectorVistaPrevia | null>(null);
+  const [vistaSector, setVistaSector] = useState<'pagina' | 'inicio'>('pagina');
+  /** Sube al guardar un sector: la vista previa vuelve a leer lo guardado. */
+  const [version, setVersion] = useState(0);
 
   const set = <K extends keyof Config>(k: K, v: Config[K]) => setConfig((c) => ({ ...c, [k]: v }));
   const setS = <K extends keyof Sectors>(k: K, v: Sectors[K]) => setConfig((c) => ({ ...c, sec: { ...c.sec, [k]: v } }));
@@ -80,7 +98,13 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
   const dirty = JSON.stringify(config) !== JSON.stringify(saved);
   const modoTema = tokens.defaultMode === 'light' ? 'light' : 'dark';
   // Lo que la vista previa le manda al sitio: lo MISMO que se publicaría.
-  const borrador = useMemo(() => ({ tokens: { sectors: config.sec }, copys: { 'home.sectors.eyebrow': config.eyebrow, 'home.sectors.title': config.title, 'home.sectors.cta': config.cta } }), [config]);
+  const borrador = useMemo(() => ({
+    tokens: { sectors: config.sec },
+    copys: { 'home.sectors.eyebrow': config.eyebrow, 'home.sectors.title': config.title, 'home.sectors.cta': config.cta },
+    datos: { sector: borradorSector, version },
+  }), [config, borradorSector, version]);
+  // Con un sector abierto se ve su página (donde va casi todo su texto); si no, las tarjetas del home.
+  const verPagina = borradorSector !== null && vistaSector === 'pagina';
 
 
   function discard() { setConfig(saved); setToast(null); }
@@ -162,14 +186,33 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
 
           {tab === 'sectores' ? (
             <div style={{ animation: 'fadeIn .25s ease' }}>
-              <SectorsManager sectors={sectors} />
+              <SectorsManager sectors={sectors} onBorrador={setBorradorSector} onGuardado={() => setVersion((v) => v + 1)} />
             </div>
           ) : null}
         </div>
 
         {/* VISTA PREVIA: el sitio real pinta la sección con los cambios sin publicar. */}
         <div style={{ position: 'sticky', top: 12 }} className="hero-ed-preview">
-          <VistaPreviaSitio vista="home.strategic-sectors" etiqueta="home" borrador={borrador} modoInicial={modoTema} aviso={!s.show ? <><i className="ph ph-eye-slash" /> La sección está oculta en el home.</> : null} />
+          {borradorSector ? (
+            <div style={{ marginBottom: 12 }}>
+              <Segmented<'pagina' | 'inicio'>
+                ariaLabel="Qué ver en la vista previa"
+                value={vistaSector}
+                onChange={setVistaSector}
+                items={[
+                  { key: 'pagina', label: 'Página del sector' },
+                  { key: 'inicio', label: 'Tarjeta en el inicio' },
+                ]}
+              />
+            </div>
+          ) : null}
+          <VistaPreviaSitio
+            vista={verPagina ? 'pagina.sector' : 'home.strategic-sectors'}
+            etiqueta={verPagina ? 'página del sector' : 'home'}
+            borrador={borrador}
+            modoInicial={modoTema}
+            aviso={verPagina ? <>Se ve lo escrito aunque no esté guardado. La imagen nueva sale al guardar.</> : !s.show ? <><i className="ph ph-eye-slash" /> La sección está oculta en el home.</> : null}
+          />
         </div>
       </div>
 
@@ -182,7 +225,11 @@ export function SectorsEditor({ themeId, copys, tokens, sectorsCfg, sectors }: {
 /* Reusa /admin/cms/sectors (POST crear, GET :id detalle, PATCH multipart, DELETE).
  * Se aplica al instante (no pasa por «Guardar y publicar»). */
 
-function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
+function SectorsManager({ sectors, onBorrador, onGuardado }: {
+  sectors: SectorRow[];
+  onBorrador: (b: SectorVistaPrevia | null) => void;
+  onGuardado: () => void;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<number | null>(null);
   const [busy, setBusy] = useState<number | 'new' | null>(null);
@@ -258,7 +305,7 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
           <EmptyState icon="ph-buildings" title="Aún no hay sectores" sub="Crea el primero con «Nuevo sector»." />
         ) : sectors.map((sec) => (
           editing === sec.id ? (
-            <SectorEditRow key={sec.id} id={sec.id} busy={busy === sec.id} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); router.refresh(); }} />
+            <SectorEditRow key={sec.id} id={sec.id} busy={busy === sec.id} onClose={() => setEditing(null)} onSaved={() => { onGuardado(); router.refresh(); }} onBorrador={onBorrador} />
           ) : (
             <div key={sec.id} className="adm-trow" style={{ display: 'flex', alignItems: 'center', gap: 14, opacity: sec.status === 1 ? 1 : 0.6 }}>
               <Thumb src={sec.image} size={44} />
@@ -282,26 +329,110 @@ function SectorsManager({ sectors }: { sectors: SectorRow[] }) {
   );
 }
 
-function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boolean; onClose: () => void; onSaved: () => void }) {
+
+/* ===================== Editar un sector ===================== */
+/* 2026-11-16: el dueño escribe cada sector como un documento (título, frase
+ * corta y seis apartados con su frase destacada). El formulario sigue esa
+ * misma forma, en texto normal (sin HTML), y «Pegar el texto completo» reparte
+ * un documento pegado en sus campos (separarTextoSector, @maqserv/config). */
+
+type Textos = Record<ClaveBloqueSector, string>;
+type Mapa = Partial<Record<ClaveBloqueSector, string>>;
+const TEXTOS_VACIOS = Object.fromEntries(CLAVES_BLOQUE_SECTOR.map((c) => [c, ''])) as Textos;
+
+/** Lo guardado antes era HTML o una lista en JSON: aquí se edita como texto. */
+function listaATexto(v: string | null): string {
+  if (!v) return '';
+  try {
+    const j = JSON.parse(v);
+    if (Array.isArray(j)) return j.map(String).join('\n');
+  } catch { /* texto normal */ }
+  return htmlATexto(v);
+}
+
+/** Crece con lo escrito (Chrome/Edge); en los demás se estira a mano. */
+const areaStyle = { ...textareaStyle, minHeight: 96, maxHeight: 560, overflowY: 'auto', fieldSizing: 'content' } as CSSProperties;
+const ayuda: CSSProperties = { fontSize: 12, lineHeight: 1.5, color: 'var(--adm-faint)' };
+
+function Apartado({ n, clave, titulo, destacado, texto, onTitulo, onDestacado, onTexto }: {
+  n: number; clave: ClaveBloqueSector; titulo: string; destacado: string; texto: string;
+  onTitulo: (v: string) => void; onDestacado: (v: string) => void; onTexto: (v: string) => void;
+}) {
+  const def = BLOQUES_SECTOR.find((b) => b.clave === clave)!.titulo;
+  const esLista = clave === 'lista';
+  return (
+    <div style={{ border: '1px solid var(--adm-border)', borderRadius: 12, padding: 14, display: 'grid', gap: 10, background: 'var(--adm-card)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span aria-hidden style={{ width: 24, height: 24, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, background: 'rgba(var(--adm-ink),0.06)', color: 'var(--adm-text-2)', flexShrink: 0 }}>{n}</span>
+        <input
+          value={titulo}
+          onChange={(e) => onTitulo(e.target.value)}
+          placeholder={def}
+          maxLength={80}
+          aria-label={`Título del apartado ${n} (si lo dejas vacío: «${def}»)`}
+          style={{ ...inputStyle, fontWeight: 600 }}
+        />
+      </div>
+      <input value={destacado} onChange={(e) => onDestacado(e.target.value)} placeholder="Frase destacada (opcional)" maxLength={300} aria-label={`Frase destacada del apartado ${n}`} style={inputStyle} />
+      <textarea
+        value={texto}
+        onChange={(e) => onTexto(e.target.value)}
+        placeholder={esLista ? '* Excavadoras hidráulicas\n* Retroexcavadoras\n* Camiones de volteo' : 'Escribe el texto. Cada renglón es un párrafo.'}
+        aria-label={esLista ? `Servicios del apartado ${n}` : `Texto del apartado ${n}`}
+        style={{ ...areaStyle, minHeight: esLista ? 140 : 96 }}
+      />
+      {esLista ? (
+        <span style={ayuda}>
+          Un servicio por renglón, con <b>*</b> al inicio. Si escribes «Nombre: detalle», el nombre sale en negritas. Para agrupar, pon el nombre del grupo en su propio renglón (sin *) arriba de sus servicios. Un renglón sin * en otro lugar sale como nota.
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function SectorEditRow({ id, busy, onClose, onSaved, onBorrador }: {
+  id: number; busy: boolean; onClose: () => void; onSaved: () => void;
+  onBorrador: (b: SectorVistaPrevia | null) => void;
+}) {
+  const router = useRouter();
   const [data, setData] = useState<SectorFull | null>(null);
   const [loadErr, setLoadErr] = useState(false);
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [trayectoria, setTrayectoria] = useState('');
-  const [esencia, setEsencia] = useState('');
-  const [servicios, setServicios] = useState('');
-  const [excelencia, setExcelencia] = useState('');
-  const [serviciosLista, setServiciosLista] = useState('');
+  const [frase, setFrase] = useState('');
+  const [textos, setTextos] = useState<Textos>(TEXTOS_VACIOS);
+  const [titulos, setTitulos] = useState<Mapa>({});
+  const [destacados, setDestacados] = useState<Mapa>({});
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const router = useRouter();
+  const [aviso, setAviso] = useState<string | null>(null);
   const [video, setVideo] = useState<string | null>(null);
   /** Avance de la subida del video (0–100), o null si no se está subiendo. */
   const [subiendo, setSubiendo] = useState<number | null>(null);
-  const [avisoVideo, setAvisoVideo] = useState<string | null>(null);
   const videoRef = useRef<HTMLInputElement>(null);
+  const [pegarAbierto, setPegarAbierto] = useState(false);
+  const [pegado, setPegado] = useState('');
+  const [avisoPegar, setAvisoPegar] = useState<string | null>(null);
+  /** Lo último guardado, para saber si hay cambios sin guardar. */
+  const [guardado, setGuardado] = useState('');
+
+  function cargar(d: SectorFull) {
+    setData(d);
+    setTitle(d.title ?? '');
+    setFrase(d.textos?.frase ?? '');
+    const t: Textos = {
+      sobre: htmlATexto(d.description), trayectoria: htmlATexto(d.trayectoria), esencia: htmlATexto(d.esencia),
+      servicios: htmlATexto(d.servicios), excelencia: htmlATexto(d.excelencia), lista: listaATexto(d.serviciosLista),
+    };
+    setTextos(t);
+    setTitulos(d.textos?.titulos ?? {});
+    setDestacados(d.textos?.destacados ?? {});
+    setPreview(d.image);
+    setVideo(d.video ?? null);
+    setFile(null);
+    setGuardado(JSON.stringify([d.title ?? '', d.textos?.frase ?? '', t, d.textos?.titulos ?? {}, d.textos?.destacados ?? {}]));
+  }
 
   useEffect(() => {
     let alive = true;
@@ -310,15 +441,26 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
       .then((d: SectorFull | null) => {
         if (!alive) return;
         if (!d) { setLoadErr(true); return; }
-        setData(d);
-        setTitle(d.title ?? ''); setDescription(d.description ?? '');
-        setTrayectoria(d.trayectoria ?? ''); setEsencia(d.esencia ?? ''); setServicios(d.servicios ?? '');
-        setExcelencia(d.excelencia ?? ''); setServiciosLista(d.serviciosLista ?? ''); setPreview(d.image);
-        setVideo(d.video ?? null);
+        cargar(d);
       })
       .catch(() => alive && setLoadErr(true));
     return () => { alive = false; };
   }, [id]);
+
+  // Lo escrito va a la vista previa al momento (sin guardar).
+  useEffect(() => {
+    if (!data) return;
+    onBorrador({ id, title, image: data.image, video, frase: frase || null, textos, titulos, destacados });
+  }, [data, id, title, video, frase, textos, titulos, destacados, onBorrador]);
+  useEffect(() => () => onBorrador(null), [onBorrador]);
+
+  const foto = JSON.stringify([title, frase, textos, titulos, destacados]);
+  const cambios = !!data && (foto !== guardado || file !== null);
+
+  async function cerrar() {
+    if (cambios && !(await confirmar({ titulo: '¿Cerrar sin guardar?', mensaje: 'Lo que cambiaste en este sector se pierde.', confirmar: 'Cerrar sin guardar', peligro: true }))) return;
+    onClose();
+  }
 
   function pick(f: File) { if (f.type.startsWith('image/')) { setFile(f); setPreview(URL.createObjectURL(f)); } }
 
@@ -326,57 +468,90 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
   async function elegirVideo(archivo: File | null) {
     if (videoRef.current) videoRef.current.value = '';
     if (!archivo) return;
-    setErr(null); setAvisoVideo(null);
+    setErr(null); setAviso(null);
     if (archivo.size > VIDEO_MAX_MB * 1024 * 1024) { setErr(`El video pesa más de ${VIDEO_MAX_MB} MB`); return; }
     setSubiendo(0);
     try {
       const url = await subirVideo(id, archivo, setSubiendo);
       setVideo(url);
-      setAvisoVideo('Video guardado: ya se ve en el sitio.');
+      setAviso('Video guardado: ya se ve en el sitio.');
       router.refresh();
     } catch (e) { setErr((e as Error).message); } finally { setSubiendo(null); }
   }
 
   async function quitarVideo() {
-    setErr(null); setAvisoVideo(null);
+    setErr(null); setAviso(null);
     const r = await fetch(`/api/admin/cms/sectors/${id}/video`, { method: 'DELETE' });
     if (!r.ok) { setErr('No se pudo quitar el video'); return; }
     setVideo(null);
-    setAvisoVideo('Video quitado: se vuelve a ver la imagen.');
+    setAviso('Video quitado: se vuelve a ver la imagen.');
     router.refresh();
   }
+
+  function acomodar() {
+    const r = separarTextoSector(pegado, title);
+    if (r.reconocidos === 0) {
+      setAvisoPegar('No encontré los títulos de los apartados. Cada uno debe ir en su propio renglón: «Sobre este sector», «Trayectoria», «Esencia», «Servicios», «Excelencia» y «Servicios incluidos» (con o sin número).');
+      return;
+    }
+    if (r.titulo) setTitle(r.titulo);
+    setFrase(r.frase ?? '');
+    setTextos(r.textos);
+    setTitulos(r.titulos);
+    setDestacados(r.destacados);
+    setPegarAbierto(false);
+    setPegado('');
+    setAvisoPegar(null);
+    setErr(null);
+    setAviso(`Listo: se acomodaron ${r.reconocidos} de 6 apartados${r.titulo ? ` y el título quedó «${r.titulo}»` : ''}. Revisa en la vista previa y da «Guardar sector».`);
+  }
+
   async function save() {
     if (title.trim().length < 2) { setErr('El título es obligatorio'); return; }
-    setSaving(true); setErr(null);
+    setSaving(true); setErr(null); setAviso(null);
     try {
       const fd = new FormData();
-      fd.append('title', title); fd.append('description', description);
-      fd.append('trayectoria', trayectoria); fd.append('esencia', esencia); fd.append('servicios', servicios);
-      fd.append('excelencia', excelencia); fd.append('serviciosLista', serviciosLista);
+      fd.append('title', title.trim());
+      fd.append('description', textos.sobre); fd.append('trayectoria', textos.trayectoria); fd.append('esencia', textos.esencia);
+      fd.append('servicios', textos.servicios); fd.append('excelencia', textos.excelencia); fd.append('serviciosLista', textos.lista);
+      fd.append('textos', JSON.stringify({ frase, titulos, destacados }));
       if (file) fd.append('image', file);
       const r = await fetch(`/api/admin/cms/sectors/${id}`, { method: 'PATCH', body: fd });
-      if (!r.ok) throw new Error('No se pudo guardar el sector');
+      if (!r.ok) {
+        const d = (await r.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(d?.message ?? 'No se pudo guardar el sector');
+      }
+      const fresco = (await fetch(`/api/admin/cms/sectors/${id}`).then((x) => (x.ok ? x.json() : null)).catch(() => null)) as SectorFull | null;
+      if (fresco) cargar(fresco);
+      else { setGuardado(foto); setFile(null); }
+      setAviso('Guardado: ya está en el sitio.');
       onSaved();
     } catch (e) { setErr((e as Error).message); } finally { setSaving(false); }
   }
 
-  const areaField = (label: string, value: string, on: (v: string) => void, rows = 2, ph = '') => (
-    <Field label={label}><textarea value={value} onChange={(e) => on(e.target.value)} rows={rows} placeholder={ph} style={textareaStyle} /></Field>
-  );
+  const enSitio = data ? `${urlDelSitio()}/sectores/${productSlug(data.title || 'sector', id)}` : null;
+  const ponerTitulo = (k: ClaveBloqueSector) => (v: string) => setTitulos((m) => ({ ...m, [k]: v }));
+  const ponerDestacado = (k: ClaveBloqueSector) => (v: string) => setDestacados((m) => ({ ...m, [k]: v }));
+  const ponerTexto = (k: ClaveBloqueSector) => (v: string) => setTextos((m) => ({ ...m, [k]: v }));
 
   // El sector en edición se abre dentro de su fila, con un fondo apenas más claro.
   return (
-    <div className="adm-trow" style={{ display: 'grid', gap: 14, padding: 20, background: 'rgba(var(--adm-ink),0.02)' }}>
+    <div className="adm-trow" style={{ display: 'grid', gap: 16, padding: 20, background: 'rgba(var(--adm-ink),0.02)' }}>
       {loadErr ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: 'var(--adm-bad)' }}>No se pudo cargar el sector. <Btn size="sm" variant="ghost" onClick={onClose}>Cerrar</Btn></div>
       ) : !data ? (
         <div style={{ fontSize: 13, color: 'var(--adm-muted)', padding: '8px 2px' }}><i className="ph ph-circle-notch" /> Cargando…</div>
       ) : (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
             <h3 style={h3Style}>Editar sector</h3>
-            <Btn size="sm" variant="ghost" onClick={onClose} disabled={subiendo !== null}>Cerrar</Btn>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {enSitio ? <a href={enSitio} target="_blank" rel="noreferrer" className="adm-link" style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4 }}>Ver en el sitio <i className="ph ph-arrow-square-out" /></a> : null}
+              <Btn size="sm" variant="ghost" onClick={cerrar} disabled={subiendo !== null || saving}>Cerrar</Btn>
+            </div>
           </div>
+
+          {/* ===== Tarjeta: imagen o video, título y frase corta ===== */}
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             <div style={{ display: 'grid', gap: 10, alignContent: 'start', flexShrink: 0 }}>
               <label
@@ -413,32 +588,76 @@ function SectorEditRow({ id, busy, onClose, onSaved }: { id: number; busy: boole
                 <Btn size="sm" variant="ghost" icon="ph-trash" onClick={quitarVideo}>Quitar video</Btn>
               ) : null}
             </div>
-            <div style={{ flex: 1, minWidth: 220, display: 'grid', gap: 12 }}>
-              <Field label="Título"><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre del sector" style={inputStyle} /></Field>
-              {areaField('Descripción (tarjeta del home y encabezado de la página)', description, setDescription, 3, 'Descripción breve…')}
-              <span className="adm-help">
-                Si subes video, se ve en lugar de la imagen: en bucle y sin sonido, y la imagen queda de portada mientras carga. Se recorta para llenar la tarjeta. MP4 o WebM, hasta {VIDEO_MAX_MB} MB; mejor de 5 a 15 s y menos de 10 MB. El video se guarda al elegirlo.
+            <div style={{ flex: 1, minWidth: 220, display: 'grid', gap: 12, alignContent: 'start' }}>
+              <Field label="Título"><input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nombre del sector" maxLength={190} style={inputStyle} /></Field>
+              <Field label="Frase corta (tarjeta del inicio y encabezado de su página)">
+                <textarea value={frase} onChange={(e) => setFrase(e.target.value)} rows={2} maxLength={300} placeholder="Ej. Conectamos maquinaria, equipos y servicios especializados con los proyectos que construyen el futuro." style={{ ...areaStyle, minHeight: 60 }} />
+              </Field>
+              <span style={ayuda}>
+                Sin frase, la tarjeta toma el principio de «Sobre este sector». Si subes video, se ve en lugar de la imagen, en bucle y sin sonido; MP4 o WebM, hasta {VIDEO_MAX_MB} MB (mejor de 5 a 15 s y menos de 10 MB). El video se guarda al elegirlo.
               </span>
-              {avisoVideo ? <span style={{ fontSize: 12.5, color: 'var(--adm-ok)' }}>{avisoVideo}</span> : null}
             </div>
           </div>
 
-          <details>
-            <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--adm-text-2)', padding: '4px 0' }}>Bloques de la página del sector (opcional, se permite HTML)</summary>
-            <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-              {areaField('Trayectoria', trayectoria, setTrayectoria)}
-              {areaField('Esencia', esencia, setEsencia)}
-              {areaField('Servicios (texto)', servicios, setServicios)}
-              {areaField('Excelencia', excelencia, setExcelencia)}
-              {areaField('Lista de servicios (uno por línea)', serviciosLista, setServiciosLista, 4)}
+          {/* ===== Página del sector: seis apartados ===== */}
+          <div style={{ display: 'grid', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', borderTop: '1px solid var(--adm-border)', paddingTop: 16 }}>
+              <div style={{ minWidth: 0 }}>
+                <div className="adm-cell-title">Página del sector</div>
+                <div className="adm-cell-sub">Texto normal: cada renglón es un párrafo. El título vacío usa el de siempre; un apartado sin texto no sale.</div>
+              </div>
+              <Btn size="sm" icon="ph-clipboard-text" onClick={() => { setAvisoPegar(null); setPegarAbierto(true); }}>Pegar el texto completo</Btn>
             </div>
-          </details>
-
-          {err ? <span style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>{err}</span> : null}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Btn icon="ph-check" onClick={save} disabled={saving || busy || subiendo !== null}>{saving ? 'Guardando…' : 'Guardar sector'}</Btn>
-            <Btn variant="ghost" onClick={onClose} disabled={saving || subiendo !== null}>Cancelar</Btn>
+            {BLOQUES_SECTOR.map((b, i) => (
+              <Apartado
+                key={b.clave}
+                n={i + 1}
+                clave={b.clave}
+                titulo={titulos[b.clave] ?? ''}
+                destacado={destacados[b.clave] ?? ''}
+                texto={textos[b.clave]}
+                onTitulo={ponerTitulo(b.clave)}
+                onDestacado={ponerDestacado(b.clave)}
+                onTexto={ponerTexto(b.clave)}
+              />
+            ))}
           </div>
+
+          {err ? <Note tone="bad">{err}</Note> : null}
+          {aviso ? <Note tone="ok">{aviso}</Note> : null}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', position: 'sticky', bottom: 0, padding: '10px 0 2px', background: 'var(--adm-page)', zIndex: 2 }}>
+            <Btn variant="primary" icon="ph-check" onClick={save} disabled={saving || busy || subiendo !== null}>{saving ? 'Guardando…' : 'Guardar sector'}</Btn>
+            <Btn variant="ghost" onClick={cerrar} disabled={saving || subiendo !== null}>Cerrar</Btn>
+            {cambios ? <StatusText tone="warn">Cambios sin guardar</StatusText> : null}
+          </div>
+
+          <Modal
+            abierto={pegarAbierto}
+            titulo="Pegar el texto completo"
+            subtitulo={<>Pega el documento del sector tal como lo escribiste. Se reparte solo en el título, la frase corta y los seis apartados; luego lo revisas y das «Guardar sector».</>}
+            onCerrar={() => setPegarAbierto(false)}
+            ancho={720}
+            pie={
+              <>
+                <Btn variant="ghost" onClick={() => setPegarAbierto(false)}>Cancelar</Btn>
+                <Btn variant="primary" icon="ph-magic-wand" onClick={acomodar} disabled={!pegado.trim()}>Acomodar en los campos</Btn>
+              </>
+            }
+          >
+            <div style={{ display: 'grid', gap: 10 }}>
+              <textarea
+                value={pegado}
+                onChange={(e) => setPegado(e.target.value)}
+                rows={16}
+                autoFocus
+                placeholder={'CONSTRUCCIÓN INDUSTRIAL\nSoluciones para el desarrollo de naves y parques industriales\n\n1. SOBRE ESTE SECTOR\n…\n2. TRAYECTORIA\n…\n6. SERVICIOS INCLUIDOS\n* …'}
+                className="adm-textarea"
+                style={{ fontSize: 13.5, lineHeight: 1.5 }}
+              />
+              <span style={ayuda}>Reemplaza lo que hay ahora en los campos de la página. Reconoce los títulos con o sin número, y también «Nuestra esencia», «Nuestro diferencial» o «Soluciones para…».</span>
+              {avisoPegar ? <Note tone="warn">{avisoPegar}</Note> : null}
+            </div>
+          </Modal>
         </>
       )}
     </div>

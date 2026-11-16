@@ -21,6 +21,21 @@ function esDelPanel(origen: string): boolean {
   }
 }
 
+const RECARGA = 'maqser-vp:recargada';
+
+/** Recarga la página si no se recargó en el último minuto (sin ciclos). */
+function recargarUnaVez(): boolean {
+  try {
+    const antes = Number(sessionStorage.getItem(RECARGA) ?? 0);
+    if (Date.now() - antes < 60_000) return false;
+    sessionStorage.setItem(RECARGA, String(Date.now()));
+  } catch {
+    return false;
+  }
+  window.location.reload();
+  return true;
+}
+
 /** Al padre. No es información sensible: un aviso de "listo" y un alto. */
 function avisar(tipo: string, extra: Record<string, unknown> = {}) {
   if (window.parent !== window) window.parent.postMessage({ tipo, ...extra }, '*');
@@ -43,16 +58,28 @@ export function VistaPreviaCliente({ pintar }: { pintar: typeof pintarVistaPrevi
       if (espera.current) clearTimeout(espera.current);
       espera.current = setTimeout(async () => {
         const mio = ++turno.current;
-        try {
-          const r = await pintar({ vista: d.vista, modo: d.modo, tokens: d.tokens, copys: d.copys, datos: d.datos });
-          if (mio !== turno.current) return;
-          if (r.ok) {
-            setNodo(r.nodo);
-            setError(null);
-          } else setError(r.error);
-        } catch {
-          if (mio === turno.current) setError('El sitio no pudo pintar la vista previa. Reintenta en unos segundos.');
+        const borrador = { vista: d.vista, modo: d.modo, tokens: d.tokens, copys: d.copys, datos: d.datos };
+        // Dos intentos: el servidor puede estar reiniciando (al subir cambios) o saturado un momento.
+        for (let intento = 1; intento <= 2; intento++) {
+          try {
+            const r = await pintar(borrador);
+            if (mio !== turno.current) return;
+            if (r.ok) {
+              setNodo(r.nodo);
+              setError(null);
+            } else setError(r.error);
+            try { sessionStorage.removeItem(RECARGA); } catch { /* sin almacenamiento */ }
+            return;
+          } catch {
+            if (mio !== turno.current) return;
+            if (intento === 1) await new Promise((r) => setTimeout(r, 1500));
+          }
         }
+        // Tras una subida, esta página (cargada antes) apunta a una versión del
+        // sitio que ya no existe y ningún reintento la arregla: se recarga una
+        // vez y el panel vuelve a mandar el borrador al oír «lista».
+        if (recargarUnaVez()) return;
+        setError('El sitio no pudo pintar la vista previa. Reintenta en unos segundos.');
       }, 220);
     };
     window.addEventListener('message', alRecibir);
