@@ -13,6 +13,7 @@ import { telHref } from '@/lib/telefono';
 import { mapaHref } from '@/lib/direccion';
 import { fotoLigera } from '@/lib/foto';
 import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
+import { TrazosLuz } from '@/components/BandaLuz';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
 //
@@ -101,16 +102,15 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
       </div>
 
       {/* Header sticky. `data-encabezado-sitio`: la pantalla de carga se pone justo debajo (CargaDePagina). */}
+      {/* Rediseño 2026-11-16 (el dueño: «el header no se ve como lo demás»): siempre
+          oscuro como la barra de contacto, la portada y el pie, sin línea abajo
+          (se funde con la portada); enlaces en la letra de titulares con
+          subrayado azul brillante y botones con resplandor. Ver SH_CSS. */}
+      <style>{SH_CSS}</style>
       <header
         data-encabezado-sitio
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 50,
-          background: 'color-mix(in srgb, var(--color-bg) 94%, transparent)',
-          backdropFilter: 'blur(10px)',
-          borderBottom: '1px solid var(--color-border)',
-        }}
+        className="sh-hdr"
+        style={{ position: 'sticky', top: 0, zIndex: 50 }}
       >
         <div className="hdr-inner" style={{ ...CONTAINER, display: 'flex', alignItems: 'center', gap: 14, paddingTop: 14, paddingBottom: 14 }}>
           {/* Logo */}
@@ -239,34 +239,56 @@ export function SiteFooter({ theme }: { theme: Theme }) {
   // de 14 px con peso normal y piezas de radio 8. Hover/foco en `.sf-*`.
 
   return (
-    <footer style={{ background: 'var(--band)', color: 'rgba(255,255,255,.7)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
+    <footer className="sf-pie" style={{ background: 'var(--band)', color: 'rgba(255,255,255,.7)', marginTop: 40, borderTop: '1px solid var(--color-border)' }}>
+      {/* Rediseño 2026-11-16: trazo de luz en la esquina y línea azul arriba, como el resto del sitio. */}
+      <TrazosLuz partes="arriba" />
       <style>{`
-        .sf-a{ transition:color .18s ease; }
+        .sf-pie{ position:relative; overflow:hidden; isolation:isolate; }
+        .sf-pie::before{ content:''; position:absolute; top:-1px; left:50%; width:min(620px, 72vw); height:1px; transform:translateX(-50%);
+          background: linear-gradient(90deg, transparent, var(--color-primary), transparent); box-shadow: 0 0 14px var(--color-primary); }
+        .sf-pie::after{ content:''; position:absolute; z-index:-1; left:-10%; bottom:-40%; width:720px; height:520px; border-radius:50%; pointer-events:none;
+          background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent 65%); }
+        .sf-cuerpo{ position:relative; z-index:1; }
+        /* Pie más compacto (2026-11-16, el dueño: «así acomodado como está, pero un
+           poco más comprimido, para que no abarque mucho espacio»): mismo orden,
+           menos aire, trazo de luz más bajo y angosto para que no toque el contacto. */
+        .sf-pie .bl-trazo{ height:44px !important; width:min(400px, 36vw) !important; }
+        /* Si la página termina en una banda de luz (el inicio, con Preguntas
+           frecuentes), el pie va pegado: sin la franja vacía ni la doble línea. */
+        main:has(> .bl-banda:last-child) + .sf-pie{ margin-top:0 !important; border-top-color:transparent !important; }
+        .sf-a{ transition:color .18s ease, transform .18s ease; }
         .sf-a:hover{ color:#fff !important; }
+        .sf-list a{ display:inline-block; }
+        .sf-list a:hover{ transform: translateX(3px); }
         .sf-a:focus-visible{ outline:2px solid var(--color-primary); outline-offset:2px; border-radius:4px; }
         /* Franja superior: marca a la izquierda, contacto rápido a la derecha. */
-        .sf-top{ display:flex; justify-content:space-between; align-items:flex-end; gap:24px 48px; flex-wrap:wrap; padding-bottom:36px; border-bottom:1px solid rgba(255,255,255,.08); }
+        .sf-top{ display:flex; justify-content:space-between; align-items:flex-start; gap:18px 48px; flex-wrap:wrap; padding-bottom:22px; border-bottom:1px solid rgba(255,255,255,.08); }
         .sf-marca{ min-width:0; max-width:560px; }
-        .sf-tag{ font-size:14.5px; line-height:1.6; margin:16px 0 0; max-width:56ch; }
-        .sf-contacto{ display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
-        .sf-ct{ display:inline-flex; align-items:center; gap:10px; color:rgba(255,255,255,.78); text-decoration:none; font-size:14.5px; }
-        .sf-ct svg{ color:var(--color-primary); flex-shrink:0; }
+        .sf-tag{ font-size:14px; line-height:1.55; margin:10px 0 0; max-width:56ch; }
+        .sf-contacto{ display:flex; flex-direction:column; gap:7px; align-items:flex-start; }
+        .sf-ct{ display:inline-flex; align-items:center; gap:9px; color:rgba(255,255,255,.78); text-decoration:none; font-size:14px; }
+        .sf-ct svg{ color:var(--color-primary); flex-shrink:0; box-sizing:content-box; padding:5px; border-radius:7px;
+          border:1.5px solid color-mix(in srgb, var(--color-primary) 70%, transparent); box-shadow: 0 0 14px -4px var(--color-primary); }
         /* Dirección: puede ser larga, se parte en renglones con el pin arriba. */
-        .sf-dir{ align-items:flex-start; max-width:380px; line-height:1.5; }
+        .sf-dir{ align-items:flex-start; max-width:380px; line-height:1.45; }
         .sf-dir svg{ margin-top:3px; }
         /* Columnas parejas. Mismo ritmo vertical en todas. */
-        .sf-cols{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap:32px 40px; padding:36px 0 44px; }
-        .sf-h{ margin:0 0 14px; color:#fff; font-weight:600; font-size:14.5px; }
-        .sf-list{ list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+        .sf-cols{ display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap:20px 40px; padding:24px 0 26px; }
+        .sf-h{ margin:0 0 10px; color:var(--color-primary); font-family:var(--font-display); font-weight:800; font-size:12.5px; letter-spacing:.08em; text-transform:uppercase; }
+        .sf-list{ list-style:none; margin:0; padding:0; display:grid; gap:5px; }
         .sf-list a{ color:rgba(255,255,255,.7); text-decoration:none; font-size:14px; line-height:20px; }
-        .sf-redes{ display:flex; align-items:center; justify-content:center; gap:14px 24px; flex-wrap:wrap; }
+        .sf-redes{ display:flex; align-items:center; justify-content:center; gap:10px 20px; flex-wrap:wrap; }
+        .sf-redes .rs-barra a{ width:40px; min-width:40px; height:40px; border-radius:10px; }
+        .sf-redes .rs-barra a svg{ width:20px; height:20px; }
         @media (max-width:640px){
           .sf-top{ align-items:flex-start; }
           .sf-cols{ grid-template-columns:repeat(2, minmax(0,1fr)); gap:28px 20px; }
+          /* En celular los enlaces con más separación: se tocan con el dedo. */
+          .sf-list{ gap:10px; }
           .sf-cols > :first-child{ grid-column:1 / -1; }
         }
       `}</style>
-      <div style={{ ...CONTAINER, paddingTop: 56 }}>
+      <div className="sf-cuerpo" style={{ ...CONTAINER, paddingTop: 50 }}>
         {/* Franja superior (2026-10-05): la marca con su descripción a lo ancho y,
             a la derecha, el contacto directo. Antes la marca era una columna
             angosta y la descripción se partía en cuatro renglones. */}
@@ -275,7 +297,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               {footerLogo ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={fotoLigera(footerLogo, 640, 90)} alt={brand} style={{ height: 42, width: 'auto', maxWidth: 240, objectFit: 'contain', display: 'block' }} />
+                <img src={fotoLigera(footerLogo, 640, 90)} alt={brand} style={{ height: 36, width: 'auto', maxWidth: 220, objectFit: 'contain', display: 'block' }} />
               ) : (
                 <>
                   <span
@@ -347,7 +369,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
           enlace no se pintan; si no hay ninguna, no sale la franja. */}
       {redesParaMostrar(f.social, contactoPie.whatsapp).length ? (
         <div style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
-          <div className="sf-redes" style={{ ...CONTAINER, paddingTop: 24, paddingBottom: 24 }}>
+          <div className="sf-redes" style={{ ...CONTAINER, paddingTop: 14, paddingBottom: 14 }}>
             <p className="sf-h" style={{ margin: 0 }}>Síguenos</p>
             <RedesSociales redes={f.social} whatsapp={contactoPie.whatsapp} tono="claro" forma="barra" />
           </div>
@@ -355,7 +377,7 @@ export function SiteFooter({ theme }: { theme: Theme }) {
       ) : null}
 
       <div style={{ borderTop: '1px solid rgba(255,255,255,.08)' }}>
-        <div style={{ ...CONTAINER, display: 'flex', justifyContent: 'space-between', gap: '12px 16px', flexWrap: 'wrap', paddingTop: 20, paddingBottom: 20, fontSize: '13px', color: 'rgba(255,255,255,.55)' }}>
+        <div style={{ ...CONTAINER, display: 'flex', justifyContent: 'space-between', gap: '12px 16px', flexWrap: 'wrap', paddingTop: 14, paddingBottom: 14, fontSize: '13px', color: 'rgba(255,255,255,.55)' }}>
           <span>{copyright}</span>
           <span style={{ display: 'flex', gap: '8px 20px', flexWrap: 'wrap' }}>
             <Link href="/terminos" className="sf-a" style={{ color: 'rgba(255,255,255,.55)', textDecoration: 'none' }}>{t(theme, 'footer.terms')}</Link>
@@ -367,3 +389,37 @@ export function SiteFooter({ theme }: { theme: Theme }) {
     </footer>
   );
 }
+
+/**
+ * Encabezado oscuro en los dos modos: las variables de color se fijan aquí
+ * dentro, así los enlaces, iconos, menús y el cajón móvil del encabezado se
+ * pintan en claro sobre el azul marino aunque el sitio esté en modo claro.
+ */
+const SH_CSS = `
+.sh-hdr{ --color-text:#F5F7FA; --color-text-muted: rgba(245,247,250,.68); --color-border: rgba(255,255,255,.14); --color-surface:#11161C;
+  color: var(--color-text);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--band) 97%, transparent), color-mix(in srgb, var(--band) 90%, transparent));
+  backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%); }
+.sh-hdr .brand-swap .brand-logo-light{ display:none !important; }
+.sh-hdr .brand-swap .brand-logo-dark{ display:block !important; }
+/* Montserrat es más ancha que la letra de texto: un poco más chica y con menos espacio, para que el menú no se encime con los iconos. */
+.sh-hdr .hdr-nav{ font-family: var(--font-display); font-weight:700 !important; font-size:13.5px !important; gap: clamp(9px, .95vw, 15px) !important; letter-spacing:-.005em; }
+.sh-hdr .hdr-nav a{ transition: color .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.sh-hdr .hdr-nav a:hover{ color: color-mix(in srgb, var(--color-primary) 60%, #fff) !important; }
+.sh-hdr .hdr-nav a[aria-current="page"]{ color:#fff !important; border-bottom-color: var(--color-primary) !important; box-shadow: 0 9px 14px -11px var(--color-primary); }
+.sh-hdr a.hdr-prov{ font-family: var(--font-display); font-weight:700 !important; background: color-mix(in srgb, #fff 4%, transparent);
+  border-color: color-mix(in srgb, var(--color-primary) 60%, transparent) !important; transition: background .2s ease, box-shadow .2s ease; }
+.sh-hdr a.hdr-prov:hover{ background: color-mix(in srgb, var(--color-primary) 14%, transparent); box-shadow: 0 0 20px -6px var(--color-primary); }
+.sh-hdr a.hdr-auth[href="/login"]{ font-family: var(--font-display); font-weight:700 !important; }
+.sh-hdr a.hdr-auth[href="/registro"]{ font-family: var(--font-display); font-weight:800 !important;
+  box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--color-primary) 85%, transparent), inset 0 1px 0 rgba(255,255,255,.22) !important;
+  transition: transform .2s cubic-bezier(.16,1,.3,1), filter .2s ease; }
+.sh-hdr a.hdr-auth[href="/registro"]:hover{ transform: translateY(-1px); filter: brightness(1.08); }
+.sh-hdr .hdr-icon{ transition: color .18s ease, background .18s ease, box-shadow .18s ease; }
+.sh-hdr .hdr-icon:hover{ color:#fff !important; background: color-mix(in srgb, var(--color-primary) 16%, transparent) !important; box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary) 45%, transparent); }
+/* Desde 1440 px también va «Regístrate como proveedor» en el encabezado: botones un poco más compactos para que quepa todo. */
+.sh-hdr a.hdr-prov, .sh-hdr a.hdr-auth{ font-size:13px !important; }
+.sh-hdr a.hdr-prov{ padding:8px 11px !important; margin-right:6px !important; }
+.sh-hdr a.hdr-auth[href="/registro"]{ padding:9px 13px !important; }
+@media (prefers-reduced-motion: reduce){ .sh-hdr a.hdr-auth[href="/registro"]:hover{ transform:none; } }
+`;

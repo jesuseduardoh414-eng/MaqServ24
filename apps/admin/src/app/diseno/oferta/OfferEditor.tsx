@@ -6,9 +6,33 @@ import type { Offer, ThemeTokens } from '@maqserv/config';
 import { VistaPreviaSitio } from '@/components/VistaPreviaSitio';
 import { D, cardStyle, inputStyle, h3Style, Field, Toggle, ColorField } from '@/components/editor-kit';
 import { Btn, PageHeader, StatusText, Toast } from '@/components/ui';
+import { portadaDeVideo, subirPortada } from '@/lib/portada-video';
+
+/** Igual que el tope de `POST admin/cms/video` en la API. */
+const VIDEO_MAX_MB = 30;
+
+/** XHR y no fetch: fetch no informa el avance de la subida. */
+function subirVideo(archivo: File, onAvance: (pct: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/admin/cms/video');
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onAvance(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => {
+      let d: { message?: string; video?: string } | null = null;
+      try { d = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300 && d?.video) resolve(d.video);
+      else if (xhr.status === 413) reject(new Error(`El video pesa más de ${VIDEO_MAX_MB} MB`));
+      else reject(new Error(d?.message ?? 'No se pudo subir el video'));
+    };
+    xhr.onerror = () => reject(new Error('Se cortó la conexión al subir el video'));
+    const fd = new FormData();
+    fd.append('video', archivo);
+    xhr.send(fd);
+  });
+}
 
 type Copys = Record<string, Record<string, string>>;
-const OFFER_DEFAULTS: Offer = { show: true, image: null, ctaLink: '/productos', bg: null, accentColor: null, titleColor: null };
+const OFFER_DEFAULTS: Offer = { show: true, image: null, video: null, ctaLink: '/productos', bg: null, accentColor: null, titleColor: null };
 const cv = (es: Record<string, string>, k: string, def = '') => es[k] ?? def;
 
 /** Un interruptor suelto va en texto plano con una línea fina debajo: una tarjeta para un solo switch sobraba. */
@@ -35,6 +59,8 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
   const [saved, setSaved] = useState<Config>(initial);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  /** Avance de la subida del video (0–100), o null si no se está subiendo. */
+  const [subiendoVideo, setSubiendoVideo] = useState<number | null>(null);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
 
   const set = <K extends keyof Config>(k: K, v: Config[K]) => setConfig((c) => ({ ...c, [k]: v }));
@@ -58,9 +84,31 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
     } catch (e) { setToast({ ok: false, text: (e as Error).message }); } finally { setUploading(false); }
   }
 
+  /**
+   * Video en lugar de la imagen (2026-11-16, el dueño: «en esa parte también se
+   * va a poder meter un video»). Se sube al elegirlo y se publica con «Guardar
+   * y publicar». Sin imagen, la portada se saca del propio video para que no se
+   * vea negro mientras carga.
+   */
+  async function elegirVideo(f: File) {
+    if (f.size > VIDEO_MAX_MB * 1024 * 1024) { setToast({ ok: false, text: `El video pesa más de ${VIDEO_MAX_MB} MB` }); return; }
+    setToast(null);
+    setSubiendoVideo(0);
+    try {
+      const url = await subirVideo(f, setSubiendoVideo);
+      setO('video', url);
+      if (!config.off.image) {
+        const portada = await portadaDeVideo(f);
+        const img = portada ? await subirPortada(portada) : null;
+        if (img) setConfig((c) => (c.off.image ? c : { ...c, off: { ...c.off, image: img } }));
+      }
+      setToast({ ok: true, text: 'Video listo. Da «Guardar y publicar» para que se vea en el inicio.' });
+    } catch (e) { setToast({ ok: false, text: (e as Error).message }); } finally { setSubiendoVideo(null); }
+  }
+
   function discard() { setConfig(saved); setToast(null); }
   async function publish() {
-    if (busy || !themeId) return;
+    if (busy || !themeId || subiendoVideo !== null) return;
     setBusy(true); setToast(null);
     try {
       const es = { ...(copys['es'] ?? {}) };
@@ -84,12 +132,12 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
       <PageHeader
         eyebrow={['Sitio web', 'Secciones del home']}
         title="Sección 7 · Oferta / Promoción"
-        subtitle="La banda de oferta del home: banda destacada para promociones o anuncios. Aquí defines los textos, la imagen, el enlace y los colores."
+        subtitle="La banda de oferta del home: banda destacada para promociones o anuncios. Aquí defines los textos, la imagen o el video, el enlace y los colores."
         actions={
           <>
             <StatusText tone={dirty ? 'warn' : 'ok'}>{dirty ? 'Cambios sin publicar' : 'Todo publicado'}</StatusText>
             <Btn variant="ghost" onClick={discard} disabled={!dirty || busy}>Descartar</Btn>
-            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
+            <Btn variant="primary" icon="ph-cloud-arrow-up" onClick={publish} disabled={busy || subiendoVideo !== null}>{busy ? 'Publicando…' : 'Guardar y publicar'}</Btn>
           </>
         }
       />
@@ -116,7 +164,7 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
           </div>
 
           <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-            <div><h3 style={h3Style}>Imagen</h3><p className="adm-panel-desc">El visual del lado derecho. Vacío ⇒ se muestra un patrón decorativo.</p></div>
+            <div><h3 style={h3Style}>Imagen</h3><p className="adm-panel-desc">El visual del lado derecho. Si también subes video, esta imagen es su portada mientras carga. Vacío ⇒ se muestra un fondo decorativo.</p></div>
             <label
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) upload(f); }}
@@ -136,6 +184,22 @@ export function OfferEditor({ themeId, copys, tokens, offer }: {
               )}
               <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ''; }} style={{ display: 'none' }} />
             </label>
+          </div>
+
+          <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
+            <div><h3 style={h3Style}>Video (opcional)</h3><p className="adm-panel-desc">Si subes video, se ve en lugar de la imagen: en bucle y sin sonido, con la imagen de portada mientras carga (si no hay imagen, se toma un cuadro del video). MP4 o WebM, hasta {VIDEO_MAX_MB} MB; mejor de 5 a 15 s y menos de 10 MB. Se ve en el sitio al dar «Guardar y publicar».</p></div>
+            {o.video ? (
+              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#000', border: '1px solid var(--adm-border-strong)', aspectRatio: '16 / 10', maxHeight: 220 }}>
+                <video src={o.video} poster={o.image ?? undefined} muted loop autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              </div>
+            ) : null}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <label className="adm-btn adm-btn-secondary adm-btn-sm" style={{ cursor: subiendoVideo !== null ? 'default' : 'pointer' }}>
+                <i className="ph ph-video-camera" aria-hidden /> {subiendoVideo !== null ? `Subiendo… ${subiendoVideo}%` : o.video ? 'Cambiar video' : 'Subir video'}
+                <input type="file" accept="video/mp4,video/webm" disabled={subiendoVideo !== null} onChange={(e) => { const f = e.target.files?.[0]; if (f) void elegirVideo(f); e.target.value = ''; }} style={{ display: 'none' }} />
+              </label>
+              {o.video && subiendoVideo === null ? <Btn size="sm" variant="ghost" icon="ph-trash" onClick={() => setO('video', null)}>Quitar video</Btn> : null}
+            </div>
           </div>
 
           <div style={{ ...cardStyle, display: 'grid', gap: 18 }}>

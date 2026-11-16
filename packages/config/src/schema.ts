@@ -318,6 +318,7 @@ export const offerSchema = z
   .object({
     show: z.boolean().default(true),
     image: z.string().nullable().default(null), // imagen del lado derecho (null ⇒ patrón decorativo)
+    video: z.string().nullable().default(null), // video en bucle en lugar de la imagen (2026-11-16); la imagen queda de portada
     ctaLink: z.string().default('/cotizador/maquinaria'),
     bg: z.string().nullable().default(null), // fondo de la banda; null ⇒ var(--color-secondary)
     accentColor: z.string().nullable().default(null), // badge + botón; null ⇒ var(--color-primary)

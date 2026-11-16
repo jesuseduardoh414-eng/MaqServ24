@@ -17,7 +17,8 @@ import {
 } from '@/lib/api';
 import { categoryHref, categoryCountLabel } from '@/lib/category-link';
 import { VideoCategoria } from './VideoCategoria';
-import { BandaLuz } from './BandaLuz';
+import { BandaLuz, TrazosLuz } from './BandaLuz';
+import { EncabezadoSobrePortada } from './EncabezadoSobrePortada';
 import { Carousel, Eyebrow } from '@/components/Carousel';
 import { Icon, Stars, type IconName } from '@/components/Icon';
 import { CategoryStrip } from '@/components/CategoryStrip';
@@ -43,7 +44,7 @@ const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', paddi
  * dueño): titular grande y grueso, etiqueta en MAYÚSCULAS espaciadas (`.ms-kicker`)
  * y subtítulo más legible.
  */
-const H2: React.CSSProperties = { fontFamily: 'var(--font-display)', fontSize: 'clamp(30px, 3.6vw, 46px)', fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1.06, margin: 0, textWrap: 'balance' };
+const H2: React.CSSProperties = { fontFamily: 'var(--font-display)', fontSize: 'clamp(26px, 2.6vw, 36px)', fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.12, margin: 0, textWrap: 'balance' };
 const SUB: React.CSSProperties = { color: 'color-mix(in srgb, var(--color-text) 82%, transparent)', fontSize: 'clamp(15.5px, 1.25vw, 18px)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' };
 const CARD_RADIUS = 12;
 /** Borde de las tarjetas del inicio (rediseño parte 3): más visible que el del tema, como las de «Red» y «MTY». */
@@ -66,6 +67,11 @@ function CenterHead({ eyebrow, title, subtitle, eyebrowColor, titleColor }: { ey
  * `contenido` lo pasa la vista previa del panel con el texto e imagen sin
  * publicar (viven en la tabla del hero, no en el tema). El sitio no lo pasa.
  */
+/** `**texto**` → negritas (el panel escribe texto normal; esto es lo único que se interpreta). */
+function conNegritas(texto: string): React.ReactNode[] {
+  return texto.split(/\*\*(.+?)\*\*/g).map((parte, i) => (i % 2 ? <strong key={i} className="hx-neg">{parte}</strong> : parte));
+}
+
 export async function Hero({ theme, contenido }: { theme: Theme; contenido?: HomeHero | null }) {
   const hero = contenido !== undefined ? contenido : await getHero().catch(() => null);
   const h = theme.tokens.hero; // ajustes configurables (colores, links, toggles, opacidad)
@@ -85,6 +91,7 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
     const v = t(theme, key);
     return v === key || !v.trim() ? def : v;
   };
+  const lema = cval('home.hero.tagline', '').trim();
   const contacto = theme.tokens.contact ?? defaultTheme.tokens.contact;
   const numeroWa = contacto.whatsapp || contacto.phone;
   const wa = numeroWa ? whatsappHref(numeroWa, 'Hola, quiero una cotización.') : null;
@@ -99,18 +106,25 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
   ];
 
   return (
-    <section style={{ position: 'relative', background: 'var(--band)', overflow: 'hidden' }}>
-      {/* patrón de puntos + anillo giratorio (el círculo de acento va en el visual) */}
-      {/* Patrón de puntos discreto. El anillo punteado que giraba se retiró:
-          el sistema pide movimiento corto, no adornos en bucle. */}
-      <div aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px)', backgroundSize: '26px 26px', opacity: 0.5 }} />
+    // Rediseño 2026-11-16 (el dueño: «se ve muy simple»): la portada toma el
+    // mundo de «¿Por qué MAQSER24?» a toda intensidad — brillo azul detrás del
+    // titular y del visual, rejilla de plano de obra que se desvanece, trazos de
+    // luz en las esquinas, titular en la letra gruesa, botón con resplandor,
+    // casillas con borde azul y tarjetas semitransparentes sobre el video.
+    <section className="hx" style={{ background: 'var(--band)' }}>
+      <style>{HERO_CSS}</style>
+      <div aria-hidden className="hx-rejilla" />
+      <div aria-hidden className="hx-brillo hx-brillo-a" />
+      <div aria-hidden className="hx-brillo hx-brillo-b" />
+      <TrazosLuz partes="abajo" />
+      <EncabezadoSobrePortada />
 
       {/* El hero NO usa CONTAINER (1240 px): con el texto centrado en esa caja
           quedaban ~340 px de aire a la izquierda en pantallas grandes, el título
           se partía en más renglones y la banda crecía a lo alto. Caja más ancha
           + menos aire arriba = el mismo texto en menos renglones y un hero que
           ya no se come la pantalla de entrada. */}
-      <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0 clamp(16px, 3vw, 26px)', position: 'relative', display: 'grid', gridTemplateColumns: 'minmax(0,1.08fr) minmax(0,.92fr)', gap: 44, alignItems: 'center', paddingTop: 34, paddingBottom: 26 }} className="hero-grid">
+      <div style={{ maxWidth: 1440, margin: '0 auto', padding: '0 clamp(16px, 3vw, 26px)', position: 'relative', zIndex: 1, display: 'grid', gridTemplateColumns: 'minmax(0, 700px) minmax(0, 1fr)', gap: 'clamp(32px, 3.5vw, 56px)', alignItems: 'center', paddingTop: 'clamp(20px, 3.2vh, 40px)', paddingBottom: 'clamp(28px, 4.5vh, 52px)', width: '100%' }} className="hero-grid">
         {/* En el celular esta columna se deshace (`display: contents`) para que el
             visual quede entre el título y la descripción (2026-11-12); ver globals.css. */}
         <div className="hero-texto">
@@ -119,54 +133,53 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
               <Icon name="star" size={13} fill /> {badge}
             </div>
           ) : null}
-          {/* Único titular grande del sitio: máx. 56 px, tipo oración (sin
-              MAYÚSCULAS forzadas). El acento solo cambia el color del texto. */}
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.25rem, 4.4vw, 3.5rem)', fontWeight: 700, lineHeight: 1.06, letterSpacing: '-.02em', margin: showBadge ? '20px 0 0' : '0', color: h.titleColor, textWrap: 'balance' }}>
+          {/* Único titular grande del sitio, tipo oración. El acento solo cambia el color. */}
+          <h1 className="hx-titulo" style={{ margin: showBadge ? '20px 0 0' : '0', color: h.titleColor }}>
             {title}
             {hasAccent ? (
               <>
                 {title ? <br /> : null}
-                <span style={{ color: h.accentColor }}>{accent}</span>
+                <span className="hx-acento" style={{ color: h.accentColor }}>{accent}</span>
               </>
             ) : null}
           </h1>
           {/* `pre-line`: el texto del hero trae dos párrafos separados por una
-              línea en blanco (lo que se ofrece / qué decirnos). Sin esto se
-              pintaban pegados en un solo bloque. */}
-          <p className="hero-sub" style={{ color: h.subtitleColor, fontSize: '16.5px', lineHeight: 1.6, maxWidth: 540, margin: '20px 0 0', whiteSpace: 'pre-line', textWrap: 'pretty' }}>
-            {subtitle}
+              línea en blanco (lo que se ofrece / qué decirnos). */}
+          <p className="hero-sub hx-sub" style={{ color: h.subtitleColor }}>
+            {conNegritas(subtitle)}
           </p>
+          {/* Frase con barra azul (2026-11-16, imagen del dueño). Vacía = no sale. */}
+          {lema ? <p className="hx-lema">{lema}</p> : null}
           {/* Botones del sistema (`ms-btn`): colores y enlaces siguen saliendo
               del tema; el texto va tal cual lo escribe el panel. */}
-          <div className="ms-hero-acts" style={{ marginTop: 28 }}>
-            <Link href={hrefDeCotizar(h.primaryLink)} data-evento="cta_hero_primario" className="ms-btn ms-btn-lg" style={{ background: h.primaryBg, color: h.primaryText }}>
+          <div className="ms-hero-acts" style={{ marginTop: 22 }}>
+            <Link href={hrefDeCotizar(h.primaryLink)} data-evento="cta_hero_primario" className="ms-btn ms-btn-lg hx-cta" style={{ background: h.primaryBg, color: h.primaryText }}>
               {t(theme, 'home.hero.ctaPrimary')} <Icon name="arrowRight" size={17} />
             </Link>
             {/* "Cotiza por WhatsApp" en lugar de "Ver disponibilidad" (2026-10-19,
-                pedido del cliente): al número de Diseño → Contacto, con el
-                mensaje escrito. Sin número, vuelve el botón secundario de antes. */}
+                pedido del cliente). Sin número, vuelve el botón secundario de antes. */}
             {wa ? (
-              <a href={wa} target="_blank" rel="noopener noreferrer" data-evento="cta_hero_whatsapp" className="ms-btn ms-btn-lg ms-btn-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
+              <a href={wa} target="_blank" rel="noopener noreferrer" data-evento="cta_hero_whatsapp" className="ms-btn ms-btn-lg ms-btn-sec hx-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
                 <span style={{ display: 'flex', color: '#25D366' }}><IconoRed red="whatsapp" /></span>
                 {cval('home.hero.ctaWhatsapp', 'Cotiza por WhatsApp')}
               </a>
             ) : (
-              <Link href={h.secondaryLink} data-evento="cta_hero_secundario" className="ms-btn ms-btn-lg ms-btn-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
+              <Link href={h.secondaryLink} data-evento="cta_hero_secundario" className="ms-btn ms-btn-lg ms-btn-sec hx-sec" style={{ color: '#fff', borderColor: h.secondaryBorder }}>
                 {t(theme, 'home.hero.ctaSecondary')}
               </Link>
             )}
           </div>
 
           {h.showTrust ? (
-            <div className="hero-trust" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: 18, marginTop: 32 }}>
+            <div className="hero-trust hx-trust">
               {trust.map((it) => (
-                <div key={it.title} style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-                  <span className="ms-ico" aria-hidden style={{ color: h.accentColor, background: `color-mix(in srgb, ${h.accentColor} 12%, transparent)`, borderColor: `color-mix(in srgb, ${h.accentColor} 28%, transparent)` }}>
-                    <Icon name={it.icon} size={18} />
+                <div key={it.title} className="hx-punto">
+                  <span className="hx-ico" aria-hidden style={{ color: h.accentColor }}>
+                    <Icon name={it.icon} size={17} />
                   </span>
                   <span style={{ minWidth: 0 }}>
-                    <span style={{ display: 'block', color: '#fff', fontWeight: 600, fontSize: '13.5px' }}>{it.title}</span>
-                    <span style={{ display: 'block', color: 'var(--grey)', fontSize: '12.5px' }}>{it.text}</span>
+                    <span className="hx-punto-t">{it.title}</span>
+                    <span className="hx-punto-d">{it.text}</span>
                   </span>
                 </div>
               ))}
@@ -179,14 +192,15 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
             `.hero-visual` en globals.css. Sin video ni imagen (solo el círculo) no sale ahí. */}
         <div style={{ position: 'relative', minHeight: 380, ...(h.video ? { display: 'grid', alignItems: 'center' } : {}) }} className="hero-visual" data-video={h.video ? '' : undefined} data-vacio={!h.video && !hero?.image ? '' : undefined}>
           {h.video ? (
-            // Video en movimiento en lugar de la imagen (Diseño → Hero). Trae su
-            // propio fondo, así que no lleva el círculo: va entero, en su
-            // proporción, como tarjeta del sistema.
-            <VideoCategoria
-              src={h.video}
-              poster={null}
-              style={{ position: 'relative', inset: 'auto', height: 'auto', maxHeight: 560, objectFit: 'contain', borderRadius: CARD_RADIUS, border: BORDE_TARJETA, boxShadow: 'var(--shadow)', background: '#000' }}
-            />
+            // Video en movimiento en lugar de la imagen (Diseño → Hero), en un
+            // marco con resplandor azul: es la pieza que más pesa de la portada.
+            <div className="hx-marco">
+              <VideoCategoria
+                src={h.video}
+                poster={null}
+                style={{ position: 'relative', inset: 'auto', height: 'auto', maxHeight: 'min(560px, 62vh)', objectFit: 'contain', borderRadius: 16, background: '#000' }}
+              />
+            </div>
           ) : (
             /* círculo de acento: SOLO adorno, detrás y más pequeño que la imagen */
             <div aria-hidden style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 'min(340px, 72%)', aspectRatio: '1', borderRadius: '50%', background: h.accentColor, opacity: h.overlay / 100 }} />
@@ -194,27 +208,21 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
           {/* imagen del producto (PNG transparente): más grande que el círculo, puede salirse de él */}
           {h.video ? null : hero?.image ? (
             <span className="hero-img" style={{ position: 'absolute', top: '50%', left: '52%', transform: 'translate(-50%, -50%)', width: 'min(560px, 118%)', aspectRatio: '1', zIndex: 1, display: 'block' }}>
-              {/* La caja (span) queda IGUAL; solo la imagen escala → no altera el resto. */}
               <Image src={hero.image} alt={`${title} ${accent}`.trim()} fill priority sizes="(max-width: 900px) 100vw, 50vw" style={{ objectFit: 'contain', transform: 'scale(1.45)', transformOrigin: 'center' }} />
             </span>
-          ) : (
-            // Sin imagen configurada: el círculo de acento queda solo como
-            // visual. El chip "PNG transparente" era una nota para el admin
-            // que veía el usuario final.
-            null
-          )}
+          ) : null}
           {h.showStats ? (
             <>
-              {/* Cifras flotantes: tarjeta del sistema (radio 12, borde 1 px), quietas. */}
-              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, left: -12, top: 36, background: 'var(--color-surface)', border: BORDE_TARJETA, borderRadius: CARD_RADIUS, padding: '14px 18px', boxShadow: 'var(--shadow)' }}>
-                <CountUp value={t(theme, 'home.hero.stat1.num')} style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '28px', letterSpacing: '-.025em', lineHeight: 1.1, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }} />
-                <div style={{ fontSize: '12.5px', color: 'var(--color-text-muted)', marginTop: 2 }}>{t(theme, 'home.hero.stat1.label')}</div>
+              {/* Cifras flotantes: tarjetas semitransparentes (se leen sobre el video), cifra en azul. */}
+              <div className="hero-stat hx-stat" style={{ left: -14, top: 34 }}>
+                <CountUp value={t(theme, 'home.hero.stat1.num')} style={{ ...CIFRA, fontSize: '34px' }} />
+                <div className="hx-stat-l">{t(theme, 'home.hero.stat1.label')}</div>
               </div>
-              <div className="hero-stat" style={{ position: 'absolute', zIndex: 2, right: -6, bottom: 44, background: 'var(--color-surface)', border: BORDE_TARJETA, borderRadius: CARD_RADIUS, padding: '13px 16px', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 11 }}>
+              <div className="hero-stat hx-stat" style={{ right: -10, bottom: 40, display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ color: h.accentColor }}><Stars value={5} size={13} /></div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--color-text)' }}>{t(theme, 'home.hero.stat2.num')}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{t(theme, 'home.hero.stat2.label')}</div>
+                  <div className="hx-stat-n">{t(theme, 'home.hero.stat2.num')}</div>
+                  <div className="hx-stat-l">{t(theme, 'home.hero.stat2.label')}</div>
                 </div>
               </div>
             </>
@@ -224,6 +232,68 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
     </section>
   );
 }
+
+const HERO_CSS = `
+.hx{ position:relative; overflow:hidden; isolation:isolate; }
+/* Menú y portada como una sola pieza (2026-11-16): en el inicio la portada sube
+   por detrás del menú, que va transparente arriba y recupera su fondo al bajar
+   (data-desplazado, ver EncabezadoSobrePortada). La portada llena la primera
+   pantalla (sin la barra de contacto) y su contenido va centrado. */
+:root{ --alto-hdr: 75px; }
+@media (max-width: 1199px){ :root{ --alto-hdr: 71px; } }
+.sh-hdr ~ main > .hx:first-child{ margin-top: calc(-1 * var(--alto-hdr)); padding-top: var(--alto-hdr); min-height: calc(100svh - 39px); display:flex; flex-direction:column; justify-content:center; }
+.sh-hdr{ background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; transition: background .3s ease, box-shadow .3s ease; }
+html[data-desplazado] .sh-hdr{ background: linear-gradient(180deg, color-mix(in srgb, var(--band) 97%, transparent), color-mix(in srgb, var(--band) 90%, transparent)) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(140%) !important; backdrop-filter: blur(14px) saturate(140%) !important; box-shadow: 0 12px 30px -20px rgba(0,0,0,.9); }
+.hx-rejilla{ position:absolute; inset:0; pointer-events:none; opacity:.55;
+  background-image:
+    linear-gradient(color-mix(in srgb, #fff 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, #fff 6%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 28% 42%, #000 25%, transparent 78%);
+  mask-image: radial-gradient(ellipse 75% 70% at 28% 42%, #000 25%, transparent 78%); }
+.hx-brillo{ position:absolute; border-radius:50%; pointer-events:none; filter: blur(90px); }
+.hx-brillo-a{ width:640px; height:440px; left:-180px; top:-140px; background: color-mix(in srgb, var(--color-primary) 26%, transparent); }
+.hx-brillo-b{ width:620px; height:560px; right:-140px; top:14%; background: color-mix(in srgb, var(--color-primary) 20%, transparent); }
+.hx-titulo{ font-family: var(--font-display); font-weight:800; font-size: clamp(2rem, min(3.1vw, 5.4vh), 3rem); line-height:1.08; letter-spacing:-.02em; text-wrap:balance; }
+.hx-sub{ font-size: clamp(15px, min(1.15vw, 1.95vh), 17px); line-height:1.55; max-width: 680px; margin: 16px 0 0; white-space: pre-line; text-wrap: pretty; }
+.hx-neg{ color:#fff; font-weight:800; }
+.hx-lema{ margin: 16px 0 0; padding: 3px 0 3px 16px; border-left: 3px solid var(--color-primary); color:#fff; font-family: var(--font-display); font-weight:800; font-size: clamp(15.5px, 1.25vw, 18px); line-height:1.4; text-wrap: balance; }
+.hx-cta{ box-shadow: 0 14px 34px -12px color-mix(in srgb, var(--color-primary) 75%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
+  transition: transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s cubic-bezier(.16,1,.3,1), filter .2s; }
+.hx-cta:hover{ transform: translateY(-2px); filter: brightness(1.08); box-shadow: 0 20px 44px -12px color-mix(in srgb, var(--color-primary) 85%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 28%, transparent); }
+.hx-sec{ background: color-mix(in srgb, #fff 4%, transparent); backdrop-filter: blur(6px); transition: background .2s, border-color .2s; }
+.hx-sec:hover{ background: color-mix(in srgb, #fff 9%, transparent); }
+.hx-trust{ display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 700px; gap: 14px 18px; margin-top: 24px; padding-top: 20px; border-top: 1px solid color-mix(in srgb, #fff 12%, transparent); }
+.hx-punto{ display:flex; align-items:flex-start; gap:12px; min-width:0; }
+.hx-ico{ flex-shrink:0; width:36px; height:36px; border-radius:9px; display:grid; place-items:center; border:2px solid currentColor;
+  background: color-mix(in srgb, currentColor 14%, transparent); box-shadow: 0 0 16px color-mix(in srgb, currentColor 28%, transparent); }
+.hx-punto-t{ display:block; color:#fff; font-family: var(--font-display); font-weight:800; font-size:14.5px; line-height:1.3; }
+.hx-punto-d{ display:block; color: color-mix(in srgb, #fff 62%, transparent); font-size:13px; line-height:1.4; margin-top:2px; }
+.hx-marco{ position:relative; border-radius:18px; padding:1px;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--color-primary) 85%, #fff), color-mix(in srgb, var(--color-primary) 20%, transparent) 40%, color-mix(in srgb, #fff 14%, transparent) 70%, color-mix(in srgb, var(--color-primary) 70%, transparent));
+  box-shadow: 0 40px 90px -36px color-mix(in srgb, var(--color-primary) 70%, transparent), 0 24px 60px -30px rgba(0,0,0,.8); }
+.hx-marco > video{ border-radius:17px !important; }
+.hx-stat{ position:absolute; z-index:2; border-radius:14px; padding:14px 18px;
+  background: color-mix(in srgb, var(--color-surface) 70%, transparent); backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  box-shadow: 0 18px 40px -18px rgba(0,0,0,.75), inset 0 1px 0 color-mix(in srgb, #fff 10%, transparent); }
+.hx-stat-n{ font-family: var(--font-display); font-weight:800; font-size:16px; color: var(--color-text); }
+.hx-stat-l{ font-size:12.5px; color: var(--color-text-muted); margin-top:3px; }
+@media (max-width: 1100px){ .hx-trust{ grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 560px; } }
+/* Celular: los dos botones en una sola fila. */
+@media (max-width: 600px){
+  .hx .ms-hero-acts{ display:grid !important; grid-template-columns: 1fr 1fr; gap: 8px !important; }
+  .hx .ms-hero-acts .ms-btn{ min-width:0; justify-content:center; padding: 13px 8px !important; font-size: 12.5px !important; white-space: nowrap; gap: 6px; }
+  .hx .hx-cta svg{ display:none; }
+}
+@media (max-width: 900px){
+  .hx-brillo-a{ width:420px; height:320px; left:-160px; }
+  .hx-brillo-b{ width:380px; height:360px; right:-160px; }
+  .hx-trust{ margin-top: 28px; padding-top: 20px; }
+}
+@media (prefers-reduced-motion: reduce){ .hx-cta{ transition:none; } .hx-cta:hover{ transform:none; } }
+`;
 
 /* ========================= CATEGORÍAS ========================= */
 
@@ -280,7 +350,7 @@ export async function CategoriesSection({ theme }: { theme: Theme }) {
             <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(6,6,8,.9) 2%, rgba(6,6,8,.35) 42%, rgba(6,6,8,0) 72%)' }} />
             {/* Nombre + conteo encima (abajo-izquierda) */}
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '16px 16px 15px', display: 'grid', gap: 4 }}>
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', letterSpacing: '-.01em', lineHeight: 1.2 }}>{c.name}</span>
+              <span style={{ color: '#fff', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.08rem', letterSpacing: '-.015em', lineHeight: 1.2 }}>{c.name}</span>
               {/* Qué entra en la categoría ("Arena, grava, base hidráulica y CNC"): se edita en Catálogo → Categorías. */}
               {c.description ? (
                 <span style={{ color: 'rgba(255,255,255,.76)', fontSize: '12.5px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{c.description}</span>
@@ -329,7 +399,9 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
   const accent = cfg.accentColor ?? 'var(--color-primary)';
   const vertical = cfg.format !== 'horizontal';
   return (
-    <section style={{ ...CONTAINER, paddingTop: 40, paddingBottom: 40 }}>
+    // Banda de luz (2026-11-16, el dueño: «esas partes como que les falta»): como Categorías y «¿Por qué?».
+    <BandaLuz>
+    <section style={{ ...CONTAINER, paddingTop: 'clamp(44px, 7vh, 72px)', paddingBottom: 'clamp(44px, 7vh, 72px)' }}>
       {/* El mismo carrusel giratorio de Categorías (pedido del cliente,
           2026-10-19): gira aunque sean pocas, repitiendo la tanda; con una sola
           promoción se queda quieta y centrada. */}
@@ -338,7 +410,7 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
         title={cval('home.promotions.title', 'Promociones del mes')}
         eyebrowColor={cfg.eyebrowColor ?? ''}
         titleColor={cfg.titleColor ?? ''}
-        ancho={vertical ? 'min(300px, 76cqw)' : 'min(560px, 86cqw)'}
+        ancho={vertical ? 'min(300px, 76cqw, calc((100svh - 290px) * 9 / 16))' : 'min(560px, 86cqw)'}
         siempre
         etiquetaAnterior="Promociones anteriores"
         etiquetaSiguiente="Promociones siguientes"
@@ -405,6 +477,7 @@ export async function PromotionsSection({ theme }: { theme: Theme }) {
         ))}
       </CategoryStrip>
     </section>
+    </BandaLuz>
   );
 }
 
@@ -425,8 +498,9 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
   // todo") lo pinta el carrusel, igual que en Categorías; `align` ya solo
   // acomoda las pestañas.
   return (
-    <section style={{ background: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
-      <div style={{ ...CONTAINER, paddingTop: 80, paddingBottom: 80 }}>
+    <BandaLuz lado="izquierda">
+    <section>
+      <div style={{ ...CONTAINER, paddingTop: 'clamp(44px, 8vh, 80px)', paddingBottom: 'clamp(44px, 8vh, 80px)' }}>
         <HomeProductGrid
           products={products}
           categories={categories.map((c) => ({ slug: c.slug, name: c.name }))}
@@ -443,6 +517,7 @@ export async function FeaturedSection({ theme }: { theme: Theme }) {
         />
       </div>
     </section>
+    </BandaLuz>
   );
 }
 
@@ -496,12 +571,16 @@ export async function WhyChooseUsSection({ theme, razones }: { theme: Theme; raz
     <BandaLuz>
     <section className="pq-banda">
       <style>{PQ_CSS}</style>
-      <div style={{ ...CONTAINER, paddingTop: 96, paddingBottom: 96, position: 'relative' }}>
+      <div style={{ ...CONTAINER, paddingTop: 'clamp(44px, 7.5vh, 80px)', paddingBottom: 'clamp(44px, 7.5vh, 80px)', position: 'relative' }}>
         {/* `minmax(300px,…)` mantenía 2 columnas hasta muy abajo: en tablet daba
             dos columnas de ~356px y el texto (4 razones + 2 cifras) no respiraba.
             `.why-grid` lo apila a partir de 900px. */}
-        <div className="why-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(300px, .82fr) minmax(0, 1.18fr)', gap: 'clamp(36px, 4vw, 64px)', alignItems: 'center' }}>
-          <div style={{ position: 'relative', minHeight: 'clamp(420px, 40vw, 600px)' }} className="why-visual">
+        {/* Cabe en una pantalla (2026-11-16, el dueño: «la sigo viendo muy grande,
+            debe abarcar como máximo la pantalla completa»): la imagen ya no tiene
+            alto propio, toma el del texto (`stretch`), y textos y espacios se
+            ajustan también a la altura de la pantalla (ver PQ_CSS). */}
+        <div className="why-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, .74fr) minmax(0, 1.26fr)', gap: 'clamp(32px, 3.6vw, 56px)', alignItems: 'stretch' }}>
+          <div style={{ position: 'relative', minHeight: 340 }} className="why-visual">
             <div style={{ position: 'absolute', inset: 0, borderRadius: 16, overflow: 'hidden', border: BORDE_TARJETA, background: 'var(--surface-2)' }}>
               {/* Video en bucle si hay (2026-11-16), con la imagen de portada; si no, la imagen. */}
               {cfg?.video ? (
@@ -568,9 +647,9 @@ const CIFRA: React.CSSProperties = {
   display: 'block',
   fontFamily: 'var(--font-display)',
   fontWeight: 800,
-  fontSize: 'clamp(40px, 4vw, 56px)',
+  fontSize: 'clamp(28px, min(2.5vw, 4.4vh), 40px)',
   lineHeight: 1,
-  letterSpacing: '-.03em',
+  letterSpacing: '-.02em',
   fontVariantNumeric: 'tabular-nums',
   background: 'linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 55%, #fff), var(--color-primary) 70%)',
   WebkitBackgroundClip: 'text',
@@ -580,24 +659,27 @@ const CIFRA: React.CSSProperties = {
 };
 
 const PQ_CSS = `
-.pq-eyebrow{ margin:0 0 14px; font-size:14px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color: var(--color-primary); }
-.pq-titulo{ margin:0; font-family: var(--font-display); font-weight:800; font-size: clamp(32px, 4.1vw, 54px); line-height:1.04; letter-spacing:-.03em; color: var(--color-text); text-wrap: balance; }
-.pq-sub{ margin:18px 0 36px; max-width: 640px; font-size: clamp(16px, 1.35vw, 19.5px); line-height:1.5; color: color-mix(in srgb, var(--color-text) 84%, transparent); text-wrap: pretty; }
-.pq-razones{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 30px 40px; margin-bottom: 38px; }
-.pq-razon{ display:flex; gap:16px; align-items:flex-start; min-width:0; }
-.pq-check{ flex-shrink:0; width:38px; height:38px; border-radius:9px; border:2px solid currentColor; display:grid; place-items:center;
-  background: color-mix(in srgb, currentColor 12%, transparent); box-shadow: 0 0 18px color-mix(in srgb, currentColor 22%, transparent); }
-.pq-check svg{ stroke-width: 2.6; }
-.pq-razon-t{ margin:3px 0 7px; font-family: var(--font-display); font-size: 18.5px; font-weight: 800; line-height:1.25; letter-spacing:-.01em; color: var(--color-text); }
-.pq-razon-d{ margin:0; font-size:15.5px; line-height:1.5; color: color-mix(in srgb, var(--color-text) 80%, transparent); }
-.pq-cifras{ display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap:16px; }
-.pq-cifra{ text-align:center; padding: 26px 18px; border-radius: 16px; border: 1.5px solid color-mix(in srgb, var(--color-text) 32%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--color-text) 4.5%, transparent), color-mix(in srgb, var(--color-text) 1.5%, transparent)); }
-.pq-cifra-l{ margin-top:10px; font-size:15.5px; line-height:1.4; color: color-mix(in srgb, var(--color-text) 90%, transparent); }
-.pq-pie{ margin: 36px 0 0; padding-top: 22px; border-top: 1px solid color-mix(in srgb, var(--color-text) 22%, transparent); font-size: 15.5px; color: color-mix(in srgb, var(--color-text) 86%, transparent); }
-.pq-pie b{ font-family: var(--font-display); font-weight: 800; letter-spacing: .06em; color: var(--color-text); margin-right: 4px; }
+/* Proporciones del diseño del dueño (2026-11-16): todo en la letra de titulares
+   (Montserrat), titular en dos renglones y el texto a la medida de la imagen. */
+.pq-banda{ font-family: var(--font-display); }
+.pq-eyebrow{ margin:0 0 10px; font-size:clamp(12.5px, min(.95vw, 1.6vh), 14.5px); font-weight:800; letter-spacing:.04em; text-transform:uppercase; color: var(--color-primary); }
+.pq-titulo{ margin:0; font-family: var(--font-display); font-weight:800; font-size: clamp(26px, min(2.5vw, 4.3vh), 38px); line-height:1.1; letter-spacing:-.02em; color: var(--color-text); text-wrap: balance; }
+.pq-sub{ margin:12px 0 clamp(18px, 2.6vh, 28px); max-width: 680px; font-size: clamp(14.5px, min(1.1vw, 1.85vh), 17px); font-weight:500; line-height:1.5; color: color-mix(in srgb, var(--color-text) 86%, transparent); text-wrap: pretty; }
+.pq-razones{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(14px, 2.2vh, 22px) 30px; margin-bottom: clamp(18px, 2.6vh, 28px); }
+.pq-razon{ display:flex; gap:14px; align-items:flex-start; min-width:0; }
+.pq-check{ flex-shrink:0; width:30px; height:30px; border-radius:8px; border:2px solid currentColor; display:grid; place-items:center;
+  background: color-mix(in srgb, currentColor 14%, transparent); box-shadow: 0 0 14px color-mix(in srgb, currentColor 22%, transparent); }
+.pq-check svg{ stroke-width: 2.6; width:16px; height:16px; }
+.pq-razon-t{ margin:3px 0 4px; font-size: clamp(14.5px, min(1.05vw, 1.75vh), 16.5px); font-weight: 800; line-height:1.25; color: var(--color-text); }
+.pq-razon-d{ margin:0; font-size: clamp(13.5px, min(.92vw, 1.6vh), 14.5px); font-weight:500; line-height:1.45; color: color-mix(in srgb, var(--color-text) 82%, transparent); }
+.pq-cifras{ display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap:14px; }
+.pq-cifra{ text-align:center; padding: clamp(12px, 1.8vh, 18px) 16px; border-radius: 14px; border: 1.5px solid color-mix(in srgb, var(--color-text) 34%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-text) 6%, transparent), color-mix(in srgb, var(--color-text) 2%, transparent)); }
+.pq-cifra-l{ margin-top:6px; font-size: clamp(13px, min(.95vw, 1.6vh), 14.5px); font-weight:500; line-height:1.4; color: color-mix(in srgb, var(--color-text) 92%, transparent); }
+.pq-pie{ margin: clamp(16px, 2.4vh, 26px) 0 0; padding-top: clamp(12px, 1.8vh, 16px); border-top: 1px solid color-mix(in srgb, var(--color-text) 24%, transparent); font-size: 14.5px; font-weight:500; color: color-mix(in srgb, var(--color-text) 88%, transparent); text-align:center; }
+.pq-pie b{ font-weight: 800; letter-spacing: .06em; color: var(--color-text); margin-right: 4px; }
 @media (max-width: 640px){
-  .pq-razones{ grid-template-columns: 1fr; gap: 22px; }
+  .pq-razones{ grid-template-columns: 1fr; gap: 20px; }
 }
 `;
 
@@ -618,17 +700,19 @@ export async function SectorsSection({ theme, borrador }: { theme: Theme; borrad
   const cardH = cfg?.cardHeight ?? 340;
   const ctaColor = cfg?.ctaColor ?? 'var(--color-primary)';
   return (
-    <section style={{ background: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)' }}>
-      <div style={{ ...CONTAINER, paddingTop: 78, paddingBottom: 78 }}>
-        <div style={{ marginBottom: 36 }}>
+    <BandaLuz lado="izquierda">
+    <section>
+      <div style={{ ...CONTAINER, paddingTop: 'clamp(44px, 8vh, 78px)', paddingBottom: 'clamp(44px, 8vh, 78px)' }}>
+        <div style={{ marginBottom: 'clamp(24px, 3.6vh, 36px)' }}>
           <CenterHead eyebrow={t(theme, 'home.sectors.eyebrow')} title={t(theme, 'home.sectors.title')} eyebrowColor={cfg?.eyebrowColor ?? undefined} titleColor={cfg?.titleColor ?? undefined} />
         </div>
+        <style>{SC_CSS}</style>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 240px), 1fr))', gap: 16 }}>
-          {sectors.map((s) => (
+          {sectors.map((s, i) => (
             <Link
               key={s.id}
               href={`/sectores/${s.slug}`}
-              className="lift"
+              className="lift sc-tarjeta"
               style={{ position: 'relative', height: cardH, borderRadius: CARD_RADIUS, overflow: 'hidden', border: BORDE_TARJETA, textDecoration: 'none', display: 'block' }}
             >
               {/* Video en bucle si el sector tiene (la foto queda de portada); si no, la foto. */}
@@ -639,9 +723,12 @@ export async function SectorsSection({ theme, borrador }: { theme: Theme; borrad
               ) : (
                 <span className="ph zoom" style={{ position: 'absolute', inset: 0 }} />
               )}
-              <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(26,26,27,.94) 8%, rgba(26,26,27,.2) 60%, transparent)' }} />
+              <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8,10,14,.95) 8%, rgba(8,10,14,.25) 60%, transparent)' }} />
+              {/* Rediseño 2026-11-16: número del sector en azul, como las cifras de la referencia. */}
+              <span aria-hidden className="sc-num">{String(i + 1).padStart(2, '0')}</span>
               <span style={{ position: 'absolute', left: 20, right: 20, bottom: 20, color: '#fff' }}>
-                <span style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '17px', marginBottom: 6, letterSpacing: '-.01em', lineHeight: 1.25 }}>{s.title}</span>
+                <span style={{ display: 'block', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '18.5px', letterSpacing: '-.015em', lineHeight: 1.2 }}>{s.title}</span>
+                <span aria-hidden className="sc-raya" />
                 {s.description ? (
                   // La tarjeta tiene alto fijo (token `cardHeight`): sin recortar,
                   // una descripción larga empujaba el CTA fuera de la tarjeta.
@@ -649,15 +736,29 @@ export async function SectorsSection({ theme, borrador }: { theme: Theme; borrad
                   // líneas), y un inline le ganaría a la clase.
                   <span className="sector-desc" style={{ fontSize: '13px', color: 'rgba(255,255,255,.78)', lineHeight: 1.5, marginBottom: 12 }}>{s.description}</span>
                 ) : null}
-                <span style={{ color: ctaColor, fontWeight: 600, fontSize: '13.5px', display: 'inline-flex', alignItems: 'center', gap: 6 }}>{t(theme, 'home.sectors.cta')}<Icon name="arrowRight" size={13} /></span>
+                <span className="sc-cta" style={{ color: ctaColor }}>{t(theme, 'home.sectors.cta')}<Icon name="arrowRight" size={13} /></span>
               </span>
             </Link>
           ))}
         </div>
       </div>
     </section>
+    </BandaLuz>
   );
 }
+
+const SC_CSS = `
+.sc-num{ position:absolute; top:16px; left:18px; z-index:1; font-family: var(--font-display); font-weight:800; font-size:15px; letter-spacing:.04em; line-height:1;
+  padding:8px 10px; border-radius:10px; color:#fff; border:1px solid color-mix(in srgb, var(--color-primary) 55%, transparent);
+  background: color-mix(in srgb, #06080c 55%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  box-shadow: 0 0 18px -6px var(--color-primary); }
+.sc-raya{ display:block; width:36px; height:2px; margin:10px 0 10px; border-radius:2px; background: var(--color-primary); box-shadow: 0 0 10px var(--color-primary); transition: width .3s ease; }
+.sc-tarjeta:hover .sc-raya{ width:76px; }
+.sc-cta{ font-weight:700; font-size:13.5px; display:inline-flex; align-items:center; gap:6px; }
+.sc-cta svg{ transition: transform .2s ease; }
+.sc-tarjeta:hover .sc-cta svg{ transform: translateX(4px); }
+@media (prefers-reduced-motion: reduce){ .sc-raya, .sc-cta svg{ transition:none; } }
+`;
 
 /* ============================= OFERTA ============================= */
 
@@ -668,39 +769,88 @@ export async function OfferSection({ theme }: { theme: Theme }) {
   const accent = cfg?.accentColor ?? 'var(--color-primary)';
   const titleColor = cfg?.titleColor ?? '#fff';
   const ctaLink = cfg?.ctaLink || '/servicios'; // /productos ya solo redirige (2026-10-08)
+  // Rediseño 2026-11-16 (el dueño: «se ve muy simple… en esa parte también se va
+  // a poder meter un video»): tarjeta con rejilla de plano y brillo, etiqueta con
+  // punto que late, titular grande y el visual (imagen o video) más alto,
+  // enmarcado con esquinas de luz como los trazos de la referencia.
   return (
-    <section style={{ ...CONTAINER, paddingTop: 80, paddingBottom: 80 }}>
-      {/* Borde gunmetal: en oscuro la banda es negra como la página, y sin él
-          la tarjeta perdería su silueta. El gris va aquí, en el elemento. */}
-      <div style={{ position: 'relative', overflow: 'hidden', borderRadius: 14, background: bg, border: BORDE_TARJETA }}>
-        <div aria-hidden style={{ position: 'absolute', right: '-4%', top: '-30%', width: 440, height: 440, background: `radial-gradient(circle, color-mix(in srgb, ${accent} 24%, transparent), transparent 62%)`, borderRadius: '50%' }} />
-        <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: 30, alignItems: 'center', padding: 'clamp(24px, 5vw, 48px)' }}>
+    <section style={{ ...CONTAINER, paddingTop: 'clamp(44px, 9vh, 88px)', paddingBottom: 'clamp(44px, 9vh, 88px)' }}>
+      <style>{OF_CSS}</style>
+      <div className="of-tarjeta" style={{ background: bg }}>
+        <div aria-hidden className="of-rejilla" />
+        <div aria-hidden className="of-brillo" style={{ background: `radial-gradient(circle, color-mix(in srgb, ${accent} 26%, transparent), transparent 62%)` }} />
+        <div className="of-grid">
           <div style={{ minWidth: 0 }}>
-            {/* Etiqueta en tipo oración (chip), no en MAYÚSCULAS espaciadas. */}
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: accent, background: `color-mix(in srgb, ${accent} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${accent} 40%, transparent)`, fontWeight: 600, fontSize: '13px', padding: '4px 10px', borderRadius: 6, marginBottom: 16 }}>
+            {/* Algo aclarado: en modo claro el azul del tema es oscuro y sobre la tarjeta marina casi no se leía. */}
+            <span className="of-chip" style={{ color: `color-mix(in srgb, ${accent} 78%, #fff)` }}>
+              <span aria-hidden className="of-punto" />
               {t(theme, 'home.offer.badge')}
             </span>
-            <h2 style={{ ...H2, color: titleColor, margin: '0 0 12px' }}>{t(theme, 'home.offer.title')}</h2>
+            <h2 className="of-titulo" style={{ color: titleColor }}>{t(theme, 'home.offer.title')}</h2>
             {/* El subtítulo sigue al color del título (configurable) al 72%:
                 con el blanco fijo, un admin que eligiera fondo claro dejaba
                 este texto invisible mientras el título sí se adaptaba. */}
-            <p style={{ color: `color-mix(in srgb, ${titleColor} 72%, transparent)`, fontSize: '15.5px', maxWidth: 460, margin: '0 0 24px', lineHeight: 1.6 }}>{t(theme, 'home.offer.subtitle')}</p>
-            <Link href={ctaLink} className="ms-btn ms-btn-lg" style={{ background: accent }}>
+            <p className="of-sub" style={{ color: `color-mix(in srgb, ${titleColor} 74%, transparent)` }}>{t(theme, 'home.offer.subtitle')}</p>
+            <Link href={ctaLink} className="ms-btn ms-btn-lg of-cta" style={{ background: accent }}>
               {t(theme, 'home.offer.cta')} <Icon name="arrowRight" size={17} />
             </Link>
           </div>
-          <div style={{ position: 'relative', height: 230, borderRadius: CARD_RADIUS, overflow: 'hidden', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)' }}>
-            {cfg?.image ? (
-              <Image src={cfg.image} alt={t(theme, 'home.offer.title')} fill sizes="(max-width:900px) 100vw, 45vw" style={{ objectFit: 'cover' }} />
-            ) : (
-              <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(135deg, rgba(255,255,255,.08) 0 15px, rgba(255,255,255,.02) 15px 30px)' }} />
-            )}
+          <div className="of-media">
+            <span aria-hidden className="of-esq of-esq-a" />
+            <span aria-hidden className="of-esq of-esq-b" />
+            <span aria-hidden className="of-esq of-esq-c" />
+            <span aria-hidden className="of-esq of-esq-d" />
+            <div className="of-marco">
+              {/* Video en bucle si hay (2026-11-16), con la imagen de portada; si no, la imagen. */}
+              {cfg?.video ? (
+                <VideoCategoria src={cfg.video} poster={cfg.image} boton />
+              ) : cfg?.image ? (
+                <Image src={cfg.image} alt={t(theme, 'home.offer.title')} fill sizes="(max-width:900px) 100vw, 50vw" style={{ objectFit: 'cover' }} />
+              ) : (
+                <span className="ph" style={{ position: 'absolute', inset: 0 }} />
+              )}
+            </div>
           </div>
         </div>
       </div>
     </section>
   );
 }
+
+const OF_CSS = `
+.of-tarjeta{ position:relative; overflow:hidden; isolation:isolate; border-radius:20px;
+  border:1px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
+  box-shadow: 0 44px 100px -44px color-mix(in srgb, var(--color-primary) 65%, transparent), inset 0 1px 0 color-mix(in srgb, #fff 9%, transparent); }
+.of-rejilla{ position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background-image: linear-gradient(color-mix(in srgb, #fff 5%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, #fff 5%, transparent) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 65% 90% at 25% 50%, #000 15%, transparent 75%); mask-image: radial-gradient(ellipse 65% 90% at 25% 50%, #000 15%, transparent 75%); }
+.of-brillo{ position:absolute; z-index:-1; right:-8%; top:-45%; width:640px; height:640px; border-radius:50%; pointer-events:none; }
+.of-grid{ display:grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(28px, 4vw, 60px); align-items:center; padding: clamp(24px, min(4.5vw, 6vh), 60px); }
+.of-chip{ display:inline-flex; align-items:center; gap:9px; font-family: var(--font-display); font-weight:800; font-size:12.5px; letter-spacing:.08em; text-transform:uppercase; line-height:1;
+  padding:8px 13px; border-radius:999px; border:1px solid color-mix(in srgb, currentColor 45%, transparent); background: color-mix(in srgb, currentColor 12%, transparent); }
+.of-punto{ width:7px; height:7px; border-radius:50%; background: currentColor; animation: of-pulso 2.2s ease-out infinite; }
+@keyframes of-pulso{ 0%{ box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 65%, transparent); } 75%,100%{ box-shadow: 0 0 0 9px transparent; } }
+.of-titulo{ font-family: var(--font-display); font-weight:800; font-size: clamp(30px, 3.5vw, 50px); line-height:1.04; letter-spacing:-.025em; margin:20px 0 16px; text-wrap:balance; }
+.of-sub{ font-size: clamp(15.5px, 1.2vw, 17.5px); line-height:1.6; max-width:46ch; margin:0 0 30px; text-wrap:pretty; }
+.of-cta{ box-shadow: 0 14px 34px -12px color-mix(in srgb, var(--color-primary) 80%, transparent); transition: transform .2s ease, box-shadow .2s ease; }
+.of-cta:hover{ transform: translateY(-2px); box-shadow: 0 20px 44px -12px color-mix(in srgb, var(--color-primary) 95%, transparent); }
+.of-media{ position:relative; padding:14px; min-width:0; }
+.of-marco{ position:relative; aspect-ratio: 16 / 10; border-radius:14px; overflow:hidden; background: color-mix(in srgb, #fff 5%, transparent);
+  border:1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+  box-shadow: 0 30px 70px -28px color-mix(in srgb, var(--color-primary) 75%, transparent); }
+.of-esq{ position:absolute; width:38px; height:38px; border:0 solid var(--color-primary); pointer-events:none;
+  filter: drop-shadow(0 0 5px var(--color-primary)); }
+.of-esq-a{ top:0; left:0; border-top-width:2px; border-left-width:2px; border-top-left-radius:8px; }
+.of-esq-b{ top:0; right:0; border-top-width:2px; border-right-width:2px; border-top-right-radius:8px; }
+.of-esq-c{ bottom:0; left:0; border-bottom-width:2px; border-left-width:2px; border-bottom-left-radius:8px; }
+.of-esq-d{ bottom:0; right:0; border-bottom-width:2px; border-right-width:2px; border-bottom-right-radius:8px; }
+@media (max-width: 860px){
+  .of-grid{ grid-template-columns: 1fr; }
+  .of-media{ order:-1; padding:10px; }
+}
+@media (prefers-reduced-motion: reduce){ .of-punto{ animation:none; } }
+`;
 
 /* ============================= RESEÑAS ============================= */
 
@@ -748,15 +898,20 @@ export async function BrandsSection({ theme }: { theme: Theme }) {
   const list = brands.list.map((s) => s.trim()).filter(Boolean);
   if (list.length === 0) return null;
   const loop = [...list, ...list]; // duplicado para marquee sin costura
+  // Rediseño 2026-11-16: línea de luz arriba, título como etiqueta azul entre
+  // dos líneas y las marcas en Montserrat gruesa, que se encienden al pasar.
   return (
-    <section style={{ background: 'var(--color-bg)', borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', overflow: 'hidden', padding: '34px 0' }}>
-      <p style={{ textAlign: 'center', margin: '0 auto 20px', padding: '0 16px', color: 'var(--color-text-muted)', fontSize: '14px', fontWeight: 500 }}>
-        {brands.title}
-      </p>
+    <section className="mc">
+      <style>{MC_CSS}</style>
+      <div className="mc-cab">
+        <span aria-hidden className="mc-linea" />
+        <p className="mc-titulo">{brands.title}</p>
+        <span aria-hidden className="mc-linea mc-linea-d" />
+      </div>
       <div className="marquee-mask" style={{ WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)', maskImage: 'linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)' }}>
-        <div className="marquee-track" style={{ display: 'flex', gap: 26, whiteSpace: 'nowrap', alignItems: 'center' }}>
+        <div className="marquee-track" style={{ display: 'flex', gap: 18, whiteSpace: 'nowrap', alignItems: 'center', padding: '6px 0' }}>
           {loop.map((b, i) => (
-            <div key={`${b}-${i}`} aria-hidden={i >= list.length} style={{ flex: '0 0 auto', height: 52, minWidth: 140, padding: '0 18px', border: BORDE_TARJETA, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '14px', color: 'var(--color-text-muted)', background: 'var(--color-surface)' }}>
+            <div key={`${b}-${i}`} aria-hidden={i >= list.length} className="mc-marca">
               {b}
             </div>
           ))}
@@ -765,6 +920,24 @@ export async function BrandsSection({ theme }: { theme: Theme }) {
     </section>
   );
 }
+
+const MC_CSS = `
+.mc{ position:relative; overflow:hidden; padding: 46px 0 50px; border-top:1px solid var(--color-border); border-bottom:1px solid var(--color-border);
+  background: radial-gradient(900px 180px at 50% 0%, color-mix(in srgb, var(--color-primary) 11%, transparent), transparent 70%), var(--color-bg); }
+.mc::before{ content:''; position:absolute; top:-1px; left:50%; width:min(620px, 72vw); height:1px; transform:translateX(-50%);
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent); box-shadow: 0 0 14px var(--color-primary); }
+.mc-cab{ display:flex; align-items:center; justify-content:center; gap:16px; margin:0 auto 26px; padding:0 16px; }
+.mc-titulo{ margin:0; font-family: var(--font-display); font-weight:800; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color: var(--color-primary); text-align:center; text-wrap:balance; }
+.mc-linea{ flex:0 1 120px; height:1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-primary) 75%, transparent)); }
+.mc-linea-d{ transform: scaleX(-1); }
+.mc-marca{ flex:0 0 auto; height:66px; min-width:172px; padding:0 28px; display:flex; align-items:center; justify-content:center; border-radius:12px;
+  border:1px solid color-mix(in srgb, var(--color-text) 16%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-text) 6%, transparent), color-mix(in srgb, var(--color-text) 2%, transparent));
+  font-family: var(--font-display); font-weight:800; font-size:17px; letter-spacing:.05em; text-transform:uppercase;
+  color: color-mix(in srgb, var(--color-text) 66%, transparent); transition: color .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.mc-marca:hover{ color: var(--color-text); border-color: color-mix(in srgb, var(--color-primary) 65%, transparent); box-shadow: 0 0 24px -6px color-mix(in srgb, var(--color-primary) 75%, transparent); }
+@media (max-width: 640px){ .mc{ padding: 36px 0 40px; } .mc-marca{ height:56px; min-width:140px; padding:0 20px; font-size:15px; } }
+`;
 
 /* ============================= FAQ ============================= */
 

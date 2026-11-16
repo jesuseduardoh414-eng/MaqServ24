@@ -14,6 +14,8 @@ interface HeroDto { id?: number; badge: string | null; title: string | null; sub
 
 interface Config {
   showBadge: boolean; badge: string; title: string; accent: string; subtitle: string; image: string | null;
+  /** Frase con barra azul bajo el texto (copy `home.hero.tagline`, 2026-11-16). */
+  tagline: string;
   primaryLabel: string; primaryLink: string; secondaryLabel: string; secondaryLink: string;
   /** Texto del botón de WhatsApp (copy `home.hero.ctaWhatsapp`). */
   whatsappLabel: string;
@@ -109,6 +111,7 @@ function ajustesHero(c: Config): HeroSettings {
 function copysHero(c: Config): Record<string, string> {
   const es: Record<string, string> = {
     'home.hero.titleAccent': c.accent,
+    'home.hero.tagline': c.tagline,
     'home.hero.ctaPrimary': c.primaryLabel,
     'home.hero.ctaSecondary': c.secondaryLabel,
     'home.hero.ctaWhatsapp': c.whatsappLabel,
@@ -127,6 +130,7 @@ export function HeroEditor({
     return {
       showBadge: heroSettings.showBadge, badge: hero?.badge ?? '', title: hero?.title ?? '',
       accent: es['home.hero.titleAccent'] ?? '', subtitle: hero?.subtitle ?? '', image: hero?.image ?? null,
+      tagline: es['home.hero.tagline'] ?? '',
       primaryLabel: es['home.hero.ctaPrimary'] ?? '', primaryLink: heroSettings.primaryLink,
       secondaryLabel: es['home.hero.ctaSecondary'] ?? '', secondaryLink: heroSettings.secondaryLink,
       whatsappLabel: es['home.hero.ctaWhatsapp'] || 'Cotiza por WhatsApp',
@@ -282,7 +286,8 @@ export function HeroEditor({
                   <h3 style={h3Style}>Título y subtítulo</h3>
                   <Field label="Título principal"><input value={config.title} onChange={(e) => set('title', e.target.value)} placeholder="Renta de maquinaria" style={inputStyle} /></Field>
                   <Field label="Línea de acento — se muestra en color de acento"><input value={config.accent} onChange={(e) => set('accent', e.target.value)} placeholder="industrial pesada" style={inputStyle} /></Field>
-                  <Field label="Subtítulo"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={3} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+                  <Field label="Texto (una línea en blanco separa párrafos; **así** va en negritas)"><textarea value={config.subtitle} onChange={(e) => set('subtitle', e.target.value)} rows={3} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} /></Field>
+                  <Field label="Frase con barra azul (debajo del texto; vacía = no sale)"><input value={config.tagline} onChange={(e) => set('tagline', e.target.value)} placeholder="Una sola plataforma. Más soluciones para tu construcción." style={inputStyle} /></Field>
                 </div>
                 <div style={cardStyle}>
                   <h3 style={h3Style}>Imagen de portada</h3>

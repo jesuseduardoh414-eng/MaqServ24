@@ -114,13 +114,23 @@ h1, h2, h3, h4 {
 @keyframes revealUp { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: none; } }
 
 /* Elevación en hover para tarjetas del home (sin JS). */
-.lift { transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s; }
-.lift:hover { transform: translateY(-8px); box-shadow: var(--shadow); }
+.lift { transition: transform .35s cubic-bezier(.2,.7,.2,1), box-shadow .35s, border-color .35s; }
+/* Rediseño 2026-11-16: al pasar el mouse la tarjeta sube y se enciende su borde azul con resplandor. */
+.lift:hover { transform: translateY(-8px); border-color: color-mix(in srgb, var(--color-primary) 60%, transparent) !important; box-shadow: 0 22px 50px -22px color-mix(in srgb, var(--color-primary) 55%, transparent), var(--shadow); }
 .lift .zoom { transition: transform .5s cubic-bezier(.2,.7,.2,1); }
 .lift:hover .zoom { transform: scale(1.06); }
 
-/* Marca de posición cuando un recurso de la BD no tiene imagen. */
-.ph { background-image: var(--ph-stripes); background-color: var(--surface-2); }
+/* Marca de posición cuando un recurso de la BD no tiene imagen.
+   Rediseño 2026-11-16: rejilla de plano con un brillo azul en la esquina (antes
+   rayas grises, que se veían como «sin terminar»). */
+.ph {
+  background-color: var(--surface-2);
+  background-image:
+    radial-gradient(120% 90% at 85% 0%, color-mix(in srgb, var(--color-primary) 22%, transparent), transparent 62%),
+    linear-gradient(color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-text) 7%, transparent) 1px, transparent 1px);
+  background-size: auto, 26px 26px, 26px 26px;
+}
 
 /* Marquee de marcas: pausa al pasar el cursor. */
 .marquee-track { animation: marquee 30s linear infinite; width: max-content; }
@@ -154,7 +164,7 @@ details.faq[open] .faq-plus { transform: rotate(45deg); }
 @media (max-width: 900px) {
   .hero-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
   .hero-grid > .hero-texto { display: contents; }
-  .hero-grid .hero-sub, .hero-grid .ms-hero-acts, .hero-grid .hero-trust { order: 2; }
+  .hero-grid .hero-sub, .hero-grid .hx-lema, .hero-grid .ms-hero-acts, .hero-grid .hero-trust { order: 2; }
   .hero-visual { order: 1; margin-top: 22px; min-height: 300px !important; }
   .hero-visual[data-video] { min-height: 0 !important; }
   .hero-visual[data-vacio] { display: none !important; }

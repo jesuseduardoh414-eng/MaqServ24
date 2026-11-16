@@ -21,7 +21,7 @@ const LENTO = 0.2;
 const CSS = `
 .cs-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:28px; }
 /* Rediseño 2026-11-16 (parte 2): titular grande y grueso, como «¿Por qué MAQSER24?». */
-.cs-head .ms-title{ font-size:clamp(30px, 3.6vw, 46px); font-weight:800; letter-spacing:-.03em; line-height:1.06; }
+.cs-head .ms-title{ font-size:clamp(26px, 2.6vw, 36px); font-weight:800; letter-spacing:-.02em; line-height:1.12; }
 .cs-head .ms-desc{ font-size:clamp(15.5px, 1.25vw, 18px); line-height:1.55; color:color-mix(in srgb, var(--color-text) 82%, transparent); }
 .cs-arrow{ width:40px; height:40px; border-radius:8px; border:1px solid var(--color-border); background:transparent; color:var(--color-text); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:border-color .18s ease, opacity .18s ease; }
 .cs-arrow:hover:not(:disabled){ border-color:var(--color-text-muted); }

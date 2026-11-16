@@ -95,7 +95,7 @@ export function Carousel({
         <div style={{ minWidth: 0 }}>
           <Eyebrow color={eyebrowColor}>{eyebrow}</Eyebrow>
           {/* Título de sección del home: tipo oración, hasta 34 px (sistema 2026-09-30). */}
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(30px, 3.6vw, 46px)', fontWeight: 800, letterSpacing: '-.03em', lineHeight: 1.06, margin: 0, textWrap: 'balance', ...(titleColor ? { color: titleColor } : {}) }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(26px, 2.6vw, 36px)', fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.12, margin: 0, textWrap: 'balance', ...(titleColor ? { color: titleColor } : {}) }}>
             {title}
           </h2>
         </div>

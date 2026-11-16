@@ -71,8 +71,8 @@ export const defaultTheme: Theme = {
     // Inter Tight/Inter Display cuando esté disponible; cuerpo y datos: Inter."
     typography: {
       fontSans: 'Inter',
-      fontHeading: 'Inter Tight',
-      fontDisplay: 'Inter Tight',
+      fontHeading: 'Montserrat',
+      fontDisplay: 'Montserrat',
       baseSizePx: 16,
       scaleRatio: 1.25,
     },
@@ -319,6 +319,7 @@ export const defaultTheme: Theme = {
     offer: {
       show: true,
       image: null,
+      video: null,
       ctaLink: '/cotizador/maquinaria',
       bg: null,
       accentColor: null,
@@ -445,14 +446,17 @@ export const defaultTheme: Theme = {
       // manda el del manual hasta que el cliente confirme cuál es el oficial.
       'site.tagline': 'Infraestructura digital para maquinaria y servicios de construcción',
       // Mensaje de marca del manual (32 / MENSAJES DE MARCA).
-      'home.hero.title': 'Encuentra maquinaria',
-      'home.hero.titleAccent': 'disponible para tu obra',
-      // Texto del cliente (2026-09-21). Dos párrafos: qué se ofrece y qué
-      // decirnos. El hero lo pinta con `white-space: pre-line`, así que la
+      // Textos del dueño (2026-11-16, imagen «Encuentra lo que tu obra necesita.»).
+      'home.hero.title': 'Encuentra lo que tu',
+      'home.hero.titleAccent': 'obra necesita.',
+      // Dos párrafos: el hero los pinta con `white-space: pre-line`, así que la
       // línea en blanco entre ambos SÍ se ve; lo mismo aplica a
-      // `hero_sections.subtitle`, que es lo que manda cuando existe.
+      // `hero_sections.subtitle`, que es lo que manda cuando existe. `**…**` va
+      // en negritas.
       'home.hero.subtitle':
-        'En MAQSER24 conectamos tu obra con renta de maquinaria pesada, entrega de agua en pipas, entregas de material de banco y retiros de material en camiones de volteo, y suministro de triturados como arena, grava, base hidráulica y CNC. También ofrecemos venta de maquinaria, block de 6", riego de impregnación y carpeta asfáltica.\n\nDinos qué necesitas, cuánto requieres, dónde se ubica tu obra y para cuándo lo necesitas. Te presentaremos opciones con disponibilidad, condiciones de servicio y costos de entrega o traslado.',
+        'En **MAQSER24** conectamos tu obra con: renta y venta de maquinaria pesada, suministro de agua en pipas, acarreos en camiones de volteo, materiales triturados (arena, grava, base hidráulica y CNC), venta de block y servicios de pavimentación asfáltica.\n\nA través de nuestra capacidad propia y una red de proveedores aliados, te ayudamos a encontrar soluciones para tu proyecto en Monterrey y su área metropolitana.',
+      // Frase con barra azul bajo el texto (vacía = no sale).
+      'home.hero.tagline': 'Una sola plataforma. Más soluciones para tu construcción.',
       'home.hero.badge': 'Monterrey y zona metropolitana',
       'home.hero.cta': 'Contactar',
       // 19 / BOTONES: etiquetas directas. Cotizar es el camino principal; el

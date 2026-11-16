@@ -195,7 +195,8 @@ export function ProductCard({ product: p, theme, initialFaved = false }: { produ
  */
 const CSS = `
 .pc{ position:relative; display:flex; flex-direction:column; background:var(--color-surface); border:1px solid color-mix(in srgb, var(--color-text) 18%, var(--color-border)); border-radius:12px; overflow:hidden; min-width:0; transition:border-color .18s ease; }
-.pc:hover{ border-color:color-mix(in srgb, var(--color-text) 30%, var(--color-border)); }
+.pc{ transition:border-color .25s ease, box-shadow .25s ease, transform .25s cubic-bezier(.16,1,.3,1); }
+.pc:hover{ border-color:color-mix(in srgb, var(--color-primary) 55%, transparent); box-shadow: 0 20px 44px -22px color-mix(in srgb, var(--color-primary) 50%, transparent); transform: translateY(-3px); }
 .pc-media{ position:relative; display:block; height:200px; overflow:hidden; background:${PANEL}; border-bottom:1px solid var(--color-border); }
 .pc-img{ transition:transform .3s ease; }
 .pc:hover .pc-img{ transform:scale(1.03); }
