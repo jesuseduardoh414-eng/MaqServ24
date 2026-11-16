@@ -16,6 +16,7 @@ import { productSlug, themeTokensSchema } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
 import { imageUrl, normLegacyText } from '../catalog/images';
 import { ponerTextosDeSector, ponerVideoDeSector, textosDe, textosDeSectores, videosDeSectores } from '../content/videos-sectores';
+import { mosaicoQuienes, ponerVideoDeQuienes, videosDeQuienes } from '../content/videos-quienes';
 
 /** Frase corta, títulos y frases destacadas de un sector (ver sector-contenido en @maqserv/config). */
 const textosSectorSchema = z.object({
@@ -556,7 +557,7 @@ export class AdminCmsController {
     return {
       frase: r.frase, titulo: r.titulo, descripcion: normLegacyText(r.descripcion),
       mision: normLegacyText(r.mision), vision: normLegacyText(r.vision), objetivos: normLegacyText(r.objetivos),
-      imagenes: parseInfImgs(r.imagenes).map((x) => imageUrl(x)).filter((u): u is string => !!u),
+      ...mosaicoQuienes(parseInfImgs(r.imagenes), await videosDeQuienes()),
     };
   }
 
@@ -570,17 +571,59 @@ export class AdminCmsController {
     arr.push(`uploads/${photo.filename}`);
     if (r) await prisma.inf_sitio.update({ where: { id: r.id }, data: { imagenes: JSON.stringify(arr), updated_at: new Date() } });
     else await prisma.inf_sitio.create({ data: { imagenes: JSON.stringify(arr), created_at: new Date(), updated_at: new Date() } });
-    return { imagenes: arr.map((x) => imageUrl(x)).filter((u): u is string => !!u) };
+    return mosaicoQuienes(arr, await videosDeQuienes());
   }
 
   @Delete('inf-sitio/image/:index')
-  async removeInfSitioImage(@Param('index', ParseIntPipe) index: number) {
+  async removeInfSitioImage(@Param('index', ParseIntPipe) index: number, @Req() req: AdminRequest) {
     const r = await prisma.inf_sitio.findFirst({ orderBy: { id: 'desc' } });
-    if (!r) return { imagenes: [] };
+    if (!r) return { imagenes: [], videos: [] };
     const arr = parseInfImgs(r.imagenes);
-    if (index >= 0 && index < arr.length) arr.splice(index, 1);
+    let quitada: string | null = null;
+    if (index >= 0 && index < arr.length) quitada = arr.splice(index, 1)[0] ?? null;
     await prisma.inf_sitio.update({ where: { id: r.id }, data: { imagenes: JSON.stringify(arr), updated_at: new Date() } });
-    return { imagenes: arr.map((x) => imageUrl(x)).filter((u): u is string => !!u) };
+    // Su video se va con ella (y se borra del disco).
+    if (quitada) {
+      const video = await ponerVideoDeQuienes(quitada, null, req.adminEmail).catch(() => null);
+      if (video) void borrarSubidas([video]);
+    }
+    return mosaicoQuienes(arr, await videosDeQuienes());
+  }
+
+  /**
+   * Video de una imagen del mosaico de Quiénes somos (2026-11-16, el dueño:
+   * «esas imágenes también se pueden cambiar por videos»). Va en lugar de la
+   * imagen, que queda de portada. Se aplica al instante y el anterior se borra.
+   */
+  @Post('inf-sitio/image/:index/video')
+  @UseInterceptors(FileInterceptor('video', { storage: videoStorage(), limits: { fileSize: 30 * 1024 * 1024 } }))
+  async uploadInfSitioVideo(@Param('index', ParseIntPipe) index: number, @Req() req: AdminRequest, @UploadedFile() video?: Express.Multer.File) {
+    if (!video) throw new BadRequestException('Falta el video');
+    const ruta = `uploads/${video.filename}`;
+    const r = await prisma.inf_sitio.findFirst({ orderBy: { id: 'desc' } });
+    const arr = parseInfImgs(r?.imagenes);
+    const imagen = arr[index];
+    if (!imagen) {
+      await borrarSubidas([ruta]);
+      throw new NotFoundException('Esa imagen ya no está; vuelve a cargar la página.');
+    }
+    const anterior = await ponerVideoDeQuienes(imagen, ruta, req.adminEmail);
+    if (anterior) void borrarSubidas([anterior]);
+    await revalidarSitio();
+    return mosaicoQuienes(arr, await videosDeQuienes());
+  }
+
+  @Delete('inf-sitio/image/:index/video')
+  async deleteInfSitioVideo(@Param('index', ParseIntPipe) index: number, @Req() req: AdminRequest) {
+    const r = await prisma.inf_sitio.findFirst({ orderBy: { id: 'desc' } });
+    const arr = parseInfImgs(r?.imagenes);
+    const imagen = arr[index];
+    if (imagen) {
+      const anterior = await ponerVideoDeQuienes(imagen, null, req.adminEmail);
+      if (anterior) void borrarSubidas([anterior]);
+      await revalidarSitio();
+    }
+    return mosaicoQuienes(arr, await videosDeQuienes());
   }
 
   @Patch('inf-sitio')

@@ -6,6 +6,7 @@ import { SectoresTextos20261116 } from './sectores-2026-11-16';
 import { PorQueMaqser20261116 } from './por-que-maqser-2026-11-16';
 import { LetraMontserrat20261116 } from './letra-montserrat-2026-11-16';
 import { PortadaTextos20261116 } from './portada-textos-2026-11-16';
+import { QueHacemos20261116 } from './que-hacemos-2026-11-16';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 
@@ -14,6 +15,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
   controllers: [ContentController],
   // DatosDeEjemplo: al arrancar quita del tema guardado las sucursales de ejemplo y los textos de precios (2026-10-28).
   // SectoresTextos20261116 y PorQueMaqser20261116: textos nuevos que mandó el dueño, una sola vez al arrancar (2026-11-16).
-  providers: [ContentService, DatosDeEjemplo, SectoresTextos20261116, PorQueMaqser20261116, LetraMontserrat20261116, PortadaTextos20261116],
+  providers: [ContentService, DatosDeEjemplo, SectoresTextos20261116, PorQueMaqser20261116, LetraMontserrat20261116, PortadaTextos20261116, QueHacemos20261116],
 })
 export class ContentModule {}

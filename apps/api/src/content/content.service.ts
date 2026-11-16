@@ -22,6 +22,7 @@ import { MailerService } from '../notifications/mailer.service';
 import { correoAcuseContacto, correoAcuseProveedor, correoContactoInterno, correoSolicitudProveedorInterno } from '../notifications/email-templates';
 import { ubicarAliado } from '../providers/cobertura-aliado';
 import { textosDe, textosDeSectores, videosDeSectores } from './videos-sectores';
+import { mosaicoQuienes, videosDeQuienes } from './videos-quienes';
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -191,11 +192,13 @@ export class ContentService {
   async infSitio() {
     const r = await prisma.inf_sitio.findFirst({ orderBy: { id: 'desc' } });
     if (!r) return null;
-    let imagenes: string[] = [];
+    let rutas: string[] = [];
     try {
       const parsed = JSON.parse(r.imagenes ?? '[]');
-      if (Array.isArray(parsed)) imagenes = parsed.map((x) => imageUrl(String(x))).filter((u): u is string => u !== null);
+      if (Array.isArray(parsed)) rutas = parsed.map(String);
     } catch { /* legacy sin JSON */ }
+    // Cada imagen puede traer su video (2026-11-16); `videos` va alineado con `imagenes`.
+    const { imagenes, videos } = mosaicoQuienes(rutas, await videosDeQuienes());
     return {
       frase: r.frase,
       titulo: r.titulo,
@@ -204,6 +207,7 @@ export class ContentService {
       vision: sanitizeRichHtml(normLegacyText(r.vision)),
       objetivos: sanitizeRichHtml(normLegacyText(r.objetivos)),
       imagenes,
+      videos,
     };
   }
 

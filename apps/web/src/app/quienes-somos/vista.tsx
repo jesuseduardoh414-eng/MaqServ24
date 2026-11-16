@@ -4,12 +4,15 @@ import { defaultTheme, type Theme } from '@maqserv/config';
 import type { WhyChooseUsItem } from '@maqserv/types';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
 import { CountUp } from '@/components/CountUp';
+import { VideoCategoria } from '@/components/VideoCategoria';
 import { Icon, type IconName } from '@/components/Icon';
 import { hrefDeCotizar } from '@/lib/enlace-cotizar';
 
 export interface InfSitio {
   frase: string | null; titulo: string | null; descripcion: string | null;
   mision: string | null; vision: string | null; objetivos: string | null; imagenes: string[];
+  /** Video de cada imagen, alineado con `imagenes` (2026-11-16); la imagen queda de portada. */
+  videos?: Array<string | null>;
 }
 
 /** Iconos por defecto para las razones (se rota la lista). Del set de `Icon`. */
@@ -23,7 +26,9 @@ const FEATURE_ICONS: IconName[] = ['shield', 'truck', 'chat', 'users', 'calculat
  */
 const CSS = `
 .qs2-hero{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:48px; align-items:center; }
-.qs2-lead{ margin:14px 0 0; font-size:16.5px; line-height:1.6; color:var(--color-text-muted); max-width:60ch; }
+.qs2-lead{ margin:14px 0 0; font-size:16.5px; line-height:1.6; color:var(--color-text-muted); max-width:66ch; }
+/* Negritas del texto (2026-11-16, «A qué nos dedicamos»): en el color del texto, como la imagen del dueño. */
+.qs2-lead strong{ color:var(--color-text); font-weight:700; }
 .qs2-media{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); grid-template-rows:180px 180px; gap:12px; }
 .qs2-media > div{ position:relative; overflow:hidden; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); }
 .qs2-media .qs2-tall{ grid-row:span 2; }
@@ -58,6 +63,12 @@ export function VistaQuienesSomos({ theme, info, allReasons, marco = true }: { t
 
   const heroTitle = info?.titulo || 'Quiénes somos';
   const imgs = info?.imagenes ?? [];
+  const vids = info?.videos ?? [];
+  // Video en bucle si la imagen tiene (2026-11-16, «esas imágenes también se pueden cambiar por videos»); si no, la imagen.
+  const pieza = (i: number) =>
+    vids[i] ? <VideoCategoria src={vids[i] as string} poster={imgs[i] ?? null} boton />
+    : imgs[i] ? <Image src={imgs[i]} alt="" fill sizes="(max-width:900px) 50vw, 30vw" style={{ objectFit: 'cover' }} />
+    : <span className="ph" style={{ position: 'absolute', inset: 0 }} />;
   const purpose: Array<{ title: string; html: string | null | undefined; icon: IconName }> = [
     { title: 'Misión', html: info?.mision, icon: 'diamond' },
     { title: 'Visión', html: info?.vision, icon: 'search' },
@@ -87,10 +98,10 @@ export function VistaQuienesSomos({ theme, info, allReasons, marco = true }: { t
             {/* Mosaico de imágenes */}
             <div className="qs2-media">
               <div className="qs2-tall">
-                {imgs[0] ? <Image src={imgs[0]} alt="" fill sizes="(max-width:900px) 50vw, 30vw" style={{ objectFit: 'cover' }} /> : <span className="ph" style={{ position: 'absolute', inset: 0 }} />}
+                {pieza(0)}
               </div>
               <div>
-                {imgs[1] ? <Image src={imgs[1]} alt="" fill sizes="(max-width:900px) 50vw, 30vw" style={{ objectFit: 'cover' }} /> : <span className="ph" style={{ position: 'absolute', inset: 0 }} />}
+                {pieza(1)}
               </div>
               {/* Decía '24/7 · Soporte y disponibilidad', escrito fijo en la página.
                   Es el ejemplo que el manual pone como prohibido mientras la red no

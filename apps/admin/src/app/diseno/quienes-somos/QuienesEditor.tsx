@@ -36,9 +36,9 @@ function subirVideo(archivo: File, onAvance: (pct: number) => void): Promise<str
 type Copys = Record<string, Record<string, string>>;
 type Placement = 'both' | 'home' | 'about';
 interface Reason { id: number; title: string; text: string; image: string | null; placement: Placement }
-interface InfSitio { frase: string | null; titulo: string | null; descripcion: string | null; mision: string | null; vision: string | null; objetivos: string | null; imagenes: string[] }
+interface InfSitio { frase: string | null; titulo: string | null; descripcion: string | null; mision: string | null; vision: string | null; objetivos: string | null; imagenes: string[]; videos?: Array<string | null> }
 /** Espejo en vivo del contenido de la página para el preview. */
-type PageLive = { frase: string; titulo: string; descripcion: string; mision: string; vision: string; objetivos: string; imagenes: string[] };
+type PageLive = { frase: string; titulo: string; descripcion: string; mision: string; vision: string; objetivos: string; imagenes: string[]; videos: Array<string | null> };
 
 const WCU_DEFAULTS: WhyChooseUs = {
   show: true, image: null, video: null, showYearsBadge: true, showStats: true,
@@ -121,6 +121,7 @@ export function QuienesEditor({ themeId, copys, tokens, whyChooseUs, reasons, in
     frase: infSitio?.frase ?? '', titulo: infSitio?.titulo ?? '', descripcion: infSitio?.descripcion ?? '',
     mision: infSitio?.mision ?? '', vision: infSitio?.vision ?? '', objetivos: infSitio?.objetivos ?? '',
     imagenes: infSitio?.imagenes ?? [] as string[],
+    videos: infSitio?.videos ?? [] as Array<string | null>,
   });
   const applyLive = (patch: Partial<typeof pageLive>) => setPageLive((p) => ({ ...p, ...patch }));
 
@@ -557,7 +558,44 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
 
   // Imágenes del hero (inf_sitio.imagenes) — suben/borran al instante vía API.
   const [imgs, setImgs] = useState<string[]>(data?.imagenes ?? []);
+  /** Video de cada imagen, alineado con `imgs` (2026-11-16, «esas imágenes también se pueden cambiar por videos»). */
+  const [vids, setVids] = useState<Array<string | null>>(data?.videos ?? []);
+  /** Imagen cuyo video se está subiendo (avance 0–100), o null. */
+  const [subiendoVid, setSubiendoVid] = useState<{ i: number; pct: number } | null>(null);
   const [imgBusy, setImgBusy] = useState(false);
+  /** Lo que devuelve la API al cambiar el mosaico: las imágenes y, alineados, sus videos. */
+  const aplicarMosaico = (d: { imagenes?: unknown; videos?: unknown } | null, respaldo?: string[]) => {
+    const im = Array.isArray(d?.imagenes) ? (d?.imagenes as string[]) : (respaldo ?? imgs);
+    const vi = Array.isArray(d?.videos) ? (d?.videos as Array<string | null>) : im.map(() => null);
+    setImgs(im); setVids(vi); onLive({ imagenes: im, videos: vi }); router.refresh();
+  };
+  /** Sube el video de la imagen `i` (XHR: fetch no informa el avance). Se aplica al instante. */
+  function subirVideoDe(i: number, archivo: File) {
+    if (archivo.size > 30 * 1024 * 1024) { setImgErr('El video pesa más de 30 MB'); return; }
+    setImgErr(null); setSubiendoVid({ i, pct: 0 });
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/admin/cms/inf-sitio/image/${i}/video`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) setSubiendoVid({ i, pct: Math.round((e.loaded / e.total) * 100) }); };
+    xhr.onload = () => {
+      let d: { message?: string; imagenes?: unknown; videos?: unknown } | null = null;
+      try { d = JSON.parse(xhr.responseText); } catch { /* sin cuerpo */ }
+      if (xhr.status >= 200 && xhr.status < 300) aplicarMosaico(d);
+      else setImgErr(xhr.status === 413 ? 'El video pesa más de 30 MB' : (d?.message ?? 'No se pudo subir el video'));
+      setSubiendoVid(null);
+    };
+    xhr.onerror = () => { setImgErr('Se cortó la conexión al subir el video'); setSubiendoVid(null); };
+    const fd = new FormData(); fd.append('video', archivo);
+    xhr.send(fd);
+  }
+  async function quitarVideoDe(i: number) {
+    setImgBusy(true); setImgErr(null);
+    try {
+      const r = await fetch(`/api/admin/cms/inf-sitio/image/${i}/video`, { method: 'DELETE' });
+      const d = await r.json().catch(() => null);
+      if (!r.ok) throw new Error('No se pudo quitar el video');
+      aplicarMosaico(d);
+    } catch (e) { setImgErr((e as Error).message); } finally { setImgBusy(false); }
+  }
   const [imgErr, setImgErr] = useState<string | null>(null);
   async function uploadImg(file: File) {
     if (!file.type.startsWith('image/')) { setImgErr('Usa una imagen (PNG, JPG, WebP…)'); return; }
@@ -567,7 +605,7 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
       const r = await fetch('/api/admin/cms/inf-sitio/image', { method: 'POST', body: fd });
       const d = await r.json().catch(() => null);
       if (!r.ok || !Array.isArray(d?.imagenes)) throw new Error(d?.message ?? 'No se pudo subir la imagen');
-      setImgs(d.imagenes); onLive({ imagenes: d.imagenes }); router.refresh();
+      aplicarMosaico(d);
     } catch (e) { setImgErr((e as Error).message); } finally { setImgBusy(false); }
   }
   async function removeImg(index: number) {
@@ -576,8 +614,7 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
       const r = await fetch(`/api/admin/cms/inf-sitio/image/${index}`, { method: 'DELETE' });
       const d = await r.json().catch(() => null);
       if (!r.ok) throw new Error('No se pudo quitar la imagen');
-      const next = Array.isArray(d?.imagenes) ? d.imagenes : imgs.filter((_, i) => i !== index);
-      setImgs(next); onLive({ imagenes: next }); router.refresh();
+      aplicarMosaico(d, imgs.filter((_, i) => i !== index));
     } catch (e) { setImgErr((e as Error).message); } finally { setImgBusy(false); }
   }
 
@@ -610,13 +647,31 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
       </div>
 
       <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-        <div><h3 style={h3Style}>Imágenes del hero</h3><p style={desc}>El mosaico junto al título (se recomiendan 2: obra + flota). Se aplican al instante.</p></div>
+        <div><h3 style={h3Style}>Imágenes o videos del hero</h3><p style={desc}>El mosaico junto al título (se recomiendan 2: obra + flota). A cada imagen le puedes poner un video: se ve en su lugar, en bucle y sin sonido, y la imagen queda de portada. MP4 o WebM, hasta 30 MB. Se aplican al instante.</p></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {imgs.map((src, i) => (
-            <div key={i} style={{ position: 'relative', width: 104, height: 78, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--adm-border-strong)' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              <button type="button" onClick={() => removeImg(i)} disabled={imgBusy} title="Quitar" aria-label="Quitar" style={{ position: 'absolute', top: 5, right: 5, border: 'none', background: 'rgba(0,0,0,0.62)', color: '#fff', borderRadius: 6, width: 22, height: 22, cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'grid', placeItems: 'center', fontFamily: 'inherit' }}><i className="ph ph-x" aria-hidden /></button>
+            <div key={i} style={{ display: 'grid', gap: 6, width: 104 }}>
+            <div style={{ position: 'relative', width: 104, height: 78, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--adm-border-strong)' }}>
+              {vids[i] ? (
+                <video src={vids[i] as string} poster={src} muted loop autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              )}
+              {vids[i] ? <span style={{ position: 'absolute', left: 5, bottom: 5, background: 'rgba(0,0,0,0.62)', color: '#fff', borderRadius: 5, padding: '2px 6px', fontSize: 11, fontWeight: 600 }}><i className="ph ph-video-camera" aria-hidden /> Video</span> : null}
+              <button type="button" onClick={() => removeImg(i)} disabled={imgBusy || subiendoVid !== null} title="Quitar" aria-label="Quitar" style={{ position: 'absolute', top: 5, right: 5, border: 'none', background: 'rgba(0,0,0,0.62)', color: '#fff', borderRadius: 6, width: 22, height: 22, cursor: 'pointer', fontSize: 12, lineHeight: 1, display: 'grid', placeItems: 'center', fontFamily: 'inherit' }}><i className="ph ph-x" aria-hidden /></button>
+            </div>
+              {subiendoVid?.i === i ? (
+                <span style={{ fontSize: 12, color: 'var(--adm-muted)' }}>Subiendo… {subiendoVid.pct}%</span>
+              ) : (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-primary)', cursor: subiendoVid ? 'default' : 'pointer' }}>
+                    {vids[i] ? 'Cambiar video' : '+ Video'}
+                    <input type="file" accept="video/mp4,video/webm" disabled={subiendoVid !== null || imgBusy} onChange={(e) => { const fl = e.target.files?.[0]; if (fl) subirVideoDe(i, fl); e.target.value = ''; }} style={{ display: 'none' }} />
+                  </label>
+                  {vids[i] ? <button type="button" onClick={() => void quitarVideoDe(i)} disabled={imgBusy || subiendoVid !== null} style={{ border: 'none', background: 'none', padding: 0, fontSize: 12, color: 'var(--adm-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>Quitar video</button> : null}
+                </div>
+              )}
             </div>
           ))}
           <label
