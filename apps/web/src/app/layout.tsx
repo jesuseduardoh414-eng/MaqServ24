@@ -1,5 +1,6 @@
 import { Suspense, type ReactNode } from 'react';
 import { FondoAnimado } from '@/components/FondoAnimado';
+import { MusicaFondo } from '@/components/MusicaFondo';
 import type { Metadata, Viewport } from 'next';
 import { Analitica } from '@/components/Analitica';
 import { AvisoCookies } from '@/components/AvisoCookies';
@@ -109,6 +110,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* Fondo animado de todas las páginas (2026-11-16); se cambia en el panel: Sitio web › Fondo animado. */}
         {theme.tokens.fondo?.activo !== false && (theme.tokens.fondo?.video || theme.tokens.fondo?.imagen) ? (
           <FondoAnimado video={theme.tokens.fondo.video} imagen={theme.tokens.fondo.imagen} oscuridad={theme.tokens.fondo.oscuridad} girar={theme.tokens.fondo.girar} />
+        ) : null}
+        {/* Música de fondo de todo el sitio (2026-11-17); se cambia en el panel: Sitio web › Fondo y música. */}
+        {theme.tokens.musica?.activo !== false && theme.tokens.musica?.archivo ? (
+          <MusicaFondo archivo={theme.tokens.musica.archivo} volumen={theme.tokens.musica.volumen} />
         ) : null}
         {/* Qué entra en cada campo: filtra por tipo (una letra no entra en un teléfono) y recorta espacios. */}
         <FiltroDeCampos />

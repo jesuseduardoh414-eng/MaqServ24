@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from '@/components/Enlace';
 import { ESTADOS_COBERTURA, MUNICIPIOS_NORTE, defaultTheme } from '@maqserv/config';
 import { IconoRed, RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
@@ -112,7 +111,8 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
       <div className="ms-page">
         <main className="ms-wrap">
           {/* ===== ENCABEZADO ===== */}
-          <header className={`ms-hero ls-hero${categoria?.image ? '' : ' ls-hero-solo'}`} style={{ paddingTop: 16 }}>
+          {/* Sin imagen (2026-11-17, el dueño: «quita las imágenes de las soluciones»): el texto a todo lo ancho. */}
+          <header className="ms-hero ls-hero ls-hero-solo" style={{ paddingTop: 16 }}>
             <div style={{ minWidth: 0 }}>
               <p className="ms-kicker">{l.eyebrow}</p>
               <h1 className="ms-hero-title">{l.h1}</h1>
@@ -129,11 +129,6 @@ export async function LandingServicio({ ruta }: { ruta: string }) {
                 ) : null}
               </div>
             </div>
-            {categoria?.image ? (
-              <div className="ls-media">
-                <Image src={categoria.image} alt={l.nombre} fill priority sizes="(max-width:900px) 100vw, 440px" style={{ objectFit: 'contain', padding: 24 }} />
-              </div>
-            ) : null}
           </header>
 
           {/* ===== CONTENIDO + CTA ===== */}

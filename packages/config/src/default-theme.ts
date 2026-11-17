@@ -317,6 +317,8 @@ export const defaultTheme: Theme = {
     },
     // Fondo animado de todas las páginas (2026-11-16): la nebulosa azul del dueño.
     fondo: { activo: true, video: '/fondo/nebulosa.mp4', imagen: '/fondo/nebulosa.jpg', oscuridad: 55, girar: true },
+    // Música de fondo (2026-11-17): pista original «tecnología» hecha para MAQSER24.
+    musica: { activo: true, archivo: '/fondo/musica-tecnologia.mp3', volumen: 24 },
     // Sección 6 · Oferta / Promoción (home). Colores null ⇒ heredan del tema.
     offer: {
       show: true,

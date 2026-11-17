@@ -331,6 +331,21 @@ export const fondoSchema = z
   })
   .default({});
 
+/**
+ * MÚSICA DE FONDO DEL SITIO (2026-11-17, el dueño: «solicitaron meter música de
+ * tecnología de fondo en toda la página»). Los navegadores no dejan sonar nada
+ * hasta que la persona toca la página: arranca con su primer clic o tecla, y
+ * siempre hay un botón para pausarla (se recuerda en su navegador). Por
+ * defecto, una pista original hecha para MAQSER24 (va en el sitio, /fondo/).
+ */
+export const musicaSchema = z
+  .object({
+    activo: z.boolean().default(true),
+    archivo: z.string().nullable().default('/fondo/musica-tecnologia.mp3'),
+    volumen: z.number().min(5).max(100).default(24), // % (2026-11-17, el dueño: «bájale un poco, si está en 10 déjalo en 8»: 30 → 24)
+  })
+  .default({});
+
 export const offerSchema = z
   .object({
     show: z.boolean().default(true),
@@ -613,6 +628,8 @@ export const themeTokensSchema = z.object({
   offer: offerSchema,
   /** Fondo animado detrás de todas las páginas del sitio (2026-11-16). */
   fondo: fondoSchema,
+  /** Música de fondo de todo el sitio (2026-11-17). */
+  musica: musicaSchema,
   /** Sección «Promociones del mes» (home): tarjetas con video. */
   promotions: promotionsSchema,
   /** Ajustes de la Sección 7 · Reseñas (home). */
@@ -664,6 +681,7 @@ export type QuienesSomos = z.infer<typeof quienesSomosSchema>;
 export type Sectors = z.infer<typeof sectorsSchema>;
 export type Offer = z.infer<typeof offerSchema>;
 export type Fondo = z.infer<typeof fondoSchema>;
+export type Musica = z.infer<typeof musicaSchema>;
 export type Promotions = z.infer<typeof promotionsSchema>;
 export type PromoItem = z.infer<typeof promoItemSchema>;
 export type Brands = z.infer<typeof brandsSchema>;

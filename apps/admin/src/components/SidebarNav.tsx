@@ -218,8 +218,8 @@ const GROUPS: Array<{ title: string; icon: string; items: Item[] }> = [
         icon: 'ph-globe',
         hijos: [
           { href: '/diseno/marca', label: 'Identidad de marca' },
-          // El video en movimiento detrás de todas las páginas (2026-11-16).
-          { href: '/diseno/fondo', label: 'Fondo animado' },
+          // El video en movimiento detrás de todas las páginas (2026-11-16) y la música de fondo (2026-11-17).
+          { href: '/diseno/fondo', label: 'Fondo y música' },
           // Las nueve secciones del home, plegadas a su vez. El número es el
           // orden en que salen en la página.
           {

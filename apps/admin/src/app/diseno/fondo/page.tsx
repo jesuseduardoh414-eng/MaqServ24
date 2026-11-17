@@ -7,7 +7,7 @@ import { FondoEditor } from './FondoEditor';
 interface ThemeRow { id: number; active: boolean }
 interface ThemeDetail { id: number; tokens: unknown }
 
-/** Fondo animado de todas las páginas del sitio (2026-11-16). */
+/** Fondo animado (2026-11-16) y música de fondo (2026-11-17) de todas las páginas del sitio. */
 export default async function FondoPage() {
   const admin = await getAdmin();
   if (!admin) redirect('/login');
@@ -21,7 +21,7 @@ export default async function FondoPage() {
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
       {/* `sitio`: el video por defecto vive en el sitio (/fondo/…), no en el panel. */}
-      <FondoEditor themeId={active?.id ?? null} tokens={tokens} fondo={tokens.fondo} sitio={SITE_URL.replace(/\/+$/, '')} />
+      <FondoEditor themeId={active?.id ?? null} tokens={tokens} fondo={tokens.fondo} musica={tokens.musica} sitio={SITE_URL.replace(/\/+$/, '')} />
     </AdminShell>
   );
 }

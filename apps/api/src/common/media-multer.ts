@@ -5,6 +5,7 @@ import { BadRequestException } from '@nestjs/common';
 import type { StorageEngine } from 'multer';
 import { resolveImageMime } from './image-sniff';
 import { resolveVideoMime, VIDEO_TYPES } from './video-sniff';
+import { AUDIO_TYPES, resolveAudioMime } from './audio-sniff';
 import { mediaDir, sanitizeKey } from './media';
 
 /** Extensión con la que se guarda cada tipo REAL (ver `image-sniff`). */
@@ -18,6 +19,9 @@ const EXTENSION: Record<string, string> = {
   'image/x-icon': 'ico',
   'video/mp4': 'mp4',
   'video/webm': 'webm',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/ogg': 'ogg',
 };
 
 /** Lo que aceptan por defecto todas las subidas: imágenes de verdad, sin SVG. */
@@ -89,4 +93,9 @@ export const ICON_TYPES = /^image\/(png|jpeg|webp|avif|gif|svg\+xml|x-icon)$/;
 /** Videos de las tarjetas de categoría: MP4 o WebM reconocidos por sus bytes. */
 export function videoStorage(): StorageEngine {
   return mediaStorage(VIDEO_TYPES, resolveVideoMime);
+}
+
+/** Música de fondo del sitio (2026-11-17): MP3, M4A u OGG reconocidos por sus bytes. */
+export function audioStorage(): StorageEngine {
+  return mediaStorage(AUDIO_TYPES, resolveAudioMime);
 }

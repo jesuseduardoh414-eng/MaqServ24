@@ -3,7 +3,7 @@ import {
   ParseIntPipe, Patch, Post, Query, Req, StreamableFile, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ICON_TYPES, mediaStorage, videoStorage } from '../common/media-multer';
+import { audioStorage, ICON_TYPES, mediaStorage, videoStorage } from '../common/media-multer';
 import { borrarSubidas, mediaDir } from '../common/media';
 import { revalidarSitio } from '../common/revalidar-sitio';
 import { basename, join } from 'path';
@@ -283,6 +283,17 @@ export class AdminCmsController {
   async uploadVideo(@UploadedFile() video?: Express.Multer.File) {
     if (!video) throw new BadRequestException('Falta el video');
     return { video: imageUrl(`uploads/${video.filename}`) };
+  }
+
+  /**
+   * Música de fondo del sitio (2026-11-17). Solo guarda el archivo y devuelve
+   * su URL; se publica con «Guardar y publicar» en Sitio web › Fondo y música.
+   */
+  @Post('audio')
+  @UseInterceptors(FileInterceptor('audio', { storage: audioStorage(), limits: { fileSize: 20 * 1024 * 1024 } }))
+  async uploadAudio(@UploadedFile() audio?: Express.Multer.File) {
+    if (!audio) throw new BadRequestException('Falta el audio');
+    return { audio: imageUrl(`uploads/${audio.filename}`) };
   }
 
   /**
