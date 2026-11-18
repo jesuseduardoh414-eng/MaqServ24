@@ -32,7 +32,6 @@ const CSS = `
 .qs2-media{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); grid-template-rows:180px 180px; gap:12px; }
 .qs2-media > div{ position:relative; overflow:hidden; border-radius:12px; background:var(--color-surface); border:1px solid var(--color-border); }
 .qs2-media .qs2-tall{ grid-row:span 2; }
-.qs2-dato{ display:flex; flex-direction:column; justify-content:center; padding:20px; }
 .qs2-center{ text-align:center; display:grid; justify-items:center; }
 .qs2-center .ms-h2-desc{ margin-left:auto; margin-right:auto; }
 .qs2-fit{ grid-template-columns:repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
@@ -64,6 +63,7 @@ export function VistaQuienesSomos({ theme, info, allReasons, marco = true }: { t
   const heroTitle = info?.titulo || 'Quiénes somos';
   const imgs = info?.imagenes ?? [];
   const vids = info?.videos ?? [];
+  const tercera = Boolean(imgs[2] || vids[2]);
   // Video en bucle si la imagen tiene (2026-11-16, «esas imágenes también se pueden cambiar por videos»); si no, la imagen.
   const pieza = (i: number) =>
     vids[i] ? <VideoCategoria src={vids[i] as string} poster={imgs[i] ?? null} boton />
@@ -100,19 +100,14 @@ export function VistaQuienesSomos({ theme, info, allReasons, marco = true }: { t
               <div className="qs2-tall">
                 {pieza(0)}
               </div>
-              <div>
+              {/* Tercera pieza (2026-11-18, el dueño: «en lugar del 5, vamos a quitar eso y
+                  se tiene que poner un video»): donde iba la cifra «5 Categorías de
+                  servicio» va la 3.ª imagen o video del panel. Mientras no la haya, la
+                  2.ª ocupa toda la columna en lugar de dejar un cuadro vacío. */}
+              <div className={tercera ? undefined : 'qs2-tall'}>
                 {pieza(1)}
               </div>
-              {/* Decía '24/7 · Soporte y disponibilidad', escrito fijo en la página.
-                  Es el ejemplo que el manual pone como prohibido mientras la red no
-                  pueda garantizarlo. Se cambia por las líneas de servicio, que sí
-                  son un hecho de la arquitectura de marca. Cinco desde el 2026-09-21
-                  (renta de maquinaria pesada, transporte y servicios de obra,
-                  triturados, materiales para construcción y soluciones asfálticas). */}
-              <div className="qs2-dato">
-                <span className="ms-stat-n" style={{ color: 'var(--color-primary)' }}>5</span>
-                <span className="ms-stat-l">Categorías de servicio</span>
-              </div>
+              {tercera ? <div>{pieza(2)}</div> : null}
             </div>
           </header>
 

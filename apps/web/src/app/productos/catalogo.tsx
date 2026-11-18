@@ -11,10 +11,18 @@ import { ProductCard } from '@/components/ProductCard';
 import { CategoryStrip } from '@/components/CategoryStrip';
 import { Pagination } from '@/components/Pagination';
 import { Band } from '@/components/Band';
-import { CatalogFilters } from '@/components/CatalogFilters';
+import { PestanasCategorias } from '@/components/PestanasCategorias';
 import { filtersToQuery, hasFilters, type CatalogSearch } from '@/lib/catalog-filters';
 
 export type Search = { q?: string; categoria?: string; subcategoria?: string; page?: string } & CatalogSearch;
+
+/**
+ * Al elegir una categoría (o buscar, «Ver todos», cambiar de página) la página
+ * baja sola hasta los resultados (2026-11-18, el dueño: «cada vez que yo
+ * seleccione una opción de las categorías, me debe mandar hacia abajo en donde
+ * está»). `scroll-margin-top` deja libre el menú fijo.
+ */
+const ANCLA = '#resultados';
 
 /**
  * Estilos propios del listado (prefijo `cl-`). Lo común —contenedor,
@@ -26,14 +34,19 @@ const CSS = `
 .cl-search-box{ position:relative; flex:1; min-width:0; }
 .cl-search-box svg{ position:absolute; left:13px; top:50%; transform:translateY(-50%); color:var(--color-text-muted); pointer-events:none; }
 .cl-search-box .ms-input{ padding-left:40px; }
-.cl-tabs{ padding-bottom:16px; border-bottom:1px solid var(--color-border); }
+.cl-tabs{ padding-bottom:16px; border-bottom:1px solid var(--color-border); scroll-margin-top:92px; }
 .cl-sub{ margin-top:12px; }
 .cl-sub .ms-tab{ min-height:32px; padding:0 12px; font-size:13px; font-weight:500; }
 .cl-bar{ display:flex; align-items:center; justify-content:space-between; gap:12px 16px; flex-wrap:wrap; margin:20px 0 20px; }
 .cl-count{ margin:0; font-size:14px; color:var(--color-text-muted); }
 .cl-count b{ color:var(--color-text); font-weight:600; }
 .cl-mid{ margin:48px 0; }
-.cl-feat{ margin:8px 0 44px; }
+.cl-feat{ margin:8px 0 44px; scroll-margin-top:150px; }
+/* Pestañas fijas debajo del menú (2026-11-18): una línea que se desliza de lado si no caben. */
+.cl-tabs-fijas{ position:sticky; z-index:20; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding:12px 0;
+  background: color-mix(in srgb, var(--color-bg) 86%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--color-bg) 86%, transparent); clip-path: inset(0 -100vmax); }
+.cl-tabs-fijas::-webkit-scrollbar{ display:none; }
 .cl-feat .ms-title{ font-size:clamp(22px, 2.4vw, 26px); }
 @media (max-width: 640px){
   .cl-search{ width:100%; }
@@ -89,23 +102,34 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
     // Precio / calificación / disponibilidad / orden: la barra los pone en la URL.
     ...filtersToQuery(sp),
   };
-  const [theme, todasCategorias, result, subcategories, destacados] = await Promise.all([
+  const vacio = { items: [], total: 0, page, pages: 1 };
+  const [theme, todasCategorias, result, subcategories] = await Promise.all([
     tema ?? getTheme(),
     getCategories(),
     // El catálogo es la página más visitada: si la API no responde conviene
-    // enseñar la página con la parrilla vacía antes que un 500.
-    getProducts({ page, ...filtro, ...(vitrina ? { featured: false } : {}) }).catch((err) => {
-      console.warn('[catalogo] la API no respondió; se pinta el catálogo vacío:', err);
-      return { items: [], total: 0, page, pages: 1 };
-    }),
+    // enseñar la página con la parrilla vacía antes que un 500. En «Todos» no
+    // hace falta: ahí va una fila por categoría (ver abajo).
+    vitrina
+      ? Promise.resolve(vacio)
+      : getProducts({ page, ...filtro }).catch((err) => {
+          console.warn('[catalogo] la API no respondió; se pinta el catálogo vacío:', err);
+          return vacio;
+        }),
     sp.categoria ? getSubcategories(sp.categoria).catch(() => []) : Promise.resolve([]),
-    vitrina ? getProducts({ ...filtro, featured: true }).catch(() => null) : Promise.resolve(null),
   ]);
-  const enCarrusel = destacados?.items ?? [];
-  // En las páginas 2, 3… la parrilla sigue sin destacados, pero el carrusel solo va en la primera.
-  const conCarrusel = vitrina && page === 1 && enCarrusel.length > 0;
   // Solo las categorías de este tipo: en /servicios no se ofrece filtrar por una de productos.
   const categories = todasCategorias.filter((c) => tipoDeCatalogo(c.slug) === kind);
+  /*
+   * POR SECCIONES (2026-11-18, el dueño: «en lugar de que aparezca destacados,
+   * aparezcan en orden de como están las categorías»): en «Todos» va una fila
+   * (el mismo carrusel) por categoría, en el orden de las pestañas, con su
+   * «Ver todos». Reemplaza al carrusel de destacados y a la parrilla.
+   */
+  const secciones = vitrina
+    ? (await Promise.all(categories.map(async (c) => ({ cat: c, res: await getProducts({ kind, category: c.slug }).catch(() => null) }))))
+        .filter((s): s is { cat: (typeof categories)[number]; res: NonNullable<typeof s.res> } => !!s.res && s.res.items.length > 0)
+    : [];
+  const totalSecciones = secciones.reduce((n, s) => n + s.res.total, 0);
 
   const q = sp.q ? `&q=${encodeURIComponent(sp.q)}` : '';
   const catalog = theme.tokens.catalog;
@@ -131,6 +155,9 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
     return v === key ? def : v;
   };
   const allLabel = cval('catalog.filter.all', 'Todos');
+  const introServicios = kind === 'servicio'
+    ? cval('catalog.services.intro', '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+    : [];
   const searchPh = cval('catalog.search.placeholder', 'Buscar equipo, marca…');
 
   const makeHref = (p: number) => {
@@ -144,7 +171,7 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
     }
     if (p > 1) params.set('page', String(p));
     const qs = params.toString();
-    return `${base}${qs ? `?${qs}` : ''}`;
+    return `${base}${qs ? `?${qs}` : ''}${ANCLA}`;
   };
 
   // Con banner, el h1 es el del banner; el encabezado de trabajo va como h2
@@ -164,10 +191,13 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
           <header className="ms-head cl-head">
             <div className="ms-head-txt">
               <HeadTitle className="ms-title">{navLabel}</HeadTitle>
-              {descripcion ? <p className="ms-desc">{descripcion}</p> : null}
+              {/* Servicios lleva su texto propio (2026-11-18), en párrafos; si está vacío, la descripción de siempre. */}
+              {introServicios.length ? (
+                introServicios.map((p) => <p key={p} className="ms-desc cl-intro">{p}</p>)
+              ) : descripcion ? <p className="ms-desc">{descripcion}</p> : null}
             </div>
             {/* Buscador (form GET ?q=). Conserva la categoría elegida. */}
-            <form action={base} method="get" role="search" className="cl-search">
+            <form action={`${base}${ANCLA}`} method="get" role="search" className="cl-search">
               {sp.categoria ? <input type="hidden" name="categoria" value={sp.categoria} /> : null}
               <div className="cl-search-box">
                 <Icon name="search" size={17} />
@@ -178,12 +208,8 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
           </header>
 
           {/* Filtro por categoría */}
-          <nav aria-label="Categorías" className="ms-tabs cl-tabs">
-            <Link href={`${base}${sp.q ? `?q=${encodeURIComponent(sp.q)}` : ''}`} className="ms-tab" aria-current={!sp.categoria ? 'page' : undefined}>{allLabel}</Link>
-            {categories.map((c) => (
-              <Link key={c.id} href={`${base}?categoria=${c.slug}${q}`} className="ms-tab" aria-current={sp.categoria === c.slug ? 'page' : undefined}>{c.name}</Link>
-            ))}
-          </nav>
+          {/* Pestañas (2026-11-18): bajan a la fila de su categoría sin recargar ni quitar las demás. */}
+          <PestanasCategorias base={base} cats={categories.map((c) => ({ slug: c.slug, name: c.name }))} todosLabel={allLabel} activa={sp.categoria ?? null} />
 
           {/* Subcategorías de la categoría activa (si hay) */}
           {subcategories.length > 0 ? (
@@ -191,7 +217,7 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
               {subcategories.map((s) => (
                 <Link
                   key={s.id}
-                  href={`${base}?categoria=${sp.categoria}&subcategoria=${s.slug}${q}`}
+                  href={`${base}?categoria=${sp.categoria}&subcategoria=${s.slug}${q}${ANCLA}`}
                   className="ms-tab"
                   aria-current={sp.subcategoria === s.slug ? 'page' : undefined}
                 >
@@ -201,36 +227,36 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
             </nav>
           ) : null}
 
-          {/* Barra: conteo (izq) + filtros/orden (der) */}
-          <div className="cl-bar">
+          {/* Barra: el conteo. Los filtros «Disponibilidad» y «Ordenar por» se
+              quitaron (2026-11-18, el dueño: «eso que está encerrado, elimínalo»). */}
+          <div className="cl-bar cl-lista">
             <p className="cl-count">
-              {/* El total cuenta también los del carrusel: son parte de lo que se ve. */}
-              Mostrando <b className="ms-num">{result.total + (vitrina ? (destacados?.total ?? 0) : 0)}</b> {plural}
+              Mostrando <b className="ms-num">{vitrina ? totalSecciones : result.total}</b> {plural}
               {sp.q ? <> para «<b>{sp.q}</b>»</> : null}
             </p>
-            <CatalogFilters />
           </div>
 
-          {conCarrusel ? (
-            <div className="cl-feat">
+          {/* «Todos»: una fila por categoría, en el orden de las pestañas. */}
+          {secciones.map((s) => (
+            <div className="cl-feat" key={s.cat.id} id={`cat-${s.cat.slug}`}>
               <CategoryStrip
                 eyebrow=""
-                title={cval('catalog.featured.title', 'Destacados')}
+                title={s.cat.name}
                 eyebrowColor=""
                 titleColor=""
                 ancho="min(290px, 80cqw)"
                 siempre
-                etiquetaAnterior="Destacados anteriores"
-                etiquetaSiguiente="Destacados siguientes"
+                etiquetaAnterior={`${s.cat.name}: anteriores`}
+                etiquetaSiguiente={`${s.cat.name}: siguientes`}
               >
-                {enCarrusel.map((p) => (
+                {s.res.items.map((p) => (
                   <ProductCard key={p.id} product={p} theme={theme} />
                 ))}
               </CategoryStrip>
             </div>
-          ) : null}
+          ))}
 
-          {items.length === 0 && conCarrusel ? null : items.length === 0 ? (
+          {vitrina && secciones.length > 0 ? null : items.length === 0 ? (
             <div className="ms-empty">
               <span className="ms-ico ms-ico-lg ms-ico-muted"><Icon name="search" size={22} /></span>
               <p className="ms-empty-t">{sp.q ? `Sin resultados para «${sp.q}»` : `Sin ${plural} con estos filtros`}</p>

@@ -163,6 +163,11 @@ const servicioSchema = z.object({
    * de esas zonas y `precio` queda como el de referencia.
    */
   precios_zona: z.record(z.string(), z.number().min(0)).optional(),
+  /**
+   * CANTIDAD MÍNIMA QUE SE COBRA (2026-11-18, la cal de patio: «se pide el pago
+   * de 28 toneladas»). Si piden menos, se cobra el mínimo. Sin el campo, no hay.
+   */
+  minimo: z.number().int().min(0).max(100_000).optional(),
   oculto: ocultoDe(),
 });
 
@@ -751,7 +756,8 @@ export function calcularMaquinaria(
         });
         continue;
       }
-      const cantidad = entero(p.cantidad, 1);
+      // Con mínimo (la cal, 28 ton): si piden menos, se cobra el mínimo.
+      const cantidad = Math.max(entero(p.cantidad, 1), sv.minimo ?? 0);
       // Un precio en 0 significa "el del catálogo", no "gratis". Importa más de
       // lo que parece: con los precios ocultos en el sitio público, el
       // navegador recibe el tabulador EN CEROS y manda 0 en cada servicio. Si
@@ -763,9 +769,20 @@ export function calcularMaquinaria(
       const zona = porZona(sv) ? zonaPrecioDe(cat, p.zona) : null;
       const precio = decimal(p.precio && Number(p.precio) > 0 ? p.precio : precioDeServicio(cat, sv, p.zona) ?? 0);
       const importe = precio * cantidad;
-      if (importe <= 0) continue;
-      servicios += importe;
       const concepto = sv.cond === 'retiro' ? `${sv.nombre.toUpperCase()} (TIRO LIBRE)` : sv.nombre.toUpperCase();
+      if (importe <= 0) {
+        /**
+         * SIN PRECIO DE LISTA (2026-11-18, el acarreo de 30 m³ nace así): sale
+         * «por cotizar», sin sumar, para que el panel le ponga precio; antes el
+         * renglón se caía y la solicitud llegaba sin él. Lo que se cobra por
+         * zona y no tiene zona sigue sin salir (la pantalla y la API la piden).
+         */
+        if (!porZona(sv)) {
+          renglones.push({ clase: 'servicio', id: sv.id, nombre: sv.nombre, concepto, unidad: (sv.unidad || 'viaje').toUpperCase(), cantidad, pu: 0, importe: 0, porCotizar: true });
+        }
+        continue;
+      }
+      servicios += importe;
       renglones.push({
         clase: 'servicio',
         id: sv.id,
@@ -1647,7 +1664,7 @@ export const COTIZADORES_SITIO: readonly CotizadorDelSitio[] = [
   {
     clave: 'acarreos',
     titulo: 'Acarreos',
-    resumen: 'Retiro de material en volteo, por viaje',
+    resumen: 'Acarreo de material en volteo, por viaje',
     tipo: 'maquinaria',
     linea: LINEA_TRANSPORTE,
     icono: 'retiro',
@@ -1665,7 +1682,8 @@ export const COTIZADORES_SITIO: readonly CotizadorDelSitio[] = [
   {
     clave: 'materiales',
     titulo: 'Materiales de construcción',
-    resumen: 'Block de concreto',
+    // La cal de patio entra aquí desde 2026-11-18 (antes iba en triturados).
+    resumen: 'Block de concreto y cal de patio',
     tipo: 'maquinaria',
     linea: LINEA_MATERIALES,
     icono: 'block',

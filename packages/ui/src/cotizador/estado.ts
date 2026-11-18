@@ -130,7 +130,8 @@ export const lineaDeServicio = (cat: CatalogoMaquinaria, id: string): LineaServi
     id,
     // Por zona (el agua) nace sin precio escrito: vale el de su zona, que sale de la obra.
     precio: sv && porZona(sv) ? '' : String(sv?.precio ?? 0),
-    cantidad: 1,
+    // Con mínimo (la cal, 28 ton) nace en el mínimo.
+    cantidad: Math.max(1, sv?.minimo ?? 1),
     zona: '',
     nombre: '',
     unidad: '',

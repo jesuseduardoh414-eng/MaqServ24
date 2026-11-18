@@ -19,6 +19,8 @@ const introTitle: CSSProperties = { color: 'var(--adm-text)', fontWeight: 600 };
 
 interface Config {
   eyebrow: string; title: string; subtitle: string; allLabel: string; viewAll: string;
+  /** Texto bajo «Servicios» en /servicios (2026-11-18). */
+  serviciosIntro: string;
   featured: Featured;
   catalog: { banner: CtaBlock; mid: CtaBlock; promo: CtaBlock };
 }
@@ -28,6 +30,7 @@ function copysDestacados(c: Config): Record<string, string> {
   return {
     'home.featured.eyebrow': c.eyebrow, 'home.featured.title': c.title, 'home.featured.subtitle': c.subtitle,
     'home.featured.filterAll': c.allLabel, 'home.featured.viewAll': c.viewAll,
+    'catalog.services.intro': c.serviciosIntro,
   };
 }
 
@@ -46,6 +49,7 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
       eyebrow: es['home.featured.eyebrow'] ?? '', title: es['home.featured.title'] ?? '',
       subtitle: es['home.featured.subtitle'] ?? '', allLabel: es['home.featured.filterAll'] ?? '',
       viewAll: es['home.featured.viewAll'] ?? '',
+      serviciosIntro: es['catalog.services.intro'] ?? '',
       featured: { ...FEATURED_DEFAULTS, ...(featured ?? {}) },
       catalog: { banner: mergeBlock(catalog?.banner), mid: mergeBlock(catalog?.mid), promo: mergeBlock(catalog?.promo) },
     };
@@ -164,6 +168,12 @@ export function ProductsEditor({ themeId, copys, tokens, featured, catalog }: {
                 <span style={introTitle}>Página /productos.</span> Tres bandas: un <b>banner</b> arriba, un <b>anuncio</b> en medio y una <b>promo</b> al final. Cada una se prende/apaga.
               </p>
               <BlockEditor label="Banner (arriba)" help="Banda grande al inicio del catálogo." icon="ph-flag-banner" block={config.catalog.banner} onChange={(p) => setBlock('banner', p)} />
+              <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
+                <h3 style={h3Style}>Texto de la página Servicios</h3>
+                <Field label="Va debajo del título «Servicios» (una línea en blanco separa párrafos; vacío = la descripción de Google)">
+                  <textarea value={config.serviciosIntro} onChange={(e) => set('serviciosIntro', e.target.value)} rows={6} placeholder="Con MAQSER24 puedes cotizar…" style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} />
+                </Field>
+              </div>
               <BlockEditor label="Anuncio intermedio" help="Se muestra entre dos grupos de productos." icon="ph-megaphone-simple" block={config.catalog.mid} onChange={(p) => setBlock('mid', p)} />
               <BlockEditor label="Promo (abajo)" help="Banda al final de la página." icon="ph-tag" block={config.catalog.promo} onChange={(p) => setBlock('promo', p)} />
             </div>

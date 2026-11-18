@@ -195,11 +195,17 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
   servicios: [
     { id: 'pipa', nombre: 'Pipa de agua 10 m³', icono: 'pipa', unidad: 'viaje', precio: 3500, presets: [3500], cond: 'pipa', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 3500, z2: 3500 } },
     { id: 'agua', nombre: 'Pipa de agua 20 m³', icono: 'agua', unidad: 'viaje', precio: 6000, presets: [6000], cond: 'pipa', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 6000, z2: 6000 } },
-    { id: 'retiro', nombre: 'Retiro de material 14 m³', icono: 'retiro', unidad: 'viaje', precio: 4500, presets: [4500], cond: 'retiro', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 4500, z2: 5500 } },
+    { id: 'retiro', nombre: 'Acarreo de material 14 m³', icono: 'retiro', unidad: 'viaje', precio: 4500, presets: [4500], cond: 'retiro', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 4500, z2: 5500 } },
     // Sin servicio hasta nuevo aviso (2026-10-29): conserva su precio para cuando vuelva.
-    { id: 'retiro_28', nombre: 'Retiro de material 28 m³', icono: 'retiro', unidad: 'viaje', precio: 5000, presets: [3000, 4000, 5000, 6000, 7000, 8000], cond: 'retiro', linea: 'transporte-y-servicios-de-obra', oculto: true },
+    { id: 'retiro_28', nombre: 'Acarreo de material 28 m³', icono: 'retiro', unidad: 'viaje', precio: 5000, presets: [3000, 4000, 5000, 6000, 7000, 8000], cond: 'retiro', linea: 'transporte-y-servicios-de-obra', oculto: true },
+    // 2026-11-18: acarreo de 30 m³, por zona (el dueño: Zona 1 $7,500, Zona 2 $9,500).
+    { id: 'acarreo_30', nombre: 'Acarreo de material 30 m³', icono: 'retiro', unidad: 'viaje', precio: 7500, presets: [7500], cond: 'retiro', linea: 'transporte-y-servicios-de-obra', precios_zona: { z1: 7500, z2: 9500 } },
+    // 2026-11-18: la cal pasa de triturados a materiales para construcción. Ya puesta en obra, mínimo 28 ton.
+    { id: 'cal_patio', nombre: 'Cal de patio', icono: 'material', unidad: 'tonelada', precio: 1650, presets: [1650], cond: 'cal', linea: 'materiales-para-construccion', minimo: 28 },
   ],
   condiciones: {
+    // La cal de patio (2026-11-06, el texto del dueño); desde 2026-11-18 va en materiales.
+    cal: CONDICIONES_CAL,
     renta: {
       titulo: 'Condiciones comerciales · Renta de maquinaria',
       puntos: [
@@ -214,11 +220,11 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
       ],
     },
     retiro: {
-      titulo: 'Condiciones comerciales · Retiro de material de escombro',
+      titulo: 'Condiciones comerciales · Acarreo de material de escombro',
       puntos: [
         'Forma de pago: todos los servicios se realizan únicamente con pago de contado.',
-        'Cotización: los costos presentados corresponden al servicio cotizado y pueden ser para camiones de 14 m³ o 28 m³, según se especifique en la propuesta.',
-        'Material: la presente cotización aplica para retiro de material de escombro. En caso de que el material corresponda a basura o residuos no considerados como escombro, el costo del servicio será ajustado de acuerdo con el tipo de material y el sitio de disposición final.',
+        'Cotización: los costos presentados corresponden al servicio cotizado y pueden ser para camiones de 14 m³ o 30 m³, según se especifique en la propuesta.',
+        'Material: la presente cotización aplica para acarreo de material de escombro. En caso de que el material corresponda a basura o residuos no considerados como escombro, el costo del servicio será ajustado de acuerdo con el tipo de material y el sitio de disposición final.',
         'Viaje a tiro libre: los precios presentados corresponden al servicio de viaje a tiro libre, conforme a las condiciones establecidas en la cotización.',
         'Cambios en el servicio: cualquier modificación en el tipo de material, volumen, destino o condiciones de carga podrá generar un ajuste en el costo previamente cotizado.',
       ],
@@ -270,8 +276,7 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
     // 2026-10-30: mismo precio que la Arena #4.
     { id: 'mixtos', nombre: 'Mixtos', precio_ton: 300 },
     { id: 'arena4b', nombre: 'Arena #4B', precio_ton: 300 },
-    // 2026-11-06: ya puesta en obra (área metropolitana de Monterrey), se pagan 28 ton para programar la tolva.
-    { id: 'cal_patio', nombre: 'Cal de patio', precio_ton: 1650, en_obra: true, minimo_ton: 28 },
+    // La cal de patio pasó a materiales para construcción (2026-11-18): ver los servicios de maquinaria.
   ],
   fletes_ton: [50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300],
   material_banco: {
@@ -318,8 +323,6 @@ export const CATALOGO_TRITURADOS_DEFAULT: CatalogoTriturados = {
         'Los costos ya incluyen suministro y flete a su obra.',
       ],
     },
-    // La cal de patio (2026-11-06, el texto del dueño).
-    cal: CONDICIONES_CAL,
     banco: {
       titulo: 'Material de banco',
       puntos: [

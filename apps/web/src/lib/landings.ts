@@ -152,11 +152,11 @@ export const LANDINGS: Landing[] = [
     clave: 'transport',
     categoria: 'transporte-y-servicios-de-obra',
     nombre: 'Pipas de agua y volteos',
-    resumen: 'Agua en pipa y retiros de material',
+    resumen: 'Agua en pipa y acarreos de material',
     eyebrow: 'Transporte y servicios de obra',
     h1: 'Pipas de agua y camiones de volteo para tu obra',
     intro: [
-      'Solicita agua en pipas de 10 o 20 m³ y retiros de material en camión de volteo de 14 m³.',
+      'Solicita agua en pipas de 10 o 20 m³ y acarreos de material de 14 o 30 m³.',
       `Operamos en ${ZONA}. Nos dices cuántos viajes necesitas y a dónde, y coordinamos al proveedor para que llegue a tu obra.`,
     ],
     incluye: {
@@ -164,7 +164,8 @@ export const LANDINGS: Landing[] = [
       items: [
         'Entrega de agua en pipa de 10 m³',
         'Entrega de agua en pipa de 20 m³',
-        'Retiro de material en volteo de 14 m³',
+        'Acarreo de material en volteo de 14 m³',
+        'Acarreo de material de 30 m³',
       ],
     },
     usos: ['Compactación de terracerías', 'Riego para control de polvo', 'Curado de concreto', 'Rellenos y nivelación', 'Limpieza de terreno'],

@@ -608,6 +608,26 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
       aplicarMosaico(d);
     } catch (e) { setImgErr((e as Error).message); } finally { setImgBusy(false); }
   }
+  /**
+   * Un video directo, sin subir antes una imagen (2026-11-18, el dueño: «en lugar
+   * del 5… se tiene que poner un video»): la portada se saca de un cuadro del
+   * propio video, se agrega como pieza nueva y el video se le pone encima.
+   */
+  async function agregarVideo(f: File) {
+    if (f.size > 30 * 1024 * 1024) { setImgErr('El video pesa más de 30 MB'); return; }
+    setImgBusy(true); setImgErr(null);
+    try {
+      const portada = await portadaDeVideo(f);
+      if (!portada) throw new Error('No se pudo leer ese video. Súbelo en MP4.');
+      const fd = new FormData(); fd.append('photo', portada);
+      const r = await fetch('/api/admin/cms/inf-sitio/image', { method: 'POST', body: fd });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !Array.isArray(d?.imagenes)) throw new Error(d?.message ?? 'No se pudo preparar el video');
+      aplicarMosaico(d);
+      setImgBusy(false);
+      subirVideoDe((d.imagenes as string[]).length - 1, f);
+    } catch (e) { setImgErr((e as Error).message); setImgBusy(false); }
+  }
   async function removeImg(index: number) {
     setImgBusy(true); setImgErr(null);
     try {
@@ -647,7 +667,7 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
       </div>
 
       <div style={{ ...cardStyle, display: 'grid', gap: 12 }}>
-        <div><h3 style={h3Style}>Imágenes o videos del hero</h3><p style={desc}>El mosaico junto al título (se recomiendan 2: obra + flota). A cada imagen le puedes poner un video: se ve en su lugar, en bucle y sin sonido, y la imagen queda de portada. MP4 o WebM, hasta 30 MB. Se aplican al instante.</p></div>
+        <div><h3 style={h3Style}>Imágenes o videos del hero</h3><p style={desc}>El mosaico junto al título, hasta 3 piezas: la 1.ª va alta a la izquierda, la 2.ª arriba a la derecha y la 3.ª abajo a la derecha (con solo 2, la 2.ª ocupa toda la derecha). Cada una puede ser imagen o video: «Agregar video» sube el video directo y saca solo su portada; a una imagen también le puedes poner video con «+ Video». Los videos van en bucle y sin sonido. MP4 o WebM, hasta 30 MB. Se aplican al instante.</p></div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {imgs.map((src, i) => (
             <div key={i} style={{ display: 'grid', gap: 6, width: 104 }}>
@@ -679,8 +699,14 @@ function PageForm({ data, onLive }: { data: InfSitio | null; onLive: (patch: Par
             onDrop={(e) => { e.preventDefault(); const fl = e.dataTransfer.files?.[0]; if (fl) uploadImg(fl); }}
             style={{ width: 104, height: 78, borderRadius: 8, border: '1.5px dashed var(--adm-border-strong)', background: D.inputBg, display: 'grid', placeItems: 'center', cursor: 'pointer', color: 'var(--adm-muted)', fontSize: 12.5, textAlign: 'center' }}
           >
-            <span><i className="ph ph-plus" style={{ fontSize: 17, display: 'block', marginBottom: 2 }} />{imgBusy ? 'Subiendo…' : 'Agregar'}</span>
+            <span><i className="ph ph-plus" style={{ fontSize: 17, display: 'block', marginBottom: 2 }} />{imgBusy ? 'Subiendo…' : 'Agregar imagen'}</span>
             <input type="file" accept="image/*" onChange={(e) => { const fl = e.target.files?.[0]; if (fl) uploadImg(fl); e.target.value = ''; }} style={{ display: 'none' }} />
+          </label>
+          <label
+            style={{ width: 104, height: 78, borderRadius: 8, border: '1.5px dashed var(--adm-border-strong)', background: D.inputBg, display: 'grid', placeItems: 'center', cursor: imgBusy || subiendoVid ? 'default' : 'pointer', color: 'var(--adm-muted)', fontSize: 12.5, textAlign: 'center' }}
+          >
+            <span><i className="ph ph-video-camera" style={{ fontSize: 17, display: 'block', marginBottom: 2 }} />Agregar video</span>
+            <input type="file" accept="video/mp4,video/webm" disabled={imgBusy || subiendoVid !== null} onChange={(e) => { const fl = e.target.files?.[0]; if (fl) void agregarVideo(fl); e.target.value = ''; }} style={{ display: 'none' }} />
           </label>
         </div>
         {imgErr ? <span style={{ fontSize: 12.5, color: 'var(--adm-bad)' }}>{imgErr}</span> : null}

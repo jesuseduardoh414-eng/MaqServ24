@@ -303,7 +303,7 @@ export function PasoServicios({
             const unitario = num(l.precio) || deZona || 0;
             const total = unitario * l.cantidad;
             const nota = !porZona(sv)
-              ? `Precio por ${sv.unidad}`
+              ? `Precio por ${sv.unidad}${sv.minimo ? ` · mínimo ${conUnidad(sv.minimo, sv.unidad)}` : ''}`
               : zona && deZona
                 ? `${zona.nombre}${l.zona ? '' : ' · por el municipio de la obra'}`
                 : municipio.trim() ? `No se ofrece en ${municipio}` : 'Elige el municipio de la obra para saber su zona';
@@ -349,7 +349,7 @@ export function PasoServicios({
                   <span className="cz-lbl">{cantidadEn(sv.unidad)}</span>
                   <Contador
                     valor={l.cantidad}
-                    min={1}
+                    min={Math.max(1, sv.minimo ?? 1)}
                     max={100_000}
                     ariaLabel={cantidadEn(sv.unidad).toLowerCase()}
                     onChange={(v) => actualizar(l.uid, { cantidad: v })}
@@ -406,7 +406,7 @@ function TarjetasServicios({ cat, lineas, alternar, mostrarPrecios, municipio, e
           ? `No se ofrece en ${municipio}`
           : mostrarPrecios && precio
             ? `${dinero(precio)} / ${s.unidad}${porZona(s) && zonaObra ? ` · ${zonaObra.nombre}` : ''}`
-            : porZona(s) && zonaObra ? `por ${s.unidad} · ${zonaObra.nombre}` : `por ${s.unidad}`;
+            : porZona(s) && zonaObra ? `por ${s.unidad} · ${zonaObra.nombre}` : `por ${s.unidad}${s.minimo ? ` · mínimo ${s.minimo}` : ''}`;
         return (
           <Tarjeta
             key={s.id}

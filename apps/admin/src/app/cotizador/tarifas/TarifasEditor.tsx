@@ -380,8 +380,8 @@ function ZonasAgua({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Partial<Cat
   return (
     <Panel
       icon="ph-drop"
-      title="Zonas de agua y retiro"
-      desc="El agua y el retiro de material se cobran según la zona de la obra; fuera de estas zonas no se ofrecen. El precio de cada zona va en la ficha de cada servicio."
+      title="Zonas de agua y acarreo"
+      desc="El agua y el acarreo de material se cobran según la zona de la obra; fuera de estas zonas no se ofrecen. El precio de cada zona va en la ficha de cada servicio."
     >
       <div style={{ display: 'grid', gap: 16 }}>
         {zonas.map((z, i) => (
@@ -426,7 +426,7 @@ function ZonasAgua({ cat, set }: { cat: CatalogoMaquinaria; set: (p: Partial<Cat
           </div>
         ))}
         <p className="tf-sub" style={{ margin: 0 }}>
-          {sinZona.length ? `Sin agua ni retiro (en ninguna zona): ${sinZona.join(', ')}.` : 'Todos los municipios del cotizador están en alguna zona.'}
+          {sinZona.length ? `Sin agua ni acarreo (en ninguna zona): ${sinZona.join(', ')}.` : 'Todos los municipios del cotizador están en alguna zona.'}
         </p>
       </div>
     </Panel>

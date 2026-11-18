@@ -210,7 +210,7 @@ export const defaultTheme: Theme = {
       banner: {
         enabled: true,
         eyebrow: 'Catálogo completo',
-        title: 'Todo el equipo, en un solo lugar',
+        title: 'Maquinaria, materiales y servicios para tu obra',
         subtitle:
           'Renta o compra equipo con especificaciones, ubicación y disponibilidad a la vista. Lo que no está en catálogo se cotiza.',
         cta: 'Cotizar',
@@ -594,6 +594,9 @@ export const defaultTheme: Theme = {
       'rental.days': 'día(s)',
       'rental.freight': 'flete',
       'catalog.title': 'Catálogo de productos',
+      // Texto bajo «Servicios» en /servicios (2026-11-18). Una línea en blanco separa párrafos.
+      'catalog.services.intro':
+        'Con MAQSER24 puedes cotizar la renta de maquinaria pesada con operador y consultar equipos en venta. También puedes solicitar suministro de triturados, block y concreto premezclado, entrega de agua en pipas, acarreos en volteos y tolvas, suministro y aplicación de carpeta asfáltica y riego de impregnación.\n\nAtendemos obras en Monterrey y su área metropolitana.',
       'catalog.filter.all': 'Todos',
       'catalog.search.placeholder': 'Buscar equipo, marca…',
       'catalog.search.button': 'Buscar',
@@ -772,7 +775,7 @@ export const defaultTheme: Theme = {
       'seo.landing.machinerySale.title': 'Venta de maquinaria pesada en Monterrey',
       'seo.landing.machinerySale.description': 'Compra excavadoras, retroexcavadoras, motoconformadoras, vibrocompactadores, Bobcat, volteos y pipas con la red de proveedores MAQSER24 en Monterrey y todo Nuevo León.',
       'seo.landing.transport.title': 'Pipas de agua y camiones de volteo en Monterrey',
-      'seo.landing.transport.description': 'Agua en pipas de 10 y 20 m³ y retiros de material en volteo de 14 m³ en Monterrey y todo Nuevo León. Cotiza en línea por viaje.',
+      'seo.landing.transport.description': 'Agua en pipas de 10 y 20 m³ y acarreos de material de 14 y 30 m³ en Monterrey y todo Nuevo León. Cotiza en línea por viaje.',
       'seo.landing.aggregates.title': 'Grava, arena y base hidráulica en Monterrey',
       'seo.landing.aggregates.description': 'Arena, grava, base y sub base hidráulica, sello, piedra y CNC por tonelada en planta o por viaje a obra en Monterrey y Nuevo León. Cotiza en línea.',
       'seo.landing.materials.title': 'Block de concreto de 6" en Monterrey',

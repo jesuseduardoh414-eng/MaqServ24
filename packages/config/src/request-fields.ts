@@ -86,14 +86,14 @@ export const REQUEST_FORMS: RequestForm[] = [
     intro:
       'Pipas y volteos no se cotizan por equipo sino por viaje: lo que manda son el recorrido, el volumen y la frecuencia.',
     fields: [
-      { key: 'servicio', label: '¿Qué necesitas?', type: 'opcion', options: ['Agua en pipa', 'Entrega de material de banco', 'Retiro de material', 'Varios'], required: true },
+      { key: 'servicio', label: '¿Qué necesitas?', type: 'opcion', options: ['Agua en pipa', 'Entrega de material de banco', 'Acarreo de material', 'Varios'], required: true },
       // --- Pipas ---
       { key: 'uso_agua', label: '¿Para qué es el agua?', type: 'opcion', options: ['Terracerías / compactación', 'Riego y control de polvo', 'Obra general', 'Otro'], hint: 'Solo si pides agua: define el tipo de agua que se puede usar' },
       { key: 'capacidad_pipa', label: 'Capacidad de pipa', type: 'opcion', options: ['10 m³', '20 m³', 'La que convenga'], hint: 'Solo si pides agua' },
       // --- Volteos ---
       { key: 'material', label: 'Material', type: 'texto', hint: 'Solo si pides volteo: material de banco, escombro, producto de excavación…' },
             { key: 'volumen', label: 'Volumen estimado', type: 'texto', unit: 'm³', hint: 'Si no lo sabes, describe el frente de trabajo' },
-      { key: 'capacidad_unidad', label: 'Capacidad del camión', type: 'opcion', options: ['14 m³', '28 m³', 'La que convenga'], hint: 'Solo para material de banco o retiros' },
+      { key: 'capacidad_unidad', label: 'Capacidad del camión', type: 'opcion', options: ['14 m³', '30 m³', 'La que convenga'], hint: 'Solo para material de banco o retiros' },
       // --- Comunes al viaje ---
       // `punto_carga` y no `origen` (2026-10-23): `origen` es clave interna del servidor
       // (de dónde vino la solicitud) y se quitaba de lo que manda el cliente.
