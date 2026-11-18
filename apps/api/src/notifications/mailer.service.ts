@@ -109,6 +109,18 @@ const CORREOS_DE_TRABAJO_A_PROVEEDORES = new Set([
 ]);
 
 /**
+ * COPIA DE CADA COTIZACIÓN A MAQSER24 (2026-11-18, el dueño: «cada vez que se
+ * le mande una cotización al cliente, ya sea la respuesta de una solicitud o
+ * una cotización hecha directo en el CRM, se debe mandar tanto al cliente como
+ * a maqser24@gmail.com»). Va como copia OCULTA: el cliente no ve la dirección.
+ * Cubre «Mandar precio» de una solicitud (`quote_answered`), la cotización que
+ * se manda desde el panel (`quoter_quote_sent`) y el «Volver a mandar» del
+ * registro de Correo, que repite el mismo tipo.
+ */
+const COPIA_DE_COTIZACIONES = 'maqser24@gmail.com';
+const CORREOS_CON_COPIA = new Set<string>(['quote_answered', 'quoter_quote_sent']);
+
+/**
  * ENLACES PERSONALES, FUERA DEL REGISTRO (2026-10-12).
  *
  * El registro guarda el correo para poder abrirlo desde el panel, pero algunos
@@ -206,6 +218,9 @@ export class MailerService {
       return 'simulado';
     }
 
+    // Si el cliente es el mismo buzón, no se le manda dos veces.
+    const copia = CORREOS_CON_COPIA.has(c.kind) && destino !== COPIA_DE_COTIZACIONES ? COPIA_DE_COTIZACIONES : null;
+
     try {
       await this.obtenerTransporte()!.sendMail({
         from: this.remitente,
@@ -217,12 +232,14 @@ export class MailerService {
         // "Responder" va a esta dirección (p. ej. al cliente que escribió en
         // /contacto). Solo si es un correo válido: la escribe un visitante.
         ...(c.replyTo && CORREO_VALIDO.test(c.replyTo) ? { replyTo: c.replyTo } : {}),
+        // La copia oculta de las cotizaciones (ver COPIA_DE_COTIZACIONES).
+        ...(copia ? { bcc: copia } : {}),
         html: c.html,
         // Muchos clientes de correo y filtros piden la versión de texto; sin
         // ella el mensaje pesa más para el filtro de spam.
         text: aTexto(c.html),
       });
-      await this.anotar(c, 'enviado', null);
+      await this.anotar(c, 'enviado', copia ? `Con copia oculta a ${copia}.` : null);
       return 'enviado';
     } catch (e) {
       const detalle = e instanceof Error ? e.message : String(e);
