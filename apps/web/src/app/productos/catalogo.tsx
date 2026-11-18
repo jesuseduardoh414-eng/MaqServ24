@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { paginaSeo, migas } from '@/lib/seo';
 import { JsonLd } from '@/components/JsonLd';
 import Link from '@/components/Enlace';
-import { rutaDeCatalogo, tipoDeCatalogo, type TipoCatalogo, type Theme } from '@maqserv/config';
+import { COTIZADORES_SITIO, CUESTIONARIOS, LINEA_TRANSPORTE, rutaDeCatalogo, tipoDeCatalogo, type TipoCatalogo, type Theme } from '@maqserv/config';
 import { getTheme, t } from '@/lib/theme';
 import { getProducts, getCategories, getSubcategories } from '@/lib/api';
 import { SiteHeader, SiteFooter } from '@/components/SiteHeader';
@@ -47,6 +47,11 @@ const CSS = `
   background: color-mix(in srgb, var(--color-bg) 86%, transparent); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   box-shadow: 0 0 0 100vmax color-mix(in srgb, var(--color-bg) 86%, transparent); clip-path: inset(0 -100vmax); }
 .cl-tabs-fijas::-webkit-scrollbar{ display:none; }
+/* Cotizador sin equipos en catálogo (la venta): tarjeta a su cuestionario. */
+.cl-cuestionario{ display:flex; align-items:center; justify-content:space-between; gap:16px 24px; flex-wrap:wrap; padding:22px 24px; border-radius:14px;
+  border:1px solid color-mix(in srgb, var(--color-primary) 40%, transparent); background: color-mix(in srgb, var(--color-surface) 80%, transparent); }
+.cl-cuestionario-t{ margin:0; font-family: var(--font-display); font-weight:800; font-size:18px; color: var(--color-text); }
+.cl-cuestionario-d{ margin:6px 0 0; font-size:14.5px; line-height:1.55; color: var(--color-text-muted); max-width:62ch; }
 .cl-feat .ms-title{ font-size:clamp(22px, 2.4vw, 26px); }
 @media (max-width: 640px){
   .cl-search{ width:100%; }
@@ -62,6 +67,16 @@ const CSS = `
  * Desde 2026-10-08 no hay venta en línea: /productos solo redirige a
  * /servicios y este módulo lo usa /servicios (y la vista previa del panel).
  */
+/** Todos los equipos del catálogo de ese tipo (todas las páginas de la API, hasta 10). */
+async function todosLosDelCatalogo(kind: TipoCatalogo) {
+  const primera = await getProducts({ kind, page: 1 }).catch(() => null);
+  if (!primera) return [];
+  const resto = await Promise.all(
+    Array.from({ length: Math.max(0, Math.min(primera.pages, 10) - 1) }, (_, i) => getProducts({ kind, page: i + 2 }).catch(() => null)),
+  );
+  return [primera, ...resto].flatMap((r) => r?.items ?? []);
+}
+
 export async function metadataCatalogo(kind: TipoCatalogo): Promise<Metadata> {
   const theme = await getTheme();
   // Canonical fijo al listado: las variantes con filtros (?categoria=, ?q=)
@@ -120,16 +135,35 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
   // Solo las categorías de este tipo: en /servicios no se ofrece filtrar por una de productos.
   const categories = todasCategorias.filter((c) => tipoDeCatalogo(c.slug) === kind);
   /*
-   * POR SECCIONES (2026-11-18, el dueño: «en lugar de que aparezca destacados,
-   * aparezcan en orden de como están las categorías»): en «Todos» va una fila
-   * (el mismo carrusel) por categoría, en el orden de las pestañas, con su
-   * «Ver todos». Reemplaza al carrusel de destacados y a la parrilla.
+   * POR SECCIONES, COMO LOS COTIZADORES (2026-11-18, el dueño: «en lugar de que
+   * aparezca destacados aparezcan en orden de como están las categorías» y luego
+   * «lo que quiero es que se clasifiquen como vienen en los cotizadores»): en
+   * «Todos» va una fila por cotizador del sitio, en el orden del menú Cotizador
+   * (Renta de maquinaria, Servicios de agua, Acarreos, Carpeta asfáltica,
+   * Materiales, Triturados, Venta de maquinaria). Cada equipo va en la de su
+   * cotizador (`quoter`); el que no tiene, en la de su categoría. Así
+   * «Transporte» se parte en agua y acarreos. Un cotizador sin equipos pero con
+   * cuestionario (la venta) sale con una tarjeta que lleva a él.
    */
+  const todosLosServicios = vitrina ? await todosLosDelCatalogo(kind) : [];
+  const claveDe = (p: (typeof todosLosServicios)[number]): string | null => {
+    if (p.quoter && COTIZADORES_SITIO.some((c) => c.clave === p.quoter)) return p.quoter;
+    if (p.categorySlug === LINEA_TRANSPORTE) return /agua|pipa/i.test(p.name) ? 'agua' : 'acarreos';
+    return COTIZADORES_SITIO.find((c) => c.linea === p.categorySlug)?.clave ?? null;
+  };
   const secciones = vitrina
-    ? (await Promise.all(categories.map(async (c) => ({ cat: c, res: await getProducts({ kind, category: c.slug }).catch(() => null) }))))
-        .filter((s): s is { cat: (typeof categories)[number]; res: NonNullable<typeof s.res> } => !!s.res && s.res.items.length > 0)
+    ? [
+        ...COTIZADORES_SITIO.map((c) => ({ clave: c.clave, titulo: c.titulo, resumen: c.resumen, items: todosLosServicios.filter((p) => claveDe(p) === c.clave) }))
+          .filter((s) => s.items.length > 0 || !!CUESTIONARIOS[s.clave]),
+        // Lo que no cae en ningún cotizador (no debería haber), al final.
+        ...(todosLosServicios.some((p) => !claveDe(p))
+          ? [{ clave: 'otros', titulo: 'Otros servicios', resumen: '', items: todosLosServicios.filter((p) => !claveDe(p)) }]
+          : []),
+      ]
     : [];
-  const totalSecciones = secciones.reduce((n, s) => n + s.res.total, 0);
+  const totalSecciones = todosLosServicios.length;
+  /** La pestaña de un enlace viejo `?categoria=`: la del cotizador de esa categoría. */
+  const pestanaActiva = sp.categoria ? COTIZADORES_SITIO.find((c) => c.linea === sp.categoria)?.clave ?? null : null;
 
   const q = sp.q ? `&q=${encodeURIComponent(sp.q)}` : '';
   const catalog = theme.tokens.catalog;
@@ -209,7 +243,12 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
 
           {/* Filtro por categoría */}
           {/* Pestañas (2026-11-18): bajan a la fila de su categoría sin recargar ni quitar las demás. */}
-          <PestanasCategorias base={base} cats={categories.map((c) => ({ slug: c.slug, name: c.name }))} todosLabel={allLabel} activa={sp.categoria ?? null} />
+          <PestanasCategorias
+            base={base}
+            cats={(vitrina ? secciones : COTIZADORES_SITIO).map((c) => ({ slug: c.clave, name: c.titulo }))}
+            todosLabel={allLabel}
+            activa={pestanaActiva}
+          />
 
           {/* Subcategorías de la categoría activa (si hay) */}
           {subcategories.length > 0 ? (
@@ -236,23 +275,38 @@ export async function PaginaCatalogo({ sp, kind, tema, marco = true }: { sp: Sea
             </p>
           </div>
 
-          {/* «Todos»: una fila por categoría, en el orden de las pestañas. */}
+          {/* «Todos»: una fila por cotizador, en el orden del menú Cotizador. */}
           {secciones.map((s) => (
-            <div className="cl-feat" key={s.cat.id} id={`cat-${s.cat.slug}`}>
-              <CategoryStrip
-                eyebrow=""
-                title={s.cat.name}
-                eyebrowColor=""
-                titleColor=""
-                ancho="min(290px, 80cqw)"
-                siempre
-                etiquetaAnterior={`${s.cat.name}: anteriores`}
-                etiquetaSiguiente={`${s.cat.name}: siguientes`}
-              >
-                {s.res.items.map((p) => (
-                  <ProductCard key={p.id} product={p} theme={theme} />
-                ))}
-              </CategoryStrip>
+            <div className="cl-feat" key={s.clave} id={`cat-${s.clave}`}>
+              {s.items.length > 0 ? (
+                <CategoryStrip
+                  eyebrow=""
+                  title={s.titulo}
+                  eyebrowColor=""
+                  titleColor=""
+                  ancho="min(290px, 80cqw)"
+                  siempre
+                  etiquetaAnterior={`${s.titulo}: anteriores`}
+                  etiquetaSiguiente={`${s.titulo}: siguientes`}
+                >
+                  {s.items.map((p) => (
+                    <ProductCard key={p.id} product={p} theme={theme} />
+                  ))}
+                </CategoryStrip>
+              ) : (
+                // Sin equipos en catálogo (la venta): su cuestionario.
+                <>
+                  {/* Mismo título que el de las filas con carrusel (el de CategoryStrip). */}
+                  <h2 className="ms-title" style={{ margin: '0 0 22px', fontSize: 'clamp(26px, 2.6vw, 36px)', fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1.12 }}>{s.titulo}</h2>
+                  <div className="cl-cuestionario">
+                    <div style={{ minWidth: 0 }}>
+                      <p className="cl-cuestionario-t">Cuéntanos qué equipo buscas</p>
+                      <p className="cl-cuestionario-d">{s.resumen}. Nos dices el equipo, la marca, el modelo y el año, y te mandamos opciones con precio.</p>
+                    </div>
+                    <Link href={`/cotizador/${s.clave}`} className="ms-btn ms-btn-lg">Cotizar <Icon name="arrowRight" size={16} /></Link>
+                  </div>
+                </>
+              )}
             </div>
           ))}
 
