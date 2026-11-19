@@ -487,6 +487,7 @@ export function FichaCotizacion({ id }: { id: number }) {
                   freight={s.freightCost}
                   tax={s.tax}
                   documento={doc?.folio ?? null}
+                  documentoId={doc?.id ?? null}
                   totalDocumento={ficha.partes.length > 1 ? ficha.partes.reduce((t, p) => t + p.total, 0) : undefined}
                   principal
                   onListo={async () => { await cargar(); }}

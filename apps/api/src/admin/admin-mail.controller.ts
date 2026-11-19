@@ -219,6 +219,17 @@ export class AdminMailController {
       throw new BadRequestException('Lleva un enlace personal que no se guarda. Repite la acción que lo manda (por ejemplo, "Enviar acceso" en Proveedores).');
     }
     if (r.state === 'omitido') throw new BadRequestException('La dirección no es válida: corrígela antes de volver a mandarlo.');
+    /**
+     * Las cotizaciones con documento llevan su PDF (2026-11-18), que aquí no se
+     * guarda: repetir el correo saldría sin él. Se mandan desde el documento.
+     */
+    if (r.kind === 'quoter_quote_sent' || r.kind === 'quote_answered') {
+      const solicitud = r.quote_id ? await prisma.quotes.findUnique({ where: { id: r.quote_id }, select: { requirements: true } }) : null;
+      const conDocumento = r.kind === 'quoter_quote_sent' || typeof (solicitud?.requirements as { quoterId?: unknown } | null)?.quoterId === 'number';
+      if (conDocumento) {
+        throw new BadRequestException('Esta cotización va con su PDF, que aquí no se guarda. Vuelve a mandarla desde su documento (Cotizador › Cotizaciones emitidas › «Reenviar al cliente») para que salga con él.');
+      }
+    }
     const estado = await this.mailer.enviar({
       kind: r.kind as TipoCorreo,
       to: r.to_email,

@@ -1,4 +1,6 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { PDF_ADJUNTO, pdfDeLaSubida } from '../common/pdf-adjunto';
 import { z } from 'zod';
 import { catalogoCotizadorSchema, conZonaDeLaObra, esAccesoDirecto, esCotizadorTipo, faltaMinimoCamion, faltaZona, llevaFlete, normalizarNombre, UNIDADES_DE_SERVICIO } from '@maqserv/config';
 import { AdminGuard, Modulo, type AdminRequest } from './admin-auth';
@@ -393,10 +395,13 @@ export class AdminQuoterController {
    * empresa: quién la mandó y a dónde tiene que poderse reconstruir.
    */
   @Post('quotes/:id/enviar')
-  async enviarAlCliente(@Param('id') id: string, @Req() req: AdminRequest) {
-    const r = await this.quoter.enviarAlCliente(Number(id), req.adminNombre ?? null);
+  @UseInterceptors(FileInterceptor('pdf', PDF_ADJUNTO))
+  async enviarAlCliente(@Param('id') id: string, @Req() req: AdminRequest, @UploadedFile() archivo?: Express.Multer.File) {
+    // El PDF del documento, armado en el panel (2026-11-18). Sin él sale igual.
+    const pdf = pdfDeLaSubida(archivo);
+    const r = await this.quoter.enviarAlCliente(Number(id), req.adminNombre ?? null, pdf);
     const cot = await this.quoter.obtener(Number(id));
-    await registrarAccion(req, 'cotizador', 'cotizacion.enviar', cot.folio, `por correo a ${r.correo}${r.respondidas.length ? ` · responde ${r.respondidas.join(', ')}` : ''}`);
+    await registrarAccion(req, 'cotizador', 'cotizacion.enviar', cot.folio, `por correo a ${r.correo}${pdf ? ' con PDF' : ''}${r.respondidas.length ? ` · responde ${r.respondidas.join(', ')}` : ''}`);
     return r;
   }
 

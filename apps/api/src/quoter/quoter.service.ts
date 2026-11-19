@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { nombrePdf } from '../common/pdf-adjunto';
 import { Prisma, prisma } from '@maqserv/db';
 import {
   CATALOGOS_DEFAULT,
@@ -954,7 +955,7 @@ export class QuoterService {
    * con el correo apagado o rebotado es la clase de mentira que se descubre
    * cuando el cliente llama preguntando por algo que nunca recibió.
    */
-  async enviarAlCliente(id: number, adminNombre: string | null = null): Promise<{ ok: true; estado: string; correo: string; respondidas: string[] }> {
+  async enviarAlCliente(id: number, adminNombre: string | null = null, pdf: Buffer | null = null): Promise<{ ok: true; estado: string; correo: string; respondidas: string[] }> {
     const q = await prisma.quoter_quotes.findUnique({ where: { id } });
     if (!q) throw new NotFoundException('Cotización no encontrada');
     if (!q.email?.trim()) {
@@ -1002,6 +1003,8 @@ export class QuoterService {
       kind: 'quoter_quote_sent',
       to: q.email,
       toName: q.client_name,
+      // El PDF que armó el panel (2026-11-18): el mismo documento de «Imprimir».
+      adjuntos: pdf ? [{ nombre: nombrePdf(q.folio), contenido: pdf, tipo: 'application/pdf' }] : null,
       ...(await correoCotizacionDelPanel({
         nombre: q.client_name,
         folio: q.folio,
@@ -1023,6 +1026,7 @@ export class QuoterService {
         notas: q.notes,
         firma: doc.firma?.nombre ? doc.firma : null,
         aceptarUrl,
+        adjunto: pdf ? nombrePdf(q.folio) : null,
       })),
     });
 

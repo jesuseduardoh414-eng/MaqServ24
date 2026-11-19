@@ -181,6 +181,8 @@ const cotizarHref = (q: QuoteItem) => {
   return t && (q.origen === 'formulario' || q.origen === 'cotizador') ? `/cotizador/${t}?solicitud=${q.id}` : null;
 };
 const folioDe = (q: QuoteItem) => (typeof q.requirements?.folio === 'string' ? q.requirements.folio : null);
+/** El id del documento del cotizador, para el PDF del correo (2026-11-18). */
+const documentoIdDe = (q: QuoteItem) => (typeof q.requirements?.quoterId === 'number' ? q.requirements.quoterId : null);
 /**
  * El total que recibe el cliente: un documento del cotizador partido por línea
  * se le manda entero (2026-10-23). Sin documento, el de la solicitud.
@@ -408,7 +410,7 @@ export function QuotesManager({ items, abrir }: { items: QuoteItem[]; /** Abre e
                     {/* En la fila, solo la acción principal (2026-10-22); "Ya le hablé",
                         "¿Quién puede?" y "Volver a cotizar" están en el detalle. */}
                     <Btn size="sm" variant="ghost" onClick={() => setDetalleId(q.id)}>Detalle</Btn>
-                    <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} totalDocumento={totalDelDocumento(q, items)} cotizarHref={cotizarHref(q)} />
+                    <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} documentoId={documentoIdDe(q)} totalDocumento={totalDelDocumento(q, items)} cotizarHref={cotizarHref(q)} />
                   </>
                 ) : e === 'en_servicio' ? (
                   <>
@@ -600,7 +602,7 @@ function Detalle({ q, e, totalDocumento, onClose }: { q: QuoteItem; e: Etapa; to
               {/* «Ver aliados» (QuoteMatches) se quitó el 2026-11-12: lo reemplaza «Buscar proveedor», abajo. */}
               <CotizarConTabulador q={q} />
               {/* Aquí sí es la acción principal: el panel es de una sola solicitud. */}
-              <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} totalDocumento={totalDocumento} cotizarHref={cotizarHref(q)} principal />
+              <QuoteRespond quoteId={q.id} subtotal={q.subtotal} freight={q.freightCost} tax={q.tax} documento={folioDe(q)} documentoId={documentoIdDe(q)} totalDocumento={totalDocumento} cotizarHref={cotizarHref(q)} principal />
             </>
           ) : null}
           {/* Ya respondida (o vencida) y sin aceptar: se puede volver a cotizar

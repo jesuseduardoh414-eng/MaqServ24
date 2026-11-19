@@ -1,51 +1,14 @@
 import { notFound, redirect } from 'next/navigation';
-import type { CalculoCotizacion, CotizadorTipo, EmpresaCotizador, FirmaCotizador, PagoCotizador } from '@maqserv/config';
 import { COTIZADORES_META } from '@maqserv/config';
 import { adminFetch, getAdmin, exigirModulo } from '@/lib/admin';
 import { AdminShell } from '@/components/AdminShell';
 import { PageHeader } from '@/components/ui';
 import { DocumentoGuardado } from './DocumentoGuardado';
-import type { DatosDocumento } from '@maqserv/ui';
+import { datosDelDocumento, type CotizacionDetalle } from '@/lib/documento-cotizacion';
 import { BotonEnviarCliente } from './BotonEnviarCliente';
 import { BotonWhatsApp } from './BotonWhatsApp';
 import { AccionesEstado } from './AccionesEstado';
 import { EstadoCotizacion } from '../EstadoCotizacion';
-
-interface CotizacionDetalle {
-  id: number;
-  tipo: CotizadorTipo;
-  folio: string;
-  origen: string;
-  estado: string;
-  cliente: string;
-  obra: string | null;
-  atencion: string | null;
-  municipio: string | null;
-  correo: string | null;
-  telefono: string | null;
-  notas: string | null;
-  documento: {
-    calc: CalculoCotizacion;
-    empresa: EmpresaCotizador;
-    firma: FirmaCotizador;
-    saludo: string;
-    /** Según lo que lleva: «Cotización de renta de maquinaria y servicios de agua» (2026-11-04). */
-    titulo?: string;
-    version: string;
-    emitida: string;
-    /** Fecha de inicio o entrega (2026-10-23). */
-    fecha?: string;
-    /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. */
-    ubicacion?: string;
-  };
-  admin: string | null;
-  fecha: string | null;
-  /** Salió de una solicitud: la acepta el cliente (2026-10-26). */
-  ligada?: boolean;
-  vencida?: boolean;
-  /** Datos para el pago vigentes (2026-10-30). */
-  pago?: PagoCotizador | null;
-}
 
 export default async function DetalleCotizacion({ params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdmin();
@@ -58,35 +21,8 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
 
   const meta = COTIZADORES_META[cot.tipo];
 
-  // El mismo documento para la vista y para el PDF que se manda por WhatsApp.
-  const datos: Omit<DatosDocumento, 'logo'> = {
-    titulo: cot.documento.titulo ?? `Cotización de ${meta?.titulo?.toLowerCase() ?? cot.tipo}`,
-    folio: cot.folio,
-    fecha: cot.documento.emitida,
-    cliente: cot.cliente,
-    obra: cot.obra ?? '',
-    atencion: cot.atencion ?? '',
-    municipio: cot.municipio ?? '',
-    notas: cot.notas ?? '',
-    empresa: cot.documento.empresa,
-    firma: cot.documento.firma,
-    saludo: cot.documento.saludo,
-    calc: cot.documento.calc,
-    pago: cot.pago ?? null,
-    ...(cot.documento.fecha || cot.documento.ubicacion
-      ? {
-          detalle: [
-            ...(cot.documento.fecha ? [{
-              label: cot.tipo === 'maquinaria' ? 'Inicio del servicio' : 'Fecha de entrega',
-              valor: new Date(`${cot.documento.fecha}T12:00:00Z`).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }),
-            }] : []),
-            // Triturados con flete (2026-10-29): dónde medir los km.
-            ...(cot.documento.ubicacion ? [{ label: 'Ubicación (Google Maps)', valor: cot.documento.ubicacion }] : []),
-          ],
-        }
-      : {}),
-    mostrarPrecios: true,
-  };
+  // El mismo documento para la vista, el PDF de WhatsApp y el PDF del correo.
+  const datos = datosDelDocumento(cot);
 
   return (
     <AdminShell adminName={admin.name} adminEmail={admin.email} adminRol={admin.rol} adminModulos={admin.modulos}>
@@ -118,7 +54,7 @@ export default async function DetalleCotizacion({ params }: { params: Promise<{ 
           datos={datos}
           acciones={
             <>
-              <BotonEnviarCliente id={cot.id} correo={cot.correo} estado={cot.estado} />
+              <BotonEnviarCliente id={cot.id} correo={cot.correo} estado={cot.estado} datos={datos} />
               <BotonWhatsApp id={cot.id} datos={datos} telefono={cot.telefono} contacto={cot.atencion || cot.cliente} />
               <AccionesEstado id={cot.id} folio={cot.folio} estado={cot.estado} ligada={cot.ligada ?? false} />
             </>

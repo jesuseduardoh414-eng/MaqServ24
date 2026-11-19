@@ -5,6 +5,9 @@ import { AdminDatePicker } from '@/components/AdminFecha';
 import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/Modal';
 import { Btn, FormField, Note } from '@/components/ui';
+import { confirmar } from '@/components/Dialogos';
+import { useBranding } from '@/components/branding';
+import { pdfDelDocumento } from '@/lib/pdf-cotizacion';
 
 const money = (n: number) => `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -38,6 +41,7 @@ export function QuoteRespond({
   freight: freightActual = 0,
   tax: taxActual = 0,
   documento,
+  documentoId,
   totalDocumento,
   cotizarHref,
   principal,
@@ -49,6 +53,8 @@ export function QuoteRespond({
   tax?: number;
   /** Folio del documento del cotizador ligado a la solicitud. */
   documento?: string | null;
+  /** Id de ese documento: con él se arma el PDF que va adjunto en el correo (2026-11-18). */
+  documentoId?: number | null;
   /** Lo que recibe el cliente: el documento entero aunque venga partido por línea. */
   totalDocumento?: number;
   /** Dónde se cotiza con el tabulador, si la línea tiene cotizador. */
@@ -58,8 +64,9 @@ export function QuoteRespond({
   onListo?: () => void | Promise<void>;
 }) {
   const router = useRouter();
+  const branding = useBranding();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<false | 'pdf' | 'correo'>(false);
   const [error, setError] = useState<string | null>(null);
   const [subtotal, setSubtotal] = useState(subtotalActual);
   const [freight, setFreight] = useState(freightActual);
@@ -88,19 +95,42 @@ export function QuoteRespond({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (sinPrecio) { setError('La cotización no tiene precio: captúralo o cotízala con el tabulador.'); return; }
-    setLoading(true);
     setError(null);
+    /**
+     * EL PDF DEL DOCUMENTO, ADJUNTO EN EL CORREO (2026-11-18, el dueño: «en el
+     * correo debe llevar el PDF con la cotización con el precio»). El mismo de
+     * «Mandar por WhatsApp»; sin documento (pedido viejo a la medida) no hay PDF.
+     */
+    let pdf: File | null = null;
+    if (documentoId) {
+      setLoading('pdf');
+      pdf = await pdfDelDocumento(documentoId, branding.logoLight || branding.logoAlt || null);
+      if (!pdf && !(await confirmar({ titulo: 'No se pudo armar el PDF', mensaje: '¿Le mando el precio sin el PDF adjunto? El correo lleva el total y el botón para verla en su cuenta.', confirmar: 'Mandar sin PDF' }))) {
+        setLoading(false);
+        return;
+      }
+    }
+    setLoading('correo');
+    const datos = {
+      ...(documento ? {} : { subtotal, freightCost: freight, tax }),
+      conditions: conditions.trim() || undefined,
+      validUntil: validUntil || undefined,
+      included: included.trim() || undefined,
+      excluded: excluded.trim() || undefined,
+      status: 'completed',
+    };
+    // Con PDF va como formulario: el archivo y, en `datos`, lo de siempre.
+    let cuerpo: BodyInit = JSON.stringify(datos);
+    if (pdf) {
+      const form = new FormData();
+      form.append('datos', JSON.stringify(datos));
+      form.append('pdf', pdf);
+      cuerpo = form;
+    }
     const r = await fetch(`/api/admin/quotes/${quoteId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...(documento ? {} : { subtotal, freightCost: freight, tax }),
-        conditions: conditions.trim() || undefined,
-        validUntil: validUntil || undefined,
-        included: included.trim() || undefined,
-        excluded: excluded.trim() || undefined,
-        status: 'completed',
-      }),
+      ...(pdf ? {} : { headers: { 'Content-Type': 'application/json' } }),
+      body: cuerpo,
     }).catch(() => null);
     setLoading(false);
     if (!r?.ok) {
@@ -136,14 +166,14 @@ export function QuoteRespond({
       <Modal
         abierto={open}
         titulo="Mandar precio al cliente"
-        subtitulo="Le llega por correo con el botón para aceptarla y la ve en su cuenta."
+        subtitulo={documentoId ? 'Le llega por correo con el PDF de la cotización y el botón para aceptarla, y la ve en su cuenta.' : 'Le llega por correo con el botón para aceptarla y la ve en su cuenta.'}
         onCerrar={cerrar}
         ancho={480}
         pie={
           <>
-            <Btn variant="ghost" onClick={() => setOpen(false)} disabled={loading}>Cancelar</Btn>
-            <Btn variant="primary" type="submit" form={formId} disabled={loading || sinPrecio}>
-              {loading ? 'Enviando…' : 'Mandar al cliente'}
+            <Btn variant="ghost" onClick={() => setOpen(false)} disabled={Boolean(loading)}>Cancelar</Btn>
+            <Btn variant="primary" type="submit" form={formId} disabled={Boolean(loading) || sinPrecio}>
+              {loading === 'pdf' ? 'Preparando el PDF…' : loading ? 'Enviando…' : 'Mandar al cliente'}
             </Btn>
           </>
         }

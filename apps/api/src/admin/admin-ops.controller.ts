@@ -1,7 +1,9 @@
 import {
   BadRequestException, Body, Controller, Get, NotFoundException, Param,
-  ParseIntPipe, Patch, Post, Put, Query, Req, UseGuards,
+  ParseIntPipe, Patch, Post, Put, Query, Req, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { cuerpoDe, nombrePdf, PDF_ADJUNTO, pdfDeLaSubida } from '../common/pdf-adjunto';
 import { z } from 'zod';
 import { estadoCotizacion, diasParaVencer, vigenciaPorDefecto } from '../quotes/quote-validity';
 import { prisma } from '@maqserv/db';
@@ -213,7 +215,10 @@ export class AdminOpsController {
    */
   @Modulo('cotizaciones')
   @Patch('quotes/:id')
-  async updateQuote(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown) {
+  @UseInterceptors(FileInterceptor('pdf', PDF_ADJUNTO))
+  async updateQuote(@Req() req: AdminRequest, @Param('id', ParseIntPipe) id: number, @Body() body: unknown, @UploadedFile() archivo?: Express.Multer.File) {
+    // Con el PDF del documento (2026-11-18) el panel manda un formulario: los datos van en `datos`.
+    const pdf = pdfDeLaSubida(archivo);
     const schema = z.object({
       status: z.enum(['pending', 'completed', 'rejected']).optional(),
       conditions: z.string().max(5000).optional(),
@@ -230,7 +235,7 @@ export class AdminOpsController {
        */
       subtotal: z.coerce.number().min(0).max(100_000_000).optional(),
     });
-    const parsed = schema.safeParse(body);
+    const parsed = schema.safeParse(cuerpoDe(body));
     if (!parsed.success) throw new BadRequestException('Datos inválidos');
     const q = await prisma.quotes.findUnique({ where: { id } });
     if (!q) throw new NotFoundException();
@@ -370,12 +375,14 @@ export class AdminOpsController {
         included: parsed.data.included ?? q.included,
         excluded: parsed.data.excluded ?? q.excluded,
         documento: documentoFolio,
+        adjunto: pdf ? nombrePdf(documentoFolio ?? q.quote_number) : null,
       });
       await this.mailer.enviar({
         kind: 'quote_answered',
         to: q.email,
         toName: q.name,
         quoteId: Number(q.id),
+        adjuntos: pdf ? [{ nombre: nombrePdf(documentoFolio ?? q.quote_number), contenido: pdf, tipo: 'application/pdf' }] : null,
         ...plantilla,
       });
     }

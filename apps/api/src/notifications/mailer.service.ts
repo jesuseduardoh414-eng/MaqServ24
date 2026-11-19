@@ -88,6 +88,8 @@ export interface CorreoParaEnviar {
   toName?: string | null;
   /** A dónde va "Responder". Por defecto, al remitente de la plataforma. */
   replyTo?: string | null;
+  /** Archivos adjuntos (2026-11-18: el PDF de la cotización, que arma el panel). */
+  adjuntos?: Array<{ nombre: string; contenido: Buffer; tipo: string }> | null;
   subject: string;
   /** Cuerpo en HTML. El texto plano se deriva de aquí. */
   html: string;
@@ -234,12 +236,20 @@ export class MailerService {
         ...(c.replyTo && CORREO_VALIDO.test(c.replyTo) ? { replyTo: c.replyTo } : {}),
         // La copia oculta de las cotizaciones (ver COPIA_DE_COTIZACIONES).
         ...(copia ? { bcc: copia } : {}),
+        ...(c.adjuntos?.length
+          ? { attachments: c.adjuntos.map((a) => ({ filename: a.nombre, content: a.contenido, contentType: a.tipo })) }
+          : {}),
         html: c.html,
         // Muchos clientes de correo y filtros piden la versión de texto; sin
         // ella el mensaje pesa más para el filtro de spam.
         text: aTexto(c.html),
       });
-      await this.anotar(c, 'enviado', copia ? `Con copia oculta a ${copia}.` : null);
+      // Lo que no se ve en el contenido guardado: el adjunto y la copia oculta.
+      const notas = [
+        c.adjuntos?.length ? `Con ${c.adjuntos.map((a) => a.nombre).join(', ')} adjunto.` : '',
+        copia ? `Con copia oculta a ${copia}.` : '',
+      ].filter(Boolean).join(' ');
+      await this.anotar(c, 'enviado', notas || null);
       return 'enviado';
     } catch (e) {
       const detalle = e instanceof Error ? e.message : String(e);

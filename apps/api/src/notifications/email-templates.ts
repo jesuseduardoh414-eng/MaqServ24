@@ -163,6 +163,12 @@ function datos(filas: Array<[string, string]>): string {
 
 // ─────────────────────────── Al cliente ───────────────────────────
 
+/** «Va adjunta en PDF» (2026-11-18): solo cuando el correo lleva el documento. */
+function lineaAdjunto(archivo: string | null | undefined): string {
+  if (!archivo) return '';
+  return `<p style="margin:14px 0 0;padding:10px 14px;background:${FONDO};border:1px solid ${BORDE};border-radius:8px;font-size:13px;color:${TINTA2};">Te adjuntamos tu cotización en PDF: <strong style="color:${TINTA};">${esc(archivo)}</strong></p>`;
+}
+
 export async function correoCotizacionRespondida(d: {
   nombre: string;
   folio: string;
@@ -172,6 +178,8 @@ export async function correoCotizacionRespondida(d: {
   excluded: string | null;
   /** Folio del documento del cotizador (MQ-/TR-), si se cotizó con el tabulador. */
   documento?: string | null;
+  /** Nombre del PDF adjunto, si va (2026-11-18). */
+  adjunto?: string | null;
 }, previa?: Previa): Promise<{ subject: string; html: string }> {
   const [t, ds] = await Promise.all([textosDe('quote_answered', previa), disenoDe(previa)]);
   const v = { nombre: d.nombre, folio: d.folio, documento: d.documento ?? '', vigencia: d.validUntil ?? '', total: money(d.total) };
@@ -194,6 +202,7 @@ export async function correoCotizacionRespondida(d: {
       <p style="margin:0 0 4px;">${hueco(t, 'saludo', v)}</p>
       <p style="margin:0;">${hueco(t, 'intro', v, fuertes)}</p>
       ${datos(filas)}
+      ${lineaAdjunto(d.adjunto)}
       ${extras}
       ${d.documento ? `<p style="margin:14px 0 0;">${hueco(t, 'documento', v, fuertes)}</p>` : ''}
       ${boton(plano(t, 'boton', v), `${SITIO}/cuenta/cotizaciones/${encodeURIComponent(d.folio)}`, ds.color)}
@@ -1312,6 +1321,8 @@ export async function correoCotizacionDelPanel(d: {
   firma: { nombre: string; puesto: string; telefono: string } | null;
   /** Enlace absoluto para aceptarla sin llamar (2026-10-22). Sin él, el correo no trae botón. */
   aceptarUrl?: string | null;
+  /** Nombre del PDF adjunto, si va (2026-11-18). */
+  adjunto?: string | null;
 }, previa?: Previa): Promise<{ subject: string; html: string }> {
   const [t, ds] = await Promise.all([textosDe('quoter_quote_sent', previa), disenoDe(previa)]);
   const v = { nombre: d.nombre, folio: d.folio, cotizador: d.cotizador };
@@ -1354,6 +1365,7 @@ export async function correoCotizacionDelPanel(d: {
       <p style="margin:0 0 4px;">${hueco(t, 'saludo', v)}</p>
       <p style="margin:0;">${esc(d.saludo)}</p>
       ${d.obra ? `<p style="margin:10px 0 0;font-size:13px;color:${GRIS};">Obra: ${esc(d.obra)}</p>` : ''}
+      ${lineaAdjunto(d.adjunto)}
       ${tablaCotizacion(d.renglones)}
       ${totales}
       ${aceptar}
