@@ -15,6 +15,7 @@ import { fotoLigera } from '@/lib/foto';
 import { RedesSociales, redesParaMostrar } from '@/components/RedesSociales';
 import { TrazosLuz } from '@/components/BandaLuz';
 import { BotonRegresar } from '@/components/BotonRegresar';
+import { EncabezadoSobrePortada } from '@/components/EncabezadoSobrePortada';
 
 // Padding fluido, sin media query (el estilo inline no las admite).
 //
@@ -219,6 +220,8 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
           />
         </div>
       </header>
+      {/* En todas las páginas (2026-11-19): marca si ya se bajó, para que el menú tome su fondo (ver SH_CSS). */}
+      <EncabezadoSobrePortada />
       {/* «Regresar» debajo del menú en todas las páginas menos el inicio (2026-11-16). */}
       <BotonRegresar />
     </>
@@ -402,7 +405,15 @@ const SH_CSS = `
 .sh-hdr{ --color-text:#F5F7FA; --color-text-muted: rgba(245,247,250,.68); --color-border: rgba(255,255,255,.14); --color-surface:#11161C;
   color: var(--color-text);
   background: linear-gradient(180deg, color-mix(in srgb, var(--band) 90%, transparent), color-mix(in srgb, var(--band) 80%, transparent));
-  backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%); }
+  backdrop-filter: blur(14px) saturate(140%); -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: background .3s ease, box-shadow .3s ease; }
+/* IGUAL QUE EN EL INICIO, EN TODAS LAS PÁGINAS (2026-11-19, el dueño: «el header cambia en las páginas, no se mantiene como en el hero»).
+   En modo oscuro el menú va transparente arriba, sobre el fondo animado, y toma su fondo al bajar (data-desplazado,
+   ver EncabezadoSobrePortada). En modo claro el fondo de la página es claro: ahí el menú se queda oscuro para que se lea. */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .sh-hdr{ background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; } }
+:root[data-theme="dark"] .sh-hdr{ background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none; }
+:root[data-desplazado] .sh-hdr{ background: linear-gradient(180deg, color-mix(in srgb, var(--band) 97%, transparent), color-mix(in srgb, var(--band) 90%, transparent));
+  -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%); box-shadow: 0 12px 30px -20px rgba(0,0,0,.9); }
 .sh-hdr .brand-swap .brand-logo-light{ display:none !important; }
 .sh-hdr .brand-swap .brand-logo-dark{ display:block !important; }
 /* Montserrat es más ancha que la letra de texto: un poco más chica y con menos espacio, para que el menú no se encime con los iconos. */

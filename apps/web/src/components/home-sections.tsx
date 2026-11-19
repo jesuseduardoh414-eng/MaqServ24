@@ -18,7 +18,6 @@ import {
 import { categoryHref, categoryCountLabel } from '@/lib/category-link';
 import { VideoCategoria } from './VideoCategoria';
 import { BandaLuz, TrazosLuz } from './BandaLuz';
-import { EncabezadoSobrePortada } from './EncabezadoSobrePortada';
 import { Carousel, Eyebrow } from '@/components/Carousel';
 import { Icon, Stars, type IconName } from '@/components/Icon';
 import { CategoryStrip } from '@/components/CategoryStrip';
@@ -117,7 +116,6 @@ export async function Hero({ theme, contenido }: { theme: Theme; contenido?: Hom
       <div aria-hidden className="hx-brillo hx-brillo-a" />
       <div aria-hidden className="hx-brillo hx-brillo-b" />
       <TrazosLuz partes="abajo" />
-      <EncabezadoSobrePortada />
 
       {/* El hero NO usa CONTAINER (1240 px): con el texto centrado en esa caja
           quedaban ~340 px de aire a la izquierda en pantallas grandes, el título
