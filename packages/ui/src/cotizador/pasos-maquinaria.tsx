@@ -5,6 +5,7 @@ import {
   cobraFlete,
   conUnidad,
   ENTREGAS_A_MANO,
+  gruposDeEquipos,
   minimoHorasDe,
   porZona,
   precioDeServicio,
@@ -69,14 +70,19 @@ export function PasoEquipos({
 }: {
   cat: CatalogoMaquinaria;
   lineas: LineaMaquinaria[];
-  /** Elige el equipo o, si ya estaba elegido, lo quita. */
-  alternar: (id: string) => void;
+  /**
+   * Elige el equipo o, si ya estaba elegido, lo quita. Con capacidades
+   * (2026-11-18) llegan todas las del grupo: la primera es la que se elige.
+   */
+  alternar: (ids: string[]) => void;
   /** Añade OTRA partida del mismo equipo (para cotizarla con otra duración). */
   agregarOtra: (id: string) => void;
   mostrarPrecios: boolean;
 }) {
-  const cuenta = (id: string) => lineas.filter((l) => l.tipo === 'equipo' && l.id === id).length;
+  const cuenta = (ids: string[]) => lineas.filter((l) => l.tipo === 'equipo' && ids.includes(l.id)).length;
   const conFlete = cobraFlete(cat);
+  // Las capacidades de un mismo equipo van en una sola tarjeta (2026-11-18).
+  const grupos = gruposDeEquipos(cat.equipos);
   return (
     <div className="cz-card">
       <h2 className="cz-card-h">Equipos disponibles</h2>
@@ -85,17 +91,27 @@ export function PasoEquipos({
         diésel, IMSS y seguro{conFlete ? '; el flete a obra se suma solo' : ''}.
       </p>
       <div className="cz-cards">
-        {cat.equipos.map((e) => (
-          <Tarjeta
-            key={e.id}
-            icono={e.icono}
-            titulo={e.nombre}
-            nota={mostrarPrecios ? `${money(precioHoraDe(cat, e))} / hora` : conFlete ? `flete ${e.flete_tipo}` : 'Por hora de trabajo'}
-            n={cuenta(e.id)}
-            onClick={() => alternar(e.id)}
-            onAgregarOtra={() => agregarOtra(e.id)}
-          />
-        ))}
+        {grupos.map((g) => {
+          const ids = g.miembros.map((m) => m.eq.id);
+          const e = g.miembros[0].eq;
+          const varias = g.miembros.length > 1;
+          const desde = Math.min(...g.miembros.map((m) => precioHoraDe(cat, m.eq)));
+          const nota = mostrarPrecios
+            ? `${varias ? 'desde ' : ''}${money(desde)} / hora`
+            : conFlete ? `flete ${e.flete_tipo}` : varias ? 'por hora de trabajo' : 'Por hora de trabajo';
+          const rango = varias ? `De ${g.miembros[0].t} a ${g.miembros[g.miembros.length - 1].t} t · ` : '';
+          return (
+            <Tarjeta
+              key={e.id}
+              icono={e.icono}
+              titulo={g.nombre}
+              nota={rango + nota}
+              n={cuenta(ids)}
+              onClick={() => alternar(ids)}
+              onAgregarOtra={() => agregarOtra(ids[0])}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -131,6 +147,9 @@ export function PasoDuracion({
   const equipos = lineas.filter((l): l is LineaEquipo => l.tipo === 'equipo');
   const minimo = minimoHorasDe(cat);
   const conFlete = cobraFlete(cat);
+  // Las capacidades que se pueden elegir en cada renglón (2026-11-18): las visibles de su grupo.
+  const grupos = gruposDeEquipos(cat.equipos.filter((e) => !e.oculto)).filter((g) => g.miembros.length > 1);
+  const grupoDe = (id: string) => grupos.find((g) => g.miembros.some((m) => m.eq.id === id)) ?? null;
 
   return (
     <div className="cz-card">
@@ -178,6 +197,27 @@ export function PasoDuracion({
               )
             }
           >
+            {(() => {
+              const g = grupoDe(l.id);
+              if (!g) return null;
+              return (
+                <div className="cz-qty wide">
+                  <span className="cz-lbl">Capacidad</span>
+                  <div className="cz-chips">
+                    {g.miembros.map((m) => (
+                      <Chip
+                        key={m.eq.id}
+                        on={m.eq.id === l.id}
+                        // El costo negociado era de la otra capacidad: al cambiarla vuelve al tabulador.
+                        onClick={() => { if (m.eq.id !== l.id) actualizar(l.uid, { id: m.eq.id, precioHora: '' }); }}
+                      >
+                        {m.etiqueta}{mostrarPrecios ? ` · ${money(precioHoraDe(cat, m.eq))}/h` : ''}
+                      </Chip>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             <HorasEnTotal
               total={l.dias * cat.jornada_horas + l.horas}
               jornada={cat.jornada_horas}

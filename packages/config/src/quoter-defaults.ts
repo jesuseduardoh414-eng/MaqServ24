@@ -19,6 +19,18 @@
  */
 import type { CatalogoMaquinaria, CatalogoTriturados, EmpresaCotizador, FirmaCotizador, PagoCotizador, ZonaPrecio } from './quoter';
 
+/**
+ * EXCAVADORAS POR CAPACIDAD (2026-11-18, el dueño: «opciones para que
+ * seleccione la capacidad: 20, 25, 30, 35, 40, 45; los costos varían; aún no
+ * me los pasan, ponle un estimado»). Precio por hora ESTIMADO, con operador y
+ * diésel, escalado desde el de 20 t. Se corrige en la ficha de la excavadora
+ * (Inventario) o, para una sola cotización, en «Costo / hora».
+ */
+export const EXCAVADORAS_POR_CAPACIDAD = {
+  cucharon: { 20: 1750, 25: 1950, 30: 2200, 35: 2500, 40: 2800, 45: 3100 },
+  martillo: { 20: 2150, 25: 2400, 30: 2700, 35: 3000, 40: 3350, 45: 3700 },
+} as const;
+
 /** Contacto publicado del sitio. Se puede sobrescribir desde el panel. */
 const EMPRESA: EmpresaCotizador = {
   nombre: 'MAQSER24',
@@ -186,7 +198,18 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
     { id: 'retro_cuch', nombre: 'Retroexcavadora c/ cucharón', icono: 'retro', flete_tipo: 'Retroexcavadora', precio_hora: 850 },
     { id: 'retro_mart', nombre: 'Retroexcavadora c/ martillo', icono: 'retro_mart', flete_tipo: 'Retroexcavadora', precio_hora: 950 },
     { id: 'exc_cuch', nombre: 'Excavadora 20 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 1750 },
+    // 2026-11-18: las demás capacidades (precio estimado, ver EXCAVADORAS_POR_CAPACIDAD).
+    { id: 'exc_cuch_25', nombre: 'Excavadora 25 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 1950 },
+    { id: 'exc_cuch_30', nombre: 'Excavadora 30 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 2200 },
+    { id: 'exc_cuch_35', nombre: 'Excavadora 35 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 2500 },
+    { id: 'exc_cuch_40', nombre: 'Excavadora 40 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 2800 },
+    { id: 'exc_cuch_45', nombre: 'Excavadora 45 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 3100 },
     { id: 'exc_mart', nombre: 'Excavadora 20 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 2150 },
+    { id: 'exc_mart_25', nombre: 'Excavadora 25 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 2400 },
+    { id: 'exc_mart_30', nombre: 'Excavadora 30 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 2700 },
+    { id: 'exc_mart_35', nombre: 'Excavadora 35 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 3000 },
+    { id: 'exc_mart_40', nombre: 'Excavadora 40 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 3350 },
+    { id: 'exc_mart_45', nombre: 'Excavadora 45 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 3700 },
     { id: 'moto', nombre: 'Motoconformadora', icono: 'moto', flete_tipo: 'Motoconformadora', precio_hora: 1750 },
     { id: 'vibro', nombre: 'Vibrocompactador 10 t', icono: 'vibro', flete_tipo: 'Vibrocompactador', precio_hora: 850 },
     { id: 'bobcat_cuch', nombre: 'Bob Cat c/ pala frontal', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 650 },

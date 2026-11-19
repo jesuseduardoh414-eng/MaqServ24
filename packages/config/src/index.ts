@@ -176,6 +176,9 @@ export {
   cobraFlete,
   LEYENDA_NEGOCIAR,
   equipoDe,
+  capacidadDe,
+  gruposDeEquipos,
+  type GrupoEquipos,
   servicioDe,
   porZona,
   zonaPrecioDe,
@@ -239,6 +242,7 @@ export {
   PAGO_DE_FABRICA,
   CONDICIONES_POR_LINEA,
   CONDICIONES_CAL,
+  EXCAVADORAS_POR_CAPACIDAD,
 } from './quoter-defaults';
 export { coordenadasDe } from './coordenadas';
 export {

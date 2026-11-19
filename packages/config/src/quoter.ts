@@ -500,6 +500,62 @@ export const cobraFlete = (cat: CatalogoMaquinaria): boolean => cat.cobrar_flete
 /** "8 h" / "1 h": las horas como se leen en la pantalla y en el documento. */
 const horasTexto = (n: number) => `${n} ${n === 1 ? 'hora' : 'horas'}`;
 
+/**
+ * CAPACIDADES DE UN EQUIPO (2026-11-18, el dueño: «excavadora de diferentes
+ * capacidades; opciones para que seleccione la capacidad: 20, 25, 30, 35, 40,
+ * 45; los costos varían»).
+ *
+ * Los equipos que se llaman igual salvo por las toneladas («Excavadora 20 t c/
+ * cucharón», «Excavadora 30 t c/ cucharón») son UNA tarjeta en el cotizador, y
+ * la capacidad se elige en su renglón. Cada capacidad sigue siendo un equipo
+ * del tabulador con su precio por hora en su ficha: el motor, el documento,
+ * los precios del sitio y las solicitudes no cambian. Una capacidad nueva
+ * escrita en la ficha («Excavadora 50 t c/ cucharón») se suma sola al grupo.
+ */
+const TONELAJE = /\s(\d+(?:[.,]\d+)?)\s*t(?![\p{L}\d])/iu;
+
+/** «Excavadora 30 t c/ cucharón» → base «Excavadora c/ cucharón», 30, «30 t». Null si el nombre no trae toneladas. */
+export function capacidadDe(nombre: string): { base: string; t: number; etiqueta: string } | null {
+  const m = TONELAJE.exec(nombre);
+  if (!m) return null;
+  const base = `${nombre.slice(0, m.index)} ${nombre.slice(m.index + m[0].length)}`.replace(/\s+/g, ' ').trim();
+  return { base, t: Number(m[1].replace(',', '.')), etiqueta: `${m[1]} t` };
+}
+
+export interface GrupoEquipos {
+  /** El título de la tarjeta: sin las toneladas cuando hay varias capacidades. */
+  nombre: string;
+  /** De menor a mayor capacidad. Uno solo si el equipo no tiene otras capacidades. */
+  miembros: Array<{ eq: EquipoCotizador; etiqueta: string | null; t: number }>;
+}
+
+/** Los equipos agrupados por capacidad, en el orden del tabulador (el grupo va donde sale su primer equipo). */
+export function gruposDeEquipos(equipos: EquipoCotizador[]): GrupoEquipos[] {
+  const porClave = new Map<string, GrupoEquipos>();
+  const grupos: GrupoEquipos[] = [];
+  for (const eq of equipos) {
+    const c = capacidadDe(eq.nombre);
+    const clave = c ? `t:${c.base.toLowerCase()}` : `id:${eq.id}`;
+    let g = porClave.get(clave);
+    if (!g) {
+      g = { nombre: c ? c.base : eq.nombre, miembros: [] };
+      porClave.set(clave, g);
+      grupos.push(g);
+    }
+    g.miembros.push({ eq, etiqueta: c?.etiqueta ?? null, t: c?.t ?? 0 });
+  }
+  for (const g of grupos) {
+    // Una sola capacidad: la tarjeta de siempre, con su nombre completo.
+    if (g.miembros.length === 1) {
+      g.nombre = g.miembros[0].eq.nombre;
+      g.miembros[0].etiqueta = null;
+    } else {
+      g.miembros.sort((a, b) => a.t - b.t);
+    }
+  }
+  return grupos;
+}
+
 export const equipoDe = (cat: CatalogoMaquinaria, id: string): EquipoCotizador | null =>
   cat.equipos.find((e) => e.id === id) ?? null;
 

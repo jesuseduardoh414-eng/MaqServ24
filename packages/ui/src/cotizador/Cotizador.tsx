@@ -480,7 +480,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
             cat={paraElegir as CatalogoMaquinaria}
             lineas={lineas as LineaMaquinaria[]}
             mostrarPrecios={preciosEnPasos}
-            alternar={(id) => alternar(esEquipo(id), () => lineaDeEquipo(id))}
+            alternar={(ids) => alternar((l) => l.tipo === 'equipo' && ids.includes(l.id), () => lineaDeEquipo(ids[0]))}
             agregarOtra={(id) => agregar(lineaDeEquipo(id))}
           />
           {lineas.some((l) => l.tipo === 'equipo') ? (
