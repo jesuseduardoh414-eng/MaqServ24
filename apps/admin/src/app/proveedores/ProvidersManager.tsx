@@ -19,6 +19,7 @@ import { InvitacionesPendientes, InvitarAliado } from './InvitarAliado';
 import { QueOfrece, categoriasDelTipo, faltaEnOferta, tipoDeCategorias, type TipoOferta } from './QueOfrece';
 import { EquiposDelAliado } from './EquipoDelAliado';
 import { DescargarExcelProveedores } from './ExcelProveedores';
+import { BuscadorProveedores } from './BuscadorProveedores';
 import { waDe } from './wa';
 import { Trato } from '@/components/Trato';
 import { anotarSolo } from '@/lib/trato';
@@ -397,8 +398,8 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirE
         title="Proveedores"
         subtitle={
           <>
-            Tus proveedores, para lo que MAQSER24 no maneja. Aquí los das de alta y llevas su ficha: datos, equipos con su precio, papeles y trato. Para sumar a alguien, invítalo (él llena sus datos) o dalo de alta tú.
-            El sello de verificado sale solo cuando su constancia fiscal y su póliza están vigentes. Para buscar quién da un servicio, ve a <a className="adm-link" href="/servicios-proveedores">Servicios de proveedores</a>.
+            Tus proveedores, para lo que MAQSER24 no maneja o donde no llega: búscalos por zona o por servicio y mándales un WhatsApp. Aquí también los das de alta y llevas su ficha: datos, servicios con su precio, papeles y trato.
+            Para sumar a alguien, invítalo (él llena sus datos) o dalo de alta tú.
           </>
         }
         actions={
@@ -409,6 +410,13 @@ export function ProvidersManager({ initial, abrir, enfocarCorreo = false, abrirE
           </>
         }
       />
+
+      {/*
+        BUSCAR POR ZONA O SERVICIO (2026-11-18, el dueño: «si un cliente pide algo
+        que no hay, entro a proveedores, busco la zona o el servicio, y si encuentro
+        uno le mando un mensaje por WhatsApp y listo»). Lo primero de la página.
+      */}
+      <BuscadorProveedores provs={provs} onVer={(p, pestana) => void abrirExpediente(p, pestana)} />
 
       {/* Resumen: lo primero que importa es a quién se le vencieron los papeles. */}
       <Stats>

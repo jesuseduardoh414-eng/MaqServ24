@@ -39,6 +39,14 @@ const CSS = `
 .rp-equipo-d{ display:grid; grid-template-columns:70px minmax(0,1fr) minmax(0,1fr); gap:8px; margin-top:8px; }
 .rp-otro{ grid-template-columns:minmax(0,1.4fr) 70px minmax(0,1fr) minmax(0,1fr) auto; margin-top:0; }
 @media (max-width: 640px){ .rp-equipo-d, .rp-otro{ grid-template-columns:1fr 1fr; } }
+/* Lo que ofrece, libre (2026-11-18): qué es y cuántas arriba; marca o capacidad y lo que cobra abajo. */
+.rp-serv{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 70px auto; gap:8px; }
+.rp-serv .rp-s-nombre{ grid-column:1 / 3; grid-row:1; }
+.rp-serv .rp-s-unidades{ grid-column:3; grid-row:1; }
+.rp-serv .rp-s-quitar{ grid-column:4; grid-row:1; }
+.rp-serv .rp-s-detalle{ grid-column:1 / 2; grid-row:2; }
+.rp-serv .rp-s-precio{ grid-column:2 / 5; grid-row:2; }
+@media (max-width: 640px){ .rp-serv{ grid-template-columns:minmax(0,1fr) 70px; } .rp-serv .rp-s-nombre{ grid-column:1; grid-row:1; } .rp-serv .rp-s-unidades{ grid-column:2; grid-row:1; } .rp-serv .rp-s-detalle{ grid-column:1 / 3; grid-row:2; } .rp-serv .rp-s-precio{ grid-column:1 / 3; grid-row:3; } .rp-serv .rp-s-quitar{ grid-column:1 / 3; grid-row:4; justify-self:start; } }
 .rp-pasos{ display:grid; gap:10px; margin:0; padding:0; list-style:none; }
 .rp-paso{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:14px; align-items:start; padding:16px; background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; }
 .rp-paso-t{ display:block; font-size:15px; font-weight:600; color:var(--color-text); }

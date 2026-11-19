@@ -819,11 +819,12 @@ export class AdminProvidersController {
 
     await prisma.providers.update({ where: { id }, data: { status: 1, updated_at: new Date() } });
     await registrarAccion(req, 'proveedores', 'aceptar solicitud de proveedor', p.name);
-    // Los equipos que declaró al registrarse (2026-10-26) quedan publicados si
-    // traen tipo: son servicios, se cotizan con el tabulador y no llevan precio
-    // propio. Los "otro" siguen por revisar hasta que se les ponga tipo.
+    // Lo que declaró al registrarse queda activo TODO (2026-11-18, el dueño:
+    // «pueden meter lo que sea, eso no va a ir en el sitio público»): antes los
+    // que no traían tipo seguían por revisar. Nada de un proveedor se publica;
+    // queda en su ficha y en la búsqueda por zona o servicio.
     await prisma.products.updateMany({
-      where: { provider_id: id, status: ESTADO_POR_REVISAR, tipo_id: { not: null } },
+      where: { provider_id: id, status: ESTADO_POR_REVISAR },
       data: { status: 1, availability_confirmed_at: new Date(), updated_at: new Date() },
     });
 

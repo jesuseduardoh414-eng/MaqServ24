@@ -47,7 +47,7 @@ export function ServiciosProveedores({ provs, buscar, donde }: { provs: Provider
       .map(([tipo, xs]) => ({ tipo, filas: [...xs].sort((a, b) => peso(b) - peso(a) || a.p.name.localeCompare(b.p.name, 'es')) }));
   }, [filas]);
   const sinEquipos = useMemo(() => activos.filter((p) => !(p.equipment ?? []).length), [activos]);
-  const sinPrecio = filas.filter((f) => !textoPrecio(f.e.precio)).length;
+  const sinPrecio = filas.filter((f) => !textoPrecio(f.e.precio) && !f.e.precioNota).length;
   const conServicios = activos.length - sinEquipos.length;
 
   const verFicha = (p: ProviderRow, pestana: 'datos' | 'equipos' = 'equipos') =>
@@ -135,9 +135,10 @@ function FilaServicio({ f, onVer }: { f: Fila; onVer: (p: ProviderRow, pestana?:
           {p.level === 'preferente' ? ' · ★ preferente' : ''}
         </small>
       </div>
-      <div className={precio ? 'sp-f-precio' : 'sp-f-precio sp-sin'}>
-        {precio ? <>Cobra {precio}</> : 'Sin precio'}
-        {e.precioNota ? <small>{e.precioNota}</small> : null}
+      <div className={precio || e.precioNota ? 'sp-f-precio' : 'sp-f-precio sp-sin'}>
+        {/* Lo que escribió al registrarse («$1,800 la hora») también es su precio (2026-11-18). */}
+        {precio ? <>Cobra {precio}</> : e.precioNota ? e.precioNota : 'Sin precio'}
+        {precio && e.precioNota ? <small>{e.precioNota}</small> : null}
       </div>
       <div className="sp-f-estado">
         {e.pending ? <Chip tone="warn">Nuevo</Chip> : <StatusText color={colorVivo(disp)} title={disp.nota}>{disp.nombre}</StatusText>}

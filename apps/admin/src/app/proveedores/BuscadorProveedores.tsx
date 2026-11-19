@@ -98,11 +98,17 @@ export interface Resultado {
 
 /**
  * La búsqueda en sí (la usan la libreta y «Asignar» en Servicios): proveedores
- * activos con un equipo que coincide con el servicio, ordenados. Sin palabras, nada.
+ * activos con un equipo que coincide con el servicio, ordenados.
+ *
+ * SOLO LA ZONA (2026-11-18, el dueño: «un cliente quiere rentar una máquina en
+ * una zona a donde no llego: entro a proveedores, busco la zona o el servicio,
+ * y le mando un mensaje por WhatsApp»): sin servicio pero con municipio salen
+ * los que llegan ahí, con todo lo que dan; si nadie llega, los más cercanos.
+ * Sin servicio ni municipio, nada.
  */
 export function buscarProveedores(provs: ProviderRow[], servicio: string, donde: string): Resultado[] {
   const partes = partesDe(servicio);
-  if (!partes.length) return [];
+  if (!partes.length) return donde.trim() ? porZona(provs, donde) : [];
   const centro = donde.trim() ? centroDeMunicipio(donde) : null;
   const out: Resultado[] = [];
   for (const p of provs) {
@@ -129,6 +135,29 @@ export function buscarProveedores(provs: ProviderRow[], servicio: string, donde:
     out.push({ p, equipos, soloLinea, llegada, puntaje });
   }
   return out.sort((a, b) => b.puntaje - a.puntaje || a.p.name.localeCompare(b.p.name, 'es'));
+}
+
+/** Quién llega a ese municipio, con todo lo que da. Si nadie llega, los 5 más cercanos (dicen «No llega»). */
+function porZona(provs: ProviderRow[], donde: string): Resultado[] {
+  const centro = centroDeMunicipio(donde);
+  const out: Resultado[] = [];
+  for (const p of provs) {
+    if (p.status !== 1 || p.propio) continue;
+    const llegada = llegaA(p, donde, centro);
+    const equipos = p.equipment ?? [];
+    const puntaje =
+      (llegada?.cubre ? 100 : 0) +
+      (p.level === 'preferente' ? 30 : 0) +
+      (p.verified ? 25 : 0) +
+      Math.min(p.trabajos ?? 0, 5) * 6 +
+      (equipos.length ? 10 : 0) -
+      (llegada?.km != null ? Math.min(llegada.km, 300) / 30 : 0);
+    out.push({ p, equipos, soloLinea: false, llegada, puntaje });
+  }
+  const orden = (a: Resultado, b: Resultado) => b.puntaje - a.puntaje || a.p.name.localeCompare(b.p.name, 'es');
+  const llegan = out.filter((r) => r.llegada?.cubre);
+  if (llegan.length) return llegan.sort(orden);
+  return out.filter((r) => r.llegada?.km != null).sort((a, b) => (a.llegada!.km ?? 0) - (b.llegada!.km ?? 0)).slice(0, 5);
 }
 
 export function BuscadorProveedores({ provs, servicioInicial = '', dondeInicial = '', onVer, sinBuscar }: {
@@ -170,15 +199,16 @@ export function BuscadorProveedores({ provs, servicioInicial = '', dondeInicial 
 
   const llegan = resultados.filter((r) => r.llegada?.cubre).length;
   const lugar = centro?.nombre ?? donde.trim();
+  const soloZona = !palabras.length && !!donde.trim();
 
   return (
-    <section ref={caja} className="bp" aria-label="Buscar proveedor para un servicio" style={{ scrollMarginTop: 80 }}>
+    <section ref={caja} className="bp" aria-label="Buscar proveedor por zona o servicio" style={{ scrollMarginTop: 80 }}>
       <style>{CSS}</style>
       <div className="bp-cab">
         <i className="ph ph-magnifying-glass" aria-hidden />
         <div>
-          <h2 className="bp-tit">Buscar proveedor para un servicio</h2>
-          <p className="bp-sub">Para lo que MAQSER24 no maneja: escribe el servicio y, si lo sabes, dónde es la obra.</p>
+          <h2 className="bp-tit">Buscar proveedor por zona o servicio</h2>
+          <p className="bp-sub">Para lo que MAQSER24 no maneja o donde no llega: escribe el servicio, el municipio de la obra, o los dos. Luego mándale un WhatsApp.</p>
         </div>
       </div>
       <div className="bp-campos">
@@ -200,7 +230,7 @@ export function BuscadorProveedores({ provs, servicioInicial = '', dondeInicial 
             list="bp-municipios"
             value={donde}
             maxLength={80}
-            placeholder="Municipio (opcional)"
+            placeholder="Municipio (ej. Santiago, Saltillo)"
             onChange={(e) => setDonde(e.target.value)}
           />
         </label>
@@ -209,12 +239,18 @@ export function BuscadorProveedores({ provs, servicioInicial = '', dondeInicial 
       <datalist id="bp-servicios">{sugerencias.map((s) => <option key={s} value={s} />)}</datalist>
       <datalist id="bp-municipios">{municipios.map((m) => <option key={m} value={m} />)}</datalist>
 
-      {palabras.length ? (
+      {palabras.length || soloZona ? (
         <>
           <p className="bp-cuenta" role="status">
-            {resultados.length === 0
-              ? `Nadie en tu libreta da «${servicio.trim()}». Prueba con otra palabra (por ejemplo el tipo de máquina).`
-              : `${resultados.length} ${resultados.length === 1 ? 'proveedor da' : 'proveedores dan'} «${servicio.trim()}»${lugar ? ` · ${llegan} ${llegan === 1 ? 'llega' : 'llegan'} a ${lugar}` : ''}.`}
+            {soloZona
+              ? resultados.length === 0
+                ? `No encontramos ese municipio ni a nadie que llegue a «${donde.trim()}». Revisa cómo está escrito.`
+                : llegan
+                  ? `${llegan} ${llegan === 1 ? 'proveedor llega' : 'proveedores llegan'} a ${lugar}.`
+                  : `Nadie de tu libreta llega a ${lugar}. Estos son los más cercanos.`
+              : resultados.length === 0
+                ? `Nadie en tu libreta da «${servicio.trim()}». Prueba con otra palabra (por ejemplo el tipo de máquina).`
+                : `${resultados.length} ${resultados.length === 1 ? 'proveedor da' : 'proveedores dan'} «${servicio.trim()}»${lugar ? ` · ${llegan} ${llegan === 1 ? 'llega' : 'llegan'} a ${lugar}` : ''}.`}
           </p>
           <div className="bp-lista">
             {resultados.map((r) => <Tarjeta key={r.p.id} r={r} servicio={servicio.trim()} lugar={lugar} onVer={onVer} />)}
@@ -230,7 +266,13 @@ function Tarjeta({ r, servicio, lugar, onVer }: { r: Resultado; servicio: string
   const wa = waDe(p.phone);
   const tel = (p.phone ?? '').replace(/[^\d+]/g, '');
   const saludo = p.contactName?.trim() ? ` ${p.contactName.trim().split(' ')[0]}` : '';
-  const mensaje = `Hola${saludo}, te escribo de MAQSER24. ¿Tienes disponible ${servicio}${lugar ? ` para una obra en ${lugar}` : ''}? ¿En cuánto me lo dejas?`;
+  // Solo la zona (2026-11-18): se le pregunta qué tiene por allá.
+  const mensaje = servicio
+    ? `Hola${saludo}, te escribo de MAQSER24. ¿Tienes disponible ${servicio}${lugar ? ` para una obra en ${lugar}` : ''}? ¿En cuánto me lo dejas?`
+    : `Hola${saludo}, te escribo de MAQSER24. Tengo un cliente con una obra en ${lugar}. ¿Qué equipo o servicio tienes disponible por allá y en cuánto?`;
+  const motivo = servicio ? `Por ${servicio}` : `Por una obra en ${lugar}`;
+  // Con solo la zona sale todo lo que da: los primeros 6, el resto en su ficha.
+  const visibles = servicio ? equipos : equipos.slice(0, 6);
   const trabajos = p.trabajos ?? 0;
   return (
     <article className="bp-t">
@@ -255,7 +297,7 @@ function Tarjeta({ r, servicio, lugar, onVer }: { r: Resultado; servicio: string
 
       {equipos.length ? (
         <ul className="bp-eqs">
-          {equipos.map((e) => {
+          {visibles.map((e) => {
             const precio = textoPrecio(e.precio);
             const disp = presentacionEstado(e.availability);
             const n = Math.max(1, e.units ?? 1);
@@ -269,24 +311,30 @@ function Tarjeta({ r, servicio, lugar, onVer }: { r: Resultado; servicio: string
                 <span className="bp-eq-sub">
                   {[e.tipo, e.brand, `${n} ${n === 1 ? 'unidad' : 'unidades'}`, e.location, ficha].filter(Boolean).join(' · ')}
                 </span>
-                <span className={precio ? 'bp-eq-precio' : 'bp-eq-precio bp-sin'}>
+                {/* Lo que escribió al registrarse («$1,800 la hora») también es su precio (2026-11-18). */}
+                <span className={precio || e.precioNota ? 'bp-eq-precio' : 'bp-eq-precio bp-sin'}>
                   <i className="ph ph-currency-dollar" aria-hidden />
-                  {precio ? <>Cobra {precio}</> : 'Sin precio capturado: pídeselo y anótalo en su ficha'}
-                  {e.precioNota ? <span className="bp-eq-nota"> · {e.precioNota}</span> : null}
+                  {precio ? <>Cobra {precio}</> : e.precioNota ? e.precioNota : 'Sin precio capturado: pídeselo y anótalo en su ficha'}
+                  {precio && e.precioNota ? <span className="bp-eq-nota"> · {e.precioNota}</span> : null}
                 </span>
                 {resumenDetalle(e.detalle, new Date().toISOString().slice(0, 10)).length ? <span className="bp-eq-sub">{resumenDetalle(e.detalle, new Date().toISOString().slice(0, 10)).join(' · ')}</span> : null}
               </li>
             );
           })}
+          {equipos.length > visibles.length ? (
+            <li className="bp-eq-sub">y {equipos.length - visibles.length} más en su ficha.</li>
+          ) : null}
         </ul>
       ) : (
-        <p className="bp-t-linea" style={{ color: 'var(--adm-muted)' }}>Da este servicio, pero todavía no tiene el equipo capturado.</p>
+        <p className="bp-t-linea" style={{ color: 'var(--adm-muted)' }}>
+          {servicio ? 'Da este servicio, pero todavía no tiene el equipo capturado.' : 'Todavía no tiene servicios capturados: pregúntale qué tiene.'}
+        </p>
       )}
 
       <div className="bp-t-acc">
         {/* Enlaces normales (no `Btn href`): así el clic se anota solo en su trato. */}
         {tel ? (
-          <a className={btnClass('secondary', 'sm')} href={`tel:${tel}`} onClick={() => void anotarSolo({ aliado: p.id, con: 'aliado', canal: 'llamada', nota: `Por ${servicio}` })}>
+          <a className={btnClass('secondary', 'sm')} href={`tel:${tel}`} onClick={() => void anotarSolo({ aliado: p.id, con: 'aliado', canal: 'llamada', nota: motivo })}>
             <i className="ph ph-phone" aria-hidden />Llamar
           </a>
         ) : null}
@@ -296,9 +344,9 @@ function Tarjeta({ r, servicio, lugar, onVer }: { r: Resultado; servicio: string
             href={`https://wa.me/${wa}?text=${encodeURIComponent(mensaje)}`}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => void anotarSolo({ aliado: p.id, con: 'aliado', canal: 'whatsapp', nota: `Por ${servicio}` })}
+            onClick={() => void anotarSolo({ aliado: p.id, con: 'aliado', canal: 'whatsapp', nota: motivo })}
           >
-            <i className="ph ph-whatsapp-logo" aria-hidden />WhatsApp
+            <i className="ph ph-whatsapp-logo" aria-hidden />Mandar WhatsApp
           </a>
         ) : null}
         <Btn size="sm" variant="ghost" icon="ph-identification-card" onClick={() => onVer(p, 'equipos')}>Ficha completa</Btn>
