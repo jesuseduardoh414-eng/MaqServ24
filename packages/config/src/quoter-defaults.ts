@@ -31,6 +31,18 @@ export const EXCAVADORAS_POR_CAPACIDAD = {
   martillo: { 20: 2150, 25: 2400, 30: 2700, 35: 3000, 40: 3350, 45: 3700 },
 } as const;
 
+/**
+ * BULLDOZER POR CAPACIDAD (2026-11-20, el dueño: «agregar una maquinaria de
+ * renta: Bulldozer, diferentes capacidades»; luego: «capacidad: D5 D6 D7 D8;
+ * costo D8 $3,500»). Precio por hora con operador y diésel: el del D8 es del
+ * dueño; D5, D6 y D7 son ESTIMADOS. Se corrigen en la ficha del Bulldozer
+ * (Inventario) o, para una sola cotización, en «Costo / hora». Flete estimado
+ * igual al de la excavadora (también va en cama baja); en cada cotización se
+ * cambia en «Flete ida y vuelta».
+ */
+export const BULLDOZERS_POR_CAPACIDAD = { D5: 1700, D6: 2000, D7: 2300, D8: 3500 } as const;
+export const FLETE_BULLDOZER = 30000;
+
 /** Contacto publicado del sitio. Se puede sobrescribir desde el panel. */
 const EMPRESA: EmpresaCotizador = {
   nombre: 'MAQSER24',
@@ -193,10 +205,16 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
     Motoconformadora: 16000,
     Vibrocompactador: 12500,
     Minicargador: 6000,
+    // 2026-11-20: estimado (ver FLETE_BULLDOZER).
+    Bulldozer: FLETE_BULLDOZER,
   },
   equipos: [
-    { id: 'retro_cuch', nombre: 'Retroexcavadora c/ cucharón', icono: 'retro', flete_tipo: 'Retroexcavadora', precio_hora: 850 },
-    { id: 'retro_mart', nombre: 'Retroexcavadora c/ martillo', icono: 'retro_mart', flete_tipo: 'Retroexcavadora', precio_hora: 950 },
+    // Orden del cotizador (2026-11-20, el dueño): bulldozer, excavadoras, motoconformadora, retroexcavadoras, vibro y Bob Cat.
+    // Bulldozer D5 a D8 (2026-11-20: el D8 lo dio el dueño; los demás, estimados. Ver BULLDOZERS_POR_CAPACIDAD).
+    { id: 'dozer_d5', nombre: 'Bulldozer D5', icono: 'bulldozer', flete_tipo: 'Bulldozer', precio_hora: 1700 },
+    { id: 'dozer_d6', nombre: 'Bulldozer D6', icono: 'bulldozer', flete_tipo: 'Bulldozer', precio_hora: 2000 },
+    { id: 'dozer_d7', nombre: 'Bulldozer D7', icono: 'bulldozer', flete_tipo: 'Bulldozer', precio_hora: 2300 },
+    { id: 'dozer_d8', nombre: 'Bulldozer D8', icono: 'bulldozer', flete_tipo: 'Bulldozer', precio_hora: 3500 },
     { id: 'exc_cuch', nombre: 'Excavadora 20 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 1750 },
     // 2026-11-18: las demás capacidades (precio estimado, ver EXCAVADORAS_POR_CAPACIDAD).
     { id: 'exc_cuch_25', nombre: 'Excavadora 25 t c/ cucharón', icono: 'excavadora', flete_tipo: 'Excavadora', precio_hora: 1950 },
@@ -211,6 +229,8 @@ export const CATALOGO_MAQUINARIA_DEFAULT: CatalogoMaquinaria = {
     { id: 'exc_mart_40', nombre: 'Excavadora 40 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 3350 },
     { id: 'exc_mart_45', nombre: 'Excavadora 45 t c/ martillo', icono: 'martillo_exc', flete_tipo: 'Excavadora', precio_hora: 3700 },
     { id: 'moto', nombre: 'Motoconformadora', icono: 'moto', flete_tipo: 'Motoconformadora', precio_hora: 1750 },
+    { id: 'retro_cuch', nombre: 'Retroexcavadora c/ cucharón', icono: 'retro', flete_tipo: 'Retroexcavadora', precio_hora: 850 },
+    { id: 'retro_mart', nombre: 'Retroexcavadora c/ martillo', icono: 'retro_mart', flete_tipo: 'Retroexcavadora', precio_hora: 950 },
     { id: 'vibro', nombre: 'Vibrocompactador 10 t', icono: 'vibro', flete_tipo: 'Vibrocompactador', precio_hora: 850 },
     { id: 'bobcat_cuch', nombre: 'Bob Cat c/ pala frontal', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 650 },
     { id: 'bobcat_adit', nombre: 'Bob Cat c/ aditamento (mano de chango o martillo)', icono: 'minicargador', flete_tipo: 'Minicargador', precio_hora: 750 },

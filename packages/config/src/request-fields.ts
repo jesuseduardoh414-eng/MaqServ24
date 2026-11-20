@@ -67,7 +67,7 @@ export const REQUEST_FORMS: RequestForm[] = [
     intro:
       'Estos datos definen qué equipo puede entrar a la obra y cuánto cuesta llevarlo. Sin ellos la cotización cambia después.',
     fields: [
-      { key: 'tipo_equipo', label: 'Tipo de equipo', type: 'opcion', options: ['Excavadora', 'Retroexcavadora', 'Motoconformadora', 'Vibrocompactador'], required: true },
+      { key: 'tipo_equipo', label: 'Tipo de equipo', type: 'opcion', options: ['Excavadora', 'Retroexcavadora', 'Bulldozer', 'Motoconformadora', 'Vibrocompactador'], required: true },
       { key: 'capacidad', label: 'Capacidad o tonelaje', type: 'texto', unit: 't', hint: 'Si no lo sabes, describe el trabajo' },
       // Plataformas y grúas: la altura es lo que decide si el equipo sirve.
       { key: 'implementos', label: 'Implementos requeridos', type: 'texto', hint: 'Martillo, bote de limpieza, rastrillo…' },

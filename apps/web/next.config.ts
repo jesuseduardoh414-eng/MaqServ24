@@ -132,6 +132,16 @@ const nextConfig: NextConfig = {
   /** Sin `X-Powered-By: Next.js`: no hay por qué decirle a nadie con qué está hecho. */
   poweredByHeader: false,
   /**
+   * Páginas siempre frescas en el navegador (2026-11-20). Por defecto Next manda
+   * `s-maxage=60, stale-while-revalidate=31535940` (un año). Safari en iPhone
+   * respeta ese `stale-while-revalidate`: mostraba la copia guardada de la
+   * página —con la excavadora que se quitó el 17-nov— y solo la renovaba por
+   * detrás para la visita siguiente. Con 60 (= el `revalidate` del layout) Next
+   * deja `s-maxage=60` a secas: el navegador pide la página a la red cada vez.
+   * La caché del servidor (ISR, `x-nextjs-cache`) no cambia: solo es la cabecera.
+   */
+  expireTime: 60,
+  /**
    * Bots que reciben title, canonical y Open Graph dentro del <head> del HTML
    * inicial (auditoría SEO 2026-11-04). Desde Next 15.2 los metadatos de las
    * páginas dinámicas se envían por streaming al final del <body>, y solo esta

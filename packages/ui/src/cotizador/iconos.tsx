@@ -30,6 +30,9 @@ const TRAZOS: Record<string, string> = {
   // Bob Cat (2026-10-29): cuerpo corto, cabina, brazo al frente y cucharón.
   minicargador:
     'M7 26v-7a2 2 0 0 1 2-2h12v9z M10 17v-6h8l1 6 M17 12l10 8 M27 20v6h6l-1.5-7z',
+  // Bulldozer (2026-11-20): orugas, cabina atrás, cofre, escape y la cuchilla al frente.
+  bulldozer:
+    'M7 27h20a3 3 0 0 1 0 6H7a3 3 0 0 1 0-6z M9 27V15h7l1 6h9v6 M20 21v-3 M26 25h4.8 M26 21l5.2-2.6 M32 17q-2.5 8 0 16h3q-2.5-8 0-16z',
   pipa:
     'M14 16h13a4.5 4.5 0 0 1 0 9H14z M14 25H8a2 2 0 0 1-2-2v-4h6 M6 19l2-3h4v3 M14 30h12',
   agua:
@@ -64,6 +67,7 @@ const EXTRAS: Record<string, Array<[number, number, number]>> = {
   moto: [[9, 29, 3.4], [20, 29, 3.4], [31, 29, 3.4]],
   vibro: [[12, 27, 7], [12, 27, 2.4], [30, 30, 2.2]],
   minicargador: [[11, 29, 3], [18, 29, 3]],
+  bulldozer: [[10.5, 30, 1.1], [23.5, 30, 1.1]],
   pipa: [[11, 30, 3], [29, 30, 3]],
   retiro: [[12, 30, 3], [27, 30, 3]],
   zona: [[12, 30, 3], [27, 30, 3]],

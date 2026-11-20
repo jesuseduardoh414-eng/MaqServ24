@@ -596,7 +596,7 @@ export const defaultTheme: Theme = {
       'catalog.title': 'Catálogo de productos',
       // Texto bajo «Servicios» en /servicios (2026-11-18). Una línea en blanco separa párrafos.
       'catalog.services.intro':
-        'Con MAQSER24 puedes cotizar la renta de maquinaria pesada con operador y consultar equipos en venta. También puedes solicitar suministro de triturados, block y concreto premezclado, entrega de agua en pipas, acarreos en volteos y tolvas, suministro y aplicación de carpeta asfáltica y riego de impregnación.\n\nAtendemos obras en Monterrey y su área metropolitana.',
+        'Con MAQSER24 puedes cotizar la renta de maquinaria pesada con operador y consultar equipos en venta. También puedes solicitar suministro de triturados y block, entrega de agua en pipas, acarreos en volteos y tolvas, suministro y aplicación de carpeta asfáltica y riego de impregnación.\n\nAtendemos obras en Monterrey y su área metropolitana.',
       'catalog.filter.all': 'Todos',
       'catalog.search.placeholder': 'Buscar equipo, marca…',
       'catalog.search.button': 'Buscar',
@@ -770,7 +770,7 @@ export const defaultTheme: Theme = {
       'seo.sector.title': 'Maquinaria y servicios para {sector}',
       // Páginas de aterrizaje por servicio (apps/web/src/lib/landings.ts).
       'seo.landing.machinery.title': 'Renta de maquinaria pesada en Monterrey',
-      'seo.landing.machinery.description': 'Renta retroexcavadoras, excavadoras, motoconformadoras, vibrocompactadores y Bob Cat con operador, por hora, en Monterrey y Nuevo León. Cotiza en línea.',
+      'seo.landing.machinery.description': 'Renta retroexcavadoras, excavadoras, bulldozers, motoconformadoras, vibrocompactadores y Bob Cat con operador, por hora, en Monterrey y Nuevo León. Cotiza en línea.',
       'nav.providerSignup': 'Regístrate como proveedor',
       'seo.landing.machinerySale.title': 'Venta de maquinaria pesada en Monterrey',
       'seo.landing.machinerySale.description': 'Compra excavadoras, retroexcavadoras, motoconformadoras, vibrocompactadores, Bobcat, volteos y pipas con la red de proveedores MAQSER24 en Monterrey y todo Nuevo León.',

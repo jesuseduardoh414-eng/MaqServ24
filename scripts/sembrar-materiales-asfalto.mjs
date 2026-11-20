@@ -33,7 +33,7 @@ const LINEAS = [
   {
     nombre: 'Materiales para construcción',
     slug: 'materiales-para-construccion',
-    descripcion: 'Concreto premezclado, acero de refuerzo, block y cemento',
+    descripcion: 'Acero de refuerzo, block y cemento',
     fichas: [
       {
         nombre: 'Block de concreto 6"',

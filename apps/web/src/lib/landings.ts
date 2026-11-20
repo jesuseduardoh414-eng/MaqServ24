@@ -51,27 +51,28 @@ export const LANDINGS: Landing[] = [
     clave: 'machinery',
     categoria: 'maquinaria-pesada',
     nombre: 'Renta de maquinaria pesada',
-    resumen: 'Retroexcavadoras, excavadoras, motoconformadoras, vibrocompactadores y Bob Cat',
+    // Texto del dueño (2026-11-20) para el menú Soluciones.
+    resumen: 'Bulldozer, Excavadoras, Motoconformadoras, Retroexcavadoras, Bob Cat',
     eyebrow: 'Renta de maquinaria',
-    h1: 'Renta de maquinaria pesada en Monterrey y Nuevo León',
-    // Oferta vigente = equipos del cotizador (quoter-defaults.ts, revisado 2026-11-04):
-    // por hora, mínimo 8 h por equipo, con operador y diésel.
+    // Título y primer párrafo: texto del dueño (2026-11-20).
+    h1: 'Renta de maquinaria pesada en Monterrey y toda su área metropolitana',
     intro: [
-      'Renta retroexcavadoras, excavadoras de 20 t, motoconformadoras, vibrocompactadores y Bob Cat con operador y diésel para tu obra. Cotizas en línea con precio por hora y MAQSER24 asigna el equipo de un proveedor de su red.',
+      'Renta de bulldozer, excavadoras, motoconformadoras, retroexcavadoras, vibrocompactadores y Bob Cat, con operador y diésel. Cotiza en línea y MAQSER24 te asignará el mejor equipo.',
       `Atendemos ${ZONA}. Tú nos dices la obra, el equipo y los días; nosotros coordinamos la entrega y damos seguimiento hasta que termina el servicio.`,
     ],
     incluye: {
       titulo: 'Equipos que puedes rentar',
+      // En el orden del cotizador (el dueño, 2026-11-20).
       items: [
-        'Retroexcavadora con cucharón o martillo',
-        'Excavadora de 20 t con cucharón o martillo',
+        'Bulldozer de diferentes capacidades',
+        'Excavadora con cucharón o martillo',
         'Motoconformadora',
+        'Retroexcavadora con cucharón o martillo',
         'Vibrocompactador de 10 t',
         'Bob Cat con pala frontal o aditamento',
-        'Renta con operador y diésel',
       ],
     },
-    usos: ['Excavación y movimiento de tierras', 'Nivelación y terracerías', 'Demolición', 'Caminos y urbanización', 'Naves industriales', 'Obra civil y fraccionamientos'],
+    usos: ['Excavación y movimiento de tierras', 'Despalme, cortes y empuje de material', 'Nivelación y terracerías', 'Demolición', 'Caminos y urbanización', 'Naves industriales', 'Obra civil y fraccionamientos'],
     faqs: [
       {
         pregunta: '¿La renta de maquinaria incluye operador?',
@@ -227,7 +228,7 @@ export const LANDINGS: Landing[] = [
     clave: 'materials',
     categoria: 'materiales-para-construccion',
     nombre: 'Materiales para construcción',
-    resumen: 'Block de concreto de 6"',
+    resumen: 'Block de concreto y cal de patio', // igual que el Cotizador (2026-11-20)
     eyebrow: 'Materiales para construcción',
     h1: 'Block de concreto de 6" para tu obra',
     intro: [

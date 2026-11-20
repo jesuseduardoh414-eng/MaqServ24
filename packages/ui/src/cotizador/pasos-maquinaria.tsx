@@ -10,6 +10,7 @@ import {
   porZona,
   precioDeServicio,
   precioHoraDe,
+  rangoDeCapacidades,
   SERVICIO_A_MANO,
   zonaDeMunicipio,
   zonaPrecioDe,
@@ -99,7 +100,7 @@ export function PasoEquipos({
           const nota = mostrarPrecios
             ? `${varias ? 'desde ' : ''}${money(desde)} / hora`
             : conFlete ? `flete ${e.flete_tipo}` : varias ? 'por hora de trabajo' : 'Por hora de trabajo';
-          const rango = varias ? `De ${g.miembros[0].t} a ${g.miembros[g.miembros.length - 1].t} t · ` : '';
+          const rango = varias ? `${rangoDeCapacidades(g)} · ` : '';
           return (
             <Tarjeta
               key={e.id}
@@ -163,6 +164,8 @@ export function PasoDuracion({
         const c = calcularEquipo(cat, {
           tipo: 'equipo', id: l.id, dias: l.dias, horas: l.horas,
           cantidad: l.cantidad, precio_hora: num(l.precioHora) || null,
+          // El flete negociado (2026-11-20): sin esto la pantalla enseñaba el del tabulador.
+          flete: l.flete ?? null,
         });
         if (!c.eq) return null;
         return (
@@ -252,6 +255,22 @@ export function PasoDuracion({
                   placeholder={String(Math.round(c.tarifaHora * 100) / 100)}
                   valor={l.precioHora}
                   onChange={(v) => actualizar(l.uid, { precioHora: v })}
+                />
+              </Campo>
+            ) : null}
+            {/* Flete de esta cotización (2026-11-20, el dueño: «costo de flete que sea
+                editable para los bull; igual para las excavadoras»): cambia con la
+                distancia y con la cama baja que pide cada capacidad. Vacío = el de Tarifas. */}
+            {editarPrecios && conFlete ? (
+              <Campo
+                label={`Flete ida y vuelta${l.cantidad > 1 ? ' (por equipo)' : ''}`}
+                help={l.flete ? 'Flete negociado' : 'Del tabulador vigente'}
+              >
+                <NumeroTexto
+                  ariaLabel="flete ida y vuelta"
+                  placeholder={String(Math.round(Number(cat.fletes[c.eq.flete_tipo] ?? 0)))}
+                  valor={l.flete ? String(l.flete) : ''}
+                  onChange={(v) => actualizar(l.uid, { flete: num(v) || null })}
                 />
               </Campo>
             ) : null}

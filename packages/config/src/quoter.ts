@@ -511,15 +511,35 @@ const horasTexto = (n: number) => `${n} ${n === 1 ? 'hora' : 'horas'}`;
  * del tabulador con su precio por hora en su ficha: el motor, el documento,
  * los precios del sitio y las solicitudes no cambian. Una capacidad nueva
  * escrita en la ficha («Excavadora 50 t c/ cucharón») se suma sola al grupo.
+ *
+ * El bulldozer (2026-11-20, el dueño: «capacidad: D5 D6 D7 D8») se pide por su
+ * clase, no por toneladas: «Bulldozer D6» → capacidad «D6». Igual se agrupa.
  */
 const TONELAJE = /\s(\d+(?:[.,]\d+)?)\s*t(?![\p{L}\d])/iu;
+/** La clase del tractor: una D mayúscula y su número («D6», «D8»). */
+const CLASE_D = /\s(D(\d{1,2}))(?![\p{L}\d])/u;
 
-/** «Excavadora 30 t c/ cucharón» → base «Excavadora c/ cucharón», 30, «30 t». Null si el nombre no trae toneladas. */
+/**
+ * «Excavadora 30 t c/ cucharón» → base «Excavadora c/ cucharón», 30, «30 t».
+ * «Bulldozer D6» → base «Bulldozer», 6, «D6». Null si el nombre no trae ni toneladas ni clase.
+ */
 export function capacidadDe(nombre: string): { base: string; t: number; etiqueta: string } | null {
   const m = TONELAJE.exec(nombre);
-  if (!m) return null;
-  const base = `${nombre.slice(0, m.index)} ${nombre.slice(m.index + m[0].length)}`.replace(/\s+/g, ' ').trim();
-  return { base, t: Number(m[1].replace(',', '.')), etiqueta: `${m[1]} t` };
+  const d = m ? null : CLASE_D.exec(nombre);
+  const hallado = m ?? d;
+  if (!hallado) return null;
+  const base = `${nombre.slice(0, hallado.index)} ${nombre.slice(hallado.index + hallado[0].length)}`.replace(/\s+/g, ' ').trim();
+  if (m) return { base, t: Number(m[1].replace(',', '.')), etiqueta: `${m[1]} t` };
+  return { base, t: Number(d![2]), etiqueta: d![1] };
+}
+
+/** «De 20 a 45 t» o «De D5 a D8»: el rango de una tarjeta con varias capacidades. */
+export function rangoDeCapacidades(g: GrupoEquipos): string | null {
+  if (g.miembros.length < 2) return null;
+  const a = g.miembros[0];
+  const b = g.miembros[g.miembros.length - 1];
+  const toneladas = a.etiqueta?.endsWith(' t') && b.etiqueta?.endsWith(' t');
+  return toneladas ? `De ${a.t} a ${b.t} t` : `De ${a.etiqueta} a ${b.etiqueta}`;
 }
 
 export interface GrupoEquipos {
@@ -1457,6 +1477,7 @@ function iconoDeEquipo(nombre: string): string {
   const n = nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const martillo = n.includes('martillo');
   if (/bob ?cat|minicargador/.test(n)) return 'minicargador';
+  if (/bull ?dozer|tractor de orugas/.test(n)) return 'bulldozer';
   if (n.includes('retro')) return martillo ? 'retro_mart' : 'retro';
   if (n.includes('motoconform')) return 'moto';
   if (/vibro|compactador/.test(n)) return 'vibro';

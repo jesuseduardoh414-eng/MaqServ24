@@ -26,6 +26,34 @@ import { EncabezadoSobrePortada } from '@/components/EncabezadoSobrePortada';
 const CONTAINER: React.CSSProperties = { maxWidth: 1240, margin: '0 auto', padding: '0 clamp(14px, 2vw, 18px)' };
 
 /**
+ * El menú Cotizador en el orden y con los nombres de Soluciones (2026-11-20, el
+ * dueño: «que cotizador coincida con soluciones»). Agua y acarreos son dos
+ * cotizadores y van juntos donde Soluciones dice «Pipas de agua y volteos».
+ * La descripción sigue siendo la de cada cotizador (cómo se cobra). Un
+ * cotizador que no esté aquí sale al final, con su nombre de siempre.
+ */
+const MENU_COTIZADOR: ReadonlyArray<readonly [clave: string, nombre: string]> = [
+  ['maquinaria', 'Renta de maquinaria pesada'],
+  ['venta-de-maquinaria', 'Venta de maquinaria pesada'],
+  ['agua', 'Pipas de agua'],
+  ['acarreos', 'Volteos y acarreos'],
+  ['triturados', 'Triturados: grava, arena y base'],
+  ['materiales', 'Materiales para construcción'],
+  ['carpeta-asfaltica', 'Carpeta asfáltica'],
+];
+
+function menuCotizador() {
+  const nombre = new Map(MENU_COTIZADOR);
+  const orden = (clave: string) => {
+    const i = MENU_COTIZADOR.findIndex(([c]) => c === clave);
+    return i < 0 ? MENU_COTIZADOR.length : i;
+  };
+  return [...COTIZADORES_SITIO]
+    .sort((a, b) => orden(a.clave) - orden(b.clave))
+    .map((c) => ({ href: `/cotizador/${c.clave}`, label: nombre.get(c.clave) ?? c.titulo, description: c.resumen }));
+}
+
+/**
  * Header del diseño SEGAshop:
  *  1) barra superior oscura: contacto + horario + accesos.
  *  2) header sticky con logo, navegación y acciones (buscar/fav/lista para cotizar/sesión).
@@ -56,13 +84,14 @@ export async function SiteHeader({ theme }: { theme: Theme }) {
         { href: '/categorias', label: t(theme, 'nav.solutions.all'), description: t(theme, 'nav.solutions.all.hint') },
       ],
     },
-    // Cotizador: un cotizador por categoría (2026-11-02, pedido del dueño), en
-    // el orden de COTIZADORES_SITIO. Por dentro siguen siendo los dos
-    // tabuladores con el PRECIO ÚNICO de MAQSER24; cada uno enseña su parte.
+    // Cotizador: un cotizador por categoría (2026-11-02, pedido del dueño). Por
+    // dentro siguen siendo los dos tabuladores con el PRECIO ÚNICO de MAQSER24;
+    // cada uno enseña su parte. Desde 2026-11-20 («que cotizador coincida con
+    // soluciones») va en el orden y con los nombres de Soluciones.
     {
       href: '/cotizador',
       label: t(theme, 'nav.quoter'),
-      children: COTIZADORES_SITIO.map((c) => ({ href: `/cotizador/${c.clave}`, label: c.titulo, description: c.resumen })),
+      children: menuCotizador(),
     },
     { href: '/quienes-somos', label: t(theme, 'nav.about') },
     { href: '/blog', label: t(theme, 'nav.blog') },

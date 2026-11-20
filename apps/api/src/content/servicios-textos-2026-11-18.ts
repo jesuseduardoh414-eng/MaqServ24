@@ -21,7 +21,7 @@ const AJUSTE = 'contenido_cambios';
 const TITULO_ANTES = 'Todo el equipo, en un solo lugar';
 export const TITULO_NUEVO = 'Maquinaria, materiales y servicios para tu obra';
 export const INTRO_NUEVA =
-  'Con MAQSER24 puedes cotizar la renta de maquinaria pesada con operador y consultar equipos en venta. También puedes solicitar suministro de triturados, block y concreto premezclado, entrega de agua en pipas, acarreos en volteos y tolvas, suministro y aplicación de carpeta asfáltica y riego de impregnación.\n\n' +
+  'Con MAQSER24 puedes cotizar la renta de maquinaria pesada con operador y consultar equipos en venta. También puedes solicitar suministro de triturados y block, entrega de agua en pipas, acarreos en volteos y tolvas, suministro y aplicación de carpeta asfáltica y riego de impregnación.\n\n' +
   'Atendemos obras en Monterrey y su área metropolitana.';
 
 type Obj = Record<string, unknown>;

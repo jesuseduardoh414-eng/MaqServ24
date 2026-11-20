@@ -178,6 +178,7 @@ export {
   equipoDe,
   capacidadDe,
   gruposDeEquipos,
+  rangoDeCapacidades,
   type GrupoEquipos,
   servicioDe,
   porZona,
@@ -243,6 +244,8 @@ export {
   CONDICIONES_POR_LINEA,
   CONDICIONES_CAL,
   EXCAVADORAS_POR_CAPACIDAD,
+  BULLDOZERS_POR_CAPACIDAD,
+  FLETE_BULLDOZER,
 } from './quoter-defaults';
 export { coordenadasDe } from './coordenadas';
 export {
