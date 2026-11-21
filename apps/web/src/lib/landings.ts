@@ -103,7 +103,7 @@ export const LANDINGS: Landing[] = [
     nombre: 'Venta de maquinaria pesada',
     resumen: 'Maquinaria, camiones de volteo y pipas con proveedores de la red',
     eyebrow: 'Venta de maquinaria',
-    h1: 'Venta de maquinaria pesada en Monterrey y Nuevo León',
+    h1: 'Venta de maquinaria pesada usada', // texto del dueño (2026-11-21)
     intro: [
       'Compra excavadoras, retroexcavadoras, motoconformadoras, vibrocompactadores, Bobcat, camiones de volteo y pipas a través de la red de proveedores de MAQSER24. Nos dices qué equipo buscas y te presentamos las opciones disponibles.',
       `Atendemos ${ZONA}. Cuéntanos el tipo de equipo, el uso que le vas a dar, tu presupuesto y para cuándo lo necesitas; un asesor te contacta para continuar.`,
