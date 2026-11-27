@@ -5,4 +5,5 @@ export {
   convertir,
   MATERIALES_CONVERSION,
   type MaterialConversion,
+  type Prellenado,
 } from './calculos';

@@ -79,6 +79,15 @@ export function materialesCalle(d: DatosCalle): MaterialesCalle {
 
 export type MaterialConversion = 'triturados' | 'carpeta';
 
+/**
+ * Lo calculado que viaja a «Cotizar» (2026-11-27): el cotizador abre con esos
+ * renglones ya puestos. `id` es el material del tabulador de triturados
+ * (`subbase`, `base`…), `carpeta` para la carpeta asfáltica, o vacío cuando la
+ * calculadora no sabe cuál triturado es (el conversor): entonces se elige en
+ * el cotizador. `t` son las toneladas estimadas.
+ */
+export interface Prellenado { id: string; t: number }
+
 export const MATERIALES_CONVERSION: Record<MaterialConversion, { nombre: string; factor: number; formula: string; explicacion: string }> = {
   triturados: {
     nombre: 'Triturados',

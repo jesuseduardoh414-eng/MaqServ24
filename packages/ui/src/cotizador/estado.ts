@@ -192,6 +192,50 @@ export function lineasDeFicha(cat: CatalogoMaquinaria | CatalogoTriturados, fich
   return m ? [lineaDeMaterial(cat, m.id)] : [];
 }
 
+/** Desde cuántas toneladas lo calculado entra como «Pedido grande» (2026-11-27, igual que su mínimo). */
+export const TONELADAS_PEDIDO_GRANDE = 100;
+/** El servicio del tabulador de maquinaria con el que entra la carpeta calculada. */
+export const SERVICIO_CARPETA = 'carpeta_asfaltica_normal';
+
+/**
+ * LO CALCULADO, COMO RENGLONES (2026-11-27). «Cotizar» en las calculadoras del
+ * enlace abre el cotizador con lo que salió, según decidió el dueño: los
+ * triturados, con menos de 100 t en total, «Por viaje a mi obra» (viajes de
+ * `ton_por_viaje`, redondeados hacia arriba); con 100 t o más, «Pedido grande»
+ * en tolva, con las toneladas redondeadas hacia arriba. La carpeta, como su
+ * servicio por tonelada. Un material que el tabulador no tiene (o el del
+ * conversor, que no dice cuál) entra sin material: se elige ahí. La zona del
+ * viaje se toma del municipio en cuanto se escribe.
+ */
+export function lineasDePrellenado(
+  cats: { maquinaria?: CatalogoMaquinaria | null; triturados?: CatalogoTriturados | null },
+  pre: Array<{ id: string; t: number }>,
+): LineaCotizador[] {
+  const out: LineaCotizador[] = [];
+  const carpeta = pre.filter((p) => p.id === 'carpeta' && p.t > 0);
+  const maq = cats.maquinaria;
+  if (carpeta.length && maq?.servicios.some((s) => s.id === SERVICIO_CARPETA && !s.oculto)) {
+    const t = carpeta.reduce((a, p) => a + p.t, 0);
+    const l = lineaDeServicio(maq, SERVICIO_CARPETA);
+    out.push({ ...l, cantidad: Math.max(l.cantidad, Math.ceil(t)) });
+  }
+  const trit = pre.filter((p) => p.id !== 'carpeta' && p.t > 0);
+  const cat = cats.triturados;
+  if (trit.length && cat) {
+    const existe = (id: string) => cat.productos.some((p) => p.id === id && !p.oculto && !p.en_obra);
+    const total = trit.reduce((a, p) => a + p.t, 0);
+    for (const p of trit) {
+      const id = existe(p.id) ? p.id : '';
+      if (total >= TONELADAS_PEDIDO_GRANDE) {
+        out.push({ ...lineaDeMaterial(cat, id || 'custom'), toneladas: String(Math.ceil(p.t)), fleteTon: 0, fleteZona: '', camion: 'tolva' });
+      } else {
+        out.push({ ...lineaDeZona(cat), zonaId: '', productoId: id, viajes: Math.max(1, Math.ceil(p.t / (cat.ton_por_viaje || 20))) });
+      }
+    }
+  }
+  return out;
+}
+
 // ---- conversión ----
 
 /**

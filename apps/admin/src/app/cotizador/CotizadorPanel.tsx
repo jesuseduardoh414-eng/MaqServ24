@@ -7,6 +7,7 @@ import {
   aLineas,
   aPartidas,
   lineasDeFicha,
+  lineasDePrellenado,
   useCategorias,
   type ClientePanel,
   type DatosEnvio,
@@ -76,6 +77,7 @@ export function CotizadorPanel({
   solicitudFallida,
   fichaId,
   app = false,
+  prellenar,
 }: {
   tabuladores: Tabuladores;
   /** Con qué tabulador abre: el de maquinaria o el de triturados. */
@@ -97,6 +99,8 @@ export function CotizadorPanel({
   fichaId?: number | null;
   /** Dentro del acceso directo (/cotizar/<llave>/<tipo>, 2026-10-29): su marco ya trae el encabezado. */
   app?: boolean;
+  /** Lo que mandó una calculadora del enlace con «Cotizar» (2026-11-27): abre con esos renglones. */
+  prellenar?: Array<{ id: string; t: number }>;
 }) {
   const branding = useBranding();
 
@@ -189,6 +193,7 @@ export function CotizadorPanel({
         productos={productos}
         solicitud={solicitud ?? null}
         fichaId={fichaId ?? null}
+        prellenar={prellenar ?? []}
         clientesPanel={solicitud ? undefined : { lista: clientes, obras: obrasDe }}
         logo={logo}
         app={app}
@@ -202,13 +207,14 @@ export function CotizadorPanel({
  * El cotizador con sus categorías. Va aparte para que una solicitud nueva (su
  * `key`) empiece de cero también en las categorías, no solo en lo capturado.
  */
-function ConCategorias({ tabuladores: deEntrada, entrada, categoria, productos, solicitud, fichaId, clientesPanel, logo, app }: {
+function ConCategorias({ tabuladores: deEntrada, entrada, categoria, productos, solicitud, fichaId, prellenar, clientesPanel, logo, app }: {
   tabuladores: Tabuladores;
   entrada: CotizadorTipo;
   categoria: string;
   productos: Record<string, ProductoALaMedida[]>;
   solicitud: SolicitudACotizar | null;
   fichaId: number | null;
+  prellenar: Array<{ id: string; t: number }>;
   clientesPanel?: { lista: ClientePanel[]; obras: (id: number) => Promise<EmpresaCliente['sites']> };
   logo: string | null;
   app: boolean;
@@ -240,7 +246,10 @@ function ConCategorias({ tabuladores: deEntrada, entrada, categoria, productos, 
     const lineas: LineaCotizador[] | undefined =
       solicitud?.documento && solicitud.documento.tipo === entrada
         ? aLineas(solicitud.documento.partidas)
-        : fichaId && !solicitud ? lineasDeFicha(completo, fichaId) : undefined;
+        : fichaId && !solicitud ? lineasDeFicha(completo, fichaId)
+          // De una calculadora (2026-11-27): la carpeta o los triturados calculados.
+          : prellenar.length && !solicitud ? lineasDePrellenado(tabuladores, prellenar)
+            : undefined;
     return { lineas, categorias: [categoria, ...categoriasDePartidas(completo, aPartidas(lineas ?? []))] };
   });
   const categorias = useCategorias(tabuladores, inicio.categorias);

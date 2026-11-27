@@ -7,6 +7,7 @@ import { llaveValida, cotizadorDirecto } from '@/lib/acceso-directo';
 import { CotizadorPanel } from '@/app/cotizador/CotizadorPanel';
 import { AppCotizador } from './AppCotizador';
 import { CalculadoraEnlace } from './CalculadoraEnlace';
+import { leerPrellenado } from '@/lib/prellenado';
 
 /**
  * ACCESO DIRECTO A UN COTIZADOR (2026-10-29).
@@ -32,7 +33,7 @@ import { CalculadoraEnlace } from './CalculadoraEnlace';
  * `m3-a-toneladas` abren en el mismo marco, con el mismo menú. "Por el momento
  * solo se deben mostrar en el enlace": no están en el sitio ni en el panel.
  */
-type Params = { params: Promise<{ llave: string; tipo: string }> };
+type Params = { params: Promise<{ llave: string; tipo: string }>; searchParams?: Promise<{ pre?: string | string[] }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { llave, tipo: t } = await params;
@@ -56,8 +57,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export const viewport: Viewport = { themeColor: '#0b0d11' };
 
-export default async function CotizadorDirecto({ params }: Params) {
+export default async function CotizadorDirecto({ params, searchParams }: Params) {
   const { llave, tipo: t } = await params;
+  // Lo que mandó una calculadora con «Cotizar» (2026-11-27): abre con esos renglones.
+  const prellenar = leerPrellenado((await searchParams)?.pre);
   const calc = calculadoraDelEnlace(t);
   const c = cotizadorDirecto(t);
   if ((!c && !calc) || !llaveValida(llave)) notFound();
@@ -85,6 +88,7 @@ export default async function CotizadorDirecto({ params }: Params) {
       <CotizadorPanel
         // Otra categoría del menú = otra cotización, desde cero.
         key={c.clave}
+        prellenar={prellenar}
         tabuladores={tabuladores}
         entrada={c.tipo}
         categoria={c.clave}

@@ -342,6 +342,15 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
   const [forma, setForma] = useState<FormaTriturados | null>(() => formaDe(lineasIniciales ?? [], esEnObra));
   const zonaObraTrit = () => (catTrit ? zonaDelMunicipio(catTrit, ctx.municipio) : null);
   /**
+   * Los viajes sin zona (2026-11-27: los que llegan de una calculadora) la
+   * toman del municipio en cuanto se escribe. Los que ya tienen zona no se tocan.
+   */
+  useEffect(() => {
+    const z = catTrit ? zonaDelMunicipio(catTrit, ctx.municipio) : null;
+    if (!z) return;
+    setLineas((prev) => (prev.some((l) => l.tipo === 'zona' && !l.zonaId) ? prev.map((l) => (l.tipo === 'zona' && !l.zonaId ? { ...l, zonaId: z.id } : l)) : prev));
+  }, [ctx.municipio, catTrit]);
+  /**
    * El municipio que no estaba en ninguna zona (2026-11-06): se guarda en la
    * elegida y los viajes sin zona la toman. El tabulador nuevo llega por
    * `catalogo` cuando quien llama lo actualiza.

@@ -11,6 +11,7 @@ import {
   materialesCalle,
   numeroDe,
   type MaterialConversion,
+  type Prellenado,
 } from './calculos';
 
 /**
@@ -19,8 +20,11 @@ import {
  * verse igual que él en el panel y, el día que se quiera, en el sitio.
  */
 export interface PropsCalculadora {
-  /** A dónde lleva «Cotizar …» de cada material (en el enlace, su cotizador con la llave). */
-  cotizarHref: (material: MaterialConversion) => string;
+  /**
+   * A dónde lleva «Cotizar …» de cada material (en el enlace, su cotizador con
+   * la llave). Con `pre`, lo calculado para que el cotizador abra con ello.
+   */
+  cotizarHref: (material: MaterialConversion, pre?: Prellenado[]) => string;
   /**
    * Enlace de «Mandar por WhatsApp» con el resumen. Sin él, WhatsApp abre
    * pidiendo a quién mandarlo (en el enlace: a un cliente).
@@ -202,8 +206,9 @@ export function CalculadoraPavimento({ cotizarHref, whatsappHref, marca = 'MAQSE
         <Acciones
           resumen={resumen}
           cotizar={[
-            { href: cotizarHref('triturados'), texto: 'Cotizar triturados' },
-            { href: cotizarHref('carpeta'), texto: 'Cotizar carpeta asfáltica' },
+            // Con lo calculado (2026-11-27): el cotizador abre con la subbase y la base, o con la carpeta.
+            { href: cotizarHref('triturados', [{ id: 'subbase', t: m.subbase.t }, { id: 'base', t: m.base.t }].filter((x) => x.t > 0)), texto: 'Cotizar triturados' },
+            { href: cotizarHref('carpeta', m.carpeta.t > 0 ? [{ id: 'carpeta', t: m.carpeta.t }] : []), texto: 'Cotizar carpeta asfáltica' },
           ]}
           whatsappHref={whatsappHref}
           vacio={d.area === 0}
@@ -231,6 +236,9 @@ export function ConversorM3Ton({ cotizarHref, whatsappHref, marca = 'MAQSER24', 
   const de = aToneladas ? 'm³' : 't';
   const a = aToneladas ? 't' : 'm³';
   const resumen = `${marca} · ${mat.nombre}\n${dato(n)} ${de} = ${cifra(resultado)} ${a}`;
+  // Las toneladas, en el sentido que sea; el triturado no dice cuál es: se elige en el cotizador.
+  const toneladas = aToneladas ? resultado : n;
+  const pre: Prellenado[] = toneladas > 0 ? [{ id: material === 'carpeta' ? 'carpeta' : '', t: toneladas }] : [];
 
   return (
     <Marco variante={variante} titulo="Conversor de m³ a toneladas" sub="Triturados o carpeta asfáltica: escribe el volumen y salen las toneladas al momento. También al revés.">
@@ -298,7 +306,7 @@ export function ConversorM3Ton({ cotizarHref, whatsappHref, marca = 'MAQSER24', 
 
         <Acciones
           resumen={resumen}
-          cotizar={[{ href: cotizarHref(material), texto: material === 'triturados' ? 'Cotizar triturados' : 'Cotizar carpeta asfáltica' }]}
+          cotizar={[{ href: cotizarHref(material, pre), texto: material === 'triturados' ? 'Cotizar triturados' : 'Cotizar carpeta asfáltica' }]}
           whatsappHref={whatsappHref}
           vacio={n === 0}
         />
