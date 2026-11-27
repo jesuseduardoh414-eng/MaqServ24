@@ -428,6 +428,17 @@ export const opcionesCotizadorSchema = z.object({
 });
 export type OpcionesCotizador = z.infer<typeof opcionesCotizadorSchema>;
 
+/**
+ * Las opciones como llegan en una solicitud: cada una opcional y SIN valor por
+ * defecto (2026-11-27, zod 4). Con `opcionesCotizadorSchema.partial()`, zod 4
+ * llenaba los defaults (`con_iva: true`) y se perdía el «sin dato → el de
+ * Tarifas» (`opciones.con_iva ?? cat.iva_por_defecto`).
+ */
+export const opcionesParcialesSchema = z.object({
+  modo_unidad: z.enum(['horas', 'dias']).optional(),
+  con_iva: z.boolean().optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Resultado del cálculo
 // ---------------------------------------------------------------------------

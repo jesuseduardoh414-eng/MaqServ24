@@ -12,7 +12,7 @@ import {
   faltaMinimoCamion,
   faltaZona,
   trituradosDe,
-  opcionesCotizadorSchema,
+  opcionesParcialesSchema,
   porZona,
   servicioDe,
   zonaDeMunicipio,
@@ -46,7 +46,7 @@ const contactoSchema = z.object({
 });
 
 export const calcularSchema = z.object({
-  opciones: opcionesCotizadorSchema.partial().optional().default({}),
+  opciones: opcionesParcialesSchema.prefault({}),
   partidas: z.array(z.unknown()).max(60),
 });
 
@@ -58,7 +58,7 @@ export const cotizacionPanelSchema = contactoSchema.extend({
   cliente: z.string().trim().max(190).optional().default(''),
   correo: zCorreo().optional().default(''),
   telefono: zTelefono().optional().default(''),
-  opciones: opcionesCotizadorSchema.partial().optional().default({}),
+  opciones: opcionesParcialesSchema.prefault({}),
   partidas: z.array(z.unknown()).min(1, 'Agrega al menos una partida').max(60),
   /** Cliente y obra registrados que eligió (2026-10-23); sin ellos se dan de alta con lo escrito. */
   clienteId: z.coerce.number().int().positive().nullable().optional(),
@@ -82,7 +82,7 @@ export const solicitudSitioSchema = contactoSchema.extend({
   municipio: z.string().trim().min(2, 'Elige el municipio de la obra.').max(90),
   correo: zCorreo().optional().default(''),
   telefono: zTelefono().optional().default(''),
-  opciones: opcionesCotizadorSchema.partial().optional().default({}),
+  opciones: opcionesParcialesSchema.prefault({}),
   partidas: z.array(z.unknown()).min(1, 'Agrega al menos una partida').max(60),
   /** Empresa elegida de las de su cuenta (2026-10-23); la obra ya no se pide (2026-11-03). */
   clienteId: z.coerce.number().int().positive().nullable().optional(),

@@ -43,7 +43,9 @@
       "proxy-addr": "^2.0.8",
       "source-map-js": "^1.2.2",
       "body-parser": "^2.4.0",
-      "effect": "^3.22.1"
+      "effect": "^3.22.1",
+      "@nestjs/cli>glob": "^14.0.2",
+      "minimatch@10": "^11.0.1"
     }
   }
 }

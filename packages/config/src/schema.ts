@@ -120,7 +120,7 @@ export const heroSettingsSchema = z
     // Vive en el tema y no en hero_sections para no pedir otra columna en la BD.
     video: z.string().nullable().default(null),
   })
-  .default({});
+  .prefault({});
 
 /**
  * Ajustes de la SECCIÓN 2 · Categorías. El CONTENIDO (nombres/imágenes) sale
@@ -138,7 +138,7 @@ export const categoriesSettingsSchema = z
     titleColor: z.string().nullable().default(null), // null ⇒ var(--color-text)
     cardAccentColor: z.string().nullable().default(null), // flecha/etiqueta; null ⇒ var(--color-primary)
   })
-  .default({});
+  .prefault({});
 
 /**
  * Ajustes de la PÁGINA/VISTA de categorías (/categorias). Contenido = mismas
@@ -163,7 +163,7 @@ export const ctaBlockSchema = z
     textColor: z.string().nullable().default(null),
     accentColor: z.string().nullable().default(null), // botón/detalles
   })
-  .default({});
+  .prefault({});
 
 export const categoriesViewSchema = z
   .object({
@@ -177,7 +177,7 @@ export const categoriesViewSchema = z
     hero: ctaBlockSchema, // banda superior (hero de la página)
     promo: ctaBlockSchema, // banda inferior (anuncio/promo)
   })
-  .default({});
+  .prefault({});
 
 /** Sección 3 · Productos destacados (home): presentación de la parrilla. */
 export const featuredSchema = z
@@ -188,7 +188,7 @@ export const featuredSchema = z
     eyebrowColor: z.string().nullable().default(null),
     titleColor: z.string().nullable().default(null),
   })
-  .default({});
+  .prefault({});
 
 /**
  * Sección 4 · Quiénes somos ("¿Por qué elegirnos?" en el home): presentación.
@@ -210,7 +210,7 @@ export const whyChooseUsSchema = z
     statsBg: z.string().nullable().default(null), // fondo de la barra; null ⇒ var(--color-primary)
     statsFg: z.string().nullable().default(null), // texto de la barra; null ⇒ var(--color-primary-fg)
   })
-  .default({});
+  .prefault({});
 
 /**
  * Página /quienes-somos: contenido ESTRUCTURADO (lo que no es prosa). La prosa
@@ -265,7 +265,7 @@ export const quienesSomosSchema = z
     ctaSecondary: z.string().default('Llámanos'),
     ctaSecondaryLink: z.string().default('/contacto'),
   })
-  .default({});
+  .prefault({});
 
 /**
  * Sección 5 · Sectores estratégicos (home): presentación de las tarjetas overlay.
@@ -281,7 +281,7 @@ export const sectorsSchema = z
     titleColor: z.string().nullable().default(null),
     ctaColor: z.string().nullable().default(null), // enlace "Explorar equipos"; null ⇒ var(--color-primary)
   })
-  .default({});
+  .prefault({});
 
 /**
  * Sección 6 · Oferta / Promoción (home): la banda destacada de oferta.
@@ -294,7 +294,7 @@ export const blogSchema = z
     /** Cuántas entradas se adelantan en el home. Estaba fijo en 3 dentro del código. */
     limit: z.number().int().min(1).max(12).default(3),
   })
-  .default({});
+  .prefault({});
 
 /**
  * Banda de marcas (`home.brands`) y el mismo listado en /quienes-somos.
@@ -312,7 +312,7 @@ export const brandsSchema = z
     eyebrow: z.string().default('Equipo de marcas reconocidas dentro de la red'),
     list: z.array(z.string()).default(['CAT', 'KOMATSU', 'KUBOTA', 'JCB', 'VOLVO', 'BOBCAT']),
   })
-  .default({});
+  .prefault({});
 
 /**
  * FONDO ANIMADO DEL SITIO (2026-11-16, el dueño: «el fondo se va cambiar de
@@ -329,7 +329,7 @@ export const fondoSchema = z
     oscuridad: z.number().min(0).max(95).default(55), // % del velo oscuro encima del video
     girar: z.boolean().default(true), // video vertical en pantalla ancha: girarlo 90° para cubrirla con más nitidez
   })
-  .default({});
+  .prefault({});
 
 /**
  * MÚSICA DE FONDO DEL SITIO (2026-11-17, el dueño: «solicitaron meter música de
@@ -344,7 +344,7 @@ export const musicaSchema = z
     archivo: z.string().nullable().default('/fondo/musica-tecnologia.mp3'),
     volumen: z.number().min(5).max(100).default(24), // % (2026-11-17, el dueño: «bájale un poco, si está en 10 déjalo en 8»: 30 → 24)
   })
-  .default({});
+  .prefault({});
 
 export const offerSchema = z
   .object({
@@ -356,7 +356,7 @@ export const offerSchema = z
     accentColor: z.string().nullable().default(null), // badge + botón; null ⇒ var(--color-primary)
     titleColor: z.string().nullable().default(null), // null ⇒ #fff
   })
-  .default({});
+  .prefault({});
 
 /**
  * Una tarjeta de «Promociones del mes» (2026-10-19). El video es lo principal;
@@ -387,7 +387,7 @@ export const promotionsSchema = z
     titleColor: z.string().nullable().default(null),
     accentColor: z.string().nullable().default(null), // etiqueta y botón; null ⇒ var(--color-primary)
   })
-  .default({});
+  .prefault({});
 
 /**
  * Sección 7 · Reseñas (home): presentación del carrusel "Lo que dicen nuestros
@@ -402,7 +402,7 @@ export const reviewsSchema = z
     titleColor: z.string().nullable().default(null),
     accentColor: z.string().nullable().default(null), // estrellas y comillas; null ⇒ var(--color-primary)
   })
-  .default({});
+  .prefault({});
 
 /**
  * Sección 8 · Preguntas frecuentes (home): presentación de la banda de FAQ.
@@ -416,7 +416,7 @@ export const faqSchema = z
     titleColor: z.string().nullable().default(null),
     accentColor: z.string().nullable().default(null), // signo +/- de cada item; null ⇒ var(--color-primary)
   })
-  .default({});
+  .prefault({});
 
 /** Página de catálogo /productos: banner superior + anuncio intermedio + promo inferior. */
 export const catalogSchema = z
@@ -425,7 +425,7 @@ export const catalogSchema = z
     mid: ctaBlockSchema, // anuncio/visual intermedio (entre grupos de productos)
     promo: ctaBlockSchema, // banda de promoción debajo de la parrilla
   })
-  .default({});
+  .prefault({});
 
 /**
  * Página de Contacto (/contacto). Además de la página, los canales (phone,
@@ -465,7 +465,7 @@ export const contactSchema = z
     email: z.string().default('info@maqser24.com'),
     hours: z.string().default('Lun–Sáb · 8:00–18:00'),
     address: z.string().default(''), // dirección principal / origen del cálculo de fletes
-    urgent: contactUrgentSchema.default({}),
+    urgent: contactUrgentSchema.prefault({}),
     needs: z.array(z.string()).default(['Rentar equipo', 'Cotización', 'Soporte técnico', 'Otro']),
     branches: z.array(contactBranchSchema).default([
       { city: 'Tampico', address: 'Av. Hidalgo 2450, Col. Centro, Tampico, Tamps. — Matriz', phone: '833 224 56 78', isNew: false, image: null },
@@ -473,7 +473,7 @@ export const contactSchema = z
       { city: 'Guadalajara', address: 'Periférico Norte 850, Zapopan, Jal.', phone: '33 4455 6677', isNew: false, image: null },
     ]),
   })
-  .default({});
+  .prefault({});
 
 /** Pie de página (footer): boletín, columnas de enlaces, redes y copyright. */
 export const footerLinkSchema = z.object({ label: z.string().default(''), href: z.string().default('/') });
@@ -513,7 +513,7 @@ export const footerSchema = z
     ]),
     copyright: z.string().default(''), // vacío ⇒ "© {año} {marca}. Todos los derechos reservados."
   })
-  .default({});
+  .prefault({});
 
 /** Contenido legal editable (Términos y Privacidad). Vacío ⇒ el sitio usa LEGAL_DEFAULTS. */
 export const legalSectionSchema = z.object({ h: z.string().default(''), body: z.string().default('') });
@@ -523,13 +523,13 @@ export const legalDocSchema = z
     intro: z.string().default(''),
     sections: z.array(legalSectionSchema).default([]),
   })
-  .default({});
+  .prefault({});
 export const legalSchema = z
   .object({
     terms: legalDocSchema,
     privacy: legalDocSchema,
   })
-  .default({});
+  .prefault({});
 
 /**
  * Ajustes de cobro del checkout (editables en el panel → Pagos).
@@ -586,13 +586,13 @@ export const checkoutFreightSchema = z.object({
 });
 export const checkoutSchema = z
   .object({
-    tax: checkoutTaxSchema.default({}),
-    operator: checkoutOperatorSchema.default({}),
-    freight: checkoutFreightSchema.default({}),
+    tax: checkoutTaxSchema.prefault({}),
+    operator: checkoutOperatorSchema.prefault({}),
+    freight: checkoutFreightSchema.prefault({}),
     /** Nota bajo el botón de pago (p. ej. condiciones del traslado). */
     note: z.string().default('El traslado se cotiza según ubicación.'),
   })
-  .default({});
+  .prefault({});
 
 export const themeTokensSchema = z.object({
   colors: z.object({
@@ -603,7 +603,7 @@ export const themeTokensSchema = z.object({
   shape: shapeSchema,
   sections: z.array(sectionSchema).transform(conSeccionesNuevas),
   /** Identidad de marca: logos y favicon (opcional; default {}). */
-  branding: brandingSchema.default({}),
+  branding: brandingSchema.prefault({}),
   /** Ajustes de la Sección 1 · Hero (colores, links, opacidad, toggles). */
   hero: heroSettingsSchema,
   /** Ajustes de la Sección 2 · Categorías (adelanto en el home). */

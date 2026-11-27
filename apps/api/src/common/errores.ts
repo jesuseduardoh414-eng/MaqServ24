@@ -19,7 +19,7 @@ import { ZodError } from 'zod';
 const log = new Logger('Errores');
 
 /** Mensajes de librerías (Nest, body-parser, multer, zod): técnicos y en inglés. */
-const TECNICO = /^(Cannot (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) |Validation failed|Unexpected (token|end|field|character)|.*\bJSON\b|Expected |Invalid |Required$|String must|Number must|Array must|Too (many|few)|File too large|Bad Request$|Not Found$|request entity too large|Multipart|Boundary)/i;
+const TECNICO = /^(Cannot (GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) |Validation failed|Unexpected (token|end|field|character)|.*\bJSON\b|Expected |Invalid |Required$|String must|Number must|Array must|Too (many|few|small|big)|Unrecognized key|File too large|Bad Request$|Not Found$|request entity too large|Multipart|Boundary)/i;
 
 const GENERICO: Record<number, string> = {
   400: 'Datos inválidos.',

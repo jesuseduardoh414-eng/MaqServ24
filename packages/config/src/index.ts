@@ -151,6 +151,7 @@ export {
   type CatalogoCombinado,
   partidaTrituradosSchema,
   opcionesCotizadorSchema,
+  opcionesParcialesSchema,
   esCotizadorTipo,
   partidasPorProveedor,
   analizarPartidas,

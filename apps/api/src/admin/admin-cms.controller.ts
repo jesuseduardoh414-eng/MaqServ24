@@ -21,8 +21,8 @@ import { mosaicoQuienes, ponerVideoDeQuienes, videosDeQuienes } from '../content
 /** Frase corta, títulos y frases destacadas de un sector (ver sector-contenido en @maqserv/config). */
 const textosSectorSchema = z.object({
   frase: z.string().max(300).nullable().optional(),
-  titulos: z.record(z.string().max(80)).optional(),
-  destacados: z.record(z.string().max(300)).optional(),
+  titulos: z.record(z.string(), z.string().max(80)).optional(),
+  destacados: z.record(z.string(), z.string().max(300)).optional(),
 });
 
 const photoStorage = mediaStorage();

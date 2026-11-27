@@ -70,7 +70,7 @@ export function FormServicioProveedor({ opciones, inicial, proveedorInicial, vol
   volver: string;
 }) {
   const router = useRouter();
-  const d0 = inicial?.detalle ?? {};
+  const d0: Partial<DetalleServicio> = inicial?.detalle ?? {};
 
   // ── Qué es ──
   const [proveedorId, setProveedorId] = useState(String(inicial?.proveedorId ?? proveedorInicial ?? ''));

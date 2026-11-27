@@ -1,7 +1,7 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, ParseIntPipe, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { prisma } from '@maqserv/db';
-import { esCotizadorTipo, opcionesCotizadorSchema, puedeVerCon, type RefTarifa } from '@maqserv/config';
+import { esCotizadorTipo, opcionesParcialesSchema, puedeVerCon, type RefTarifa } from '@maqserv/config';
 import { AdminGuard, type AdminRequest, Modulo } from './admin-auth';
 import { permisosVigentes } from './permisos';
 import { registrarAccion } from './audit';
@@ -68,7 +68,7 @@ export class AdminSolicitudesController {
   async guardarFicha(@Param('id', ParseIntPipe) id: number, @Body() body: unknown, @Req() req: AdminRequest) {
     const p = z.object({
       partidas: z.array(z.unknown()).min(1, 'La cotización se quedó sin partidas.').max(60).optional(),
-      opciones: opcionesCotizadorSchema.partial().optional().default({}),
+      opciones: opcionesParcialesSchema.prefault({}),
       // Los datos de la entrega (2026-10-23).
       datos: z.object({
         obraId: z.number().int().positive().nullable().optional(),
