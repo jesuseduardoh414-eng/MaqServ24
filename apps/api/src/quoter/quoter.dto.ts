@@ -93,7 +93,19 @@ export const solicitudSitioSchema = contactoSchema.extend({
   /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. */
   ubicacion: z.string().trim().max(500).optional().default('')
     .refine((v) => !v || esUbicacionDeMapas(v), 'Esa ubicación no es de Google Maps: en Maps toca «Compartir» y pega el enlace.'),
+  /**
+   * El punto exacto de la obra (2026-11-27), opcional: «Usar mi ubicación» o
+   * marcado en el mapa. No sale en el documento; va a la obra. Uno fuera de
+   * México no rechaza la solicitud: se ignora (ver `puntoEnMexico`).
+   */
+  punto: z.object({ lat: z.number().finite().min(-90).max(90), lng: z.number().finite().min(-180).max(180) }).nullable().optional(),
 });
+
+/** Solo puntos dentro de México (caja aproximada): uno de otro lado es un error del teléfono, no la obra. */
+export function puntoEnMexico(p: { lat: number; lng: number } | null | undefined): { lat: number; lng: number } | null {
+  if (!p) return null;
+  return p.lat >= 14.4 && p.lat <= 32.8 && p.lng >= -118.5 && p.lng <= -86.6 ? p : null;
+}
 
 /**
  * Valida las partidas contra el esquema del tipo. Lanza 400 con el motivo.

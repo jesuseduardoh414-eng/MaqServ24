@@ -78,6 +78,34 @@ export interface DatosSolicitud {
    * cuenta del sitio. Del sitio nunca: ahí tienen que ser de su cuenta.
    */
   confiarEnIds?: boolean;
+  /**
+   * Sitio (2026-11-27): el punto exacto que marcó el cliente («Usar mi
+   * ubicación» o el mapa). La obra se guarda con él; sin dirección ni nombre,
+   * es el punto el que dice qué obra es.
+   */
+  punto?: { lat: number; lng: number } | null;
+}
+
+/**
+ * Hasta dónde un punto marcado es LA MISMA obra (2026-11-27): 150 m, la
+ * entrada de una obra cabe de sobra. No contradice la decisión 2 de arriba:
+ * no es "la más cercana", es el mismo lugar. Así las partes de un mismo
+ * documento (y la siguiente solicitud desde ahí) caen en la misma obra.
+ */
+const MISMA_OBRA_KM = 0.15;
+
+/** Distancia en línea recta, en km. */
+function kmEntre(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = (g: number) => (g * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+/** El punto que marcó el cliente manda sobre el que se dedujo de la dirección. */
+async function ponerPunto(siteId: number, punto: { lat: number; lng: number }): Promise<void> {
+  await prisma.client_sites.update({ where: { id: siteId }, data: { lat: punto.lat, lng: punto.lng, updated_at: new Date() } });
 }
 
 export interface Resuelto {
@@ -271,7 +299,10 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
         where: d.confiarEnIds ? { id: d.siteId } : { id: d.siteId, clients: { user_id: d.userId } },
         select: { id: true, client_id: true },
       });
-      if (obra) return { clientId: obra.client_id, siteId: obra.id };
+      if (obra) {
+        if (d.punto) await ponerPunto(obra.id, d.punto);
+        return { clientId: obra.client_id, siteId: obra.id };
+      }
     }
 
     const empresa = (d.companyName ?? '').trim();
@@ -328,25 +359,38 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
 
     const direccion = (d.address ?? '').trim();
     const nombreObra = (d.siteName ?? '').trim();
-    if (!direccion && !nombreObra) return { clientId: cliente.id, siteId: null };
+    const punto = d.punto ?? null;
+    // Sin dirección ni nombre (el sitio ya no los pide, 2026-11-03), el punto marcado basta para abrir la obra.
+    if (!direccion && !nombreObra && !punto) return { clientId: cliente.id, siteId: null };
 
     // ¿Ya conoce esa obra? Por dirección o por el nombre que le da, comparados
     // normalizados: "Av. Vasconcelos 1500" y "av vasconcelos 1500" son la
-    // misma, y pedir dos veces para "Bodega Escobedo" no abre dos obras.
+    // misma, y pedir dos veces para "Bodega Escobedo" no abre dos obras. Con
+    // punto, también la que está en el mismo lugar (MISMA_OBRA_KM).
     const obras = await prisma.client_sites.findMany({
       where: { client_id: cliente.id, status: 1 },
-      select: { id: true, name: true, address: true },
+      select: { id: true, name: true, address: true, lat: true, lng: true },
     });
     const clave = normalizar(direccion);
     const claveNombre = normalizar(nombreObra);
-    const ya = obras.find((o) => (clave && normalizar(o.address) === clave) || (claveNombre && normalizar(o.name) === claveNombre));
-    if (ya) return { clientId: cliente.id, siteId: ya.id };
+    const ya =
+      obras.find((o) => (clave && normalizar(o.address) === clave) || (claveNombre && normalizar(o.name) === claveNombre)) ??
+      (punto
+        ? obras.find((o) => o.lat != null && o.lng != null && kmEntre(punto, { lat: Number(o.lat), lng: Number(o.lng) }) <= MISMA_OBRA_KM)
+        : undefined);
+    if (ya) {
+      if (punto) await ponerPunto(ya.id, punto);
+      return { clientId: cliente.id, siteId: ya.id };
+    }
 
+    // Solo con el punto, el nombre provisional dice dónde: «Obra en Apodaca».
+    const nombre = nombreObra || (direccion ? nombrarObra(direccion, d.region) : `Obra en ${(d.region ?? '').trim() || 'el mapa'}`);
     const nueva = await prisma.client_sites.create({
       data: {
         client_id: cliente.id,
-        name: (nombreObra || nombrarObra(direccion, d.region)).slice(0, 190),
+        name: nombre.slice(0, 190),
         address: direccion || null,
+        ...(punto ? { lat: punto.lat, lng: punto.lng } : {}),
         // El municipio REAL, si se reconoce (2026-10-15): `region` en el formulario
         // es el ESTADO, y guardarlo como municipio dejaba la obra sin mapa.
         municipality: [d.region, direccion]
@@ -355,7 +399,11 @@ export async function resolverClienteYObra(d: DatosSolicitud): Promise<Resuelto>
           .find(Boolean) ?? null,
         contact_name: d.contactName ?? null,
         contact_phone: d.phone ?? null,
-        notes: nombreObra ? 'La dio de alta el cliente al pedir.' : 'Obra deducida de una solicitud. Conviene revisar el nombre.',
+        notes: nombreObra
+          ? 'La dio de alta el cliente al pedir.'
+          : punto && !direccion
+            ? 'La marcó el cliente en el mapa al pedir. Conviene ponerle nombre y dirección.'
+            : 'Obra deducida de una solicitud. Conviene revisar el nombre.',
       },
       select: { id: true },
     });

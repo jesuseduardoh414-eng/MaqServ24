@@ -78,6 +78,8 @@ export interface Destino {
   confiable?: boolean;
   /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps. */
   ubicacion?: string | null;
+  /** Sitio (2026-11-27): el punto exacto de la obra que marcó el cliente. */
+  punto?: { lat: number; lng: number } | null;
 }
 
 export interface ServicioAbierto {
@@ -340,6 +342,7 @@ export class QuoterServicio {
       clientId: destino?.clientId ?? null,
       siteName: destino ? cot.work : null,
       confiarEnIds: destino?.confiable ?? false,
+      punto: destino?.punto ?? null,
     });
     const obra = ligada.siteId
       ? await prisma.client_sites.findUnique({ where: { id: ligada.siteId }, select: { address: true, municipality: true } })

@@ -42,6 +42,7 @@ import { ShDatePicker } from '../shadcn/date-picker';
 import {
   CONTEXTO_VACIO,
   aPartidas,
+  enlaceDePunto,
   formaDe,
   lineaDeBanco,
   lineaDeEquipo,
@@ -62,6 +63,7 @@ import {
   type LineaServicio,
   type LineaTriturados,
   type LineaZona,
+  type PuntoObra,
 } from './estado';
 import { PasoDuracion, PasoEquipos, PasoServicios, ServicioAMano } from './pasos-maquinaria';
 import { CategoriaAMano, unidadDeProducto, type ProductoALaMedida } from './categorias';
@@ -180,6 +182,12 @@ export interface CotizadorProps {
    * una sale en su tarjeta y lo que se toca se cotiza con precio a mano.
    */
   aMano?: { categorias: Array<{ clave: string; titulo: string; icono: string; productos: ProductoALaMedida[] }>; quitar: (clave: string) => void };
+  /**
+   * Sitio (2026-11-27): el punto exacto de la obra, al final de la tarjeta del
+   * cliente. Lo pinta quien llama (el sitio, con su mapa) para no cargarle el
+   * mapa al panel ni al enlace. Opcional: sin punto todo sigue igual.
+   */
+  marcarObra?: (p: { valor: PuntoObra | null; poner: (p: PuntoObra | null) => void; municipio: string }) => ReactNode;
   onEnviar: (datos: DatosEnvio) => Promise<ResultadoEnvio>;
 }
 
@@ -205,7 +213,7 @@ const PASOS = [{ clave: 'armar' }, { clave: 'resumen' }] as const;
  * duplicación: es la misma función ejecutada en dos sitios, y la del servidor
  * es la que manda.
  */
-export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, categoriasExtra, masServicios, despues, extras, notasExtra = '', partidasExtra, faltaExtra = null, guardarZonaTriturados, aMano, onEnviar }: CotizadorProps) {
+export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empresas, clientesPanel, logo, sinUbicacion = false, soloPrecios = false, titulo, categoriasExtra, masServicios, despues, extras, notasExtra = '', partidasExtra, faltaExtra = null, guardarZonaTriturados, aMano, marcarObra, onEnviar }: CotizadorProps) {
   const tipo = catalogo.tipo;
   /**
    * EN UNA SOLA PANTALLA (2026-11-03, con la captura del cotizador de PUCSA:
@@ -798,7 +806,7 @@ export function Cotizador({ catalogo, variante, inicial, lineasIniciales, empres
                   modoUnidad={tipo === 'maquinaria' && (catalogo as CatalogoMaquinaria).equipos.length > 0 ? { valor: modoUnidad, poner: setModoUnidad } : undefined}
                 />
               ) : (
-                <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} />
+                <PasoObra ctx={ctx} setCtx={setCtx} catalogo={catalogo} pideContacto={!esPanel} tocado={tocado} empresas={esPanel ? undefined : empresas ?? []} clientesPanel={esPanel ? clientesPanel : undefined} marcarObra={esPanel ? undefined : marcarObra} />
               )}
             </div>
           ) : null}
@@ -1030,6 +1038,7 @@ function PasoObra({
   tocado,
   empresas,
   clientesPanel,
+  marcarObra,
 }: {
   ctx: ContextoCotizador;
   setCtx: (c: ContextoCotizador) => void;
@@ -1040,9 +1049,11 @@ function PasoObra({
   empresas?: EmpresaCliente[];
   /** Solo el panel: los clientes registrados. */
   clientesPanel?: CotizadorProps['clientesPanel'];
+  /** Solo el sitio: el mapa para marcar el punto exacto de la obra. */
+  marcarObra?: CotizadorProps['marcarObra'];
 }) {
   const set = (patch: Partial<ContextoCotizador>) => setCtx({ ...ctx, ...patch });
-  if (empresas) return <PasoObraSitio ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} empresas={empresas} />;
+  if (empresas) return <PasoObraSitio ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} empresas={empresas} marcarObra={marcarObra} />;
   if (clientesPanel) return <PasoObraPanel ctx={ctx} set={set} catalogo={catalogo} tocado={tocado} clientes={clientesPanel} />;
   // Mismas reglas que la API (@maqserv/config). En el sitio son obligatorios;
   // en el panel, opcionales, pero si se escriben tienen que estar bien.
@@ -1313,14 +1324,26 @@ function PasoObraSitio({
   catalogo,
   tocado,
   empresas,
+  marcarObra,
 }: {
   ctx: ContextoCotizador;
   set: (patch: Partial<ContextoCotizador>) => void;
   catalogo: CatalogoCotizador;
   tocado: boolean;
   empresas: EmpresaCliente[];
+  marcarObra?: CotizadorProps['marcarObra'];
 }) {
   const falta = (cond: boolean, texto: string) => (tocado && cond ? texto : null);
+  /**
+   * EL PUNTO EXACTO (2026-11-27). Marcarlo también llena la ubicación de
+   * Google Maps que piden los triturados con flete, si está vacía o si la puso
+   * el punto anterior: así no tiene que pegar el enlace. Lo que el cliente
+   * pegó a mano no se toca.
+   */
+  const ponerPunto = (p: PuntoObra | null) => {
+    const delPunto = !ctx.ubicacion.trim() || (ctx.punto != null && ctx.ubicacion === enlaceDePunto(ctx.punto));
+    set({ punto: p, ...(delPunto ? { ubicacion: p ? enlaceDePunto(p) : '' } : {}) });
+  };
   const elegirEmpresa = (v: string) => {
     const e = empresas.find((x) => String(x.id) === v);
     // Sin municipio todavía, el de su primera obra con municipio.
@@ -1369,6 +1392,7 @@ function PasoObraSitio({
           {(id) => <ShInput id={id} value={ctx.atencion} maxLength={190} placeholder="Ing. / Lic." onChange={(e) => set({ atencion: e.target.value })} />}
         </Campo>
       </div>
+      {marcarObra ? marcarObra({ valor: ctx.punto, poner: ponerPunto, municipio: ctx.municipio }) : null}
     </div>
   );
 }

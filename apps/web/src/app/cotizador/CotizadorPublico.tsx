@@ -29,6 +29,7 @@ import {
 } from '@maqserv/config';
 import Link from '@/components/Enlace';
 import { evento } from '@/lib/analitica';
+import { PuntoObra } from './PuntoObra';
 
 export type { ProductoALaMedida };
 
@@ -209,6 +210,8 @@ export function CotizadorPublico({
         direccion: datos.contexto.direccion,
         fecha: datos.contexto.fecha,
         ubicacion: datos.contexto.ubicacion,
+        // El punto exacto de la obra (2026-11-27): opcional, no sale impreso; va a la obra.
+        ...(datos.contexto.punto ? { punto: datos.contexto.punto } : {}),
         opciones: datos.opciones,
         partidas: datos.partidas,
       }),
@@ -257,6 +260,7 @@ export function CotizadorPublico({
       inicial={{ ...inicial, municipio, ...(primera ? { clienteId: primera.id, cliente: primera.name } : {}) }}
       lineasIniciales={lineasIniciales}
       empresas={empresas}
+      marcarObra={({ valor, poner, municipio: mun }) => <PuntoObra valor={valor} poner={poner} municipio={mun} />}
       onEnviar={enviar}
     />
   );

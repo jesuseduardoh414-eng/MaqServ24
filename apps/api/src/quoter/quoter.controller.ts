@@ -8,7 +8,7 @@ import { JwtGuard, type AuthedRequest } from '../auth/jwt.guard';
 import { completarTelefono, datosDeCuenta } from '../common/cuenta';
 import { QuoterService } from './quoter.service';
 import { QuoterServicio, type ServicioAbierto } from './quoter-servicio';
-import { partidasPublicas, primerError, solicitudSitioSchema, tipoDe } from './quoter.dto';
+import { partidasPublicas, primerError, puntoEnMexico, solicitudSitioSchema, tipoDe } from './quoter.dto';
 import { conCandado } from '../common/candado';
 import { prisma } from '@maqserv/db';
 
@@ -170,7 +170,15 @@ export class QuoterController {
         cliente,
         userId,
         // La empresa que eligió (2026-10-23); obra y fecha ya no se piden (2026-11-03) y van solo si llegan.
-        destino: { clientId: datos.clienteId ?? null, siteId: datos.obraId ?? null, direccion: datos.direccion || null, fecha: datos.fecha || null, ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? datos.ubicacion || null : null },
+        destino: {
+          clientId: datos.clienteId ?? null,
+          siteId: datos.obraId ?? null,
+          direccion: datos.direccion || null,
+          fecha: datos.fecha || null,
+          ubicacion: tipo === 'triturados' && llevaFlete(partidas) ? datos.ubicacion || null : null,
+          // El punto exacto que marcó (2026-11-27): la obra se guarda con él.
+          punto: puntoEnMexico(datos.punto),
+        },
       });
     } catch (e) {
       this.log.error(`No se pudo abrir el servicio de ${cot.folio}: ${(e as Error).message}`);

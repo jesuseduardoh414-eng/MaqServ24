@@ -289,11 +289,23 @@ export interface ContextoCotizador {
   fecha: string;
   /** Triturados con flete (2026-10-29): la ubicación de la obra en Google Maps, para medir el flete. */
   ubicacion: string;
+  /**
+   * Sitio (2026-11-27): el punto exacto de la obra que marcó el cliente con
+   * «Usar mi ubicación» o en el mapa. Opcional; no sale impreso. La API lo
+   * guarda en la obra, y de ahí lo toman el operador y los mapas del panel.
+   */
+  punto: PuntoObra | null;
 }
+
+/** Un punto en el mapa, en grados. */
+export interface PuntoObra { lat: number; lng: number }
+
+/** El enlace de Google Maps de un punto: llena solo la ubicación que piden los triturados con flete. */
+export const enlaceDePunto = (p: PuntoObra) => `https://www.google.com/maps?q=${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
 
 export const CONTEXTO_VACIO: ContextoCotizador = {
   cliente: '', obra: '', atencion: '', municipio: '', correo: '', telefono: '', notas: '',
-  clienteId: null, obraId: null, direccion: '', fecha: '', ubicacion: '',
+  clienteId: null, obraId: null, direccion: '', fecha: '', ubicacion: '', punto: null,
 };
 
 /** Un cliente registrado, para el cotizador del panel (GET admin/quoter/clientes). */
