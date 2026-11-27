@@ -20,6 +20,7 @@ import { SinPreciosEnElSitio20261112 } from './sin-precios-en-el-sitio-2026-11-1
 import { CalAMateriales20261118 } from './cal-a-materiales-2026-11-18';
 import { Acarreos20261118 } from './acarreos-2026-11-18';
 import { CapacidadesExcavadora20261118 } from './capacidades-excavadora-2026-11-18';
+import { CorreoVentas20261127 } from './correo-ventas-2026-11-27';
 import { Bulldozer20261120 } from './bulldozer-2026-11-20';
 import { OrdenMaquinaria20261120 } from './orden-maquinaria-2026-11-20';
 import { QuoterController } from './quoter.controller';
@@ -47,7 +48,7 @@ import { Recotizar } from './recotizar';
   // CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030,
   // Mixtos20261030, CondicionesPorLinea20261102, Precios20261103, PreciosAsfalto20261106, BlockPresentaciones20261106, Camiones20261106, CalDePatio20261106,
   // CarpetaModificada20261110, Camiones20261112 y SinPreciosEnElSitio20261112: ponen al día los tabuladores una sola vez, al arrancar.
-  providers: [QuoterService, ServiceService, QuoterServicio, Recotizar, CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030, Mixtos20261030, CondicionesPorLinea20261102, Precios20261103, PreciosAsfalto20261106, BlockPresentaciones20261106, Camiones20261106, CalDePatio20261106, CarpetaModificada20261110, Camiones20261112, SinPreciosEnElSitio20261112, CalAMateriales20261118, Acarreos20261118, CapacidadesExcavadora20261118, Bulldozer20261120, OrdenMaquinaria20261120],
+  providers: [QuoterService, ServiceService, QuoterServicio, Recotizar, CobroPorHora, ServiciosPorZona, Triturados20261029, PreciosEnElSitio, CondicionesTriturados20261030, DatosDePago20261030, Mixtos20261030, CondicionesPorLinea20261102, Precios20261103, PreciosAsfalto20261106, BlockPresentaciones20261106, Camiones20261106, CalDePatio20261106, CarpetaModificada20261110, Camiones20261112, SinPreciosEnElSitio20261112, CalAMateriales20261118, Acarreos20261118, CapacidadesExcavadora20261118, Bulldozer20261120, OrdenMaquinaria20261120, CorreoVentas20261127],
   // QuoterServicio también: al marcar "Aceptada" en el panel se abre el servicio.
   // Recotizar: el desglose y el lápiz de Solicitudes, y "Volver a cotizar" (2026-10-23).
   exports: [QuoterService, QuoterServicio, Recotizar],

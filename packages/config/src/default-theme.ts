@@ -365,7 +365,7 @@ export const defaultTheme: Theme = {
       ],
       phone: '+52 1 81 4021 3277',
       whatsapp: '+52 1 81 4021 3277',
-      email: 'info@maqser24.com',
+      email: 'ventas@maqser24.com',
       hours: 'Lun–Sáb · 8:00–18:00',
       address: '',
       urgent: { show: true, eyebrow: 'Renta urgente', title: '¿Necesitas equipo hoy mismo?', ctaLabel: 'Llamar ahora' },

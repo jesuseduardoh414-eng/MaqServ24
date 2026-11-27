@@ -49,7 +49,7 @@ const EMPRESA: EmpresaCotizador = {
   rfc: '',
   direccion: '',
   telefono: '+52 1 81 4021 3277',
-  correo: 'info@maqser24.com',
+  correo: 'ventas@maqser24.com',
   web: 'maqser24.com',
 };
 

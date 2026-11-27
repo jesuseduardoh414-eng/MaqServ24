@@ -438,16 +438,16 @@ Sin SPF y DKIM bien puestos, Gmail y Outlook mandan todo a spam o lo rechazan.
 
 ### Encender el envío de la plataforma
 
-Crea un buzón dedicado (p. ej. `avisos@maqserv24.com`) y agrega a la app **api**:
+Desde el 2026-11-27 la plataforma sale de **ventas@maqser24.com**, el único buzón que se atiende (el dueño quitó avisos@). Agrega a la app **api**:
 
 | Variable | Valor |
 |---|---|
 | `MAIL_ENABLED` | `true` — freno explícito; sin esto nada sale |
-| `SMTP_HOST` | `mail.maqserv24.com` |
+| `SMTP_HOST` | `mail.maqser24.com` |
 | `SMTP_PORT` | `465` (el código usa TLS implícito en 465 y STARTTLS en 587) |
-| `SMTP_USER` | `avisos@maqserv24.com` — la dirección **completa**, no solo el nombre |
+| `SMTP_USER` | `ventas@maqser24.com` — la dirección **completa**, no solo el nombre |
 | `SMTP_PASS` | la contraseña del buzón |
-| `MAIL_FROM` | `avisos@maqserv24.com` |
+| `MAIL_FROM` | `ventas@maqser24.com` |
 | `MAIL_FROM_NAME` | `MAQSER24` |
 
 Restart, y comprueba en el panel admin → **Correo**: te dice si está configurado,
