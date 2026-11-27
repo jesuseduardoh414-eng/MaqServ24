@@ -149,7 +149,7 @@ export function enCaminoDe(u: UnidadEnCamino, ahora: number): { texto: string; a
     });
   }
   if (u.fueraDeRuta) alertas.push({ tono: 'bad', texto: `Fuera de ruta · a ${u.desvioKm} km del camino`, titulo: 'Anda lejos del camino entre la salida y la obra' });
-  if (!u.ultima) alertas.push({ tono: 'warn', texto: 'No comparte su ubicación', titulo: 'El aliado no ha abierto su portal en el teléfono' });
+  if (!u.ultima) alertas.push({ tono: 'warn', texto: 'No comparte su ubicación', titulo: 'El operador no ha abierto su enlace en el teléfono' });
   else if (vieja) alertas.push({ tono: 'warn', texto: `Sin señal · ${hace(u.ultima.at, ahora)}`, titulo: 'Cerró el portal o se quedó sin señal' });
   if (llegando) alertas.push({ tono: 'ok', texto: 'Llegando' });
   else if (prometida != null && !retrasada && llega != null) alertas.push({ tono: 'ok', texto: 'A tiempo', titulo: `Prometió llegar a las ${hora(prometida)}` });
@@ -235,7 +235,7 @@ export function MapaServicios({ datos, ahora }: { datos: Rastreo; ahora: number 
         // Por calles si se pudo; si no, en línea recta. Punteada mientras no sale.
         r.push({ linea: s.ruta?.linea ?? [[s.base.lat, s.base.lng], [s.obra.lat, s.obra.lng]], color: col(s.etapa), punteada: s.etapa === 'asignado', ancho: 5 });
       }
-      if (s.base) p.push({ id: 4_000_000 + s.quoteId, nombre: `Base de ${s.aliado?.nombre ?? 'el aliado'}`, lat: s.base.lat, lng: s.base.lng, tipo: 'salida', color: COLOR_BASE, icono: 'ph-warehouse', detalle: s.ruta ? `A la obra: ${s.ruta.km} km · ${duracion(s.ruta.min)}` : null });
+      if (s.base) p.push({ id: 4_000_000 + s.quoteId, nombre: `Base de ${s.aliado?.nombre ?? 'el proveedor'}`, lat: s.base.lat, lng: s.base.lng, tipo: 'salida', color: COLOR_BASE, icono: 'ph-warehouse', detalle: s.ruta ? `A la obra: ${s.ruta.km} km · ${duracion(s.ruta.min)}` : null });
       if (s.obra) p.push({ id: 3_000_000 + s.quoteId, nombre: nombreObra(s.cliente, s.obra), lat: s.obra.lat, lng: s.obra.lng, tipo: 'obra', color: col(s.etapa), icono: s.etapa === 'asignado' ? 'ph-hard-hat' : 'ph-gear-six', detalle: ficha(s, etapa.nombre, s.folio) });
     };
     if (capas.asignados) asignados.forEach(servicio);
@@ -243,7 +243,7 @@ export function MapaServicios({ datos, ahora }: { datos: Rastreo; ahora: number 
     if (capas.porAsignar) {
       for (const s of esperan) {
         if (!s.obra) continue;
-        p.push({ id: 5_000_000 + s.quoteId, nombre: nombreObra(s.cliente, s.obra), lat: s.obra.lat, lng: s.obra.lng, tipo: 'obra', color: col('por_asignar'), icono: 'ph-hourglass-medium', detalle: [`Por asignar · ${s.folio}`, s.equipo, 'espera aliado'].filter(Boolean).join(' · ') });
+        p.push({ id: 5_000_000 + s.quoteId, nombre: nombreObra(s.cliente, s.obra), lat: s.obra.lat, lng: s.obra.lng, tipo: 'obra', color: col('por_asignar'), icono: 'ph-hourglass-medium', detalle: [`Por asignar · ${s.folio}`, s.equipo, 'falta decir quién lo hace'].filter(Boolean).join(' · ') });
       }
     }
     // Las unidades en camino al final, para que queden encima: lo que ya anduvo
@@ -284,7 +284,7 @@ export function MapaServicios({ datos, ahora }: { datos: Rastreo; ahora: number 
     <Panel
       title="Mapa de servicios"
       icon="ph-map-trifold"
-      desc="De la base de cada aliado a su obra, por calles, con el color de su etapa. Los que van en camino, con su ubicación en vivo. Toca un punto para ver la obra, la máquina, el operador y su teléfono."
+      desc="De la base de cada proveedor a su obra, por calles, con el color de su etapa. Los que van en camino, con su ubicación en vivo. Toca un punto para ver la obra, la máquina, el operador y su teléfono."
       style={{ marginBottom: 20 }}
     >
       <style>{`
@@ -303,15 +303,15 @@ export function MapaServicios({ datos, ahora }: { datos: Rastreo; ahora: number 
         .ms-base { display: inline-flex; align-items: center; gap: 7px; margin-left: 4px; font-size: 12.5px; color: var(--adm-muted); }
       `}</style>
       <Toolbar>
-        <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, folio, equipo, aliado u obra…" aria-label="Buscar en el mapa de servicios" />
+        <SearchBox value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cliente, folio, equipo, proveedor u obra…" aria-label="Buscar en el mapa de servicios" />
       </Toolbar>
       <div className="ms-capas" role="group" aria-label="Qué enseñar en el mapa">
         {capa('asignados', 'Asignados', asignados.length, col('asignado'), 'ph-hard-hat')}
         {capa('camino', 'En camino', enCamino.length, col('en_traslado'), 'ph-truck')}
         {capa('obra', 'En obra', enObra.length, col('en_sitio'), 'ph-gear-six')}
         {capa('porAsignar', 'Por asignar', esperan.length, col('por_asignar'), 'ph-hourglass-medium')}
-        {capa('aliados', 'Aliados', red.length, '#008CFF', 'ph-handshake')}
-        <span className="ms-base"><span className="ms-capa-ico" style={{ '--c': COLOR_BASE, background: COLOR_BASE, color: '#fff' } as React.CSSProperties}><i className="ph-bold ph-warehouse" aria-hidden /></span>Base del aliado · punteada: aún no sale</span>
+        {capa('aliados', 'Proveedores', red.length, '#008CFF', 'ph-handshake')}
+        <span className="ms-base"><span className="ms-capa-ico" style={{ '--c': COLOR_BASE, background: COLOR_BASE, color: '#fff' } as React.CSSProperties}><i className="ph-bold ph-warehouse" aria-hidden /></span>Base del proveedor · punteada: aún no sale</span>
       </div>
       <MapaCobertura puntos={puntos} rutas={rutas} alto={440} tema="oscuro" />
     </Panel>

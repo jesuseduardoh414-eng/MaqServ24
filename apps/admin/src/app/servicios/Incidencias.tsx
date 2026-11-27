@@ -41,7 +41,7 @@ interface Tipo { clave: string; label: string; ejemplo: string }
 
 const TONO_SEV: Record<string, Tone> = { alta: 'bad', media: 'warn', baja: 'muted' };
 const RESPONSABLE: Record<string, string> = {
-  cliente: 'Del cliente', aliado: 'Del aliado', plataforma: 'Nuestra', nadie: 'De nadie',
+  cliente: 'Del cliente', aliado: 'Del proveedor', plataforma: 'Nuestra', nadie: 'De nadie',
 };
 
 const fecha = (iso: string | null) =>
@@ -211,7 +211,7 @@ export function Incidencias({
       valor: responsable || 'nadie',
       opciones: [
         { valor: 'cliente', texto: 'Del cliente' },
-        { valor: 'aliado', texto: 'Del aliado' },
+        { valor: 'aliado', texto: 'Del proveedor' },
         { valor: 'plataforma', texto: 'Nuestra (MAQSER24)' },
         { valor: 'nadie', texto: 'De nadie' },
       ],
@@ -276,7 +276,7 @@ export function Incidencias({
                 onChange={(v) => setF({ ...f, responsible: v })}
                 options={[
                   { value: 'nadie', label: 'De nadie / aún no se sabe' },
-                  { value: 'aliado', label: 'Del aliado' },
+                  { value: 'aliado', label: 'Del proveedor' },
                   { value: 'cliente', label: 'Del cliente' },
                   { value: 'plataforma', label: 'Nuestra' },
                 ]}

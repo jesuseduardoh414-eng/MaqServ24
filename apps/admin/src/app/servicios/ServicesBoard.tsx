@@ -1,8 +1,7 @@
 'use client';
 
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { AdminSelect } from '@/components/AdminSelect';
-import { Modal } from '@/components/Modal';
 import {
   Bar, Btn, Chip, EmptyState, FormField, Note, PageHeader, Panel, SearchBox, Segmented, Stat, Stats, StatusText, Toolbar, type Tone,
 } from '@/components/ui';
@@ -11,7 +10,6 @@ import { AsignarServicio } from './AsignarServicio';
 import { OperadorServicio } from './OperadorServicio';
 import { COLOR_ETAPA, MapaServicios, enCaminoDe, useRastreo, type Rastreo } from './UnidadesEnCamino';
 import { useRouter } from 'next/navigation';
-import { MapaCobertura, type PuntoMapa } from '@/app/proveedores/MapaCobertura';
 import { confirmar, pedirTexto } from '@/components/Dialogos';
 import { anotarSolo } from '@/lib/trato';
 
@@ -101,7 +99,7 @@ const EN_OPERACION = ['asignado', 'en_traslado', 'en_sitio', 'en_curso'];
 /** El motivo con el que la API marca al aliado que se bajó a medio servicio (catalog/provider-history.ts). */
 const MOTIVO_SE_BAJO = 'Se bajó del servicio';
 
-const aliados = (n: number) => `${n} ${n === 1 ? 'aliado' : 'aliados'}`;
+const proveedores = (n: number) => `${n} ${n === 1 ? 'proveedor' : 'proveedores'}`;
 const nombres = (l: ServicioRow['assignments']) => l.map((a) => a.provider).join(', ');
 
 /**
@@ -120,7 +118,7 @@ function resumenOferta(s: ServicioRow): { mandada: string; estado: string; detal
   const esperando = s.assignments.filter((a) => a.state === 'propuesto');
   const noPueden = s.assignments.filter((a) => a.state === 'rechazado' || a.state === 'retirado');
   const retirados = s.assignments.filter((a) => a.state === 'tomado');
-  const mandada = `Se mandó a ${aliados(n)}`;
+  const mandada = `Se mandó a ${proveedores(n)}`;
 
   // Desde el 2026-11-12 se asigna directo (MAQSER24 o un proveedor): sin nadie, «por asignar».
   if (n === 0) return { mandada: '', estado: 'Por asignar', detalle: '', corto: 'por asignar', tono: 'warn' };
@@ -139,15 +137,15 @@ function resumenOferta(s: ServicioRow): { mandada: string; estado: string; detal
       mandada,
       estado: esperando.length === n ? 'Esperando respuesta' : `Esperando respuesta de ${esperando.length}`,
       detalle: no,
-      corto: `mandada a ${aliados(n)}, esperando respuesta`,
+      corto: `mandada a ${proveedores(n)}, esperando respuesta`,
       tono: 'warn',
     };
   }
   return {
     mandada,
     estado: n === 1 ? 'No puede' : 'Ninguno puede',
-    detalle: '· búscale otro',
-    corto: n === 1 ? 'el aliado no puede: búscale otro' : `ninguno de los ${n} aliados puede: búscale otro`,
+    detalle: '· asígnalo a otro',
+    corto: n === 1 ? 'el proveedor no puede: asígnalo a otro' : `ninguno de los ${n} proveedores puede: asígnalo a otro`,
     tono: 'bad',
   };
 }
@@ -206,42 +204,10 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
   const [error, setError] = useState<string | null>(null);
   /** Servicio cuyo cierre se está capturando. */
   const [cerrando, setCerrando] = useState<ServicioRow | null>(null);
-  /** Servicio al que se le está buscando aliado. */
-  const [asignando, setAsignando] = useState<ServicioRow | null>(null);
   /** Asignar directo (2026-11-12): lo hace MAQSER24 o un proveedor, sin ofrecérselo a nadie. */
   const [asignandoDirecto, setAsignandoDirecto] = useState<ServicioRow | null>(null);
   /** Servicio cuyas incidencias se están viendo. */
   const [incidencias, setIncidencias] = useState<ServicioRow | null>(null);
-  /**
-   * Que hacer con cada servicio, segun el alterno. Se pide UNA vez para todo
-   * el tablero al montar: uno por tarjeta serian tantas peticiones como
-   * servicios cada vez que alguien abre la pantalla.
-   */
-  const [acciones, setAcciones] = useState<Record<number, { accion: string | null; alternativas: number }>>({});
-
-  useEffect(() => {
-    let vivo = true;
-    // Solo los que aun no tienen a nadie trabajando: un servicio en curso no
-    // necesita alterno, y preguntarlo seria gastar viajes para nada.
-    const pendientes = initial.filter((s) => !s.assignments.some((a) => a.state === 'aceptado'));
-    Promise.all(
-      pendientes.map((s) =>
-        fetch(`/api/admin/quotes/${s.id}/alterno`)
-          .then((r) => (r.ok ? r.json() : null))
-          .then((d) => [s.id, d] as const)
-          .catch(() => [s.id, null] as const),
-      ),
-    ).then((pares) => {
-      if (!vivo) return;
-      const mapa: Record<number, { accion: string | null; alternativas: number }> = {};
-      for (const [id, d] of pares) {
-        if (d) mapa[id] = { accion: d.accion, alternativas: d.alternativas?.length ?? 0 };
-      }
-      setAcciones(mapa);
-    });
-    return () => { vivo = false; };
-  }, [initial]);
-
   const filtrados = useMemo(() => {
     const q = filtro.trim().toLowerCase();
     if (!q) return initial;
@@ -453,9 +419,10 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
           icon="ph-user-plus"
           tone={cuenta.porAsignar > 0 ? 'warn' : 'muted'}
           value={cuenta.porAsignar}
-          hint="sin aliado confirmado"
+          hint="falta decir quién lo hace"
         />
-        <Stat label="Esperando respuesta" icon="ph-hourglass-medium" tone={cuenta.esperando > 0 ? 'info' : 'muted'} value={cuenta.esperando} hint="de un aliado" />
+        {/* Solo ofertas de antes del 2026-11-12, cuando se ofrecía y se esperaba respuesta; hoy se asigna directo. */}
+        {cuenta.esperando > 0 ? <Stat label="Esperando respuesta" icon="ph-hourglass-medium" tone="info" value={cuenta.esperando} hint="ofertas de antes, sin contestar" /> : null}
         <Stat label="En operación" icon="ph-steering-wheel" tone="accent" value={cuenta.enOperacion} hint="asignados o en marcha" />
         <Stat
           label="Por cerrar"
@@ -507,7 +474,6 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
           const tono = TONO_ESTADO[s.state] ?? 'accent';
           const aceptado = s.assignments.filter((a) => a.state === 'aceptado');
           const esperando = s.assignments.filter((a) => a.state === 'propuesto');
-          const alterno = acciones[s.id];
           const oferta = resumenOferta(s);
           const unidad = s.state === 'en_traslado' ? unidadDe.get(s.id) : undefined;
           const camino = unidad ? enCaminoDe(unidad, ahora) : null;
@@ -592,28 +558,8 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                 </div>
               ) : null}
 
-              {/*
-                PROVEEDOR ALTERNO. Antes, una propuesta sin respuesta se quedaba
-                parada hasta que alguien se acordaba de ella. El silencio se
-                mide contra lo que ESE aliado suele tardar, no contra un plazo
-                fijo: cuatro horas dicen algo de quien contesta en once minutos
-                y no dicen nada de quien siempre tarda dos horas y media.
-              */}
-              {alterno?.accion ? (
-                <Note tone="warn" style={{ marginTop: 12 }}>
-                  <div style={{ display: 'flex', gap: '8px 12px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                    <span style={{ color: 'var(--adm-text)' }}>{alterno.accion}</span>
-                    {alterno.alternativas > 0 ? (
-                      <Btn size="sm" onClick={() => setAsignando(s)}>Ver {alterno.alternativas} alterno(s)</Btn>
-                    ) : null}
-                  </div>
-                </Note>
-              ) : null}
-
               {/* Acciones */}
               <div className="srv-acciones">
-                {/* Buscar aliado solo mientras nadie lo atiende (2026-10-26): ya con aliado no
-                    se suma otro; si el que tenía se bajó, vuelve a salir como "Buscar otro aliado". */}
                 {/* ASIGNAR (2026-11-12, MAQSER24 opera solo): lo hace MAQSER24 o un proveedor, directo. */}
                 {aceptado.length === 0 && !['terminado', 'cerrado', 'cancelado'].includes(s.state) ? (
                   <Btn size="sm" variant="primary" icon="ph-user-plus" onClick={() => setAsignandoDirecto(s)}>
@@ -659,7 +605,7 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
                         <AdminSelect
                           size="sm"
                           className="w-auto min-w-[150px] h-[30px] text-[12.5px]"
-                          ariaLabel={`Corregir la etapa de ${s.quoteNumber} (solo si el aliado no puede reportarla o la marcó mal)`}
+                          ariaLabel={`Corregir la etapa de ${s.quoteNumber} (solo si el operador no pudo reportarla o la marcó mal)`}
                           value=""
                           placeholder="Corregir etapa…"
                           disabled={ocupado === s.id}
@@ -747,8 +693,6 @@ export function ServicesBoard({ initial, historial = false, rastreo = null }: {
       </div>
 
       {cerrando ? <ModalCierre servicio={cerrando} onCerrar={() => setCerrando(null)} onGuardar={mover} ocupado={ocupado === cerrando.id} /> : null}
-      {/* Se queda abierta al ofrecer (2026-10-23): se le puede ofrecer a varios, uno por uno, sin volver a buscar. */}
-      {asignando ? <ModalAsignar servicio={asignando} onCerrar={() => setAsignando(null)} onCambio={() => router.refresh()} /> : null}
       {asignandoDirecto ? <AsignarServicio servicio={asignandoDirecto} onCerrar={() => setAsignandoDirecto(null)} onCambio={() => router.refresh()} /> : null}
       {incidencias ? <Incidencias quoteId={incidencias.id} quoteNumber={incidencias.quoteNumber} onCerrar={() => setIncidencias(null)} /> : null}
     </div>
@@ -828,240 +772,5 @@ function ModalCierre({
         />
       </FormField>
     </VentanaFormulario>
-  );
-}
-
-/**
- * BUSCAR ALIADO. Reusa el emparejamiento: los mismos candidatos con las mismas
- * razones que se ven al cotizar. Ofrecer NO asigna — queda esperando respuesta
- * hasta que el aliado contesta, porque un tablero que dé por resuelto algo que
- * nadie aceptó es peor que no tener tablero.
- *
- * Desde el 2026-10-23 nada sale solo cuando el cliente acepta: aquí MAQSER24
- * elige a quién se la da. A uno, a varios (la ventana se queda abierta) o
- * "Mandar a todos" los que llegan a la obra; el primero que acepta se la queda.
- */
-function ModalAsignar({
-  servicio, onCerrar, onCambio,
-}: {
-  servicio: ServicioRow;
-  onCerrar: () => void;
-  /** Se ofreció a alguien: el tablero se refresca sin cerrar la ventana. */
-  onCambio: () => void;
-}) {
-  const [datos, setDatos] = useState<{
-    motivo: string | null;
-    obra?: { lat: number; lng: number; label: string } | null;
-    matches: Array<{ providerId: number; name: string; verified: boolean; level: string; score: number; reasons: string[]; warnings: string[]; siteRequirements?: Array<{ texto: string; estado: string; nota: string }>; lat?: number | null; lng?: number | null; coverageRadiusKm?: number | null; distanceKm?: number | null }>;
-  } | null>(null);
-  const [cargando, setCargando] = useState(true);
-  const [enviando, setEnviando] = useState<number | null>(null);
-  /** A quiénes se les ofreció desde que se abrió la ventana (el `servicio` que llegó ya no se actualiza). */
-  const [ofrecidosAhora, setOfrecidosAhora] = useState<Set<number>>(() => new Set());
-  const [errorOferta, setErrorOferta] = useState<string | null>(null);
-  /** "Mandar a todos": a quiénes les llegaría (la API aplica la misma regla) y a quiénes se les mandó. */
-  const [todos, setTodos] = useState<{ candidatos: string[]; motivo: string | null } | null>(null);
-  const [mandadoATodos, setMandadoATodos] = useState<string[] | null>(null);
-  const [mandandoTodos, setMandandoTodos] = useState(false);
-  const porAsignar = servicio.state === 'por_asignar' && !servicio.assignments.some((a) => a.state === 'aceptado');
-
-  useEffect(() => {
-    if (!porAsignar) return;
-    let vivo = true;
-    fetch(`/api/admin/services/${servicio.id}/ofrecer-todos`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (vivo && d && Array.isArray(d.candidatos)) setTodos({ candidatos: d.candidatos, motivo: d.motivo ?? null }); })
-      .catch(() => undefined);
-    return () => { vivo = false; };
-    // Se vuelve a pedir después de cada oferta: a quien ya se le ofreció ya no cuenta.
-  }, [servicio.id, porAsignar, ofrecidosAhora]);
-
-  useEffect(() => {
-    let vivo = true;
-    // `r.ok` explícito: un 500 NO hace que fetch lance, así que sin esto el
-    // `.catch` no corre y lo que entra a setDatos es el cuerpo del error
-    // (`{message, statusCode}`). Renderizar eso revienta al hacer `.map` sobre
-    // `matches`, que no existe.
-    fetch(`/api/admin/quotes/${servicio.id}/matches`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`La API respondió ${r.status}.`))))
-      .then((d) => {
-        if (!vivo) return;
-        setDatos(Array.isArray(d?.matches) ? d : { motivo: 'La API respondió algo inesperado.', matches: [] });
-      })
-      .catch(() => { if (vivo) setDatos({ motivo: 'No se pudo consultar la red.', matches: [] }); })
-      .finally(() => { if (vivo) setCargando(false); });
-    // `vivo` evita escribir en un componente ya cerrado: el modal se puede
-    // cerrar antes de que conteste la API.
-    return () => { vivo = false; };
-  }, [servicio.id]);
-
-  /** La obra y los candidatos ubicados. Mismo mapa que en cotizaciones. */
-  const puntos = useMemo<PuntoMapa[]>(() => {
-    if (!datos?.obra) return [];
-    return [
-      { id: -1, nombre: 'La obra', lat: datos.obra.lat, lng: datos.obra.lng, tipo: 'obra', detalle: datos.obra.label },
-      ...datos.matches
-        .filter((m) => m.lat != null && m.lng != null)
-        .map((m) => ({
-          id: m.providerId,
-          nombre: m.name,
-          lat: m.lat as number,
-          lng: m.lng as number,
-          radioKm: m.coverageRadiusKm ?? null,
-          tipo: 'aliado' as const,
-          detalle: m.distanceKm != null ? `A ${m.distanceKm} km de la obra` : null,
-        })),
-    ];
-  }, [datos]);
-
-  async function ofrecer(providerId: number) {
-    setEnviando(providerId);
-    setErrorOferta(null);
-    const r = await fetch(`/api/admin/services/${servicio.id}/ofrecer`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ providerId }),
-    }).catch(() => null);
-    setEnviando(null);
-    if (!r?.ok) {
-      const j = await r?.json().catch(() => null);
-      setErrorOferta(j?.message ?? 'No se pudo ofrecer. Inténtalo de nuevo.');
-      return;
-    }
-    setOfrecidosAhora((prev) => new Set(prev).add(providerId));
-    onCambio();
-  }
-
-  async function mandarATodos() {
-    if (!todos?.candidatos.length) return;
-    const n = todos.candidatos.length;
-    const ok = await confirmar({
-      titulo: `¿Mandarlo a ${n === 1 ? 'el aliado' : `los ${n} aliados`} que llegan a la obra?`,
-      mensaje: `Le llega a ${todos.candidatos.join(', ')}. El primero que acepte se lo queda y a los demás se les retira.`,
-      confirmar: `Mandar a ${n === 1 ? '1 aliado' : `${n} aliados`}`,
-    });
-    if (!ok) return;
-    setMandandoTodos(true);
-    setErrorOferta(null);
-    const r = await fetch(`/api/admin/services/${servicio.id}/ofrecer-todos`, { method: 'POST' }).catch(() => null);
-    setMandandoTodos(false);
-    const j = await r?.json().catch(() => null);
-    if (!r?.ok) { setErrorOferta(j?.message ?? 'No se pudo mandar. Inténtalo de nuevo.'); return; }
-    if (!j?.ofrecidos?.length) { setErrorOferta(j?.motivo ?? 'No se le mandó a nadie.'); return; }
-    setMandadoATodos(j.ofrecidos);
-    const ids = (datos?.matches ?? []).filter((m) => j.ofrecidos.includes(m.name)).map((m) => m.providerId);
-    setOfrecidosAhora((prev) => new Set([...prev, ...ids]));
-    onCambio();
-  }
-
-  const matches = datos?.matches ?? [];
-
-  return (
-    <Modal
-      abierto
-      titulo="Buscar aliado"
-      subtitulo={`${servicio.equipo ?? servicio.categoryName ?? servicio.category ?? 'Sin línea'} · ${servicio.obra ?? servicio.address ?? 'Sin zona'}. Ofrecerlo no lo asigna: queda esperando su respuesta.`}
-      onCerrar={onCerrar}
-      ancho={600}
-      pie={<Btn onClick={onCerrar}>{ofrecidosAhora.size ? 'Listo' : 'Cerrar'}</Btn>}
-    >
-      {cargando ? <div style={{ fontSize: 13, color: 'var(--adm-muted)', padding: '6px 0 14px' }}>Consultando la red…</div> : null}
-
-      {/* MANDAR A TODOS (2026-10-23): la otra forma de dárselo, además de "Ofrecerle" uno por uno. */}
-      {mandadoATodos ? (
-        <Note tone="ok" icon="ph-check-circle" style={{ marginBottom: 14 }}>
-          Se le mandó a <strong>{mandadoATodos.join(', ')}</strong>. El primero que acepte se lo queda.
-        </Note>
-      ) : porAsignar && todos ? (
-        todos.candidatos.length ? (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px 12px', flexWrap: 'wrap', marginBottom: 14, padding: '10px 12px', border: '1px solid var(--adm-border)', borderRadius: 10 }}>
-            <span style={{ fontSize: 13, color: 'var(--adm-text-2)', minWidth: 0, flex: '1 1 260px' }}>
-              Llegan a la obra <strong style={{ color: 'var(--adm-text)' }}>{todos.candidatos.length}</strong> {todos.candidatos.length === 1 ? 'aliado' : 'aliados'} a los que aún no se les ofrece. Ofrécelo a uno abajo o mándalo a todos.
-            </span>
-            <Btn size="sm" variant="primary" icon="ph-paper-plane-tilt" onClick={mandarATodos} disabled={mandandoTodos || enviando !== null}>
-              {mandandoTodos ? 'Mandando…' : `Mandar a todos (${todos.candidatos.length})`}
-            </Btn>
-          </div>
-        ) : todos.motivo && matches.length > 0 ? (
-          // Sin nadie en la lista, el motivo ya sale abajo: no se repite.
-          <div style={{ fontSize: 12.5, color: 'var(--adm-muted)', marginBottom: 12 }}>{todos.motivo}</div>
-        ) : null
-      ) : null}
-      {errorOferta ? <Note tone="bad" style={{ marginBottom: 12 }}>{errorOferta}</Note> : null}
-
-      {/* El mapa antes de la lista: al asignar, la primera pregunta es quién
-          está cerca, y "a 12 km" no dice hacia qué lado. */}
-      {puntos.length > 1 ? (
-        <div style={{ marginBottom: 16 }}>
-          <MapaCobertura puntos={puntos} alto={230} />
-          {/* Los colores de la leyenda son los de los marcadores de MapaCobertura. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 8, fontSize: 12, color: 'var(--adm-muted)' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#E0A32E' }} /> La obra
-            </span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#008CFF' }} /> Aliado y hasta dónde llega
-            </span>
-          </div>
-        </div>
-      ) : null}
-
-      {datos && matches.length === 0 && !cargando && datos.motivo ? <Note>{datos.motivo}</Note> : null}
-
-      {matches.length > 0 ? (
-        <Panel flush clip>
-          {matches.map((m) => {
-            // Quien ya paso por aqui no es una alternativa: al que espera
-            // respuesta se le estaria duplicando, y al que ya dijo que no,
-            // insistir es solo ruido. Sin esto el mejor puntuado se propondria
-            // en bucle despues de haber rechazado.
-            const previa = servicio.assignments.find((a) => a.providerId === m.providerId);
-            const ahora = ofrecidosAhora.has(m.providerId);
-            const yaTiene = ahora || (previa !== undefined && previa.state !== 'retirado');
-            const etiqueta =
-              previa?.state === 'rechazado' ? 'Ya dijo que no'
-                : previa?.state === 'aceptado' ? 'Ya aceptó'
-                  : previa || ahora ? 'Ya se le ofreció'
-                    : null;
-            return (
-              <div key={m.providerId} className="adm-trow">
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
-                    <span className="adm-cell-title">{m.name}</span>
-                    {m.verified ? <Chip tone="ok"><i className="ph ph-seal-check" aria-hidden />Verificado</Chip> : null}
-                  </div>
-                  <Btn
-                    size="sm"
-                    variant={yaTiene ? 'ghost' : 'secondary'}
-                    icon={yaTiene ? undefined : 'ph-paper-plane-tilt'}
-                    disabled={yaTiene || enviando !== null}
-                    onClick={() => ofrecer(m.providerId)}
-                  >
-                    {etiqueta ?? (enviando === m.providerId ? 'Enviando…' : 'Ofrecerle')}
-                  </Btn>
-                </div>
-                {previa?.reason ? (
-                  <div className="adm-cell-sub" style={{ marginTop: 5 }}>Dijo: “{previa.reason}”</div>
-                ) : null}
-                {m.reasons.length + m.warnings.length > 0 ? (
-                  <ul style={{ margin: '8px 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: 3 }}>
-                    {m.reasons.map((r) => (
-                      <li key={r} style={{ display: 'flex', gap: 7, fontSize: 12.5, color: 'var(--adm-text-2)', lineHeight: 1.5 }}>
-                        <i className="ph ph-plus" aria-hidden style={{ color: 'var(--adm-accent)', marginTop: 3, fontSize: 11 }} />{r}
-                      </li>
-                    ))}
-                    {m.warnings.map((w) => (
-                      <li key={w} style={{ display: 'flex', gap: 7, fontSize: 12.5, color: 'var(--adm-muted)', lineHeight: 1.5 }}>
-                        <i className="ph ph-warning" aria-hidden style={{ color: 'var(--adm-warn)', marginTop: 3, fontSize: 11 }} />{w}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            );
-          })}
-        </Panel>
-      ) : null}
-    </Modal>
   );
 }
